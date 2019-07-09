@@ -107,7 +107,7 @@ function estimate_parameters_node(n::AggregateFlow⋁; pseudocount)
         origin.log_thetas .= log.( (n.aggr_flow_children .+ uniform_pseudocount) ./ smoothed_aggr_flow )
         @assert isapprox(sum(exp.(origin.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally: $(exp.(origin.log_thetas)), estimated from $(n.aggr_flow) and $(n.aggr_flow_children). Did you actually compute the aggregate flows?"
         #normalize away any leftover error
-        origin.log_thetas .- log(sum(exp.(origin.log_thetas))) # TODO this can be optimized
+        origin.log_thetas .- logsumexp(origin.log_thetas)
     end
 end
 
@@ -120,8 +120,8 @@ end
 function compute_log_likelihood(afc::AggregateFlowCircuit△, data::XBatches{Bool})
     @assert feature_type(data) == Bool "Can only test probabilistic circuits on Bool data"
     collect_aggr_flows(afc, data)
-    test_ll = log_likelihood(afc)
-    (afc, test_ll)
+    ll = log_likelihood(afc)
+    (afc, ll)
 end
 
 # return likelihoods given current aggregate flows.
@@ -135,7 +135,12 @@ log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_chi
 function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})
     opts = (flow_opts★..., el_type=Bool, compact⋁=false) #keep default options but insist on Bool flows
     fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache(), opts)
-    pass_up_down(fc, plain_x_data(batch))
+    (fc, log_likelihood_per_instance(fc, batch))
+end
+
+function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool})
+    @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
     for n in fc
          add_log_likelihood_per_instance(n, log_likelihoods)
