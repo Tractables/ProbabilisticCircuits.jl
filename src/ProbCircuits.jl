@@ -23,7 +23,7 @@ end
 mutable struct Prob⋁ <: ProbInnerNode
     origin::CircuitNode
     children::Vector{<:ProbCircuitNode}
-    log_theta::Vector{Float64}
+    log_thetas::Vector{Float64}
 end
 
 const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
@@ -79,16 +79,14 @@ end
 num_parameters(n::Prob⋁) = num_children(n)
 @traitfn num_parameters(c::C) where {C; Circuit△{C}} = sum(n -> num_parameters(n), ⋁_nodes(c))
 
-function train_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::AggregateFlowCircuit△=aggr_flow_circuit(pc, data); pseudocount)
+function train_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::AggregateFlowCircuit△=aggr_flow_circuit(pc, data);
+                          pseudocount, compute_ll=false)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
     @assert afc[end].origin == pc[end] "AggregateFlowCircuit must originate in the ProbCircuit"
     collect_aggr_flows(afc, data)
-    for n in afc
-         # turns aggregate statistics into theta parameters
-        estimate_parameters(n, pseudocount)
-    end
-    train_ll = log_likelihood(afc, data)
-    (pc, afc, train_ll)
+    estimate_parameters(afc, pseudocount)
+    train_ll = compute_ll ? log_likelihood(afc, data) : nothing
+    (afc, train_ll)
 end
 
 function test_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::AggregateFlowCircuit△=aggr_flow_circuit(pc, data))
@@ -98,18 +96,27 @@ function test_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::Aggregat
     (afc, test_ll)
 end
 
-aggr_flow_circuit(pc, data) = AggregateFlowCircuit(pc,aggr_weight_type(data))
+aggr_flow_circuit(pc, data) = AggregateFlowCircuit(pc, aggr_weight_type(data))
+
+function estimate_parameters(afc::AggregateFlowCircuit△, pseudocount)
+    for n in afc
+         # turns aggregate statistics into theta parameters
+        estimate_parameters(n, pseudocount)
+    end
+end
 
 estimate_parameters(::AggregateFlowCircuitNode, ::Any) = () # do nothing
 function estimate_parameters(n::AggregateFlow⋁, pseudocount)
     origin = n.origin::Prob⋁
     if num_children(n) == 1
-        origin.log_theta .= 0.0
+        origin.log_thetas .= 0.0
     else
-        smoothed_numerator = (n.aggr_flow + pseudocount)
+        smoothed_aggr_flow = (n.aggr_flow + pseudocount)
         uniform_pseudocount = pseudocount / num_children(n)
-        origin.log_theta .= log.( (n.aggr_flow_children .+ uniform_pseudocount) ./ smoothed_numerator )
-        @assert sum(exp.(origin.log_theta)) ≈ 1.0
+        origin.log_thetas .= log.( (n.aggr_flow_children .+ uniform_pseudocount) ./ smoothed_aggr_flow )
+        @assert isapprox(sum(exp.(origin.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one: $(exp.(origin.log_thetas))"
+        #normalize away any leftover error
+        origin.log_thetas .- log(sum(exp.(origin.log_thetas))) # TODO this can be optimized
     end
 end
 
@@ -124,5 +131,25 @@ function log_likelihood(afc::AggregateFlowCircuit△, batches::XBatches{Bool})
 end
 
 log_likelihood(::AggregateFlowCircuitNode) = 0.0
-log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_theta .* n.aggr_flow_children)
+log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_children)
 
+function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})
+    opts = (flow_opts★..., el_type=Bool, compact⋁=false) #keep default options but insist on Bool flows
+    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache(), opts)
+    pass_up_down(fc, plain_x_data(batch))
+    log_likelihoods = zeros(num_examples(batch))
+    for n in fc
+         add_log_likelihood_per_instance(n, log_likelihoods)
+    end
+    log_likelihoods
+end
+
+add_log_likelihood_per_instance(::FlowCircuitNode, ::Any) = () # do nothing
+function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
+    if num_children(n) != 1 # other nodes have no effect on likelihood
+        origin = n.origin::Prob⋁
+        foreach(n.children, origin.log_thetas) do c, theta
+            log_likelihoods .+= prod_fast(π(n), pr_factors(c)) .* theta
+        end
+    end
+end

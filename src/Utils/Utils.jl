@@ -2,13 +2,15 @@ module Utils
 
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
-assign_prod_normalized, prod_fast, count_conjunction
+assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product
+
+function __init__()
+    set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
+end
 
 # various utilities
 
 copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
-
-set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
 
 issomething(x) = !isnothing(x)
 
@@ -153,6 +155,15 @@ end
     end
 end
 
+@inline function prod_fast(x1::AbstractArray{<:Number}, xs::AbstractArray{<:AbstractArray{<:Number}})
+    if length(xs) > max_unroll_products-1
+        tmp = prod_fast(xs[max_unroll_products-1:end])
+        prod_fast_unroll(x1, tmp, xs[1:max_unroll_products-2]...)
+    else
+        prod_fast_unroll(x1, xs...)
+    end
+end
+
 
 # Specialized version of sum_of_products for each 2-layer subcircuit
 # Adds a lot of compile time but no noticable speedup over the 1-layer operators above
@@ -177,11 +188,13 @@ function expand_product(i, et, xs::Union{Symbol,Expr})
     end
 end
 
+#TODO: make this method rebust to very large xs sets as above
 @inline @generated function count_conjunction(x1::BitVector, xs::BitVector...)::UInt32
     :(count($(expand_product(length(xs),eltype(x1),:x1,:xs))))
 end
 
-@inline @generated function sum_weighted_conjunction(weights::AbstractVector{W}, x1::BitVector, xs::BitVector...)::W where W
+#TODO: make this method rebust to very large xs sets as above
+@inline @generated function sum_weighted_product(weights::AbstractArray{<:Number}, x1::AbstractArray{<:Number}, xs::AbstractArray{<:Number}...)
     :(sum($(expand_product(length(xs),eltype(x1),:x1,:xs)) .* weights))
 end
 
