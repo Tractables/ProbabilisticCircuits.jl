@@ -79,34 +79,27 @@ end
 num_parameters(n::Prob⋁) = num_children(n)
 @traitfn num_parameters(c::C) where {C; Circuit△{C}} = sum(n -> num_parameters(n), ⋁_nodes(c))
 
-function train_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::AggregateFlowCircuit△=aggr_flow_circuit(pc, data);
-                          pseudocount, compute_ll=false)
+function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount)
+    train_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)); pseudocount=pseudocount)
+end
+
+function estimate_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool}; pseudocount)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert afc[end].origin == pc[end] "AggregateFlowCircuit must originate in the ProbCircuit"
+    @assert afc[end].origin <: ProbCircuitNode "AggregateFlowCircuit must originate in a ProbCircuit"
     collect_aggr_flows(afc, data)
-    estimate_parameters(afc, pseudocount)
-    train_ll = compute_ll ? log_likelihood(afc, data) : nothing
-    (afc, train_ll)
+    estimate_parameters(afc; pseudocount=pseudocount)
+    afc
 end
 
-function test_parameters(pc::ProbCircuit△, data::XBatches{Bool}, afc::AggregateFlowCircuit△=aggr_flow_circuit(pc, data))
-    @assert feature_type(data) == Bool "Can only test probabilistic circuits on Bool data"
-    collect_aggr_flows(afc, data)
-    test_ll = log_likelihood(afc, data)
-    (afc, test_ll)
-end
-
-aggr_flow_circuit(pc, data) = AggregateFlowCircuit(pc, aggr_weight_type(data))
-
-function estimate_parameters(afc::AggregateFlowCircuit△, pseudocount)
+function estimate_parameters(afc::AggregateFlowCircuit△; pseudocount)
     for n in afc
          # turns aggregate statistics into theta parameters
-        estimate_parameters(n, pseudocount)
+        estimate_parameters(n; pseudocount=pseudocount)
     end
 end
 
-estimate_parameters(::AggregateFlowCircuitNode, ::Any) = () # do nothing
-function estimate_parameters(n::AggregateFlow⋁, pseudocount)
+estimate_parameters(::AggregateFlowCircuitNode; pseudocount) = () # do nothing
+function estimate_parameters(n::AggregateFlow⋁; pseudocount)
     origin = n.origin::Prob⋁
     if num_children(n) == 1
         origin.log_thetas .= 0.0
@@ -118,6 +111,17 @@ function estimate_parameters(n::AggregateFlow⋁, pseudocount)
         #normalize away any leftover error
         origin.log_thetas .- log(sum(exp.(origin.log_thetas))) # TODO this can be optimized
     end
+end
+
+function test_parameters(pc::ProbCircuit△, data::XBatches{Bool})
+    test_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)))
+end
+
+function test_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool})
+    @assert feature_type(data) == Bool "Can only test probabilistic circuits on Bool data"
+    collect_aggr_flows(afc, data)
+    test_ll = log_likelihood(afc, data)
+    (afc, test_ll)
 end
 
 # compute likelihoods of current parameters given current aggregate data stored in nodes
