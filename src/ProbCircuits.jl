@@ -79,27 +79,25 @@ end
 num_parameters(n::Prob⋁) = num_children(n)
 @traitfn num_parameters(c::C) where {C; Circuit△{C}} = sum(n -> num_parameters(n), ⋁_nodes(c))
 
-function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount)
-    train_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)); pseudocount=pseudocount)
+function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
+    estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
 end
 
-function estimate_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool}; pseudocount)
+function estimate_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert afc[end].origin <: ProbCircuitNode "AggregateFlowCircuit must originate in a ProbCircuit"
+    @assert (afc[end].origin isa ProbCircuitNode) "AggregateFlowCircuit must originate in a ProbCircuit"
     collect_aggr_flows(afc, data)
     estimate_parameters(afc; pseudocount=pseudocount)
     afc
 end
 
-function estimate_parameters(afc::AggregateFlowCircuit△; pseudocount)
-    for n in afc
-         # turns aggregate statistics into theta parameters
-        estimate_parameters(n; pseudocount=pseudocount)
-    end
+ # turns aggregate statistics into theta parameters
+function estimate_parameters(afc::AggregateFlowCircuit△; pseudocount::Float64)
+    foreach(n -> estimate_parameters_node(n; pseudocount=pseudocount), afc)
 end
 
-estimate_parameters(::AggregateFlowCircuitNode; pseudocount) = () # do nothing
-function estimate_parameters(n::AggregateFlow⋁; pseudocount)
+estimate_parameters_node(::AggregateFlowCircuitNode; pseudocount::Float64) = () # do nothing
+function estimate_parameters_node(n::AggregateFlow⋁; pseudocount)
     origin = n.origin::Prob⋁
     if num_children(n) == 1
         origin.log_thetas .= 0.0
@@ -107,31 +105,28 @@ function estimate_parameters(n::AggregateFlow⋁; pseudocount)
         smoothed_aggr_flow = (n.aggr_flow + pseudocount)
         uniform_pseudocount = pseudocount / num_children(n)
         origin.log_thetas .= log.( (n.aggr_flow_children .+ uniform_pseudocount) ./ smoothed_aggr_flow )
-        @assert isapprox(sum(exp.(origin.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one: $(exp.(origin.log_thetas))"
+        @assert isapprox(sum(exp.(origin.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally: $(exp.(origin.log_thetas)), estimated from $(n.aggr_flow) and $(n.aggr_flow_children). Did you actually compute the aggregate flows?"
         #normalize away any leftover error
         origin.log_thetas .- log(sum(exp.(origin.log_thetas))) # TODO this can be optimized
     end
 end
 
-function test_parameters(pc::ProbCircuit△, data::XBatches{Bool})
-    test_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)))
+# compute log likelihood
+function compute_log_likelihood(pc::ProbCircuit△, data::XBatches{Bool})
+    compute_log_likelihood(AggregateFlowCircuit(pc, aggr_weight_type(data)))
 end
 
-function test_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool})
+# compute log likelihood, reusing AggregateFlowCircuit but ignoring its current aggregate values
+function compute_log_likelihood(afc::AggregateFlowCircuit△, data::XBatches{Bool})
     @assert feature_type(data) == Bool "Can only test probabilistic circuits on Bool data"
     collect_aggr_flows(afc, data)
-    test_ll = log_likelihood(afc, data)
+    test_ll = log_likelihood(afc)
     (afc, test_ll)
 end
 
-# compute likelihoods of current parameters given current aggregate data stored in nodes
-function log_likelihood(afc::AggregateFlowCircuit△, batches::XBatches{Bool})
-    num_ex = num_examples(batches)
-    num_f = num_features(batches)
-    total_ll = sum(n -> log_likelihood(n), afc)
-    instance_ll = total_ll/num_ex
-    bits_per_pixel = -instance_ll/num_f/log(2)
-    @eponymtuple(total_ll, instance_ll, bits_per_pixel)
+# return likelihoods given current aggregate flows.
+function log_likelihood(afc::AggregateFlowCircuit△)
+    sum(n -> log_likelihood(n), afc)
 end
 
 log_likelihood(::AggregateFlowCircuitNode) = 0.0
