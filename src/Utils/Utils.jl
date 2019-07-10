@@ -194,8 +194,11 @@ end
 end
 
 #TODO: make this method rebust to very large xs sets as above
+# @inline @generated function sum_weighted_product(weights::AbstractArray{<:Number}, x1::AbstractArray{<:Number}, xs::AbstractArray{<:Number}...)
+#     :(sum($(expand_product(length(xs),eltype(x1),:x1,:xs)) .* weights))
+# end
 @inline @generated function sum_weighted_product(weights::AbstractArray{<:Number}, x1::AbstractArray{<:Number}, xs::AbstractArray{<:Number}...)
-    :(sum($(expand_product(length(xs),eltype(x1),:x1,:xs)) .* weights))
+    :(sum(weights[$(expand_product(length(xs),eltype(x1),:x1,:xs))]))
 end
 
 end #module
