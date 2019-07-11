@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/UCLA-StarAI/Juice.jl.svg?token=WqP1S31vh9msACoVUepf&branch=master)](https://travis-ci.com/UCLA-StarAI/Juice.jl)
+
 # Juice.jl
 Julia Circuit Empanada
 
