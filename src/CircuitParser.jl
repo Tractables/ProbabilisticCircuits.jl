@@ -145,9 +145,9 @@ function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{
         node_cache[ln.node_id] = literal_node(ln.literal)
     end
     function compile(ln::TrueLeafLine)
-         n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
-         push!(lin,n)
-         node_cache[ln.node_id] = n
+        n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
+        push!(lin,n)
+        node_cache[ln.node_id] = n
     end
     function compile_elements(e::ElementTuple)
         n = ⋀Node([node_cache[e.prime_id],node_cache[e.sub_id]])
@@ -155,14 +155,14 @@ function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{
         n
     end
     function compile(ln::DecisionLine)
-         n = ⋁Node(map(compile_elements, ln.elements))
-         push!(lin,n)
-         node_cache[ln.node_id] = n
+        n = ⋁Node(map(compile_elements, ln.elements))
+        push!(lin,n)
+        node_cache[ln.node_id] = n
     end
     function compile(ln::BiasLine)
-         n = ⋁Node([lin[end]])
-         push!(lin,n)
-         node_cache[ln.node_id] = n
+        n = ⋁Node([lin[end]])
+        push!(lin,n)
+        node_cache[ln.node_id] = n
     end
 
     for ln in lines
@@ -299,3 +299,77 @@ function parse_psdd_file(file::String)::Vector{CircuitFormatLine}
 end
 
 load_psdd_circuit(file::String)::Vector{LogicalCircuitNode} = compile_circuit_format_lines(parse_psdd_file(file))
+
+#### Temporary, To refactor later
+
+function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{ProbCircuitNode}
+    lin = Vector{ProbCircuitNode}()
+    node_cache = Dict{UInt32, CircuitNode}()
+    prob_cache = ProbCache()
+
+    #  literal cache is responsible for making leaf nodes unique and adding them to lin
+    lit_cache = Dict{Int32, LeafNode}()
+    literal_node(l::Lit) = get!(lit_cache, l) do
+        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
+        prob_leaf = (l > 0 ? ProbPosLeaf(leaf) : ProbNegLeaf(leaf))
+        push!(lin, prob_leaf)
+        leaf
+    end
+
+    compile(::Union{HeaderLine,CommentLine}) = () # do nothing
+    function compile(ln::PosLiteralLine)
+        node_cache[ln.node_id] = literal_node(var2lit(ln.variable))
+    end
+    function compile(ln::NegLiteralLine)
+        node_cache[ln.node_id] = literal_node(-var2lit(ln.variable))
+    end
+    function compile(ln::LiteralLine)
+        node_cache[ln.node_id] = literal_node(ln.literal)
+    end
+    function compile(ln::TrueLeafLine)
+        temp = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
+        n = ProbCircuitNode(
+            temp,
+            prob_cache
+        )
+        push!(lin,n)
+        node_cache[ln.node_id] = temp
+    end
+    function compile_elements(e::ElementTuple)
+        temp = ⋀Node([node_cache[e.prime_id],node_cache[e.sub_id]])
+        n = ProbCircuitNode(
+            temp,
+            prob_cache
+        )
+        push!(lin,n)
+        temp
+    end
+    function compile(ln::DecisionLine)
+        temp = ⋁Node(map(compile_elements, ln.elements))
+        n = ProbCircuitNode(
+            temp,
+            prob_cache
+        )
+        n.log_thetas = [x.weight for x in ln.elements]
+        push!(lin,n)
+        node_cache[ln.node_id] = temp
+    end
+    function compile(ln::BiasLine)
+        temp = ⋁Node([lin[end]])
+        n = ProbCircuitNode(
+            temp,
+            prob_cache
+        )
+        push!(lin,n)
+        node_cache[ln.node_id] = temp
+    end
+
+    for ln in lines
+        compile(ln)
+    end
+
+    lin
+end
+
+
+load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_prob_circuit_format_lines(parse_psdd_file(file))
