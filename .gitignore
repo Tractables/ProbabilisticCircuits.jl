@@ -5,3 +5,4 @@ deps/deps.jl
 *.iml
 .idea/
 *.mem
+.DS_Store
