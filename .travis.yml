@@ -10,6 +10,9 @@ matrix:
   allow_failures:
     - julia: nightly
 
+before_install:
+ - julia install.jl
+
 ## uncomment the following lines to override the default test script
 script:
  - julia test/CircuitParserTest.jl
