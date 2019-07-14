@@ -17,3 +17,7 @@ before_install:
 script:
  - julia test/CircuitParserTest.jl
  - julia test/CircuitQueriesTest.jl
+
+
+notifications:
+  slack: $SLACK_NOTIF
