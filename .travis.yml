@@ -20,4 +20,8 @@ script:
 
 
 notifications:
-  slack: $SLACK_NOTIF
+  slack: 
+    on_success: always
+    on_failure: always
+    rooms: 
+      - $SLACK_NOTIF
