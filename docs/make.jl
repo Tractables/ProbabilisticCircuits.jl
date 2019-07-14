@@ -1,10 +1,13 @@
 using Documenter
-# using Juice
+
+include("../src/Circuits/Circuits.jl")
+using .Juice
 
 makedocs(
-    sitename = "Juice",
+    sitename = "Juice.jl",
     format = Documenter.HTML(),
-    # modules = [Juice]
+    doctest = true,
+    modules = [Juice]
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
