@@ -1,7 +1,8 @@
 # This tests are suppoed to test queries on the circuits
 using Test;
 
-include("../src/Circuits.jl")
+include("../src/Circuits/Circuits.jl")
+using .Juice
 
 @testset "Probability of Full Evidence" begin
     # Uses a PSDD with 4 variables, and tests 3 of the configurations to 
@@ -11,7 +12,7 @@ include("../src/Circuits.jl")
     prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
     @test prob_circuit isa Vector{<:ProbCircuitNode};
 
-    flow_circuit = FlowCircuit(prob_circuit, 1, Int8)
+    flow_circuit = FlowCircuit(prob_circuit, 16, Bool)
     @test flow_circuit isa Vector{<:FlowCircuitNode};
 
     

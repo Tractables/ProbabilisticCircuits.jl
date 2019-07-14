@@ -172,6 +172,11 @@ function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{
     lin
 end
 
+"""
+Load a circuit from file. Depending on format will load different circuit types.
+
+For example, ".psdd" is for PSDD files, and ".circuit" is for Logistic Circuit files.
+"""
 function load_circuit(file::String)::Vector{LogicalCircuitNode}
     if endswith(file,".circuit")
         load_lc_circuit(file)
