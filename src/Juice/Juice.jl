@@ -5,10 +5,6 @@ Circuits:
 - Date: 2019-06-23
 =#
 
-
-
-
-
 module Juice
 
 export load_psdd_prob_circuit, FlowCircuit, ProbCircuit, 

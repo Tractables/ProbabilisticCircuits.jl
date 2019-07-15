@@ -1,13 +1,13 @@
 using Documenter
 
-include("../src/Circuits/Circuits.jl")
+include("../src/Juice/Juice.jl")
 using .Juice
 
 makedocs(
-    sitename = "Juice.jl",
-    format = Documenter.HTML(),
+    sitename = "Juice.jl Documentation",
+    format = Documenter.HTML(prettyurls = false),
     doctest = true,
-    modules = [Juice]
+    modules = [Juice],
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.

@@ -1,3 +1,6 @@
+"""
+Module with general utilities and missing standard library features that could be useful in any Julia project
+"""
 module Utils
 
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
@@ -10,8 +13,14 @@ end
 
 # various utilities
 
+"""
+Copy the array while changing the element type
+"""
 copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
 
+"""
+Is the argument not `nothing`?
+"""
 issomething(x) = !isnothing(x)
 
 # functional programming basics

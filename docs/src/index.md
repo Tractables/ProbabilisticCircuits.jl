@@ -1,14 +1,23 @@
-# Juice.jl
+# Juice.jl Documentation
 
 Documentation for Juice.jl
 
-Here's some inline maths: ``\sqrt[n]{1 + x + x^2 + \ldots}``.
+See the individual modules' API overviews below.
 
-Here's an equation:
+## Data Module API
 
-``\frac{n!}{k!(n - k)!} = \binom{n}{k}``
+```@autodocs
+Modules = [Juice.Data]
+```
 
+## Utils Module API
 
-```@docs
-Main.Juice.load_circuit
+```@autodocs
+Modules = [Juice.Utils]
+```
+
+## Juice Module API
+
+```@autodocs
+Modules = [Juice]
 ```
