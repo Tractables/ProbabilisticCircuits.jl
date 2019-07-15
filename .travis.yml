@@ -1,15 +1,24 @@
 language: julia
+
 os:
 - linux
+
+env:
+- DATADEPS_ALWAYS_ACCEPT=1
+
 julia:
 - nightly
+
 matrix:
   allow_failures:
   - julia: nightly
+
 before_install:
 - julia install.jl
+
 script:
 - julia test/runtests.jl
+
 notifications:
   slack:
     on_success: always
