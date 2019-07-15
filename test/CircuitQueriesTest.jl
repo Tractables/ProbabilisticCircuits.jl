@@ -1,3 +1,5 @@
+using Test;
+
 # This tests are supposed to test queries on the circuits
 @testset "Probability of Full Evidence" begin
     # Uses a PSDD with 4 variables, and tests 3 of the configurations to 
