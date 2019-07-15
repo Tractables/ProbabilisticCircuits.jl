@@ -2,12 +2,6 @@ using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
 
-include("../Utils/Utils.jl")
-using .Utils
-
-include("../Data/Data.jl")
-using .Data
-
 #####################
 # Get mutual information
 #####################
@@ -87,7 +81,7 @@ end
 
 
 #####################
-# Learn a Chow-Liu tree from data
+# Learn a Chow-Liu tree from weighted data
 #####################
 
 function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
