@@ -130,7 +130,7 @@ function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{
     node_cache = Dict{UInt32,CircuitNode}()
 
     #  literal cache is responsible for making leaf nodes unique and adding them to lin
-    lit_cache = Dict{Int32,LeafNode}()
+    lit_cache = Dict{Int32,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
         leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
         push!(lin,leaf)
