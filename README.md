@@ -25,9 +25,15 @@ Assuming you have Julia 1.1 installed, run the following to install the dependen
 
 ## Testing
 
-We will be adding automated tests under `/test` folder. At the moment, the following tests are available:
+We will be adding automated tests under `/test` folder. To run all the test cases, run:
 
-    julia test/CircuitParserTest.jl
-    julia test/ChowLiuTreeTest.jl
+    julia test/runtests.jl
+    
+To run an individual test you can use `/test/runtest.jl`, for example:
 
+    julia test/runtest.jl CircuitParserTest.jl
+    julia test/runtest.jl CircuitQueriesTest.jl
+    julia test/runtest.jl ChowLiuTreeTest.jl
+    
+    
 Right now the tests are not stable yet, but they become stable make sure to run the tests before commiting new code.
