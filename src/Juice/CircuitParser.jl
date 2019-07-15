@@ -316,9 +316,9 @@ function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Ve
     prob_cache = ProbCache()
 
     #  literal cache is responsible for making leaf nodes unique and adding them to lin
-    lit_cache = Dict{Int32, LeafNode}()
+    lit_cache = Dict{Lit, LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
-        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
+        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!
         prob_leaf = (l > 0 ? ProbPosLeaf(leaf) : ProbNegLeaf(leaf))
         push!(lin, prob_leaf)
         leaf

@@ -19,7 +19,6 @@ export load_psdd_prob_circuit, FlowCircuit, ProbCircuit,
     Circuit△, FlowCircuit△, accumulate_aggr_flows_batch
 
 using Query
-using SimpleTraits
 using IterTools
 using EponymTuples
 using StatsFuns

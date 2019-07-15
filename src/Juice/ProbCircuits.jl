@@ -32,10 +32,6 @@ const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
 # traits
 #####################
 
-@traitimpl Leaf{ProbLeafNode}
-@traitimpl Inner{ProbInnerNode}
-@traitimpl Circuit△{ProbCircuit△}
-
 NodeType(::Type{<:ProbPosLeaf}) = PosLeaf()
 NodeType(::Type{<:ProbNegLeaf}) = NegLeaf()
 
@@ -66,9 +62,7 @@ ProbCircuitNode(nt::⋁, n::CircuitNode, cache::ProbCache) =
         Prob⋁(n, ProbCircuit(n.children, cache), some_vector(Float64, num_children(n)))
     end
 
-@traitfn function ProbCircuit(c::C, cache::ProbCache = ProbCache()) where {C; Circuit△{C}}
-    map(n->ProbCircuitNode(n,cache), c)
-end
+ProbCircuit(c::Circuit△, cache::ProbCache = ProbCache()) = map(n->ProbCircuitNode(n,cache), c)
 
 #####################
 # methods
@@ -77,7 +71,7 @@ end
 @inline cvar(n::ProbLeafNode)::Var  = cvar(n.origin)
 
 num_parameters(n::Prob⋁) = num_children(n)
-@traitfn num_parameters(c::C) where {C; Circuit△{C}} = sum(n -> num_parameters(n), ⋁_nodes(c))
+num_parameters(c::Circuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
