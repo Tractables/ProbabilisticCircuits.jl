@@ -27,6 +27,6 @@ Run the following to install the dependencies.
 
 We will be adding automated tests under `/test` folder. At the moment, the following tests are available:
 
-    julia -L test/CircuitParserTest.jl
+    julia test/CircuitParserTest.jl
 
 Right now the tests are not stable yet, but they become stable make sure to run the tests before commiting new code.

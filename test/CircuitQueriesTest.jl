@@ -1,7 +1,7 @@
-# This tests are suppoed to test queries on the circuits
+# This tests are supposed to test queries on the circuits
 using Test;
 
-include("../src/Circuits/Circuits.jl")
+include("../src/Juice/Juice.jl")
 using .Juice
 
 @testset "Probability of Full Evidence" begin
