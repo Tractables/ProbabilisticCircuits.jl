@@ -7,7 +7,7 @@ Circuits:
 
 module Juice
 
-export load_psdd_prob_circuit, FlowCircuit, ProbCircuit, 
+export load_psdd_prob_circuit, FlowCircuit, ProbCircuit,
     AggregateFlowCircuit, XData, pass_up, log_likelihood_per_instance,
     load_circuit, ProbCircuit△, fully_factorized_circuit,
     log_likelihood, compute_log_likelihood, node_stats, pass_down,
@@ -16,7 +16,7 @@ export load_psdd_prob_circuit, FlowCircuit, ProbCircuit,
     HeaderLine, CommentLine, parse_lc_file, LogicalCircuitNode, CircuitFormatLine,
     ProbCircuitNode, CircuitNode, FlowCircuitNode, flatmap, num_parameters,
     estimate_parameters, train_mixture, mnist, FlowCache, reset_aggregate_flows,
-    Circuit△, FlowCircuit△, accumulate_aggr_flows_batch
+    Circuit△, FlowCircuit△, accumulate_aggr_flows_batch, learn_chow_liu_tree
 
 using Query
 using IterTools
@@ -35,6 +35,6 @@ include("FlowCircuits.jl")
 include("AggregateFlowCircuits.jl")
 include("ProbCircuits.jl")
 include("ProbMixtures.jl")
+include("ChowLiuTree.jl")
 
 end
-
