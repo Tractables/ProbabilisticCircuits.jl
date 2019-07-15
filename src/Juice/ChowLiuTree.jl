@@ -12,11 +12,12 @@ using .Data
 # Get mutual information
 #####################
 
-function marginal_distribution(vector, type_num, smoothing_factor)
+function marginal_distribution(vector::AbstractArray, weight::Array, type_num::Int,
+        smoothing_factor::Real)::Dict
     dis = Dict()
     len = length(vector)
-    for x in vector
-        dis[x] = get(dis, x, 0) + 1
+    for (v, w) in zip(vector, weight)
+        dis[v] = get(dis, v, 0) + w
     end
     for x in 0 : type_num - 1
         dis[x] = (get(dis, x, 0) + smoothing_factor * type_num) /
@@ -26,12 +27,13 @@ function marginal_distribution(vector, type_num, smoothing_factor)
 end
 
 
-function pairwise_distribution(vector1, vector2, type_num, smoothing_factor)
+function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
+        weight::Array, type_num::Int, smoothing_factor::Real)::Dict
     @assert length(vector1) == length(vector2)
     dis = Dict()
     len = length(vector1)
     for i in 1 : len
-        dis[(vector1[i], vector2[i])] = get(dis, (vector1[i], vector2[i]), 0) + 1
+        dis[(vector1[i], vector2[i])] = get(dis, (vector1[i], vector2[i]), 0) + weight[i]
     end
     for x in 0 : type_num - 1, y in 0 : type_num - 1
         dis[(x, y)] = (get(dis, (x, y), 0) + smoothing_factor) /
@@ -41,11 +43,16 @@ function pairwise_distribution(vector1, vector2, type_num, smoothing_factor)
 end
 
 
-function mutual_information(vector1, vector2, type_num;
-        base = ℯ, smoothing_factor = 0)
-    prob_i = marginal_distribution(vector1, type_num, smoothing_factor)
-    prob_j = marginal_distribution(vector2, type_num, smoothing_factor)
-    prob_ij = pairwise_distribution(vector1, vector2, type_num, smoothing_factor)
+function mutual_information(data::WXData, index1::Int, index2::Int, type_num::Int;
+        base = ℯ, smoothing_factor=0)::Float64
+    weight = Data.weights(data)
+    data_matrix = feature_matrix(data)
+    vector1 = data_matrix[:, index1]
+    vector2 = data_matrix[:, index2]
+
+    prob_i = marginal_distribution(vector1, weight, type_num, smoothing_factor)
+    prob_j = marginal_distribution(vector2, weight, type_num, smoothing_factor)
+    prob_ij = pairwise_distribution(vector1, vector2, weight, type_num, smoothing_factor)
     mi = 0.0
     for x in keys(prob_i), y in keys(prob_j)
         if !isapprox(0.0, prob_ij[(x, y)]; atol=eps(Float64), rtol=0)
@@ -55,20 +62,20 @@ function mutual_information(vector1, vector2, type_num;
     return mi
 end
 
-
 #####################
 # Get CPTs of tree-structured BN
 #####################
 
-function get_cpt(data_matrix, type_num, parent_index, child_index; smoothing_factor = 0)
+function get_cpt(data::WXData,parent_index::Int, child_index::Int,
+        type_num::Int;smoothing_factor=0)::Dict
+    weight_vector = Data.weights(data)
+    data_matrix = feature_matrix(data)
     child = data_matrix[:, child_index]
-    prob_c = marginal_distribution(child, type_num, smoothing_factor)
-    if isequal(parent_index, nothing)
-        return prob_c
-    end
+    prob_c = marginal_distribution(child, weight_vector, type_num, smoothing_factor)
+    if parent_index == 0 return prob_c end
     parent = data_matrix[:, parent_index]
-    prob_p = marginal_distribution(parent, type_num, smoothing_factor)
-    prob_pc = pairwise_distribution(parent, child, type_num, smoothing_factor)
+    prob_p = marginal_distribution(parent, weight_vector, type_num, smoothing_factor)
+    prob_pc = pairwise_distribution(parent, child, weight_vector, type_num, smoothing_factor)
     cpt = Dict()
     for p in keys(prob_p), c in keys(prob_c)
         if !isapprox(0.0, prob_p[p]; atol=eps(Float64), rtol=0)
@@ -83,16 +90,16 @@ end
 # Learn a Chow-Liu tree from data
 #####################
 
-function chow_liu_tree(data; smoothing_factor = 0)
-    features_num = num_features(data)
+function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
+    weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
+    features_num = num_features(data)
     type_num = maximum(data_matrix[:, 1]) + 1
 
     # Calculate mutual information matrix
     g = SimpleWeightedGraph(features_num)
     for i in 1:features_num, j in i+1:features_num
-        v1, v2 = data_matrix[:, i], data_matrix[:, j]
-        mi = mutual_information(v1, v2, type_num; smoothing_factor = smoothing_factor)
+        mi = mutual_information(data, i, j, type_num;smoothing_factor=smoothing_factor)
         add_edge!(g, i, j, - mi)
     end
 
@@ -114,14 +121,14 @@ function chow_liu_tree(data; smoothing_factor = 0)
         set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
     end
     ## set parent
-    for root in roots set_prop!(clt, root, :parent, nothing) end
+    for root in roots set_prop!(clt, root, :parent, 0) end
     for edge in edges(clt)
         set_prop!(clt, dst(edge), :parent, src(edge))
     end
     ## calculate cpts
     for v in vertices(clt)
         parent = get_prop(clt, v, :parent)
-        cpt_matrix = get_cpt(data_matrix, type_num, parent, v; smoothing_factor = smoothing_factor)
+        cpt_matrix = get_cpt(data, parent, v, type_num; smoothing_factor = smoothing_factor)
         set_prop!(clt, v, :cpt, cpt_matrix)
     end
     return clt

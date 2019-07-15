@@ -15,7 +15,7 @@ Run the following to install the dependencies.
 
 ## Using Revise
 
-`Revise.jl` allows you to modify code and use the changes without restarting Julia. For more information refer to [their github repository](https://github.com/timholy/Revise.jl). 
+`Revise.jl` allows you to modify code and use the changes without restarting Julia. For more information refer to [their github repository](https://github.com/timholy/Revise.jl).
 
 ## CircuitSandbox
 
@@ -28,5 +28,6 @@ Run the following to install the dependencies.
 We will be adding automated tests under `/test` folder. At the moment, the following tests are available:
 
     julia test/CircuitParserTest.jl
+    julia test/ChowLiuTreeTest.jl
 
 Right now the tests are not stable yet, but they become stable make sure to run the tests before commiting new code.
