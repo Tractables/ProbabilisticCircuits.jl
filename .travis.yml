@@ -1,27 +1,19 @@
 language: julia
-
 os:
-  - linux
-
+- linux
 julia:
-  - nightly
-
+- nightly
 matrix:
   allow_failures:
-    - julia: nightly
-
+  - julia: nightly
 before_install:
- - julia install.jl
-
-## uncomment the following lines to override the default test script
+- julia install.jl
 script:
- - julia test/CircuitParserTest.jl
- - julia test/CircuitQueriesTest.jl
-
-
+- julia test/CircuitParserTest.jl
+- julia test/CircuitQueriesTest.jl
 notifications:
-  slack: 
+  slack:
     on_success: always
     on_failure: always
-    rooms: 
-      - $SLACK_NOTIF
+    rooms:
+      - secure: "HlTbUNhgR3QEVo+vk8g4+UREl+Y9qtrtPY78UAl9RZFeyC02KsQGPs2fKVcVrO7uk+XFXxFoxVbou7AQtd91PTsLEXv3EbA/u2KQu5TV1kB/BUBvwNZSej5LDj70VDSzLdwXYejefRUS+fyBwlm0UmjlULtR7Z1jVBSu7G2Db7zeiRezvoyHO5Gya3rlNI5zQZV/8PsgmoIh5v5gTe18UAH4f/El727mTxaDTSP0VuK7xmKF/QgO5vJqFOLGVEGArGLd/hnIISvkz3uDSwXOIv0orVMsMalpDkmTkOe+NK65ZP4orX1dvm6P6ufk8farxCiTsoJlSqa7B7fHTpMlIaIM8YNUUHn39JQzkWeghWkxAPjsNdKbMeTUyFBVyOswbLiiGuveA351Uxj7Nq0zeUnGcggRnZZsgX2vgeu7UWYQkUrPqFxARa2B2Dbh8feHijBl4fGbv2+mG6PhtztnpFp1S5CZ1PzKuM+h/kB3GNLNgR8IWlHX937LV8r7MgInMd945J7JynNROKLB1OWTHs78N7aVVWINKfe+5vLI3+2t4BjkibqLPMqLQC+KBNGJgK9lvT+qJ7m5ETexzATUSVN/kXyHAdgw3BwBmN5WCFDRcpbXp18Sjx+y1mFF9ts8pD6nfAEsguvY839SgAAa9eRMxi9Ho5JcGuR/zGw6QX4="
