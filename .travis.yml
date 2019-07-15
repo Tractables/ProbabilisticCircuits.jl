@@ -9,8 +9,7 @@ matrix:
 before_install:
 - julia install.jl
 script:
-- julia test/CircuitParserTest.jl
-- julia test/CircuitQueriesTest.jl
+- julia test/runtests.jl
 notifications:
   slack:
     on_success: always
