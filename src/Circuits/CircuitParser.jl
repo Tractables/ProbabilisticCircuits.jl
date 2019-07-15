@@ -13,6 +13,9 @@ using EponymTuples
 # general parser infrastructure for circuits (both LC and PSDD)
 #####################
 
+"""
+A line in one of the circuit file formats
+"""
 abstract type CircuitFormatLine end
 
 struct CommentLine{T<:AbstractString} <: CircuitFormatLine

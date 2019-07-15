@@ -6,3 +6,4 @@ deps/deps.jl
 .idea/
 *.mem
 .DS_Store
+*.code-workspace
