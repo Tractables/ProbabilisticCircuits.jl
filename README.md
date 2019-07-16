@@ -11,6 +11,15 @@ Assuming you have Julia 1.1 installed, run the following to install the dependen
  ``julia install.jl``
 
 
+# Documentation
+
+To build the documentation locally, run the following to build the documentation, and then open `docs/build/index.html`.
+
+    julia docs/make.jl
+  
+
+
+
 # Developement Tips
 
 ## Using Revise
