@@ -46,18 +46,18 @@ const ProbCache = Dict{CircuitNode, ProbCircuitNode}
 
 ProbCircuitNode(n::CircuitNode, cache::ProbCache) = ProbCircuitNode(NodeType(n), n, cache)
 
-ProbCircuitNode(nt::PosLeaf, n::CircuitNode, cache::ProbCache) =
+ProbCircuitNode(::PosLeaf, n::CircuitNode, cache::ProbCache) =
     get!(()-> ProbPosLeaf(n), cache, n)
 
-ProbCircuitNode(nt::NegLeaf, n::CircuitNode, cache::ProbCache) =
+ProbCircuitNode(::NegLeaf, n::CircuitNode, cache::ProbCache) =
     get!(()-> ProbNegLeaf(n), cache, n)
 
-ProbCircuitNode(nt::⋀, n::CircuitNode, cache::ProbCache) =
+ProbCircuitNode(::⋀, n::CircuitNode, cache::ProbCache) =
     get!(cache, n) do
         Prob⋀(n, ProbCircuit(n.children, cache))
     end
 
-ProbCircuitNode(nt::⋁, n::CircuitNode, cache::ProbCache) =
+ProbCircuitNode(::⋁, n::CircuitNode, cache::ProbCache) =
     get!(cache, n) do
         Prob⋁(n, ProbCircuit(n.children, cache), some_vector(Float64, num_children(n)))
     end
