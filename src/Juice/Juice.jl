@@ -37,5 +37,6 @@ include("AggregateFlowCircuits.jl")
 include("ProbCircuits.jl")
 include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
+include("CircuitBuilder.jl")
 
 end
