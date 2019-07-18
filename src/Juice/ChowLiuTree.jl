@@ -5,9 +5,9 @@ using MetaGraphs
 #####################
 # Get mutual information
 #####################
-
-function marginal_distribution(vector::AbstractArray, weight::Array, type_num::Int,
-        smoothing_factor::Real)::Dict
+"calculate marginal distribution of weighted array, for consistency with pairwise distribution, type_num multiply twice"
+function marginal_distribution(vector::AbstractArray, weight::Array,
+        type_num::Int,smoothing_factor::Real)::Dict
     dis = Dict()
     len = length(vector)
     for (v, w) in zip(vector, weight)
@@ -21,6 +21,7 @@ function marginal_distribution(vector::AbstractArray, weight::Array, type_num::I
 end
 
 
+"calculate pairwise distribution of two weighted array"
 function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
         weight::Array, type_num::Int, smoothing_factor::Real)::Dict
     @assert length(vector1) == length(vector2)
@@ -37,8 +38,9 @@ function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
 end
 
 
+"calculate mutual information of two columns of given matrix"
 function mutual_information(data::WXData, index1::Int, index2::Int, type_num::Int;
-        base = ℯ, smoothing_factor=0)::Float64
+        base=ℯ, smoothing_factor=0)::Float64
     weight = Data.weights(data)
     data_matrix = feature_matrix(data)
     vector1 = data_matrix[:, index1]
@@ -60,7 +62,8 @@ end
 # Get CPTs of tree-structured BN
 #####################
 
-function get_cpt(data::WXData,parent_index::Int, child_index::Int,
+"get CPTs of Chow-Liu tree, via given data"
+function get_cpt(data::WXData, parent_index::Int, child_index::Int,
         type_num::Int;smoothing_factor=0)::Dict
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
@@ -83,7 +86,7 @@ end
 #####################
 # Learn a Chow-Liu tree from weighted data
 #####################
-
+"learn a Chow-Liu tree from data matrix, with Laplace smoothing"
 function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
@@ -126,4 +129,35 @@ function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
         set_prop!(clt, v, :cpt, cpt_matrix)
     end
     return clt
+end
+
+"print edges and vertices of a ChowLiu tree"
+function print_tree(clt)
+    for e in edges(clt) print(e); print(" "); println(props(clt, e)) end
+    for v in vertices(clt) print(v); print(" "); println(props(clt, v)) end
+end
+
+
+"calculate complete disjoint probability from Chow-Liu Tree"
+function get_infernece(clt, query)
+    @assert(length(query) == nv(clt))
+    probability = 1.0
+    for v in vertices(clt)
+        parent = get_prop(clt, v, :parent)
+        cpt = get_prop(clt, v, :cpt)
+        if parent == 0
+            probability *= cpt[query[v]]
+        else
+            probability *= cpt[(query[v], query[parent])]
+        end
+    end
+    return probability
+end
+
+"calculate disjoint probability for every sample"
+function clt_likelihood_per_instance(clt, data)
+    data_matrix = feature_matrix(data)
+    num_sample = size(data_matrix)[1]
+    result = [get_infernece(clt, data_matrix[i,:]) for i in 1:num_sample]
+    return result
 end

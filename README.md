@@ -16,7 +16,7 @@ Assuming you have Julia 1.1 installed, run the following to install the dependen
 To build the documentation locally, run the following to build the documentation, and then open `docs/build/index.html`.
 
     julia docs/make.jl
-  
+
 
 
 
@@ -37,12 +37,13 @@ To build the documentation locally, run the following to build the documentation
 We will be adding automated tests under `/test` folder. To run all the test cases, run:
 
     julia test/runtests.jl
-    
+
 To run an individual test you can use `/test/runtest.jl`, for example:
 
     julia test/runtest.jl CircuitParserTest.jl
     julia test/runtest.jl CircuitQueriesTest.jl
     julia test/runtest.jl ChowLiuTreeTest.jl
-    
-    
+    julia test/runtest.jl CircuitBuilderTest.jl
+
+
 Right now the tests are not stable yet, but they become stable make sure to run the tests before commiting new code.

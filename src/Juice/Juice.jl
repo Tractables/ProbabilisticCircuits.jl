@@ -16,8 +16,9 @@ export load_psdd_prob_circuit, FlowCircuit, ProbCircuit,
     HeaderLine, CommentLine, parse_lc_file, LogicalCircuitNode, CircuitFormatLine,
     ProbCircuitNode, CircuitNode, FlowCircuitNode, flatmap, num_parameters,
     estimate_parameters, train_mixture, mnist, FlowCache, reset_aggregate_flows,
-    Circuit△, LogicalCircuit△, FlowCircuit△, accumulate_aggr_flows_batch, learn_chow_liu_tree,
-    twenty_datasets, dataset, train, WXData
+    Circuit△, LogicalCircuit△, FlowCircuit△, accumulate_aggr_flows_batch,
+    learn_chow_liu_tree, twenty_datasets, dataset, train, WXData, feature_matrix,
+    compile_prob_circuit_from_clt, num_features, clt_likelihood_per_instance, get_infernece
 
 using Query
 using IterTools

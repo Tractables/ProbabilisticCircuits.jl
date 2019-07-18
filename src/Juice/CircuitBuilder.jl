@@ -104,11 +104,3 @@ function test_parse_tree()
     end
     return clt
 end
-
-"
-4
-3 0.5
-1 2 0.4 0.5
-2 3 0.1 0.5
-4 3 0.3 0.3
-"
