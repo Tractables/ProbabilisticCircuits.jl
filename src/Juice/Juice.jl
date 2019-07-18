@@ -35,16 +35,16 @@ using .Data
 using .Utils
 
 include("LogicalCircuits.jl")
+include("IO/CircuitParser.jl")
 include("FlowCircuits.jl")
 include("AggregateFlowCircuits.jl")
 include("ProbCircuits.jl")
-include("Vtree.jl")
 
 include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
-
 include("CircuitBuilder.jl")
-include("IO/CircuitParser.jl")
+
+include("Vtree.jl")
 include("IO/VtreeParser.jl")
 
 end
