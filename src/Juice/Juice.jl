@@ -34,17 +34,20 @@ include("../Data/Data.jl")
 using .Data
 using .Utils
 
+# Todo(pashak) Make these Circuits submodule
 include("LogicalCircuits.jl")
-include("IO/CircuitParser.jl")
 include("FlowCircuits.jl")
 include("AggregateFlowCircuits.jl")
 include("ProbCircuits.jl")
+include("Vtree.jl")
 
+# Todo(pashak) Make these Learning submodule
 include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
 
-include("Vtree.jl")
+# Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")
+include("IO/CircuitParser.jl")
 
 end
