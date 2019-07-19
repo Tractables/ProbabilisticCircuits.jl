@@ -40,3 +40,25 @@ using Test;
 
     @test 1 ≈ sum_prob_all atol = EPS; 
 end
+
+@testset "Probability of partial Evidence (marginals)" begin
+    EPS = 1e-7;
+    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");+
+
+    data = XData(
+        Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1; 
+                0 0 0 -1; -1 1 0 -1; -1 -1 -1 -1; 0 -1 -1 -1])
+    );
+    true_prob = [0.07; 0.03; 0.13999999999999999; 
+                    0.3499999999999; 0.1; 1.0; 0.8] 
+    
+    opts= (compact⋀=false, compact⋁=false)
+    flow_circuit = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data)
+    calc_prob = exp.(calc_prob)
+
+    for i = 1:length(true_prob)
+        @test true_prob[i] ≈ calc_prob[i] atol= EPS;
+    end
+
+end

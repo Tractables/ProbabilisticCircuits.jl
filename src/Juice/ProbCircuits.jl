@@ -151,3 +151,15 @@ function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
         end
     end
 end
+
+function marginal_log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Int8})
+    opts = (flow_opts★..., el_type=Float64, compact⋁=false)
+    fc = FlowCircuit(pc, num_examples(batch), Float64, FlowCache(), opts)
+    (fc, marginal_log_likelihood_per_instance(fc, batch))
+end
+
+function marginal_log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Int8})
+    @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    marginal_pass_up(fc, batch)
+    pr(fc[end])
+end
