@@ -126,12 +126,20 @@ end
 log_likelihood(::AggregateFlowCircuitNode) = 0.0
 log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_children)
 
+"""
+Calculates log likelihood for a batch of fully observed samples.
+(Also retures the generated FlowCircuit)
+"""
 function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})
     opts = (flow_opts★..., el_type=Bool, compact⋁=false) #keep default options but insist on Bool flows
     fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache(), opts)
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
+"""
+Calculate log likelihood for a batch of fully observed samples.
+(This is for when you already have a FlowCircuit)
+"""
 function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool})
     @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     pass_up_down(fc, batch)
@@ -152,12 +160,24 @@ function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
     end
 end
 
+"""
+Calculate log likelihood for a batch of samples with partial evidence P(e).
+(Also retures the generated FlowCircuit)
+
+To indicate a variable is not observed, pass -1 for that variable.
+"""
 function marginal_log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Int8})
     opts = (flow_opts★..., el_type=Float64, compact⋁=false)
     fc = FlowCircuit(pc, num_examples(batch), Float64, FlowCache(), opts)
     (fc, marginal_log_likelihood_per_instance(fc, batch))
 end
 
+"""
+Calculate log likelihood for a batch of samples with partial evidence P(e).
+(If you already have a FlowCircuit)
+
+To indicate a variable is not observed, pass -1 for that variable.
+"""
 function marginal_log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Int8})
     @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     marginal_pass_up(fc, batch)
