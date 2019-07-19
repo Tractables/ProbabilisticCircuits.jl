@@ -17,7 +17,6 @@ using Test;
     data = XData(Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]));
     true_prob = [0.07; 0.03; 0.13999999999999999]    
     
-    pass_up(flow_circuit, data)
     calc_prob = log_likelihood_per_instance(flow_circuit, data)
     calc_prob = exp.(calc_prob)
     
