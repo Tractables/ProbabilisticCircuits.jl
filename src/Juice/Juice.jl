@@ -21,7 +21,8 @@ export FlowCircuit, ProbCircuit,
     parse_one_obj, LCElementTuple, BiasLine, NegLiteralLine, PosLiteralLine,
     HeaderLine, CommentLine, parse_lc_file, CircuitFormatLine,
     parse_vtree_file, compile_vtree_format_lines,
-    VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount
+    VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
+    save
 
 using Query
 using IterTools
