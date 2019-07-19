@@ -341,6 +341,8 @@ function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Ve
             prob_cache
         )
         push!(lin,n)
+        n.log_thetas .= 0
+        n.log_thetas .+= [ln.weight, log(1-exp(ln.weight) + 1e-300) ]
         node_cache[ln.node_id] = temp
     end
     function compile_elements(e::ElementTuple)
@@ -358,7 +360,8 @@ function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Ve
             temp,
             prob_cache
         )
-        n.log_thetas = [x.weight for x in ln.elements]
+        n.log_thetas .= 0
+        n.log_thetas .+= [x.weight for x in ln.elements]
         push!(lin,n)
         node_cache[ln.node_id] = temp
     end
@@ -369,11 +372,22 @@ function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Ve
             prob_cache
         )
         push!(lin,n)
+        n.log_thetas .= 0
+        n.log_thetas .+= ln.weights
         node_cache[ln.node_id] = temp
     end
 
     for ln in lines
         compile(ln)
+    end
+
+    # Sanity Check
+    for node in lin
+        if node isa Prob⋁
+            if sum(isnan.(node.log_thetas)) > 0
+                throw("There is a NaN in one of the log_thetas")
+            end
+        end
     end
 
     lin
