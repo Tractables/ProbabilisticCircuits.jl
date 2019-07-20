@@ -23,7 +23,8 @@ export FlowCircuit, ProbCircuit,
     parse_vtree_file, compile_vtree_format_lines,
     VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
     save,
-    marginal_log_likelihood_per_instance
+    marginal_log_likelihood_per_instance,
+    marginal_pass_up_down
 
 using Query
 using IterTools
