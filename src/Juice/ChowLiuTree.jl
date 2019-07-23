@@ -8,6 +8,7 @@ using MetaGraphs
 "calculate marginal distribution of weighted array, for consistency with pairwise distribution, type_num multiply twice"
 function marginal_distribution(vector::AbstractArray, weight::Array,
         type_num::Int,smoothing_factor::Real)::Dict
+    @assert all([x < type_num for x in vector])
     dis = Dict()
     len = length(vector)
     for (v, w) in zip(vector, weight)
@@ -24,6 +25,8 @@ end
 "calculate pairwise distribution of two weighted array"
 function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
         weight::Array, type_num::Int, smoothing_factor::Real)::Dict
+    @assert all([x < type_num for x in vector1])
+    @assert all([x < type_num for x in vector2])
     @assert length(vector1) == length(vector2)
     dis = Dict()
     len = length(vector1)
@@ -91,7 +94,7 @@ function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
     features_num = num_features(data)
-    type_num = maximum(data_matrix[:, 1]) + 1
+    type_num = 2 #binary dataset
 
     # Calculate mutual information matrix
     g = SimpleWeightedGraph(features_num)
