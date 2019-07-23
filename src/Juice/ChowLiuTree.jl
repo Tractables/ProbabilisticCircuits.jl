@@ -139,25 +139,25 @@ end
 
 
 "calculate complete disjoint probability from Chow-Liu Tree"
-function get_infernece(clt, query)
+function get_log_inference(clt, query)
     @assert(length(query) == nv(clt))
-    probability = 1.0
+    probability = 0.0
     for v in vertices(clt)
         parent = get_prop(clt, v, :parent)
         cpt = get_prop(clt, v, :cpt)
         if parent == 0
-            probability *= cpt[query[v]]
+            probability += log(cpt[query[v]])
         else
-            probability *= cpt[(query[v], query[parent])]
+            probability += log(cpt[(query[v], query[parent])])
         end
     end
     return probability
 end
 
 "calculate disjoint probability for every sample"
-function clt_likelihood_per_instance(clt, data)
+function clt_log_likelihood_per_instance(clt, data)
     data_matrix = feature_matrix(data)
     num_sample = size(data_matrix)[1]
-    result = [get_infernece(clt, data_matrix[i,:]) for i in 1:num_sample]
+    result = [get_log_inference(clt, data_matrix[i,:]) for i in 1:num_sample]
     return result
 end
