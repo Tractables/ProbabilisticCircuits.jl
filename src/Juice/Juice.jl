@@ -9,9 +9,9 @@ module Juice
 
 export FlowCircuit, ProbCircuit,
     AggregateFlowCircuit, XData, pass_up, log_likelihood_per_instance,
-    ProbCircuit△, fully_factorized_circuit,
+    ProbCircuit△, fully_factorized_circuit, is_decomposable,
     log_likelihood, compute_log_likelihood, node_stats, pass_down,
-    FlowCircuitNode, ProbCircuitNode, LogicalCircuitNode,
+    FlowCircuitNode, ProbCircuitNode, LogicalCircuitNode, PosLeafNode, NegLeafNode, ⋀Node, ⋁Node,
     ProbCircuitNode, CircuitNode, FlowCircuitNode, flatmap, num_parameters,
     estimate_parameters, train_mixture, mnist, FlowCache, reset_aggregate_flows,
     Circuit△, LogicalCircuit△, FlowCircuit△, accumulate_aggr_flows_batch,
