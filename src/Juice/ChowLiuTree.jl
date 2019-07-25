@@ -21,6 +21,17 @@ function marginal_distribution(vector::AbstractArray, weight::Array,
     return dis
 end
 
+function marginal_distribution(pairwise::Dict, index, type_num)::Dict
+    @assert index == 1 || index == 2
+    @assert type_num == 2
+    # simplified version for binary dataset
+    if index == 1
+        return Dict(0 => pairwise[(0, 0)] + pairwise[(0, 1)], 1 => pairwise[(1, 0)] + pairwise[(1, 1)])
+    else
+        return Dict(0 => pairwise[(0, 0)] + pairwise[(1, 0)], 1 => pairwise[(0, 1)] + pairwise[(1, 1)])
+    end
+end
+
 
 "calculate pairwise distribution of two weighted array"
 function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
@@ -49,9 +60,9 @@ function mutual_information(data::WXData, index1::Int, index2::Int, type_num::In
     vector1 = data_matrix[:, index1]
     vector2 = data_matrix[:, index2]
 
-    prob_i = marginal_distribution(vector1, weight, type_num, smoothing_factor)
-    prob_j = marginal_distribution(vector2, weight, type_num, smoothing_factor)
     prob_ij = pairwise_distribution(vector1, vector2, weight, type_num, smoothing_factor)
+    prob_i = marginal_distribution(prob_ij, 1, type_num)
+    prob_j = marginal_distribution(prob_ij, 2, type_num)
     mi = 0.0
     for x in keys(prob_i), y in keys(prob_j)
         if !isapprox(0.0, prob_ij[(x, y)]; atol=eps(Float64), rtol=0)
@@ -71,11 +82,17 @@ function get_cpt(data::WXData, parent_index::Int, child_index::Int,
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
     child = data_matrix[:, child_index]
-    prob_c = marginal_distribution(child, weight_vector, type_num, smoothing_factor)
-    if parent_index == 0 return prob_c end
+
+    if parent_index == 0
+        prob_c = marginal_distribution(child, weight_vector, type_num, smoothing_factor)
+        return prob_c
+    end
+
     parent = data_matrix[:, parent_index]
-    prob_p = marginal_distribution(parent, weight_vector, type_num, smoothing_factor)
     prob_pc = pairwise_distribution(parent, child, weight_vector, type_num, smoothing_factor)
+    prob_p = marginal_distribution(prob_pc, 1, type_num)
+    prob_c = marginal_distribution(prob_pc, 2, type_num)
+
     cpt = Dict()
     for p in keys(prob_p), c in keys(prob_c)
         if !isapprox(0.0, prob_p[p]; atol=eps(Float64), rtol=0)
@@ -161,6 +178,16 @@ end
 function clt_log_likelihood_per_instance(clt, data)
     data_matrix = feature_matrix(data)
     num_sample = size(data_matrix)[1]
-    result = [get_log_inference(clt, data_matrix[i,:]) for i in 1:num_sample]
+    features_num = num_features(data)
+    result = zeros(num_sample)
+    for v in vertices(clt)
+        parent = get_prop(clt, v, :parent)
+        cpt = get_prop(clt, v, :cpt)
+        if parent == 0
+            result += log.([cpt[data_matrix[i, v]] for i in 1 : num_sample])
+        else
+            result += log.([cpt[(data_matrix[i, v], data_matrix[i, parent])] for i in 1 : num_sample])
+        end
+    end
     return result
 end
