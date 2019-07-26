@@ -3,26 +3,6 @@ using SimpleWeightedGraphs
 using MetaGraphs
 
 #TODO:(mhdang) accelarate speed by cache pairwise and marginal information
-using Query
-using IterTools
-using EponymTuples
-using StatsFuns
-
-include("../Utils/Utils.jl")
-include("../Data/Data.jl")
-
-using .Data
-using .Utils
-
-# Todo(pashak) Make these Circuits submodule
-include("LogicalCircuits.jl")
-include("FlowCircuits.jl")
-include("AggregateFlowCircuits.jl")
-include("ProbCircuits.jl")
-include("Vtree.jl")
-
-# Todo(pashak) Make these Learning submodule
-include("ProbMixtures.jl")
 #####################
 # Get mutual information
 #####################
