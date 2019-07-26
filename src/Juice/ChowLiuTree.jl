@@ -2,6 +2,27 @@ using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
 
+#TODO:(mhdang) accelarate speed by cache pairwise and marginal information
+using Query
+using IterTools
+using EponymTuples
+using StatsFuns
+
+include("../Utils/Utils.jl")
+include("../Data/Data.jl")
+
+using .Data
+using .Utils
+
+# Todo(pashak) Make these Circuits submodule
+include("LogicalCircuits.jl")
+include("FlowCircuits.jl")
+include("AggregateFlowCircuits.jl")
+include("ProbCircuits.jl")
+include("Vtree.jl")
+
+# Todo(pashak) Make these Learning submodule
+include("ProbMixtures.jl")
 #####################
 # Get mutual information
 #####################
@@ -107,7 +128,7 @@ end
 # Learn a Chow-Liu tree from weighted data
 #####################
 "learn a Chow-Liu tree from data matrix, with Laplace smoothing"
-function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
+function learn_chow_liu_tree(data::WXData; smoothing_factor=0,num_mix=1,flag=false)
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
     features_num = num_features(data)
@@ -126,29 +147,42 @@ function learn_chow_liu_tree(data::WXData; smoothing_factor=0)::MetaDiGraph
     for edge in mst_edges
         add_edge!(tree, src(edge), dst(edge), - weight(edge))
     end
-    roots = [c[1] for c in connected_components(tree)]
-    rooted_tree = SimpleDiGraph(features_num)
-    for root in roots rooted_tree = union(rooted_tree, bfs_tree(tree, root)) end
 
-    # Construct Chow-Liu tree with CPTs
-    clt = MetaDiGraph(rooted_tree)
-    set_prop!(clt, :description, "Chow-Liu Tree of Weighted Sample")
-    ## add weights
-    for edge in edges(clt)
-        set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
+    # learning trees with differerent roots
+    mix_trees = Vector{MetaDiGraph}(undef, num_mix)
+
+    for index in 1 : num_mix
+
+        # Calculate with different roots
+        roots = [c[mod(index, length(c)) + 1] for c in connected_components(tree)]
+        rooted_tree = SimpleDiGraph(features_num)
+        for root in roots rooted_tree = union(rooted_tree, bfs_tree(tree, root)) end
+
+        # Construct Chow-Liu tree with CPTs
+        clt = MetaDiGraph(rooted_tree)
+        set_prop!(clt, :description, "Chow-Liu Tree of Weighted Sample")
+        ## add weights
+        for edge in edges(clt)
+            set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
+        end
+
+        ## set parent
+        for root in roots set_prop!(clt, root, :parent, 0) end
+        for edge in edges(clt)
+            set_prop!(clt, dst(edge), :parent, src(edge))
+        end
+        ## calculate cpts
+        for v in vertices(clt)
+            parent = get_prop(clt, v, :parent)
+            cpt_matrix = get_cpt(data, parent, v, type_num; smoothing_factor = smoothing_factor)
+            set_prop!(clt, v, :cpt, cpt_matrix)
+        end
+
+        mix_trees[index] = clt
     end
-    ## set parent
-    for root in roots set_prop!(clt, root, :parent, 0) end
-    for edge in edges(clt)
-        set_prop!(clt, dst(edge), :parent, src(edge))
-    end
-    ## calculate cpts
-    for v in vertices(clt)
-        parent = get_prop(clt, v, :parent)
-        cpt_matrix = get_cpt(data, parent, v, type_num; smoothing_factor = smoothing_factor)
-        set_prop!(clt, v, :cpt, cpt_matrix)
-    end
-    return clt
+
+    if flag return mix_trees
+    else return mix_trees[1] end
 end
 
 "print edges and vertices of a ChowLiu tree"
