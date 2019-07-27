@@ -1,5 +1,16 @@
 using Test;
 
+function generate_data_all(N)
+    # N = 4;
+    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
+    for mask = 1: (1<<N) - 1
+        data_all = vcat(data_all, 
+            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
+        );
+    end
+    data_all
+end
+
 # This tests are supposed to test queries on the circuits
 @testset "Probability of Full Evidence" begin
     # Uses a PSDD with 4 variables, and tests 3 of the configurations to 
@@ -26,13 +37,14 @@ using Test;
     
     # Step 2. Add up all probabilities and see if they add up to one
     N = 4;
-    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
-    for mask = 1: (1<<N) - 1
-        data_all = vcat(data_all, 
-            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
-        );
-    end
-    data_all = XData(data_all)
+    # data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
+    # for mask = 1: (1<<N) - 1
+    #     data_all = vcat(data_all, 
+    #         transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
+    #     );
+    # end
+    # data_all = XData(data_all)
+    data_all = XData(generate_data_all(N))
 
     calc_prob_all = log_likelihood_per_instance(flow_circuit, data_all)
     calc_prob_all = exp.(calc_prob_all)
@@ -43,7 +55,7 @@ end
 
 @testset "Probability of partial Evidence (marginals)" begin
     EPS = 1e-7;
-    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");+
+    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
 
     data = XData(
         Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1; 
@@ -59,6 +71,54 @@ end
 
     for i = 1:length(true_prob)
         @test true_prob[i] ≈ calc_prob[i] atol= EPS;
+    end
+
+end
+
+@testset "Marginal Pass Down" begin    
+    EPS = 1e-7;
+    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
+    
+    N = 4
+    data_full = XData(Int8.(generate_data_all(N)))
+    opts= (compact⋀=false, compact⋁=false)
+    
+    flow_circuit   = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    flow_circuit_marg = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    
+
+    # Comparing with down pass with fully obeserved data
+    Juice.pass_up_down(flow_circuit, data_full)
+    Juice.marginal_pass_up_down(flow_circuit_marg, data_full)
+
+    for (ind, node) in enumerate(flow_circuit)
+        if node isa Juice.HasΠFlow
+            @test all(  isapprox.(Juice.π(flow_circuit[ind]), Juice.π(flow_circuit_marg[ind]), atol = EPS) );
+        end
+    end
+
+
+    # Validating one example with missing features done by hand
+    data_partial = XData(Int8.([-1 1 -1 1]))
+    flow_circuit_part  = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    Juice.marginal_pass_up_down(flow_circuit_part, data_partial)
+
+    # (node index, correct down_flow_value)
+    true_vals = [(9, 0.3333333333333),
+                (10, 0.0),
+                (11, 0.6666666666666),
+                (12, 0.0),
+                (13, 1.0),
+                (14, 0.5),
+                (15, 0.0),
+                (16, 0.5),
+                (17, 0.0),
+                (18, 1.0),
+                (19, 1.0),
+                (20, 1.0)]
+
+    for ind_val in true_vals
+        @test Juice.π(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
     end
 
 end
