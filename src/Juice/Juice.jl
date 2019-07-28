@@ -22,7 +22,7 @@ export FlowCircuit, ProbCircuit,
     HeaderLine, CommentLine, parse_lc_file, CircuitFormatLine,
     parse_vtree_file, compile_vtree_format_lines,
     VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
-    save,
+    save,train_mixture_tree, train_mixture_tree2,
     marginal_log_likelihood_per_instance,
     marginal_pass_up_down
 
