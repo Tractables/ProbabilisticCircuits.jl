@@ -48,6 +48,7 @@ include("Vtree.jl")
 include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
+include("TreeMixtures.jl")
 
 # Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")
