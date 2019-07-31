@@ -7,11 +7,13 @@ using MetaGraphs
 
 
 "build probability circuits from Baysian tree "
-function compile_prob_circuit_from_clt(clt::MetaDiGraph)::Vector{ProbCircuitNode}
+function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
     topo_order = Var.(reverse(topological_sort_by_dfs(clt))) #order to parse the node
     lin = Vector{ProbCircuitNode}()
     node_cache = Dict{Lit, LogicalCircuitNode}()
     prob_cache = ProbCache()
+
+    "default order of circuit node, from left to right: +/1 -/0"
 
     "compile leaf node into circuits"
     function compile_leaf(ln::Var)
@@ -25,35 +27,41 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::Vector{ProbCircuitNode
         push!(lin, neg)
     end
 
-    "compile inner disjunction node into circuits"
-    function compile_⋁inner(ln::Lit, children::Vector{Var})::⋁Node
-        #build logical ciruits
-        signed_children = vec([var2lit.(children) -var2lit.(children)]')
-        temp = ⋁Node([node_cache[s] for s in signed_children])
-        n = ProbCircuitNode(temp, prob_cache)
-
-        #calculate weights for each children
-        cpts = [get_prop(clt, c, :cpt) for c in children]
+    "compile inner disjunction node"
+    function compile_⋁inner(ln::Lit, children::Vector{Var})::Vector{⋁Node}
+        logical_nodes = Vector{⋁Node}()
         v = lit2value(ln)
-        weights = vec([[c[(1,v)] for c in cpts] [c[(0,v)] for c in cpts]]')
-        n.log_thetas = log.(weights)
-        push!(lin, n)
-        return temp
+
+        for c in children
+            #build logical ciruits 
+            temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
+            push!(logical_nodes, temp)
+
+            n = ProbCircuitNode(temp, prob_cache)
+
+            #calculate weights for each child
+            cpt = get_prop(clt, c, :cpt)
+            weights = [cpt[(1, v)], cpt[(0, v)]]
+            n.log_thetas = log.(weights)
+            push!(lin, n)
+        end
+        
+        return logical_nodes
     end
 
-    "compile inner conjunction node into circuits, left node is indicator, right node is disjunction children nodes"
-    function compile_⋀inner(left::Lit, right::⋁Node)
-        leaf = (left > 0 ? PosLeafNode(left) : NegLeafNode(-left))
-        prob_leaf = ProbCircuitNode(leaf, prob_cache)
-        temp = ⋀Node([leaf,right])
+    "compile inner conjunction node into circuits, left node is indicator, rest nodes are disjunction children nodes"
+    function compile_⋀inner(indicator::Lit, children::Vector{⋁Node})
+        leaf = node_cache[indicator]
+        temp = ⋀Node(vcat([leaf], children))                
+        node_cache[indicator] = temp
+
         n = ProbCircuitNode(temp, prob_cache)
-        node_cache[left] = temp
-        push!(lin, prob_leaf)
         push!(lin, n)
     end
 
-    "compile variable into 4 inner nodes"
+    "compile inner node, 1 inner varibale to 2 leaf nodes, 2 * num_children disjunction nodes and 2 conjunction nodes"
     function compile_inner(ln::Var, children::Vector{Var})
+        compile_leaf(ln)
         pos⋁ = compile_⋁inner(var2lit(ln), children)
         neg⋁ = compile_⋁inner(-var2lit(ln), children)
         compile_⋀inner(var2lit(ln), pos⋁)
@@ -87,8 +95,8 @@ end
 
 
 "simple test code to parse a chow-liu tree"
-function test_parse_tree()
-    f = open(pwd()*"/src/Juice/test.txt")
+function test_parse_tree(filename::String)
+    f = open(filename)
     n = parse(Int32,readline(f))
     clt = MetaDiGraph(n)
     root, prob = split(readline(f), " ")
