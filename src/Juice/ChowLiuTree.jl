@@ -2,97 +2,127 @@ using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
 
-#TODO:(mhdang) accelarate speed by cache pairwise and marginal information
 #####################
-# Get mutual information
+# Data structure and methods to calculate and compute distribution, applied to binary dataset
 #####################
-"calculate marginal distribution of weighted array, for consistency with pairwise distribution, type_num multiply twice"
-function marginal_distribution(vector::AbstractArray, weight::Array,
-        type_num::Int,α::Real)::Dict
-    @assert all([x < type_num for x in vector])
-    dis = Dict()
-    base = sum(weight)
-    for (v, w) in zip(vector, weight)
-        dis[v] = get(dis, v, 0) + w
-    end
-    for x in 0 : type_num - 1
-        dis[x] = (get(dis, x, 0) + α * type_num) /
-            (base + type_num * type_num * α)
-    end
-    return dis
+
+const PairwiseDis = Dict{Tuple{Int64, Int64}, Float64}
+const MarginalDis = Dict{Int64, Float64}
+
+mutable struct DisCache{P<:Dict{Tuple{Int64, Int64}, PairwiseDis}, M<:Dict{Int64, MarginalDis}}
+    pairwises::P
+    marginals::M
 end
 
-function marginal_distribution(pairwise::Dict, index, type_num)::Dict
-    @assert index == 1 || index == 2
-    @assert type_num == 2
-    # simplified version for binary dataset
+DisCache() = DisCache(Dict{Tuple{Int64, Int64}, PairwiseDis}(), Dict{Int64, MarginalDis}())
+
+@inline function change_variable(p::PairwiseDis)
+    ret = copy(p)
+    ret[(0, 1)], ret[(1, 0)] = ret[(1, 0)], ret[(0, 1)]
+    return ret
+end
+@inline get_distribution(index::Tuple{Int64, Int64}, dis_cache::DisCache) = 
+    index[1] < index[2] ? dis_cache.pairwises[index] : change_variable(dis_cache.pairwises[(index[2], index[1])])
+@inline get_distribution(index::Int64, dis_cache::DisCache) = dis_cache.marginals[index]
+
+"calulate pairwise and marginal for all features"
+function calculate_all_distributions(data::WXData, dis_cache::DisCache; type_num = 2, α = 0)
+    features_num = num_features(data)
+    for i in 1 : features_num, j in i + 1 : features_num
+        calculate_distribution((i, j), data, dis_cache; type_num = type_num, α = α)
+    end
+    for i in 1 : features_num
+        calculate_distribution(i, data, dis_cache; type_num = type_num, α = α)
+    end
+end
+
+calculate_distribution(index::Tuple{Int64, Int64}, data::WXData, dis_cache::DisCache; type_num = 2, α = 0) = 
+    calculate_distribution(index, feature_matrix(data), Data.weights(data), dis_cache; type_num = type_num, α = α)
+
+calculate_distribution(index::Tuple{Int64, Int64}, data_matrix::AbstractMatrix, weight::Vector{Float64}, dis_cache::DisCache; type_num = 2, α = 0) = 
+    get!(dis_cache.pairwises, index) do
+        pairwise_distribution(view(data_matrix, :, index[1]), view(data_matrix, :, index[2]), weight; type_num = type_num, α = α)
+    end
+
+calculate_distribution(index::Int64, data::WXData, dis_cache::DisCache; type_num = 2, α = 0) =
+    get!(dis_cache.marginals, index) do
+        marginal_distribution(index, dis_cache; type_num = type_num, α = α)
+    end
+    
+"calculate marginal distribution of weighted array"
+function marginal_distribution(index::Int64, dis_cache::DisCache; type_num = 2, α = 0)::MarginalDis
+    dis = MarginalDis()
+    # calculate marginal from pairwise
+    #if (1, index) in keys(dis_cache.marginals)
+    @assert !isempty(dis_cache.pairwises)
     if index == 1
-        return Dict(0 => pairwise[(0, 0)] + pairwise[(0, 1)], 1 => pairwise[(1, 0)] + pairwise[(1, 1)])
+        pairwise = dis_cache.pairwises[(1, 2)]
+        dis[0] = pairwise[(0, 0)] + pairwise[(0, 1)]
+        dis[1] = pairwise[(1, 0)] + pairwise[(1, 1)]
+        return dis
     else
-        return Dict(0 => pairwise[(0, 0)] + pairwise[(1, 0)], 1 => pairwise[(0, 1)] + pairwise[(1, 1)])
+        pairwise = dis_cache.pairwises[(1, index)]
+        dis[0] = pairwise[(0, 0)] + pairwise[(1, 0)]
+        dis[1] = pairwise[(0, 1)] + pairwise[(1, 1)]
+    return dis
+    # calculate marginal from original data, be called when node has no neighbors
+    #else
+    #    weight = Data.weights(data)
+    #    data_matrix = feature_matrix(data)
+    #    vector = view(data_matrix, :, index)
+    #    base = sum(weight)
+    #    for (v, w) in zip(vector, weight)
+    #        dis[v] = get(dis, v, 0) + w
+    #    end
+    #    for x in 0 : type_num - 1
+    #        dis[x] = (get(dis, x, 0) + α) / (base + type_num * α)
+    #    end
+    #    return dis
+    #end
     end
 end
-
 
 "calculate pairwise distribution of two weighted array"
-function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
-        weight::Array, type_num::Int, α::Real)::Dict
-    @assert all([x < type_num for x in vector1])
-    @assert all([x < type_num for x in vector2])
-    @assert length(vector1) == length(vector2)
-    dis = Dict()
+function pairwise_distribution(vector1::AbstractVector, vector2::AbstractVector, weight::Vector{Float64}; type_num = 2, α = 0)::PairwiseDis
+    dis = PairwiseDis()
     base = sum(weight)
     for i in 1 : length(vector1)
         dis[(vector1[i], vector2[i])] = get(dis, (vector1[i], vector2[i]), 0) + weight[i]
     end
     for x in 0 : type_num - 1, y in 0 : type_num - 1
-        dis[(x, y)] = (get(dis, (x, y), 0) + α) /
-            (base + type_num * type_num * α)
+        dis[(x, y)] = (get(dis, (x, y), 0) + α) / (base + type_num * type_num * α)
     end
     return dis
 end
 
+#####################
+# Methods for CPTs and MIs
+#####################
 
 "calculate mutual information of two columns of given matrix"
-function mutual_information(data::WXData, index1::Int, index2::Int, type_num::Int;
-        base=ℯ, α=0)::Float64
-    weight = Data.weights(data)
-    data_matrix = feature_matrix(data)
-    vector1 = data_matrix[:, index1]
-    vector2 = data_matrix[:, index2]
-
-    prob_ij = pairwise_distribution(vector1, vector2, weight, type_num, α)
-    prob_i = marginal_distribution(prob_ij, 1, type_num)
-    prob_j = marginal_distribution(prob_ij, 2, type_num)
+function mutual_information(index1::Int64, index2::Int64, dis_cache::DisCache)::Float64
+    prob_ij = get_distribution((index1, index2), dis_cache)
+    prob_i = get_distribution(index1, dis_cache)
+    prob_j = get_distribution(index2, dis_cache)
+    
     mi = 0.0
     for x in keys(prob_i), y in keys(prob_j)
         if !isapprox(0.0, prob_ij[(x, y)]; atol=eps(Float64), rtol=0)
-            mi += prob_ij[(x, y)] * log(base, prob_ij[(x, y)] / (prob_i[x] * prob_j[y]))
+            mi += prob_ij[(x, y)] * log(prob_ij[(x, y)] / (prob_i[x] * prob_j[y]))
         end
     end
     return mi
 end
 
-#####################
-# Get CPTs of tree-structured BN
-#####################
-
 "get CPTs of Chow-Liu tree, via given data"
-function get_cpt(data::WXData, parent_index::Int, child_index::Int,
-        type_num::Int;α=0)::Dict
-    weight_vector = Data.weights(data)
-    data_matrix = feature_matrix(data)
-    child = data_matrix[:, child_index]
+function get_cpt(parent_index::Int64, child_index::Int64, dis_cache::DisCache)::Dict
+    
+    prob_c = get_distribution(child_index, dis_cache)
 
-    if parent_index == 0
-        prob_c = marginal_distribution(child, weight_vector, type_num, α)
-        return prob_c
-    end
+    if parent_index == 0 return prob_c end
 
-    parent = data_matrix[:, parent_index]
-    prob_pc = pairwise_distribution(parent, child, weight_vector, type_num, α)
-    prob_p = marginal_distribution(prob_pc, 1, type_num)
-    prob_c = marginal_distribution(prob_pc, 2, type_num)
+    prob_pc = get_distribution((parent_index, child_index), dis_cache)
+    prob_p = get_distribution(parent_index, dis_cache)
 
     cpt = Dict()
     for p in keys(prob_p), c in keys(prob_c)
@@ -107,17 +137,22 @@ end
 #####################
 # Learn a Chow-Liu tree from weighted data
 #####################
+
 "learn a Chow-Liu tree from data matrix, with Laplace smoothing"
-function learn_chow_liu_tree(data::WXData; α=0,num_mix=1,flag=false)
+function learn_chow_liu_tree(data::WXData; α = 0)
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
     features_num = num_features(data)
     type_num = 2 #binary dataset
+    dis_cache = DisCache()
+
+    #Calculate all distrubutions for future use
+    calculate_all_distributions(data, dis_cache; type_num = type_num, α = α)
 
     # Calculate mutual information matrix
     g = SimpleWeightedGraph(features_num)
-    for i in 1:features_num, j in i+1:features_num
-        mi = mutual_information(data, i, j, type_num;α=α)
+    for i in 1 : features_num, j in i + 1 : features_num
+        mi = mutual_information(i, j, dis_cache)
         add_edge!(g, i, j, - mi)
     end
 
@@ -128,41 +163,43 @@ function learn_chow_liu_tree(data::WXData; α=0,num_mix=1,flag=false)
         add_edge!(tree, src(edge), dst(edge), - weight(edge))
     end
 
-    # learning trees with differerent roots
-    mix_trees = Vector{MetaDiGraph}(undef, num_mix)
 
-    for index in 1 : num_mix
+    # Calculate with different roots
+    roots = [c[1] for c in connected_components(tree)]
+    rooted_tree = SimpleDiGraph(features_num)
+    for root in roots rooted_tree = union(rooted_tree, bfs_tree(tree, root)) end
 
-        # Calculate with different roots
-        roots = [c[mod(index, length(c)) + 1] for c in connected_components(tree)]
-        rooted_tree = SimpleDiGraph(features_num)
-        for root in roots rooted_tree = union(rooted_tree, bfs_tree(tree, root)) end
+    # Construct Chow-Liu tree with CPTs
+    clt = MetaDiGraph(rooted_tree)
+    set_prop!(clt, :description, "Chow-Liu Tree of Weighted Sample")
 
-        # Construct Chow-Liu tree with CPTs
-        clt = MetaDiGraph(rooted_tree)
-        set_prop!(clt, :description, "Chow-Liu Tree of Weighted Sample")
-        ## add weights
-        for edge in edges(clt)
-            set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
-        end
-
-        ## set parent
-        for root in roots set_prop!(clt, root, :parent, 0) end
-        for edge in edges(clt)
-            set_prop!(clt, dst(edge), :parent, src(edge))
-        end
-        ## calculate cpts
-        for v in vertices(clt)
-            parent = get_prop(clt, v, :parent)
-            cpt_matrix = get_cpt(data, parent, v, type_num; α = α)
-            set_prop!(clt, v, :cpt, cpt_matrix)
-        end
-
-        mix_trees[index] = clt
+    ## add weights
+    for edge in edges(clt)
+        set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
     end
 
-    if flag return mix_trees
-    else return mix_trees[1] end
+    ## set parent
+    for root in roots set_prop!(clt, root, :parent, 0) end
+    for edge in edges(clt)
+        set_prop!(clt, dst(edge), :parent, src(edge))
+    end
+
+    ## calculate cpts
+    for v in vertices(clt)
+        parent = get_prop(clt, v, :parent)
+        cpt_matrix = get_cpt(parent, v, dis_cache)
+        set_prop!(clt, v, :cpt, cpt_matrix)
+    end
+    return clt
+
+end
+
+#####################
+# Other methods about CLT
+#####################
+"compare if the **structure** of two CLTs are equal"
+function compare_tree(clt1, clt2)
+
 end
 
 "print edges and vertices of a ChowLiu tree"
@@ -194,14 +231,16 @@ function clt_log_likelihood_per_instance(clt, data)
     num_sample = size(data_matrix)[1]
     features_num = num_features(data)
     result = zeros(num_sample)
-    for v in vertices(clt)
-        parent = get_prop(clt, v, :parent)
+    roots = [v for v in vertices(clt) if get_prop(clt, v, :parent) == 0]
+    others = [v for v in vertices(clt) if get_prop(clt, v, :parent) != 0]
+    for v in roots
         cpt = get_prop(clt, v, :cpt)
-        if parent == 0
-            result += log.([cpt[data_matrix[i, v]] for i in 1 : num_sample])
-        else
-            result += log.([cpt[(data_matrix[i, v], data_matrix[i, parent])] for i in 1 : num_sample])
-        end
+        result += log.([cpt[data_matrix[i, v]] for i in 1 : num_sample])
+    end
+    for v in others
+        cpt = get_prop(clt, v, :cpt)
+        parent = get_prop(clt, v, :parent)
+        result += log.([cpt[(data_matrix[i, v], data_matrix[i, parent])] for i in 1 : num_sample])
     end
     return result
 end
