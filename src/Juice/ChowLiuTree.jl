@@ -11,13 +11,13 @@ function marginal_distribution(vector::AbstractArray, weight::Array,
         type_num::Int,α::Real)::Dict
     @assert all([x < type_num for x in vector])
     dis = Dict()
-    len = length(vector)
+    base = sum(weight)
     for (v, w) in zip(vector, weight)
         dis[v] = get(dis, v, 0) + w
     end
     for x in 0 : type_num - 1
         dis[x] = (get(dis, x, 0) + α * type_num) /
-            (len + type_num * type_num * α)
+            (base + type_num * type_num * α)
     end
     return dis
 end
@@ -41,13 +41,13 @@ function pairwise_distribution(vector1::AbstractArray, vector2::AbstractArray,
     @assert all([x < type_num for x in vector2])
     @assert length(vector1) == length(vector2)
     dis = Dict()
-    len = length(vector1)
-    for i in 1 : len
+    base = sum(weight)
+    for i in 1 : length(vector1)
         dis[(vector1[i], vector2[i])] = get(dis, (vector1[i], vector2[i]), 0) + weight[i]
     end
     for x in 0 : type_num - 1, y in 0 : type_num - 1
         dis[(x, y)] = (get(dis, (x, y), 0) + α) /
-            (len + type_num * type_num * α)
+            (base + type_num * type_num * α)
     end
     return dis
 end
