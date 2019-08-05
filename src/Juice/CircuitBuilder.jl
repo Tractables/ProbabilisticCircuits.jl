@@ -89,10 +89,41 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
                 compile_root(id)
             end
         end
+        
     end
     return lin
 end
 
+"check full evidence sums to 1 for prob circuits"
+function prob_circuit_check(prob_circuit, data)
+    EPS = 1e-7
+    flow_circuit = FlowCircuit(prob_circuit, 1, Bool);
+    examples_num = num_examples(data)
+    N = num_features(data)
+
+    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
+    for mask = 1: (1<<N) - 1
+        data_all = vcat(data_all,
+            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
+        );
+    end
+    data_all = XData(data_all)
+
+    calc_prob_all = log_likelihood_per_instance(flow_circuit, data_all)
+    calc_prob_all = exp.(calc_prob_all)
+    sum_prob_all = sum(calc_prob_all)
+    @assert sum_prob_all ≈ 1 atol = EPS;
+end
+
+"check correctness for mix of circuits"
+function mix_prob_circuit_check(mix_prob, data)
+    count = 1
+    for m in mix_prob
+        println("Checking prob circuits $count th..")
+        prob_circuit_check(m, data)
+        count += 1
+    end
+end
 
 "simple test code to parse a chow-liu tree"
 function test_parse_tree(filename::String)

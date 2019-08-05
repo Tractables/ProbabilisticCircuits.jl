@@ -21,6 +21,7 @@ DisCache() = DisCache(Dict{Tuple{Int64, Int64}, PairwiseDis}(), Dict{Int64, Marg
     ret[(0, 1)], ret[(1, 0)] = ret[(1, 0)], ret[(0, 1)]
     return ret
 end
+
 @inline get_distribution(index::Tuple{Int64, Int64}, dis_cache::DisCache) = 
     index[1] < index[2] ? dis_cache.pairwises[index] : change_variable(dis_cache.pairwises[(index[2], index[1])])
 @inline get_distribution(index::Int64, dis_cache::DisCache) = dis_cache.marginals[index]
@@ -65,32 +66,18 @@ function marginal_distribution(index::Int64, dis_cache::DisCache; type_num = 2, 
         dis[0] = pairwise[(0, 0)] + pairwise[(1, 0)]
         dis[1] = pairwise[(0, 1)] + pairwise[(1, 1)]
     return dis
-    # calculate marginal from original data, be called when node has no neighbors
-    #else
-    #    weight = Data.weights(data)
-    #    data_matrix = feature_matrix(data)
-    #    vector = view(data_matrix, :, index)
-    #    base = sum(weight)
-    #    for (v, w) in zip(vector, weight)
-    #        dis[v] = get(dis, v, 0) + w
-    #    end
-    #    for x in 0 : type_num - 1
-    #        dis[x] = (get(dis, x, 0) + α) / (base + type_num * α)
-    #    end
-    #    return dis
-    #end
     end
 end
 
 "calculate pairwise distribution of two weighted array"
 function pairwise_distribution(vector1::AbstractVector, vector2::AbstractVector, weight::Vector{Float64}; type_num = 2, α = 0)::PairwiseDis
     dis = PairwiseDis()
-    base = sum(weight)
+    base = (sum(weight) + type_num * type_num * α)
     for i in 1 : length(vector1)
         dis[(vector1[i], vector2[i])] = get(dis, (vector1[i], vector2[i]), 0) + weight[i]
     end
     for x in 0 : type_num - 1, y in 0 : type_num - 1
-        dis[(x, y)] = (get(dis, (x, y), 0) + α) / (base + type_num * type_num * α)
+        dis[(x, y)] = (get(dis, (x, y), 0) + α) / base
     end
     return dis
 end
@@ -107,11 +94,10 @@ function mutual_information(index1::Int64, index2::Int64, dis_cache::DisCache)::
     
     mi = 0.0
     for x in keys(prob_i), y in keys(prob_j)
-        if !isapprox(0.0, prob_ij[(x, y)]; atol=eps(Float64), rtol=0)
-            mi += prob_ij[(x, y)] * log(prob_ij[(x, y)] / (prob_i[x] * prob_j[y]))
-        end
+        @assert (!(prob_ij[(x, y)] ≈ 0.0) && !(prob_i[x] ≈ 0.0) && !(prob_j[y] ≈ 0.0))
+        mi += prob_ij[(x, y)] * log(prob_ij[(x, y)] / (prob_i[x] * prob_j[y]))
     end
-    return mi
+    return max(mi, 0.0) # in case precision leads to negetive
 end
 
 "get CPTs of Chow-Liu tree, via given data"
@@ -126,9 +112,9 @@ function get_cpt(parent_index::Int64, child_index::Int64, dis_cache::DisCache)::
 
     cpt = Dict()
     for p in keys(prob_p), c in keys(prob_c)
-        if !isapprox(0.0, prob_p[p]; atol=eps(Float64), rtol=0)
+        @assert !isapprox(0.0, prob_p[p]; atol=eps(Float64), rtol=0)
             cpt[(c, p)] = prob_pc[(p, c)] / prob_p[p]
-        end
+            #cpt[(c, p)] = 0 # simplified 
     end
     return cpt
 end
@@ -197,10 +183,6 @@ end
 #####################
 # Other methods about CLT
 #####################
-"compare if the **structure** of two CLTs are equal"
-function compare_tree(clt1, clt2)
-
-end
 
 "print edges and vertices of a ChowLiu tree"
 function print_tree(clt)
