@@ -20,7 +20,7 @@ export FlowCircuit, ProbCircuit,
     load_psdd_prob_circuit, load_circuit, circuit_matchers, LCDecisionLine,
     parse_one_obj, LCElementTuple, BiasLine, NegLiteralLine, PosLiteralLine,
     HeaderLine, CommentLine, parse_lc_file, CircuitFormatLine,
-    parse_vtree_file, compile_vtree_format_lines,
+    parse_vtree_file, compile_vtree_format_lines, load_vtree,
     VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
     save,print_tree,
     marginal_log_likelihood_per_instance,
@@ -53,6 +53,8 @@ include("TreeMixtures.jl")
 
 # Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")
+include("IO/VtreeSaver.jl")
 include("IO/CircuitParser.jl")
+include("IO/CircuitSaver.jl")
 
 end
