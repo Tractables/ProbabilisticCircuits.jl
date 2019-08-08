@@ -33,7 +33,7 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
         v = lit2value(ln)
 
         for c in children
-            #build logical ciruits 
+            #build logical ciruits
             temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
             push!(logical_nodes, temp)
 
@@ -45,14 +45,14 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
             n.log_thetas = log.(weights)
             push!(lin, n)
         end
-        
+
         return logical_nodes
     end
 
     "compile inner conjunction node into circuits, left node is indicator, rest nodes are disjunction children nodes"
     function compile_⋀inner(indicator::Lit, children::Vector{⋁Node})
         leaf = node_cache[indicator]
-        temp = ⋀Node(vcat([leaf], children))                
+        temp = ⋀Node(vcat([leaf], children))
         node_cache[indicator] = temp
 
         n = ProbCircuitNode(temp, prob_cache)
@@ -89,7 +89,7 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
                 compile_root(id)
             end
         end
-        
+
     end
     return lin
 end
@@ -123,23 +123,4 @@ function mix_prob_circuit_check(mix_prob, data)
         prob_circuit_check(m, data)
         count += 1
     end
-end
-
-"simple test code to parse a chow-liu tree"
-function test_parse_tree(filename::String)
-    f = open(filename)
-    n = parse(Int32,readline(f))
-    clt = MetaDiGraph(n)
-    root, prob = split(readline(f), " ")
-    root, prob = parse(Int32, root), parse(Float64, prob)
-    set_prop!(clt, root, :parent, 0)
-    set_prop!(clt, root, :cpt, Dict(1=>prob,0=>1-prob))
-    for i = 1:n-1
-        dst, src, prob1, prob0 = split(readline(f), " ")
-        dst, src, prob1, prob0 = parse(Int32, dst), parse(Int32, src), parse(Float64, prob1), parse(Float64, prob0)
-        add_edge!(clt, src,dst)
-        set_prop!(clt, dst, :parent, src)
-        set_prop!(clt, dst, :cpt, Dict((1,1)=>prob1, (0,1)=>1-prob1, (1,0)=>prob0, (0,0)=>1-prob0))
-    end
-    return clt
 end

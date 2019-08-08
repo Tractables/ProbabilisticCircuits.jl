@@ -16,7 +16,7 @@ export FlowCircuit, ProbCircuit,
     estimate_parameters, train_mixture, mnist, FlowCache, reset_aggregate_flows,
     Circuit△, LogicalCircuit△, FlowCircuit△, accumulate_aggr_flows_batch,
     learn_chow_liu_tree, twenty_datasets, dataset, train, WXData, feature_matrix,
-    compile_prob_circuit_from_clt, num_features, clt_log_likelihood_per_instance, get_log_inference,
+    compile_prob_circuit_from_clt, num_features, clt_log_likelihood_per_instance, clt_get_log_likelihood,
     load_psdd_prob_circuit, load_circuit, circuit_matchers, LCDecisionLine,print_tree,
     parse_one_obj, LCElementTuple, BiasLine, NegLiteralLine, PosLiteralLine,
     HeaderLine, CommentLine, parse_lc_file, CircuitFormatLine,
@@ -56,5 +56,8 @@ include("IO/VtreeParser.jl")
 include("IO/VtreeSaver.jl")
 include("IO/CircuitParser.jl")
 include("IO/CircuitSaver.jl")
+
+# Util submodule, may need move to ../Utils/
+include("Distribution.jl")
 
 end
