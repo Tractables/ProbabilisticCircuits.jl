@@ -7,25 +7,49 @@ Circuits:
 
 module Juice
 
-export FlowCircuit, ProbCircuit,
-    AggregateFlowCircuit, XData, pass_up, log_likelihood_per_instance,
-    ProbCircuit△, fully_factorized_circuit, is_decomposable,
-    log_likelihood, compute_log_likelihood, node_stats, pass_down,
-    FlowCircuitNode, ProbCircuitNode, LogicalCircuitNode, PosLeafNode, NegLeafNode, ⋀Node, ⋁Node,
-    ProbCircuitNode, CircuitNode, FlowCircuitNode, flatmap, num_parameters,
-    estimate_parameters, train_mixture, mnist, FlowCache, reset_aggregate_flows,
-    Circuit△, LogicalCircuit△, FlowCircuit△, accumulate_aggr_flows_batch,
-    learn_chow_liu_tree, twenty_datasets, dataset, train, WXData, feature_matrix,
-    compile_prob_circuit_from_clt, num_features, clt_log_likelihood_per_instance, clt_get_log_likelihood,
-    load_psdd_prob_circuit, load_circuit, circuit_matchers, LCDecisionLine,print_tree,
-    parse_one_obj, LCElementTuple, BiasLine, NegLiteralLine, PosLiteralLine,
-    HeaderLine, CommentLine, parse_lc_file, CircuitFormatLine,
-    parse_vtree_file, compile_vtree_format_lines, load_vtree,
-    VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
-    save,
-    marginal_log_likelihood_per_instance,
-    marginal_pass_up_down,
-    train_mixture_tree, mix_prob_circuit_check
+export
+
+# Data and Utils
+XData, WXData, mnist, twenty_datasets, dataset, train, feature_matrix, num_features,
+flatmap,
+
+##################### Circuits submodule #####################
+# LogicalCircuits
+CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
+⋁Node, ⋀Node, node_stats, is_decomposable, fully_factorized_circuit,
+
+# ProbCircuits
+ProbCircuitNode, ProbCircuit, ProbCircuit△, num_parameters, compute_log_likelihood,
+log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
+
+# FlowCircuits
+FlowCircuitNode, FlowCircuit, FlowCircuit△, FlowCache, pass_down, pass_up, marginal_pass_up_down,
+
+# AggregateFlowCircuits
+AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
+
+# Vtree
+VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
+
+##################### Learning submodule #####################
+# ProbMixtures
+train_mixture,
+
+# ChowLiuTree / TreeMixtures
+learn_chow_liu_tree, clt_log_likelihood_per_instance, clt_get_log_likelihood,
+print_tree, train_mixture_tree,
+
+# CircuitBuilder
+compile_prob_circuit_from_clt, mix_prob_circuit_check,
+
+##################### IO submodule #####################
+# CircuitParser
+CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,
+LCDecisionLine, BiasLine, circuit_matchers, parse_one_obj, load_circuit, parse_lc_file,
+load_psdd_prob_circuit,
+
+# VtreeParser / Saver
+parse_vtree_file, compile_vtree_format_lines, load_vtree, save
 
 using Query
 using IterTools
