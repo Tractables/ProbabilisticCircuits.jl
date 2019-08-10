@@ -15,7 +15,7 @@ flatmap,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
-CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
+Var, CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
 ⋁Node, ⋀Node, node_stats, is_decomposable, fully_factorized_circuit,
 
 # ProbCircuits
@@ -29,7 +29,7 @@ FlowCircuitNode, FlowCircuit, FlowCircuit△, FlowCache, pass_down, pass_up, mar
 AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
 
 # Vtree
-VtreeNode, VtreeLeafNode, VtreeInnerNode, IsLeaf, Variables, VariableCount,
+VtreeNode, VtreeLeafNode, VtreeInnerNode, isleaf, variables, num_variables,
 
 ##################### Learning submodule #####################
 # ProbMixtures
@@ -74,6 +74,7 @@ include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
 include("TreeMixtures.jl")
+include("VtreeLearner.jl")
 
 # Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")

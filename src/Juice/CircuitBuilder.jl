@@ -59,7 +59,7 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
         push!(lin, n)
     end
 
-    "compile inner node, 1 inner varibale to 2 leaf nodes, 2 * num_children disjunction nodes and 2 conjunction nodes"
+    "compile inner node, 1 inner variable to 2 leaf nodes, 2 * num_children disjunction nodes and 2 conjunction nodes"
     function compile_inner(ln::Var, children::Vector{Var})
         compile_leaf(ln)
         pos⋁ = compile_⋁inner(var2lit(ln), children)
