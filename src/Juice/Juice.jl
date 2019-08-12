@@ -10,8 +10,8 @@ module Juice
 export
 
 # Data and Utils
-XData, WXData, mnist, twenty_datasets, dataset, train, feature_matrix, num_features,
-flatmap,
+XData, WXData, mnist, twenty_dataset_names, twenty_datasets, dataset, train, feature_matrix,
+num_features, flatmap,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
@@ -31,6 +31,7 @@ AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
 # Vtree
 VtreeNode, VtreeLeafNode, VtreeInnerNode, isleaf, variables, num_variables, Vtree,
 order_nodes_leaves_before_parents, VtreeLearnerContext, construct_top_down, construct_bottom_up,
+isequal,
 
 
 ##################### Learning submodule #####################
@@ -47,7 +48,6 @@ compile_prob_circuit_from_clt, mix_prob_circuit_check,
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
 test_top_down, test_bottom_up!,
-
 ##################### IO submodule #####################
 # CircuitParser
 CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,

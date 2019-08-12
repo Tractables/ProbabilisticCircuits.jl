@@ -79,7 +79,7 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
         "3. calculate scores, map index to var"
         all_matches = Vector(collect(all_matches))
         score = 0
-        for i in length(all_matches)
+        for i in 1 : length(all_matches)
             (x, y) = all_matches[i]
             score += pMI[x, y]
             all_matches[i] = (context.variable_sets[x][1], context.variable_sets[y][1])
