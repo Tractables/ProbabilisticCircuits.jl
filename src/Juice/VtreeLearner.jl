@@ -2,9 +2,16 @@ using BlossomV
 using Metis
 using SparseArrays
 
-const LONG_TIMES = 10000000
-@inline to_long(m::Matrix{Float64})::Matrix{Int64} = trunc.(Int64, m * LONG_TIMES)
+const δINT = 1000000
+const MIN_INT = 1
+const MAX_INT = δINT + MIN_INT
 
+function to_long_mi(m::Matrix{Float64})::Matrix{Int64}
+    δmi = maximum(m) - minimum(m)
+    return @. round(Int64, m * δINT / δmi + MIN_INT)
+end
+
+@inline order_asc(x, y) = x > y ? (y, x) : (x , y)
 
 #############
 # Metis top down method
@@ -14,7 +21,7 @@ struct MetisContext <: VtreeLearnerContext
     info::Matrix{Int64}
 end
 
-MetisContext(mi::Matrix{Float64}) = MetisContext(to_long(mi))
+MetisContext(mi::Matrix{Float64}) = MetisContext(to_long_mi(mi))
 
 "Metis top down method"
 function metis_top_down(vars::Set{Var}, context::MetisContext)::Tuple{Set{Var}, Set{Var}}
@@ -34,7 +41,7 @@ end
 
 
 #############
-# Bottom up method
+# Blossom bottom up method
 #############
 
 mutable struct BlossomContext <: VtreeLearnerContext
@@ -45,7 +52,8 @@ end
 
 BlossomContext(vars::Set{Var}, mi::Matrix{Float64}) =
     BlossomContext( [[v] for v in sort(collect(vars))],
-                    collect(1 : len(vars)), - to_long(mi))
+                    collect(1 : length(vars)),
+                    MAX_INT .+ MIN_INT .- to_long_mi(mi))
 
 "Blossom bottom up method, vars are not used"
 function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{Var, Var}}
@@ -68,11 +76,15 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
             push!(all_matches, order_asc(v, get_match(m, v - 1) + 1))
         end
 
-        "3. calculate scores"
+        "3. calculate scores, map index to var"
+        all_matches = Vector(collect(all_matches))
         score = 0
-        for (x, y) in all_matches
+        for i in length(all_matches)
+            (x, y) = all_matches[i]
             score += pMI[x, y]
+            all_matches[i] = (context.variable_sets[x][1], context.variable_sets[y][1])
         end
+        all_matches = Set(all_matches)
 
         "4. update context when called by outer layer"
         if update
@@ -87,21 +99,18 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
         sub_context = deepcopy(context)
 
         "1. try all len - 1 conditions, find best score(minimun cost)"
-        best_matches =  Set{Tuple{Var, Var}}()
-        best_score = typemax(Int64)
-        best_index = 0
+        (best_index, best_matches, best_score) = (0, Set{Tuple{Var, Var}}(), typemax(Int64))
 
         for index in 1 : length(context.variable_sets)
-            set = deleteat!(sub_context.variable_sets, index)
+            set = copy(sub_context.variable_sets[index])
+            deleteat!(sub_context.variable_sets, index)
 
             (matches, score) = blossom_bottom_up_even!(vars, sub_context; update = false)
             if score < best_score
-                best_matches = matches
-                best_score = score
-                best_index = index
+                (best_index, best_matches, best_score) = (index, matches, score)
             end
 
-            insert!(sub_context.variables, index, set)
+            insert!(sub_context.variable_sets, index, set)
         end
 
         "2. update information"
@@ -112,10 +121,15 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
 
     function updata_context(matches::Set{Tuple{Var, Var}}, context::BlossomContext)
         for (x, y) in matches
-            y_partition = pop!(context.variable_sets[partition_id[y]])
-            context.variable_sets[partition_id[x]] += y_partition
-            for tmp in y_partition
-                partition_id[tmp] = partition_id[x]
+            y_partition = copy(context.variable_sets[context.partition_id[y]])
+            context.variable_sets[context.partition_id[y]] = Vector()
+            foreach(value -> push!(context.variable_sets[context.partition_id[x]], value), y_partition)
+        end
+
+        context.variable_sets = [x for x in context.variable_sets if x != []]
+        for index in 1 : length(context.variable_sets)
+            for y in context.variable_sets[index]
+                context.partition_id[y] = index
             end
         end
     end
@@ -125,7 +139,11 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
     else
         (matches, score) = blossom_bottom_up_odd!(vars, context)
     end
-    
+
+    for (left, right) in matches
+        pop!(vars, right)
+    end
+
     return matches
 end
 
@@ -135,14 +153,12 @@ end
 #############
 
 "Test context, learn vtree by stipulated method"
-mutable struct TestContext <: VtreeLearnerContext
-    variables::Set{Var}
+struct TestContext <: VtreeLearnerContext
 end
 
 "Test top down method, split nodes by ascending order, balanced"
 function test_top_down(vars::Set{Var}, context::TestContext)::Tuple{Set{Var}, Set{Var}}
-    context.variables = vars
-    sorted_vars = sort(collect(context.variables))
+    sorted_vars = sort(collect(vars))
     len = length(sorted_vars)
     len1 = Int64(len % 2 == 0 ? len // 2 : (len - 1) // 2)
     return (Set(sorted_vars[1 : len1]), Set(sorted_vars[len1 + 1 : end]))
