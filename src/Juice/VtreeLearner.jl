@@ -2,7 +2,7 @@ using BlossomV
 using Metis
 using SparseArrays
 
-const δINT = 1000000
+const δINT = 9999
 const MIN_INT = 1
 const MAX_INT = δINT + MIN_INT
 
@@ -29,7 +29,18 @@ function metis_top_down(vars::Set{Var}, context::MetisContext)::Tuple{Set{Var}, 
     vertices = sort(collect(vars))
     sub_context = context.info[vertices, vertices]
     graph = convert(SparseMatrixCSC, sub_context)
-    partition = Metis.partition(graph, 2, alg = :RECURSIVE)
+    partition = Metis.partition(graph, 2, alg = :KWAY)
+
+    # metis can return empty partitions when alg = :KWAY
+    if extrema(partition) != (1, 2)
+        len = length(vars)
+        if len < 8
+            partition[1 : len ÷ 2] .= 1
+            partition[len ÷ 2 + 1 : end] .= 2
+        else
+            partition = Metis.partition(graph, 2, alg = :RECURSIVE)
+        end
+    end
 
     subsets = (Set{Var}(), Set{Var}())
     for (index, p) in enumerate(partition)

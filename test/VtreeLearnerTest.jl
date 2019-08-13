@@ -57,10 +57,22 @@ function vtree_metis_20sets()
         train_data = train(data)
         vars = Set(Var.(1 : num_features(data)))
         (dis_cache, MI) = mutual_information(WXData(train_data))
-        
+
         context = MetisContext(MI)
         vtree = construct_top_down(vars, metis_top_down, context)
         save(vtree, "./test/circuits/vtree/vtree-metis-$name.vtree")
         save(vtree, "./test/circuits/vtree/vtree-metis-$name.vtree.dot")
+    end
+end
+
+for name in twenty_dataset_names
+    for method in ["miMetis", "miBlossom"]
+        scala_vtree_path = "./report/resources/scala-vtree/$method/$name/$name.vtree"
+        julia_vtree_path = "./report/resources/julia-vtree/$method/$method-$name.vtree"
+        scala_vtree = load_vtree(scala_vtree_path)
+        julia_vtree = load_vtree(julia_vtree_path)
+        if isequal(scala_vtree, julia_vtree)
+            println("$method, $name")
+        end
     end
 end
