@@ -37,42 +37,17 @@ function vtree_blossom_simply()
     save(vtree, "./test/circuits/vtree/vtree-blossom-bottom-up-odd.vtree.dot")
 end
 
-function vtree_blossom_20sets()
+function check_equality()
     for name in twenty_dataset_names
-        data = dataset(twenty_datasets(name); do_shuffle=false, batch_size=-1)
-        train_data = train(data)
-        vars = Set(Var.(1:num_features(data)))
-        (dis_cache, MI) = mutual_information(WXData(train_data))
-
-        context = BlossomContext(vars, MI)
-        vtree = construct_bottom_up(vars, blossom_bottom_up!, context)
-        save(vtree, "./test/circuits/vtree/vtree-blossom-$name.vtree")
-        save(vtree, "./test/circuits/vtree/vtree-blossom-$name.vtree.dot")
-
-end
-
-function vtree_metis_20sets()
-    for name in twenty_dataset_names
-        data = dataset(twenty_datasets(name); do_shuffle=false, batch_size=-1)
-        train_data = train(data)
-        vars = Set(Var.(1 : num_features(data)))
-        (dis_cache, MI) = mutual_information(WXData(train_data))
-
-        context = MetisContext(MI)
-        vtree = construct_top_down(vars, metis_top_down, context)
-        save(vtree, "./test/circuits/vtree/vtree-metis-$name.vtree")
-        save(vtree, "./test/circuits/vtree/vtree-metis-$name.vtree.dot")
-    end
-end
-
-for name in twenty_dataset_names
-    for method in ["miMetis", "miBlossom"]
-        scala_vtree_path = "./report/resources/scala-vtree/$method/$name/$name.vtree"
-        julia_vtree_path = "./report/resources/julia-vtree/$method/$method-$name.vtree"
-        scala_vtree = load_vtree(scala_vtree_path)
-        julia_vtree = load_vtree(julia_vtree_path)
-        if isequal(scala_vtree, julia_vtree)
-            println("$method, $name")
+        for method in ["miMetis", "miBlossom"]
+            scala_vtree_path = "./report/resources/scala-vtree/$method/$name/$name.vtree";
+            julia_vtree_path = "./report/resources/julia-vtree/$method/$method-$name.vtree";
+            scala_vtree = load_vtree(scala_vtree_path);
+            julia_vtree = load_vtree(julia_vtree_path);
+            save(scala_vtree, scala_vtree_path*".dot")
+            if isequal_unordered(scala_vtree, julia_vtree)
+                println("$method, $name")
+            end
         end
     end
 end

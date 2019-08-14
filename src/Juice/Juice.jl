@@ -31,7 +31,7 @@ AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
 # Vtree
 VtreeNode, VtreeLeafNode, VtreeInnerNode, isleaf, variables, num_variables, Vtree,
 order_nodes_leaves_before_parents, VtreeLearnerContext, construct_top_down, construct_bottom_up,
-isequal,
+isequal, isequal_unordered,
 
 
 ##################### Learning submodule #####################
