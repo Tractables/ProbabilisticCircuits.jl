@@ -15,7 +15,7 @@ num_features, flatmap,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
-Var, CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
+Var, Lit, var2lit, lit2var, CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
 ⋁Node, ⋀Node, num_children, children, NodeType, Inner, Leaf, ode_stats, is_decomposable, fully_factorized_circuit,
 
 # ProbCircuits
@@ -32,7 +32,7 @@ AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
 # Vtree
 VtreeNode, VtreeLeafNode, VtreeInnerNode, isleaf, variables, num_variables, Vtree,
 order_nodes_leaves_before_parents, VtreeLearnerContext, construct_top_down, construct_bottom_up,
-isequal, isequal_unordered,
+isequal, isequal_unordered, left_most_child,
 
 
 ##################### Learning submodule #####################
@@ -40,7 +40,7 @@ isequal, isequal_unordered,
 train_mixture,
 
 # ChowLiuTree / TreeMixtures
-learn_chow_liu_tree, parse_clt, clt_log_likelihood_per_instance, clt_get_log_likelihood,
+learn_chow_liu_tree, parse_clt, parent_vector, clt_log_likelihood_per_instance, clt_get_log_likelihood,
 print_tree, train_mixture_tree,
 
 # CircuitBuilder
@@ -48,13 +48,19 @@ compile_prob_circuit_from_clt, mix_prob_circuit_check,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
-test_top_down, test_bottom_up!, learn_vtree_from_clt, test_vtree, 
+test_top_down, test_bottom_up!, learn_vtree_from_clt,
+
+# PSDDLearner
+compile_psdd_from_vtree,
 
 ##################### IO submodule #####################
 # CircuitParser
 CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,
 LCDecisionLine, BiasLine, circuit_matchers, parse_one_obj, load_circuit, parse_lc_file,
-load_psdd_prob_circuit, save_as_dot,
+load_psdd_prob_circuit,
+
+# CircuitSaver
+get_nodes_level, save_as_dot,
 
 # VtreeParser / Saver
 parse_vtree_file, compile_vtree_format_lines, load_vtree, save,
@@ -87,6 +93,7 @@ include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
 include("TreeMixtures.jl")
 include("VtreeLearner.jl")
+include("PSDDLearner.jl")
 
 # Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")

@@ -151,3 +151,12 @@ function stable_hierarchy_order(clt::MetaDiGraph)
 
     return order
 end
+
+"get parent vector of a tree"
+function parent_vector(tree::MetaDiGraph)::Vector{Int64}
+    v = zeros(Int64, nv(tree))
+    for e in edges(tree)
+        v[dst(e)] = src(e)
+    end
+    return v
+end

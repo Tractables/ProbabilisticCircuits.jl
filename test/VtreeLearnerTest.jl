@@ -1,3 +1,9 @@
+include("../src/Juice/Juice.jl")
+
+using .Juice
+using .Juice.Data
+using .Juice.Utils
+
 function vtree_test_top_down()
     vars = Set(Var.([1,2,3,4,5,6]))
     context = TestContext()
@@ -51,3 +57,15 @@ function check_equality()
         end
     end
 end
+
+function psdd_learner_test()
+    data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)
+    train_data = train(data)
+    clt = learn_chow_liu_tree(WXData(train_data))
+    vtree = learn_vtree_from_clt(clt, "balanced"); # or "linear"
+    save(vtree,"./test/circuits/test.vtree.dot");
+    psdd = compile_psdd_from_vtree(clt, vtree);
+    save_as_dot(psdd, "./test/circuits/test.psdd.dot");
+end
+
+psdd_learner_test()

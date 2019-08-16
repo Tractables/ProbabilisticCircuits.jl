@@ -307,15 +307,9 @@ function construct_children_balanced(children_nodes::Vector{VtreeNode}, clt::Met
         left = construct_children_balanced(children_nodes[1 : len], clt)
         right = construct_children_balanced(children_nodes[len + 1 : end], clt)
         return VtreeInnerNode(left, right)
-    end    
+    end
 end
 
 function add_parent(parent::Var, children::VtreeNode)
     return VtreeInnerNode(VtreeLeafNode(parent), children)
-end
-
-function test_vtree()
-    clt = parse_clt("test.clt")
-    vtree = learn_vtree_from_clt(clt, "balanced")
-    save(vtree,"test.vtree.dot")
 end
