@@ -1,6 +1,7 @@
 using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
+using DataStructures
 
 #####################
 # Learn a Chow-Liu tree from weighted data
@@ -113,7 +114,7 @@ function clt_log_likelihood_per_instance(clt, data)
 end
 
 "Parse a chow-liu tree"
-function Parse_clt(filename::String)::MetaDiGraph
+function parse_clt(filename::String)::MetaDiGraph
     f = open(filename)
     n = parse(Int32,readline(f))
     clt = MetaDiGraph(n)
@@ -129,4 +130,24 @@ function Parse_clt(filename::String)::MetaDiGraph
         set_prop!(clt, dst, :cpt, Dict((1,1)=>prob1, (0,1)=>1-prob1, (1,0)=>prob0, (0,0)=>1-prob0))
     end
     return clt
+end
+
+"Stable hierarchy order by bfs, parent before children, stable means children share the same parents ordered by alphabetical order"
+function stable_hierarchy_order(clt::MetaDiGraph)
+    roots = [v for v in vertices(clt) if get_prop(clt, v, :parent) == 0]
+    sort!(roots)
+
+    order = Vector{Int64}()
+    queue = Queue{Int64}()
+    foreach(x -> enqueue!(queue, x), roots)
+
+    while !isempty(queue)
+        cur = dequeue!(queue)
+        push!(order, cur)
+
+        children = sort(neighbors(clt, cur))
+        foreach(x -> enqueue!(queue, x), children)
+    end
+
+    return order
 end

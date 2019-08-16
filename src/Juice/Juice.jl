@@ -16,10 +16,11 @@ num_features, flatmap,
 ##################### Circuits submodule #####################
 # LogicalCircuits
 Var, CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
-⋁Node, ⋀Node, node_stats, is_decomposable, fully_factorized_circuit,
+⋁Node, ⋀Node, num_children, children, NodeType, Inner, Leaf, ode_stats, is_decomposable, fully_factorized_circuit,
 
 # ProbCircuits
-ProbCircuitNode, ProbCircuit, ProbCircuit△, num_parameters, compute_log_likelihood,
+ProbCircuitNode, ProbCircuit, ProbCircuit△, ProbLeafNode, ProbInnerNode, ProbPosLeaf,
+ProbNegLeaf, Prob⋀, Prob⋁, ProbCache, cvar, num_parameters, compute_log_likelihood,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
 
 # FlowCircuits
@@ -39,7 +40,7 @@ isequal, isequal_unordered,
 train_mixture,
 
 # ChowLiuTree / TreeMixtures
-learn_chow_liu_tree, clt_log_likelihood_per_instance, clt_get_log_likelihood,
+learn_chow_liu_tree, parse_clt, clt_log_likelihood_per_instance, clt_get_log_likelihood,
 print_tree, train_mixture_tree,
 
 # CircuitBuilder
@@ -47,12 +48,13 @@ compile_prob_circuit_from_clt, mix_prob_circuit_check,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
-test_top_down, test_bottom_up!,
+test_top_down, test_bottom_up!, learn_vtree_from_clt, test_vtree, 
+
 ##################### IO submodule #####################
 # CircuitParser
 CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,
 LCDecisionLine, BiasLine, circuit_matchers, parse_one_obj, load_circuit, parse_lc_file,
-load_psdd_prob_circuit,
+load_psdd_prob_circuit, save_as_dot,
 
 # VtreeParser / Saver
 parse_vtree_file, compile_vtree_format_lines, load_vtree, save,
