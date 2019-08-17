@@ -20,7 +20,9 @@ function get_nodes_level(circuit::ProbCircuit△)
         while !isempty(current)
             n = popfirst!(current)
             if n isa ProbInnerNode
-                foreach(c->push!(next, c), children(n))
+                for c in children(n)
+                    if !(c in next) push!(next, c); end
+                end
             end
         end
         push!(levels, copy(next))
@@ -40,7 +42,7 @@ function save_as_dot(circuit::ProbCircuit△, file::String)
     levels = get_nodes_level(circuit)
 
     f = open(file, "w")
-    write(f,"digraph Circuit {\nsplines=false\nedge[arrowhead=\"none\"]\n")
+    write(f,"digraph Circuit {\nsplines=false\nedge[arrowhead=\"none\",fontsize=6]\n")
 
     for level in levels
         if length(level) > 1
@@ -75,7 +77,7 @@ function save_as_dot(circuit::ProbCircuit△, file::String)
         elseif n isa Prob⋁
             for (c, p) in reverse(collect(zip(n.children, exp.(n.log_thetas))))
                 prob = @sprintf "%0.1f" p
-                write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\", fontsize=6]\n")
+                write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\"]\n")
             end
         else
         end

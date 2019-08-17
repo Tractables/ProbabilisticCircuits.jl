@@ -51,7 +51,7 @@ to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, Te
 test_top_down, test_bottom_up!, learn_vtree_from_clt,
 
 # PSDDLearner
-compile_psdd_from_vtree,
+compile_psdd_from_clt,
 
 ##################### IO submodule #####################
 # CircuitParser
