@@ -36,7 +36,6 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
             #build logical ciruits
             temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
             push!(logical_nodes, temp)
-
             n = ProbCircuitNode(temp, prob_cache)
 
             #calculate weights for each child
@@ -54,7 +53,6 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
         leaf = node_cache[indicator]
         temp = ⋀Node(vcat([leaf], children))
         node_cache[indicator] = temp
-
         n = ProbCircuitNode(temp, prob_cache)
         push!(lin, n)
     end
@@ -76,30 +74,43 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
         weights = [cpt[1], cpt[0]]
         n.log_thetas = log.(weights)
         push!(lin, n)
+        return n
     end
 
+    function compile_independent_roots(roots::Vector{ProbCircuitNode})
+        temp = ⋀Node([c.origin for c in roots])
+        n = ProbCircuitNode(temp, prob_cache)
+        push!(lin, n)
+        temp = ⋁Node([temp])
+        n = ProbCircuitNode(temp, prob_cache)
+        n.log_thetas = [0.0]
+        push!(lin, n)
+    end
+
+    roots = Vector{ProbCircuitNode}()
     for id in topo_order
         children = Var.(outneighbors(clt, id))
-
         if isequal(children, [])
             compile_leaf(id)
         else
             compile_inner(id, children)
-            if 0 == get_prop(clt, id, :parent)
-                compile_root(id)
-            end
         end
-
+        if 0 == get_prop(clt, id, :parent)
+            push!(roots, compile_root(id))
+        end
     end
+
+    if length(roots) > 1
+        compile_independent_roots(roots)
+    end
+
     return lin
 end
 
 "check full evidence sums to 1 for prob circuits"
-function prob_circuit_check(prob_circuit, data)
+function prob_circuit_check(prob_circuit, N)
     EPS = 1e-7
     flow_circuit = FlowCircuit(prob_circuit, 1, Bool);
-    examples_num = num_examples(data)
-    N = num_features(data)
 
     data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
     for mask = 1: (1<<N) - 1
@@ -120,7 +131,7 @@ function mix_prob_circuit_check(mix_prob, data)
     count = 1
     for m in mix_prob
         println("Checking prob circuits $count th..")
-        prob_circuit_check(m, data)
+        prob_circuit_check(m, num_features(data))
         count += 1
     end
 end

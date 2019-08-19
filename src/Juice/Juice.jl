@@ -44,7 +44,7 @@ learn_chow_liu_tree, parse_clt, parent_vector, clt_log_likelihood_per_instance, 
 print_tree, train_mixture_tree,
 
 # CircuitBuilder
-compile_prob_circuit_from_clt, mix_prob_circuit_check,
+compile_prob_circuit_from_clt, prob_circuit_check, mix_prob_circuit_check,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
