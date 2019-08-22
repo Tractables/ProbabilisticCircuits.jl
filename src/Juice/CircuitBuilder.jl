@@ -5,13 +5,20 @@ using MetaGraphs
 "convert literal+/- to probability value 0/1"
 @inline lit2value(l::Lit)::Int = (l > 0 ? 1 : 0)
 
+function learn_prob_circuit(data::WXData; α, pseudocount)
+    clt = learn_chow_liu_tree(data; α = α, parametered = false)
+    pc = compile_prob_circuit_from_clt(clt)
+    estimate_parameters(pc, convert(XBatches,data); pseudocount = pseudocount)
+    pc
+end
 
-"build probability circuits from Baysian tree "
+"Build probability circuits from Chow-Liu tree, when Chow-Liu tree is not parametered, parameters of ProbCircuits is not valid"
 function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
     topo_order = Var.(reverse(topological_sort_by_dfs(clt))) #order to parse the node
     lin = Vector{ProbCircuitNode}()
     node_cache = Dict{Lit, LogicalCircuitNode}()
     prob_cache = ProbCache()
+    parametered = get_prop(clt, :parametered)
 
     "default order of circuit node, from left to right: +/1 -/0"
 
@@ -37,11 +44,14 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
             temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
             push!(logical_nodes, temp)
             n = ProbCircuitNode(temp, prob_cache)
+            n.log_thetas = zeros(Float64, 2)
 
             #calculate weights for each child
-            cpt = get_prop(clt, c, :cpt)
-            weights = [cpt[(1, v)], cpt[(0, v)]]
-            n.log_thetas = log.(weights)
+            if parametered
+                cpt = get_prop(clt, c, :cpt)
+                weights = [cpt[(1, v)], cpt[(0, v)]]
+                n.log_thetas = log.(weights)
+            end
             push!(lin, n)
         end
 
@@ -70,9 +80,12 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
     function compile_root(root::Var)
         temp = ⋁Node([node_cache[s] for s in [var2lit(root), -var2lit(root)]])
         n = ProbCircuitNode(temp, prob_cache)
-        cpt = get_prop(clt, root, :cpt)
-        weights = [cpt[1], cpt[0]]
-        n.log_thetas = log.(weights)
+        n.log_thetas = zeros(Float64, 2)
+        if parametered
+            cpt = get_prop(clt, root, :cpt)
+            weights = [cpt[1], cpt[0]]
+            n.log_thetas = log.(weights)
+        end
         push!(lin, n)
         return n
     end

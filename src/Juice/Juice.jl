@@ -11,7 +11,7 @@ export
 
 # Data and Utils
 XData, WXData, mnist, twenty_dataset_names, twenty_datasets, dataset, train, feature_matrix,
-num_features, flatmap,
+num_features, flatmap, num_examples,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
@@ -27,7 +27,7 @@ log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_l
 FlowCircuitNode, FlowCircuit, FlowCircuit△, FlowCache, pass_down, pass_up, marginal_pass_up_down,
 
 # AggregateFlowCircuits
-AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch,
+AggregateFlowCircuit, reset_aggregate_flows, accumulate_aggr_flows_batch, opts_accumulate_flows,
 
 # Vtree
 VtreeNode, VtreeLeafNode, VtreeInnerNode, isleaf, variables, num_variables, Vtree,
@@ -44,14 +44,15 @@ learn_chow_liu_tree, parse_clt, parent_vector, clt_log_likelihood_per_instance, 
 print_tree, train_mixture_tree,
 
 # CircuitBuilder
-compile_prob_circuit_from_clt, prob_circuit_check, mix_prob_circuit_check,
+compile_prob_circuit_from_clt, prob_circuit_check, mix_prob_circuit_check, learn_prob_circuit,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
 test_top_down, test_bottom_up!, learn_vtree_from_clt,
 
 # PSDDLearner
-compile_psdd_from_clt,
+compile_psdd_from_clt, partical_copy, satisfy, imply, make_node, calculate_all_bases,
+add_correspondence, VtreeCache,
 
 ##################### IO submodule #####################
 # CircuitParser

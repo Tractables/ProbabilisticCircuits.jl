@@ -8,7 +8,11 @@ using DataStructures
 #####################
 
 "learn a Chow-Liu tree from data matrix, with Laplace smoothing factor α"
-function learn_chow_liu_tree(data::WXData; α = 0)
+function learn_chow_liu_tree(data::XData; α = 0.0001, parametered = true)
+    learn_chow_liu_tree(WXData(data);α = α, parametered = parametered)
+end
+
+function learn_chow_liu_tree(data::WXData; α = 0.0001, parametered = true)
     weight_vector = Data.weights(data)
     data_matrix = feature_matrix(data)
     features_num = num_features(data)
@@ -38,11 +42,7 @@ function learn_chow_liu_tree(data::WXData; α = 0)
     # Construct Chow-Liu tree with CPTs
     clt = MetaDiGraph(rooted_tree)
     set_prop!(clt, :description, "Chow-Liu Tree of Weighted Sample")
-
-    ## add weights
-    for edge in edges(clt)
-        set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
-    end
+    set_prop!(clt, :parametered, false)
 
     ## set parent
     for root in roots set_prop!(clt, root, :parent, 0) end
@@ -50,13 +50,26 @@ function learn_chow_liu_tree(data::WXData; α = 0)
         set_prop!(clt, dst(edge), :parent, src(edge))
     end
 
-    ## calculate cpts
-    for v in vertices(clt)
-        parent = get_prop(clt, v, :parent)
-        cpt_matrix = get_cpt(parent, v, dis_cache)
-        set_prop!(clt, v, :cpt, cpt_matrix)
+    # By default, does not cache CPT in CLT to save computation, run *estimate_parameters* on ProbCircuits instead
+    if parametered
+        set_prop!(clt, :parametered, true)
+
+        ## add weights
+        for edge in edges(clt)
+            set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
+        end
+
+
+
+        ## calculate cpts
+        for v in vertices(clt)
+            parent = get_prop(clt, v, :parent)
+            cpt_matrix = get_cpt(parent, v, dis_cache)
+            set_prop!(clt, v, :cpt, cpt_matrix)
+        end
+
     end
-    return clt
+        return clt
 
 end
 
@@ -73,6 +86,7 @@ end
 "Calculate complete disjoint probability for one query"
 function clt_get_log_likelihood(clt, query)
     @assert(length(query) == nv(clt))
+    @assert get_prop(clt, :parametered)
     probability = 0.0
 
     for v in vertices(clt)
@@ -89,8 +103,9 @@ function clt_get_log_likelihood(clt, query)
     return probability
 end
 
-"Calculate disjoint probability for every sample"
+"Calculate log probability for every sample"
 function clt_log_likelihood_per_instance(clt, data)
+    @assert get_prop(clt, :parametered)
     data_matrix = feature_matrix(data)
     num_sample = size(data_matrix)[1]
     features_num = num_features(data)
@@ -117,12 +132,16 @@ end
 function parse_clt(filename::String)::MetaDiGraph
     f = open(filename)
     n = parse(Int32,readline(f))
+    n_root = parse(Int32,readline(f))
     clt = MetaDiGraph(n)
-    root, prob = split(readline(f), " ")
-    root, prob = parse(Int32, root), parse(Float64, prob)
-    set_prop!(clt, root, :parent, 0)
-    set_prop!(clt, root, :cpt, Dict(1=>prob,0=>1-prob))
-    for i = 1:n-1
+    for i in 1 : n_root
+        root, prob = split(readline(f), " ")
+        root, prob = parse(Int32, root), parse(Float64, prob)
+        set_prop!(clt, root, :parent, 0)
+        set_prop!(clt, root, :cpt, Dict(1=>prob,0=>1-prob))
+    end
+
+    for i = 1 : n - n_root
         dst, src, prob1, prob0 = split(readline(f), " ")
         dst, src, prob1, prob0 = parse(Int32, dst), parse(Int32, src), parse(Float64, prob1), parse(Float64, prob0)
         add_edge!(clt, src,dst)
