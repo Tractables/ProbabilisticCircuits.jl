@@ -42,8 +42,7 @@ To run an individual test you can use `/test/runtest.jl`, for example:
 
     julia test/runtest.jl CircuitParserTest.jl
     julia test/runtest.jl CircuitQueriesTest.jl
-    julia test/runtest.jl ChowLiuTreeTest.jl
-    julia test/runtest.jl CircuitBuilderTest.jl
+    julia test/runtest.jl MixtureCircuitsTest.jl
     julia test/runtest.jl LogicTest.jl
     julia test/runtest.jl VtreeParserTest.jl
 

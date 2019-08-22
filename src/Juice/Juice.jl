@@ -11,7 +11,7 @@ export
 
 # Data and Utils
 XData, WXData, mnist, twenty_dataset_names, twenty_datasets, dataset, train, feature_matrix,
-num_features, flatmap, num_examples,
+num_features, flatmap, num_examples, XBatches,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
@@ -22,6 +22,8 @@ Var, Lit, var2lit, lit2var, CircuitNode, Circuit△, LogicalCircuitNode, Logical
 ProbCircuitNode, ProbCircuit, ProbCircuit△, ProbLeafNode, ProbInnerNode, ProbPosLeaf,
 ProbNegLeaf, Prob⋀, Prob⋁, ProbCache, cvar, num_parameters, compute_log_likelihood,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
+initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log_likelihood,
+expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure,
 
 # FlowCircuits
 FlowCircuitNode, FlowCircuit, FlowCircuit△, FlowCache, pass_down, pass_up, marginal_pass_up_down,
@@ -37,11 +39,11 @@ isequal, isequal_unordered, left_most_child,
 
 ##################### Learning submodule #####################
 # ProbMixtures
-train_mixture,
+train_mixture, initial_mixture_model_with_cluster,
 
-# ChowLiuTree / TreeMixtures
+# ChowLiuTree
 learn_chow_liu_tree, parse_clt, parent_vector, clt_log_likelihood_per_instance, clt_get_log_likelihood,
-print_tree, train_mixture_tree,
+print_tree,
 
 # CircuitBuilder
 compile_prob_circuit_from_clt, prob_circuit_check, mix_prob_circuit_check, learn_prob_circuit,
@@ -92,7 +94,6 @@ include("Vtree.jl")
 include("ProbMixtures.jl")
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
-include("TreeMixtures.jl")
 include("VtreeLearner.jl")
 include("PSDDLearner.jl")
 

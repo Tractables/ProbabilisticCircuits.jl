@@ -6,8 +6,7 @@ using .Juice
 tests = [
    "CircuitParserTest.jl",
    "CircuitQueriesTest.jl",
-   "ChowLiuTreeTest.jl",
-   "CircuitBuilderTest.jl",
+   "MixtureCircuitsTest.jl",
    "LogicTest.jl",
    "VtreeParserTest.jl"
    ]

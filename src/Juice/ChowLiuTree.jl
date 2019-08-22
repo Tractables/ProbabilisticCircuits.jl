@@ -59,8 +59,6 @@ function learn_chow_liu_tree(data::WXData; α = 0.0001, parametered = true)
             set_prop!(clt, edge, :weight, tree.weights[src(edge), dst(edge)])
         end
 
-
-
         ## calculate cpts
         for v in vertices(clt)
             parent = get_prop(clt, v, :parent)
