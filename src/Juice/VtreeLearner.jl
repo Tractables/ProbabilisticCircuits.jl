@@ -2,6 +2,7 @@ using BlossomV
 using Metis
 using SparseArrays
 using LightGraphs
+using SimpleWeightedGraphs
 using MetaGraphs
 
 const δINT = 999999
@@ -133,7 +134,7 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
     "even number of nodes, use blossomv alg"
     function blossom_bottom_up_even!(vars::Set{Var}, context::BlossomContext; update = true)::Tuple{Set{Tuple{Var, Var}}, Int64}
         "1. calculate pMI"
-        pMI = set_mi(context.info, context.variable_sets)
+        pMI = set_mutual_information(context.info, context.variable_sets)
         #pMI = 1000001 .+ to_long_mi(pMI, -1, -1000000)
         pMI = round.(Int64, pMI)
 
@@ -256,15 +257,15 @@ end
 # Learn Vtree from CLT
 #############
 
-function learn_vtree_from_clt(clt::MetaDiGraph, strategy::String)::Vtree
-    roots = [v for v in vertices(clt) if get_prop(clt, v, :parent) == 0]
+function learn_vtree_from_clt(clt::CLT, strategy::String)::Vtree
+    roots = filter(x->x==0,parent_vector(clt))
     root = construct_children(Var.(roots), clt, strategy)
 
     return order_nodes_leaves_before_parents(root)
 end
 
-function construct_node(v::Var, clt::MetaDiGraph, strategy::String)::VtreeNode
-    children = Var.(neighbors(clt, v))
+function construct_node(v::Var, clt::CLT, strategy::String)::VtreeNode
+    children = Var.(outneighbors(clt, v))
     if isempty(children) # leaf node
         return VtreeLeafNode(v)
     else
@@ -273,7 +274,7 @@ function construct_node(v::Var, clt::MetaDiGraph, strategy::String)::VtreeNode
     end
 end
 
-function construct_children(children::Vector{Var}, clt::MetaDiGraph, strategy::String)::VtreeNode
+function construct_children(children::Vector{Var}, clt::CLT, strategy::String)::VtreeNode
     sorted_vars = sort(collect(children))
     children_nodes = Vector{VtreeNode}()
     foreach(x -> push!(children_nodes, construct_node(x, clt, strategy)), sorted_vars)
@@ -287,7 +288,7 @@ function construct_children(children::Vector{Var}, clt::MetaDiGraph, strategy::S
     end
 end
 
-function construct_children_linear(children_nodes::Vector{VtreeNode}, clt::MetaDiGraph)::VtreeNode
+function construct_children_linear(children_nodes::Vector{VtreeNode}, clt::CLT)::VtreeNode
     children_nodes = Iterators.Stateful(reverse(children_nodes))
 
     right = popfirst!(children_nodes)
@@ -297,7 +298,7 @@ function construct_children_linear(children_nodes::Vector{VtreeNode}, clt::MetaD
     return right
 end
 
-function construct_children_balanced(children_nodes::Vector{VtreeNode}, clt::MetaDiGraph)::VtreeNode
+function construct_children_balanced(children_nodes::Vector{VtreeNode}, clt::CLT)::VtreeNode
     if length(children_nodes) == 1
         return children_nodes[1]
     elseif length(children_nodes) == 2

@@ -2,23 +2,27 @@ using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
 
+
 "convert literal+/- to probability value 0/1"
 @inline lit2value(l::Lit)::Int = (l > 0 ? 1 : 0)
 
-function learn_prob_circuit(data::WXData; α, pseudocount)
-    clt = learn_chow_liu_tree(data; α = α, parametered = false)
+function learn_prob_circuit(data::WXData; α, pseudocount, parametered = false)
+    clt = learn_chow_liu_tree(data; α = α, parametered = parametered)
     pc = compile_prob_circuit_from_clt(clt)
-    estimate_parameters(pc, convert(XBatches,data); pseudocount = pseudocount)
+    if !parametered
+        estimate_parameters(pc, convert(XBatches,data); pseudocount = pseudocount)
+    end
     pc
 end
 
-"Build probability circuits from Chow-Liu tree, when Chow-Liu tree is not parametered, parameters of ProbCircuits is not valid"
-function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
-    topo_order = Var.(reverse(topological_sort_by_dfs(clt))) #order to parse the node
+"Build probability circuits from Chow-Liu tree"
+function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit△
+    topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
     lin = Vector{ProbCircuitNode}()
     node_cache = Dict{Lit, LogicalCircuitNode}()
     prob_cache = ProbCache()
-    parametered = get_prop(clt, :parametered)
+    parent = parent_vector(clt)
+    parametered = clt isa MetaDiGraph
 
     "default order of circuit node, from left to right: +/1 -/0"
 
@@ -45,8 +49,6 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
             push!(logical_nodes, temp)
             n = ProbCircuitNode(temp, prob_cache)
             n.log_thetas = zeros(Float64, 2)
-
-            #calculate weights for each child
             if parametered
                 cpt = get_prop(clt, c, :cpt)
                 weights = [cpt[(1, v)], cpt[(0, v)]]
@@ -108,7 +110,7 @@ function compile_prob_circuit_from_clt(clt::MetaDiGraph)::ProbCircuit△
         else
             compile_inner(id, children)
         end
-        if 0 == get_prop(clt, id, :parent)
+        if 0 == parent[id]
             push!(roots, compile_root(id))
         end
     end

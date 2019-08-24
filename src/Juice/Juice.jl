@@ -11,7 +11,7 @@ export
 
 # Data and Utils
 XData, WXData, mnist, twenty_dataset_names, twenty_datasets, dataset, train, feature_matrix,
-num_features, flatmap, num_examples, XBatches,
+num_features, flatmap, num_examples, XBatches, max_batch_size,
 
 ##################### Circuits submodule #####################
 # LogicalCircuits
@@ -42,11 +42,10 @@ isequal, isequal_unordered, left_most_child,
 train_mixture, initial_mixture_model_with_cluster,
 
 # ChowLiuTree
-learn_chow_liu_tree, parse_clt, parent_vector, clt_log_likelihood_per_instance, clt_get_log_likelihood,
-print_tree,
+learn_chow_liu_tree, parent_vector, print_tree, CLT,
 
 # CircuitBuilder
-compile_prob_circuit_from_clt, prob_circuit_check, mix_prob_circuit_check, learn_prob_circuit,
+compile_prob_circuit_from_clt, learn_prob_circuit,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!, TestContext,
@@ -63,14 +62,14 @@ LCDecisionLine, BiasLine, circuit_matchers, parse_one_obj, load_circuit, parse_l
 load_psdd_prob_circuit,
 
 # CircuitSaver
-get_nodes_level, save_as_dot,
+save_as_dot,
 
 # VtreeParser / Saver
 parse_vtree_file, compile_vtree_format_lines, load_vtree, save,
 
 ##################### Util submodule #####################
-# Distribution
-calculate_all_distributions, get_cpt, mutual_information, set_mi
+# MutualInformation
+mutual_information, set_mutual_information
 
 using Query
 using IterTools
@@ -104,6 +103,6 @@ include("IO/CircuitParser.jl")
 include("IO/CircuitSaver.jl")
 
 # Util submodule, may need move to ../Utils/
-include("Distribution.jl")
+include("MutualInformation.jl")
 
 end
