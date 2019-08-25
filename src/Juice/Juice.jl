@@ -16,7 +16,7 @@ num_features, flatmap, num_examples, XBatches, max_batch_size,
 ##################### Circuits submodule #####################
 # LogicalCircuits
 Var, Lit, var2lit, lit2var, CircuitNode, Circuit△, LogicalCircuitNode, LogicalCircuit△, PosLeafNode,NegLeafNode,
-⋁Node, ⋀Node, num_children, children, NodeType, Inner, Leaf, ode_stats, is_decomposable, fully_factorized_circuit,
+⋁Node, ⋀Node, num_children, children, NodeType, Inner, Leaf, node_stats, is_decomposable, fully_factorized_circuit,
 
 # ProbCircuits
 ProbCircuitNode, ProbCircuit, ProbCircuit△, ProbLeafNode, ProbInnerNode, ProbPosLeaf,
