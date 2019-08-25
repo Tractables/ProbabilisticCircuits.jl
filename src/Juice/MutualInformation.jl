@@ -2,7 +2,7 @@ using Statistics
 using LinearAlgebra
 using StatsFuns
 
-"Cache paiwise / marginal distribution for all variables in one dataset"
+"Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
     pairwise::Array{Float64}
     marginal::Array{Float64}
