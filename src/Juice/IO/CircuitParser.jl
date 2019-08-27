@@ -5,8 +5,9 @@ Circuits:
 - Date: 2019-06-23
 =#
 
-using ParserCombinator
-using Test
+# The following library works correctly but is orders of magnitude too slow.
+# using ParserCombinator
+
 using EponymTuples
 
 #####################
@@ -87,43 +88,7 @@ struct BiasLine <: CircuitFormatLine
     BiasLine(weights) = new(typemax(UInt32), weights)
 end
 
-function build_circuit_matchers()
-    spc::Matcher = Drop(Space())
-    pfloat16::Matcher = Parse(p"-?(\d*\.?\d+|\d+\.\d*)([eE]-?\d+)?", Float32) # missing from parser library, fixes missing exponent sign
-
-    comment::Matcher = Seq!(E"c", Drop(Space()[0:1]), Pattern(r".*"), Eos()) > CommentLine{String}
-
-    header_correct::Matcher = Seq!(E"Logistic Circuit", Eos())
-    header_typo::Matcher = Seq!(E"Logisitic Circuit", Eos())
-    header::Matcher = Alt!(header_correct, header_typo) > HeaderLine
-
-    weights::Matcher = PlusList!(pfloat16, spc) |>  Vector{Float32}
-
-    true_literal::Matcher = Seq!(E"T", spc, PUInt32(), spc, PUInt32(), spc, PUInt32(), spc, weights, Eos()) > PosLiteralLine
-    false_literal::Matcher = Seq!(E"F", spc, PUInt32(), spc, PUInt32(), spc, PUInt32(), spc, weights, Eos()) > NegLiteralLine
-    literal::Matcher = Alt!(true_literal, false_literal)
-
-    lc_element::Matcher = Seq!(PUInt32(), spc, PUInt32(), spc, weights) > LCElementTuple
-    lc_element_list::Matcher = PlusList!(Seq!(E"(", lc_element, E")"), spc) |> Vector{ElementTuple}
-    lc_decision::Matcher = Seq!(E"D", spc, PUInt32(), spc, PUInt32(), spc, PUInt32(), spc, lc_element_list, Eos()) > LCDecisionLine
-
-    bias::Matcher = Seq!(E"B", spc, weights, Eos()) > BiasLine
-
-    lc_line::Matcher = Alt!(lc_decision, literal, comment, header, bias)
-
-    @eponymtuple(comment, header, weights, true_literal, false_literal, literal,
-                 lc_element, lc_element_list, lc_decision, lc_line)
-end
-
-const circuit_matchers = build_circuit_matchers()
 const parens = r"\(([^\)]+)\)"
-
-function parse_one_obj(s::String, p::Matcher)
-    objs = parse_one(s,p)
-    @assert length(objs) == 1 "$objs is not a single object"
-    objs[1]
-end
-
 
 function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{LogicalCircuitNode}
     lin = Vector{CircuitNode}()
@@ -195,6 +160,7 @@ end
 
 
 function parse_lc_decision_line_fast(ln::String)::LCDecisionLine
+    @assert startswith(ln, "D")
     head::SubString, tail::SubString = split(ln,'(',limit=2)
     head_tokens = split(head)
     head_ints::Vector{UInt32} = map(x->parse(UInt32,x),head_tokens[2:4])
@@ -210,6 +176,7 @@ function parse_lc_decision_line_fast(ln::String)::LCDecisionLine
 end
 
 function parse_true_literal_line_fast(ln::String)::PosLiteralLine
+    @assert startswith(ln, "T")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
     weights = map(x->parse(Float32,x), tokens[5:end])
@@ -217,13 +184,30 @@ function parse_true_literal_line_fast(ln::String)::PosLiteralLine
 end
 
 function parse_false_literal_line_fast(ln::String)::NegLiteralLine
+    @assert startswith(ln, "F")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
     weights = map(x->parse(Float32,x), tokens[5:end])
     NegLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
 end
 
-parse_comment_line_fast(ln::String) = CommentLine(lstrip(chop(ln, head = 1, tail = 0)))
+function parse_comment_line_fast(ln::String)
+    @assert startswith(ln, "c")
+    CommentLine(lstrip(chop(ln, head = 1, tail = 0)))
+end
+
+function parse_lc_header_line_fast(ln::String)
+    @assert (ln == "Logistic Circuit") || (ln == "Logisitic Circuit")
+    HeaderLine()
+end
+
+function parse_bias_line_fast(ln::String)::BiasLine
+    @assert startswith(ln, "B")
+    tokens = split(ln)
+    weights = map(x->parse(Float32,x), tokens[2:end])
+    BiasLine(weights)
+end
+
 
 function parse_lc_file(file::String)::Vector{CircuitFormatLine}
     # following one-liner is correct (after dropping Eos()) but much much slower
@@ -240,8 +224,12 @@ function parse_lc_file(file::String)::Vector{CircuitFormatLine}
                 push!(q, parse_false_literal_line_fast(ln))
             elseif ln[1] == 'c'
                 push!(q, parse_comment_line_fast(ln))
+            elseif ln[1] == 'L'
+                push!(q, parse_lc_header_line_fast(ln))
+            elseif ln[1] == 'B'
+                push!(q, parse_bias_line_fast(ln))
             else
-                push!(q, parse_one_obj(ln, circuit_matchers.lc_line))
+                throw("Could not parse line $ln")
             end
         end
     end
