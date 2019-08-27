@@ -4,6 +4,7 @@
 
 # The following library works correctly but is orders of magnitude too slow.
 # using ParserCombinator
+# hardcode some simpler parsers to speed things up
 
 const parens = r"\(([^\)]+)\)"
 
@@ -44,8 +45,7 @@ load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_lines_pr
 # parser of logistic circuit file format
 #####################
 
-
-function parse_lc_decision_line_fast(ln::String)::LCDecisionLine
+function parse_lc_decision_line(ln::String)::LCDecisionLine
     @assert startswith(ln, "D")
     head::SubString, tail::SubString = split(ln,'(',limit=2)
     head_tokens = split(head)
@@ -61,7 +61,7 @@ function parse_lc_decision_line_fast(ln::String)::LCDecisionLine
     LCDecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
-function parse_true_literal_line_fast(ln::String)::PosLiteralLine
+function parse_true_literal_line(ln::String)::PosLiteralLine
     @assert startswith(ln, "T")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
@@ -69,7 +69,7 @@ function parse_true_literal_line_fast(ln::String)::PosLiteralLine
     PosLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
 end
 
-function parse_false_literal_line_fast(ln::String)::NegLiteralLine
+function parse_false_literal_line(ln::String)::NegLiteralLine
     @assert startswith(ln, "F")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
@@ -77,45 +77,42 @@ function parse_false_literal_line_fast(ln::String)::NegLiteralLine
     NegLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
 end
 
-function parse_comment_line_fast(ln::String)
+function parse_comment_line(ln::String)
     @assert startswith(ln, "c")
     CommentLine(lstrip(chop(ln, head = 1, tail = 0)))
 end
 
-function parse_lc_header_line_fast(ln::String)
+function parse_lc_header_line(ln::String)
     @assert (ln == "Logistic Circuit") || (ln == "Logisitic Circuit")
     HeaderLine()
 end
 
-function parse_bias_line_fast(ln::String)::BiasLine
+function parse_bias_line(ln::String)::BiasLine
     @assert startswith(ln, "B")
     tokens = split(ln)
     weights = map(x->parse(Float32,x), tokens[2:end])
     BiasLine(weights)
 end
 
-
 function parse_lc_file(file::String)::Vector{CircuitFormatLine}
-    # following one-liner is correct (after dropping Eos()) but much much slower
-    # parse_all_nocache(LineSource(open(file)), PlusList!(line,Drop(Pattern(r"\n*"))))
     q = Vector{CircuitFormatLine}()
     open(file) do file # buffered IO does not seem to speed this up
         for ln in eachline(file)
-            # hardcode some simpler parsers to speed things up
+            @assert !isempty(ln)
             if ln[1] == 'D'
-                push!(q, parse_lc_decision_line_fast(ln))
+                push!(q, parse_lc_decision_line(ln))
             elseif ln[1] == 'T'
-                push!(q, parse_true_literal_line_fast(ln))
+                push!(q, parse_true_literal_line(ln))
             elseif ln[1] == 'F'
-                push!(q, parse_false_literal_line_fast(ln))
+                push!(q, parse_false_literal_line(ln))
             elseif ln[1] == 'c'
-                push!(q, parse_comment_line_fast(ln))
+                push!(q, parse_comment_line(ln))
             elseif ln[1] == 'L'
-                push!(q, parse_lc_header_line_fast(ln))
+                push!(q, parse_lc_header_line(ln))
             elseif ln[1] == 'B'
-                push!(q, parse_bias_line_fast(ln))
+                push!(q, parse_bias_line(ln))
             else
-                throw("Could not parse line $ln")
+                error("Don't know how to parse LC file format line $ln")
             end
         end
     end
@@ -124,10 +121,10 @@ end
 
 
 #####################
-# parser for PSDD circuit format
+# parser for PSDD circuit file format
 #####################
 
-function parse_psdd_decision_line_fast(ln::String)::PSDDDecisionLine
+function parse_psdd_decision_line(ln::String)::PSDDDecisionLine
     tokens = split(ln)
     head_ints::Vector{UInt32} = map(x->parse(UInt32,x),tokens[2:4])
     elems = Vector{ElementTuple}()
@@ -141,7 +138,7 @@ function parse_psdd_decision_line_fast(ln::String)::PSDDDecisionLine
     PSDDDecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
-function parse_true_leaf_line_fast(ln::String)::TrueLeafLine
+function parse_true_leaf_line(ln::String)::TrueLeafLine
     tokens = split(ln)
     @assert length(tokens)==5
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
@@ -149,7 +146,7 @@ function parse_true_leaf_line_fast(ln::String)::TrueLeafLine
     TrueLeafLine(head_ints[1],head_ints[2],head_ints[3],weight)
 end
 
-function parse_literal_line_fast(ln::String)::LiteralLine
+function parse_literal_line(ln::String)::LiteralLine
     tokens = split(ln)
     @assert length(tokens)==4
     head_ints = map(x->parse(UInt32,x),tokens[2:3])
@@ -160,15 +157,15 @@ function parse_psdd_file(file::String)::Vector{CircuitFormatLine}
     q = Vector{CircuitFormatLine}()
     open(file) do file # buffered IO does not seem to speed this up
         for ln in eachline(file)
-            # hardcode some simpler parsers to speed things up
+            @assert !isempty(ln)
             if ln[1] == 'D'
-                push!(q, parse_psdd_decision_line_fast(ln))
+                push!(q, parse_psdd_decision_line(ln))
             elseif ln[1] == 'T'
-                push!(q, parse_true_leaf_line_fast(ln))
+                push!(q, parse_true_leaf_line(ln))
             elseif ln[1] == 'L'
-                push!(q, parse_literal_line_fast(ln))
+                push!(q, parse_literal_line(ln))
             elseif ln[1] == 'c'
-                push!(q, parse_comment_line_fast(ln))
+                push!(q, parse_comment_line(ln))
             elseif startswith(ln,"psdd")
                 push!(q, HeaderLine())
             else
