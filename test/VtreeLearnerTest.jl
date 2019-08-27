@@ -1,9 +1,3 @@
-include("../src/Juice/Juice.jl")
-
-using .Juice
-using .Juice.Data
-using .Juice.Utils
-
 function vtree_test_top_down()
     vars = Set(Var.([1,2,3,4,5,6]))
     context = TestContext()

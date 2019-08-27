@@ -1,5 +1,3 @@
-using Test;
-
 function generate_data_all(N)
     # N = 4;
     data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
