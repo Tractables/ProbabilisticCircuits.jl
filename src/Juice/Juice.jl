@@ -99,6 +99,7 @@ include("PSDDLearner.jl")
 # Todo(pashak) Make these IO submodule
 include("IO/VtreeParser.jl")
 include("IO/VtreeSaver.jl")
+include("IO/LineCompiler.jl")
 include("IO/CircuitParser.jl")
 include("IO/CircuitSaver.jl")
 
