@@ -58,7 +58,7 @@ add_correspondence, VtreeCache,
 ##################### IO submodule #####################
 # CircuitParser
 CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,
-LCDecisionLine, BiasLine, load_circuit, parse_lc_file,
+LCDecisionLine, BiasLine, load_logical_circuit, parse_lc_file,
 load_psdd_prob_circuit,
 
 # CircuitSaver

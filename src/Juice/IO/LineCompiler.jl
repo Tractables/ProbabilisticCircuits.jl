@@ -74,7 +74,7 @@ struct BiasLine <: CircuitFormatLine
 end
 
 
-function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{LogicalCircuitNode}
+function compile_lines_logical(lines::Vector{CircuitFormatLine})::Vector{LogicalCircuitNode}
     lin = Vector{CircuitNode}()
     node_cache = Dict{UInt32,CircuitNode}()
 
@@ -124,7 +124,7 @@ function compile_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{
     lin
 end
 
-function compile_prob_circuit_format_lines(lines::Vector{CircuitFormatLine})::Vector{ProbCircuitNode}
+function compile_lines_prob(lines::Vector{CircuitFormatLine})::Vector{ProbCircuitNode}
     lin = Vector{ProbCircuitNode}()
     node_cache = Dict{UInt32, CircuitNode}()
     prob_cache = ProbCache()

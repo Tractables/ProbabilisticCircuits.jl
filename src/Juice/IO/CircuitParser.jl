@@ -1,28 +1,44 @@
-# The following library works correctly but is orders of magnitude too slow.
-# using ParserCombinator
-
 #####################
 # general parser infrastructure for circuits
 #####################
 
+# The following library works correctly but is orders of magnitude too slow.
+# using ParserCombinator
+
 const parens = r"\(([^\)]+)\)"
 
 """
-Load a circuit from file. Depending on format will load different circuit types.
+Load a logical circuit from file. Depending on format will load different circuit types.
 
 For example, ".psdd" is for PSDD files, and ".circuit" is for Logistic Circuit files.
 """
-function load_circuit(file::String)::Vector{LogicalCircuitNode}
+function load_logical_circuit(file::String)::LogicalCircuit△
     if endswith(file,".circuit")
-        load_lc_circuit(file)
+        load_lc_logical_circuit(file)
     elseif endswith(file,".psdd")
-        load_psdd_circuit(file)
+        load_psdd_logical_circuit(file)
+    else
+        throw("Cannot parse this file type as a logical circuit: $file")
     end
 end
 
-load_psdd_circuit(file::String)::Vector{LogicalCircuitNode} = compile_circuit_format_lines(parse_psdd_file(file))
+load_psdd_logical_circuit(file::String)::Vector{LogicalCircuitNode} = compile_lines_logical(parse_psdd_file(file))
+load_lc_logical_circuit(file::String)::Vector{LogicalCircuitNode} = compile_lines_logical(parse_lc_file(file))
 
-load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_prob_circuit_format_lines(parse_psdd_file(file))
+"""
+Load a probabilistic circuit from file. 
+
+For now only ".psdd" PSDD files are supported.
+"""
+function load_prob_circuit(file::String)::ProbCircuit△
+    if endswith(file,".psdd")
+        load_psdd_prob_circuit(file)
+    else
+        throw("Cannot parse this file type as a probabilistic circuit: $file")
+    end
+end
+
+load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_lines_prob(parse_psdd_file(file))
 
 #####################
 # parser of logistic circuit file format
@@ -106,7 +122,6 @@ function parse_lc_file(file::String)::Vector{CircuitFormatLine}
     q
 end
 
-load_lc_circuit(file::String)::Vector{LogicalCircuitNode} = compile_circuit_format_lines(parse_lc_file(file))
 
 #####################
 # parser for PSDD circuit format
