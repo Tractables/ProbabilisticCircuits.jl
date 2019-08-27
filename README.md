@@ -25,12 +25,14 @@ To build the documentation locally, run the following to build the documentation
 ## Using Revise
 
 `Revise.jl` allows you to modify code and use the changes without restarting Julia. For more information refer to [their github repository](https://github.com/timholy/Revise.jl).
+ To use the Revise functionality, run the following command at the beginning of your REPL session.
 
-## CircuitSandbox
+    using Revise; include("test/Debug.jl");
 
-`CircuitsSandbox.jl` will contain some examples on how to use the library. To use the Revise functionality, run the following command at the beginning of your REPL session.
 
-    using Revise; track();
+## Sandbox
+
+`Sandbox.jl` will contain some examples on how to use the library.
 
 ## Testing
 
@@ -46,5 +48,4 @@ To run an individual test you can use `/test/runtest.jl`, for example:
     julia test/runtest.jl LogicTest.jl
     julia test/runtest.jl VtreeParserTest.jl
 
-
-Right now the tests are not stable yet, but they become stable make sure to run the tests before commiting new code.
+Make sure to run the tests before commiting new code.
