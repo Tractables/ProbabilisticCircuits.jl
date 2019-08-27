@@ -23,7 +23,7 @@ ProbCircuitNode, ProbCircuit, ProbCircuit△, ProbLeafNode, ProbInnerNode, ProbP
 ProbNegLeaf, Prob⋀, Prob⋁, ProbCache, cvar, num_parameters, compute_log_likelihood,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
 initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log_likelihood,
-expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure,
+expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure, check_parameter_integrity,
 
 # FlowCircuits
 FlowCircuitNode, FlowCircuit, FlowCircuit△, FlowCache, pass_down, pass_up, marginal_pass_up_down,
@@ -57,9 +57,9 @@ add_correspondence, VtreeCache,
 
 ##################### IO submodule #####################
 # CircuitParser
-CircuitFormatLine, CommentLine, HeaderLine, PosLiteralLine, NegLiteralLine, LCElementTuple,
-LCDecisionLine, BiasLine, load_logical_circuit, parse_lc_file,
-load_psdd_prob_circuit,
+load_logical_circuit, load_prob_circuit, 
+load_psdd_logical_circuit, load_lc_logical_circuit, load_psdd_prob_circuit,
+parse_lc_file, parse_psdd_file,
 
 # CircuitSaver
 save_as_dot,

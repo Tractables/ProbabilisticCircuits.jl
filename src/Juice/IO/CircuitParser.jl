@@ -23,8 +23,8 @@ function load_logical_circuit(file::String)::LogicalCircuit△
     end
 end
 
-load_psdd_logical_circuit(file::String)::Vector{LogicalCircuitNode} = compile_lines_logical(parse_psdd_file(file))
-load_lc_logical_circuit(file::String)::Vector{LogicalCircuitNode} = compile_lines_logical(parse_lc_file(file))
+load_psdd_logical_circuit(file::String)::LogicalCircuit△ = compile_lines_logical(parse_psdd_file(file))
+load_lc_logical_circuit(file::String)::LogicalCircuit△ = compile_lines_logical(parse_lc_file(file))
 
 """
 Load a probabilistic circuit from file. 

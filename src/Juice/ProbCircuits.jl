@@ -183,3 +183,10 @@ function marginal_log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXD
     marginal_pass_up(fc, batch)
     pr(fc[end])
 end
+
+function check_parameter_integrity(circuit::ProbCircuit△)
+    for node in circuit |> @filter(_ isa Prob⋁)
+        @assert all(θ -> !isnan(θ), node.log_thetas) "There is a NaN in one of the log_thetas"
+    end
+    true
+end

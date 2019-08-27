@@ -15,7 +15,7 @@ end
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
-    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
     @test prob_circuit isa Vector{<:ProbCircuitNode};
 
     flow_circuit = FlowCircuit(prob_circuit, 16, Bool)
@@ -53,7 +53,7 @@ end
 
 @testset "Probability of partial Evidence (marginals)" begin
     EPS = 1e-7;
-    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     data = XData(
         Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1; 
@@ -75,7 +75,7 @@ end
 
 @testset "Marginal Pass Down" begin    
     EPS = 1e-7;
-    prob_circuit = load_psdd_prob_circuit("test/circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
     
     N = 4
     data_full = XData(Int8.(generate_data_all(N)))

@@ -1,5 +1,5 @@
 #####################
-# Compilers to Juice data structures starting from already parsed line types
+# Compilers to Juice data structures starting from already parsed line objects
 #####################
 
 abstract type CircuitFormatLine end
@@ -10,21 +10,23 @@ end
 
 struct HeaderLine <: CircuitFormatLine end
 
-struct PosLiteralLine <: CircuitFormatLine
+abstract type AbstractLiteralLine <: CircuitFormatLine end
+
+struct PosLiteralLine <: AbstractLiteralLine
     node_id::UInt32
     vtree_id::UInt32
     variable::Var
     weights::Vector{Float32}
 end
 
-struct NegLiteralLine <: CircuitFormatLine
+struct NegLiteralLine <: AbstractLiteralLine
     node_id::UInt32
     vtree_id::UInt32
     variable::Var
     weights::Vector{Float32}
 end
 
-struct LiteralLine <: CircuitFormatLine
+struct LiteralLine <: AbstractLiteralLine
     node_id::UInt32
     vtree_id::UInt32
     literal::Lit
@@ -74,19 +76,32 @@ struct BiasLine <: CircuitFormatLine
 end
 
 
-function compile_lines_logical(lines::Vector{CircuitFormatLine})::Vector{LogicalCircuitNode}
-    lin = Vector{CircuitNode}()
-    node_cache = Dict{UInt32,CircuitNode}()
+"""
+Compile lines into a logical circuit
+"""
+compile_lines_logical(lines::Vector{CircuitFormatLine})::LogicalCircuit△ = 
+    compile_lines_logical_with_mapping(lines)[1]
 
-    #  literal cache is responsible for making leaf nodes unique and adding them to lin
+"""
+Compile lines into a logical circuit, while keeping track of id-to-node mappings
+"""
+function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
+
+    # linearized circuit nodes
+    circuit = Vector{LogicalCircuitNode}()
+    # mapping from node ids to node objects
+    node_cache = Dict{UInt32,CircuitNode}()
+    # literal cache is responsible for making leaf literal nodes unique and adding them to lin
     lit_cache = Dict{Int32,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
         leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
-        push!(lin,leaf)
+        push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
     end
 
-    compile(::Union{HeaderLine,CommentLine}) = () # do nothing
+    function compile(::Union{HeaderLine,CommentLine})
+         # do nothing
+    end
     function compile(ln::PosLiteralLine)
         node_cache[ln.node_id] = literal_node(var2lit(ln.variable))
     end
@@ -98,22 +113,22 @@ function compile_lines_logical(lines::Vector{CircuitFormatLine})::Vector{Logical
     end
     function compile(ln::TrueLeafLine)
         n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
-        push!(lin,n)
+        push!(circuit,n)
         node_cache[ln.node_id] = n
     end
     function compile_elements(e::ElementTuple)
         n = ⋀Node([node_cache[e.prime_id],node_cache[e.sub_id]])
-        push!(lin,n)
+        push!(circuit,n)
         n
     end
     function compile(ln::DecisionLine)
         n = ⋁Node(map(compile_elements, ln.elements))
-        push!(lin,n)
+        push!(circuit,n)
         node_cache[ln.node_id] = n
     end
     function compile(ln::BiasLine)
-        n = ⋁Node([lin[end]])
-        push!(lin,n)
+        n = ⋁Node([circuit[end]])
+        push!(circuit,n)
         node_cache[ln.node_id] = n
     end
 
@@ -121,88 +136,39 @@ function compile_lines_logical(lines::Vector{CircuitFormatLine})::Vector{Logical
         compile(ln)
     end
 
-    lin
+    circuit, node_cache
 end
 
-function compile_lines_prob(lines::Vector{CircuitFormatLine})::Vector{ProbCircuitNode}
-    lin = Vector{ProbCircuitNode}()
-    node_cache = Dict{UInt32, CircuitNode}()
-    prob_cache = ProbCache()
+"""
+Compile lines into a probabilistic circuit
+"""
+function compile_lines_prob(lines::Vector{CircuitFormatLine})::ProbCircuit△
+    # first compile a logical circuit
+    logical_circuit, id2lognode = compile_lines_logical_with_mapping(lines)
+    # set up cache mapping logical circuit nodes to their probabilistic decorator
+    lognode2probnode = ProbCache()
+    # build a corresponding probabilistic circuit
+    prob_circuit = ProbCircuit(logical_circuit,lognode2probnode)
+    # map from line node ids to probabilistic circuit nodes
+    id2probnode(id) = lognode2probnode[id2lognode[id]]
 
-    #  literal cache is responsible for making leaf nodes unique and adding them to lin
-    lit_cache = Dict{Lit, LogicalLeafNode}()
-    literal_node(l::Lit) = get!(lit_cache, l) do
-        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!
-        prob_leaf = (l > 0 ? ProbPosLeaf(leaf) : ProbNegLeaf(leaf))
-        push!(lin, prob_leaf)
-        leaf
-    end
-
-    compile(::Union{HeaderLine,CommentLine}) = () # do nothing
-    function compile(ln::PosLiteralLine)
-        node_cache[ln.node_id] = literal_node(var2lit(ln.variable))
-    end
-    function compile(ln::NegLiteralLine)
-        node_cache[ln.node_id] = literal_node(-var2lit(ln.variable))
-    end
-    function compile(ln::LiteralLine)
-        node_cache[ln.node_id] = literal_node(ln.literal)
-    end
+    # go through lines again and update the probabilistic circuit node parameters
+    compile(::Union{HeaderLine,CommentLine,AbstractLiteralLine}) = () # do nothing
     function compile(ln::TrueLeafLine)
-        temp = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
-        n = ProbCircuitNode(
-            temp,
-            prob_cache
-        )
-        push!(lin,n)
-        n.log_thetas .= 0
-        n.log_thetas .+= [ln.weight, log(1-exp(ln.weight) + 1e-300) ]
-        node_cache[ln.node_id] = temp
-    end
-    function compile_elements(e::ElementTuple)
-        temp = ⋀Node([node_cache[e.prime_id],node_cache[e.sub_id]])
-        n = ProbCircuitNode(
-            temp,
-            prob_cache
-        )
-        push!(lin,n)
-        temp
+        node = id2probnode(ln.node_id)::Prob⋁
+        node.log_thetas .= [ln.weight, log1p(-exp(ln.weight)) ]
     end
     function compile(ln::DecisionLine)
-        temp = ⋁Node(map(compile_elements, ln.elements))
-        n = ProbCircuitNode(
-            temp,
-            prob_cache
-        )
-        n.log_thetas .= 0
-        n.log_thetas .+= [x.weight for x in ln.elements]
-        push!(lin,n)
-        node_cache[ln.node_id] = temp
+        node = id2probnode(ln.node_id)::Prob⋁
+        node.log_thetas .= [x.weight for x in ln.elements]
     end
     function compile(ln::BiasLine)
-        temp = ⋁Node([lin[end]])
-        n = ProbCircuitNode(
-            temp,
-            prob_cache
-        )
-        push!(lin,n)
-        n.log_thetas .= 0
-        n.log_thetas .+= ln.weights
-        node_cache[ln.node_id] = temp
+        node = id2probnode(ln.node_id)::Prob⋁
+        node.log_thetas .= ln.weights
     end
-
     for ln in lines
         compile(ln)
     end
 
-    # Sanity Check
-    for node in lin
-        if node isa Prob⋁
-            if sum(isnan.(node.log_thetas)) > 0
-                throw("There is a NaN in one of the log_thetas")
-            end
-        end
-    end
-
-    lin
+    prob_circuit
 end
