@@ -6,8 +6,6 @@
 # using ParserCombinator
 # hardcode some simpler parsers to speed things up
 
-const parens = r"\(([^\)]+)\)"
-
 """
 Load a logical circuit from file. Depending on format will load different circuit types.
 
@@ -45,6 +43,8 @@ load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_lines_pr
 # parser of logistic circuit file format
 #####################
 
+const parens = r"\(([^\)]+)\)"
+
 function parse_lc_decision_line(ln::String)::LCDecisionLine
     @assert startswith(ln, "D")
     head::SubString, tail::SubString = split(ln,'(',limit=2)
@@ -61,20 +61,20 @@ function parse_lc_decision_line(ln::String)::LCDecisionLine
     LCDecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
-function parse_true_literal_line(ln::String)::PosLiteralLine
+function parse_true_literal_line(ln::String)::WeightedPosLiteralLine
     @assert startswith(ln, "T")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
     weights = map(x->parse(Float32,x), tokens[5:end])
-    PosLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
+    WeightedPosLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
 end
 
-function parse_false_literal_line(ln::String)::NegLiteralLine
+function parse_false_literal_line(ln::String)::WeightedNegLiteralLine
     @assert startswith(ln, "F")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
     weights = map(x->parse(Float32,x), tokens[5:end])
-    NegLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
+    WeightedNegLiteralLine(head_ints[1],head_ints[2],head_ints[3],weights)
 end
 
 function parse_comment_line(ln::String)

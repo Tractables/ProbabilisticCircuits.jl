@@ -12,14 +12,14 @@ struct HeaderLine <: CircuitFormatLine end
 
 abstract type AbstractLiteralLine <: CircuitFormatLine end
 
-struct PosLiteralLine <: AbstractLiteralLine
+struct WeightedPosLiteralLine <: AbstractLiteralLine
     node_id::UInt32
     vtree_id::UInt32
     variable::Var
     weights::Vector{Float32}
 end
 
-struct NegLiteralLine <: AbstractLiteralLine
+struct WeightedNegLiteralLine <: AbstractLiteralLine
     node_id::UInt32
     vtree_id::UInt32
     variable::Var
@@ -102,10 +102,10 @@ function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
     function compile(::Union{HeaderLine,CommentLine})
          # do nothing
     end
-    function compile(ln::PosLiteralLine)
+    function compile(ln::WeightedPosLiteralLine)
         node_cache[ln.node_id] = literal_node(var2lit(ln.variable))
     end
-    function compile(ln::NegLiteralLine)
+    function compile(ln::WeightedNegLiteralLine)
         node_cache[ln.node_id] = literal_node(-var2lit(ln.variable))
     end
     function compile(ln::LiteralLine)
