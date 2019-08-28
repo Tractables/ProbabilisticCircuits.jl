@@ -1,4 +1,5 @@
 using Printf
+import Base.copy
 # To add saving code for circuits
 
 
@@ -14,7 +15,7 @@ function get_nodes_level(circuit::ProbCircuit△)
     next = Vector{ProbCircuitNode}()
 
     push!(next, circuit[end])
-    push!(levels, copy(next))
+    push!(levels, Base.copy(next))
     while !isempty(next)
         current, next = next, current
         while !isempty(current)
@@ -25,7 +26,7 @@ function get_nodes_level(circuit::ProbCircuit△)
                 end
             end
         end
-        push!(levels, copy(next))
+        push!(levels, Base.copy(next))
     end
 
     return levels
@@ -55,7 +56,7 @@ function save_as_dot(circuit::ProbCircuit△, file::String)
         end
     end
 
-    for n in circuit
+    for n in reverse(circuit)
         if n isa Prob⋀
             write(f, "$(node_cache[n]) [label=\"*\"]\n")
         elseif n isa Prob⋁
@@ -69,13 +70,13 @@ function save_as_dot(circuit::ProbCircuit△, file::String)
         end
     end
 
-    for n in circuit
+    for n in reverse(circuit)
         if n isa Prob⋀
-            for c in reverse(n.children)
+            for c in n.children
                 write(f, "$(node_cache[n]) -> $(node_cache[c])\n")
             end
         elseif n isa Prob⋁
-            for (c, p) in reverse(collect(zip(n.children, exp.(n.log_thetas))))
+            for (c, p) in zip(n.children, exp.(n.log_thetas))
                 prob = @sprintf "%0.1f" p
                 write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\"]\n")
             end
