@@ -4,34 +4,24 @@ using SparseArrays
 using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
+using .Juice.Utils
 
 const δINT = 999999
 const MIN_INT = 1
 const MAX_INT = δINT + MIN_INT
 
-function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
-    δmi = maximum(m) - minimum(m)
-    δint = max_int - min_int
-    return @. round(Int64, m * δint / δmi + min_int)
-end
-
-@inline order_asc(x, y) = x > y ? (y, x) : (x , y)
-
 #############
 # Metis top down method
 #############
 
-abstract type VtreeLearnerContext end
-struct MetisContext <: VtreeLearnerContext
+struct MetisContext
     info::Matrix{Int64}
 end
 
 MetisContext(mi::Matrix{Float64}) = MetisContext(to_long_mi(mi, MIN_INT, MAX_INT))
 
 
-"""
-Add edge weights to Metis.jl
-"""
+#Add edge weights to Metis.jl
 
 import Metis.idx_t
 import Metis.partition
@@ -112,12 +102,18 @@ function metis_top_down(vars::Set{Var}, context::MetisContext)::Tuple{Set{Var}, 
     return subsets
 end
 
+function metis_top_down_curry(context::MetisContext)
+    f(vars) = metis_top_down(vars, context)
+    return f
+end
+
 
 #############
 # Blossom bottom up method
 #############
+
 # TODO change API to DisjointSet
-mutable struct BlossomContext <: VtreeLearnerContext
+mutable struct BlossomContext
     variable_sets::Vector{Vector{Var}}
     partition_id::Vector{Int64} # map vars to index in variable_sets
     info::Matrix
@@ -224,17 +220,19 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
     return matches
 end
 
+function blossom_bottom_up_curry(context::BlossomContext)
+    f(vars) = blossom_bottom_up(vars, context)
+    return f
+end
+
 
 #############
 # Test method
 #############
 
-"Test context, learn vtree by stipulated method"
-struct TestContext <: VtreeLearnerContext
-end
 
 "Test top down method, split nodes by ascending order, balanced"
-function test_top_down(vars::Set{Var}, context::TestContext)::Tuple{Set{Var}, Set{Var}}
+function test_top_down(vars::Set{Var})::Tuple{Set{Var}, Set{Var}}
     sorted_vars = sort(collect(vars))
     len = length(sorted_vars)
     len1 = Int64(len % 2 == 0 ? len // 2 : (len - 1) // 2)
@@ -242,7 +240,7 @@ function test_top_down(vars::Set{Var}, context::TestContext)::Tuple{Set{Var}, Se
 end
 
 "Test bottom up method, split nodes by ascending order, balanced"
-function test_bottom_up!(vars::Set{Var}, context::TestContext)::Set{Tuple{Var, Var}}
+function test_bottom_up!(vars::Set{Var})::Set{Tuple{Var, Var}}
     sorted_vars = sort(collect(vars))
     len = length(sorted_vars)
     len1 = Int64(len % 2 == 0 ? len // 2 : (len - 1) // 2)

@@ -5,7 +5,7 @@ module Utils
 
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
-assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product
+assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, order_asc, to_long_mi
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -22,6 +22,14 @@ copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
 Is the argument not `nothing`?
 """
 issomething(x) = !isnothing(x)
+
+@inline order_asc(x, y) = x > y ? (y, x) : (x , y)
+
+function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
+    δmi = maximum(m) - minimum(m)
+    δint = max_int - min_int
+    return @. round(Int64, m * δint / δmi + min_int)
+end
 
 # functional programming basics
 
