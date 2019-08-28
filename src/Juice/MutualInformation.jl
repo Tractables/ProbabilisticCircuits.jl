@@ -51,8 +51,8 @@ end
 "Calculate set mutual information"
 function set_mutual_information(mi::Matrix, sets::Vector{Vector{Var}})::Matrix
     len = length(sets)
-    if len == size(pairwise_mi)[1]
-        return pairwise_mi
+    if len == size(mi)[1]
+        return mi
     end
 
     pmi = zeros(len, len)
