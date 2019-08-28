@@ -21,6 +21,7 @@ end
 # Metis top down method
 #############
 
+abstract type VtreeLearnerContext end
 struct MetisContext <: VtreeLearnerContext
     info::Matrix{Int64}
 end
