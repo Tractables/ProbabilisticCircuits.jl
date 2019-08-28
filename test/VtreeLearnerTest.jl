@@ -57,7 +57,7 @@ function psdd_learner_test()
     #clt = parse_clt("./test/circuits/test.clt")
     vtree = learn_vtree_from_clt(clt, "balanced"); # or "linear"
     save(vtree,"./test/circuits/test.vtree.dot");
-    psdd = compile_psdd_from_clt(clt, vtree);
+    (psdd, _) = compile_psdd_from_clt(clt, vtree);
     save_as_dot(psdd, "./test/circuits/test.psdd.dot");
 end
 

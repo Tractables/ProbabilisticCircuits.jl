@@ -257,7 +257,7 @@ end
 #############
 
 function learn_vtree_from_clt(clt::CLT, strategy::String)::Vtree
-    roots = filter(x->x==0,parent_vector(clt))
+    roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
     root = construct_children(Var.(roots), clt, strategy)
 
     return order_nodes_leaves_before_parents(root)

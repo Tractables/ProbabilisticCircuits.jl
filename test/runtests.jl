@@ -8,7 +8,9 @@ tests = [
    "CircuitQueriesTest.jl",
    "MixtureCircuitsTest.jl",
    "LogicTest.jl",
-   "VtreeParserTest.jl"
+   "VtreeParserTest.jl",
+   "VtreeLearnerTest.jl",
+   "PSDDLearnerTest.jl"
    ]
 
 @testset "Juice" begin
