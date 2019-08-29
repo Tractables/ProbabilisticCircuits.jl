@@ -6,7 +6,7 @@ Julia Circuit Empanada
 
 # Requirements
 
-Assuming you have Julia 1.1 installed, run the following to install the dependencies.
+Assuming you have Julia 1.2 installed, run the following to install the dependencies.
 
  ``julia install.jl``
 
