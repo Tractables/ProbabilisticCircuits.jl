@@ -2,7 +2,7 @@
 # Compilers to Juice data structures starting from already parsed line objects
 #####################
 
-abstract type CircuitFormatLine end
+abstract type CircuitFormatLine <: FormatLine end
 
 struct CommentLine{T<:AbstractString} <: CircuitFormatLine
     comment::T
@@ -90,7 +90,7 @@ function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
     # linearized circuit nodes
     circuit = Vector{LogicalCircuitNode}()
     # mapping from node ids to node objects
-    node_cache = Dict{UInt32,CircuitNode}()
+    id2node = Dict{UInt32,CircuitNode}()
     # literal cache is responsible for making leaf literal nodes unique and adding them to lin
     lit_cache = Dict{Int32,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
@@ -103,40 +103,40 @@ function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
          # do nothing
     end
     function compile(ln::WeightedPosLiteralLine)
-        node_cache[ln.node_id] = literal_node(var2lit(ln.variable))
+        id2node[ln.node_id] = literal_node(var2lit(ln.variable))
     end
     function compile(ln::WeightedNegLiteralLine)
-        node_cache[ln.node_id] = literal_node(-var2lit(ln.variable))
+        id2node[ln.node_id] = literal_node(-var2lit(ln.variable))
     end
     function compile(ln::LiteralLine)
-        node_cache[ln.node_id] = literal_node(ln.literal)
+        id2node[ln.node_id] = literal_node(ln.literal)
     end
     function compile(ln::TrueLeafLine)
         n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
         push!(circuit,n)
-        node_cache[ln.node_id] = n
+        id2node[ln.node_id] = n
     end
     function compile_elements(e::ElementTuple)
-        n = ⋀Node([node_cache[e.prime_id],node_cache[e.sub_id]])
+        n = ⋀Node([id2node[e.prime_id],id2node[e.sub_id]])
         push!(circuit,n)
         n
     end
     function compile(ln::DecisionLine)
         n = ⋁Node(map(compile_elements, ln.elements))
         push!(circuit,n)
-        node_cache[ln.node_id] = n
+        id2node[ln.node_id] = n
     end
     function compile(ln::BiasLine)
         n = ⋁Node([circuit[end]])
         push!(circuit,n)
-        node_cache[ln.node_id] = n
+        id2node[ln.node_id] = n
     end
 
     for ln in lines
         compile(ln)
     end
 
-    circuit, node_cache
+    circuit, id2node
 end
 
 """

@@ -4,6 +4,7 @@ using ..Logical
 using ..Probabilistic
 
 export
+
 # CircuitParser
 load_logical_circuit, load_prob_circuit, 
 load_psdd_logical_circuit, load_lc_logical_circuit, load_psdd_prob_circuit,
@@ -15,9 +16,10 @@ save_as_dot,
 # VtreeParser / Saver
 parse_vtree_file, compile_vtree_format_lines, load_vtree, save
 
+include("VtreeLineCompiler.jl")
 include("VtreeParser.jl")
 include("VtreeSaver.jl")
-include("LineCompiler.jl")
+include("CircuitLineCompiler.jl")
 include("CircuitParser.jl")
 include("CircuitSaver.jl")
 
