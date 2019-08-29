@@ -2,7 +2,6 @@
 # Probabilistic circuits
 #####################
 
-
 abstract type ProbCircuitNode<: CircuitNode end
 abstract type ProbLeafNode <: ProbCircuitNode end
 abstract type ProbInnerNode <: ProbCircuitNode end
@@ -31,6 +30,8 @@ const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
 #####################
 # traits
 #####################
+
+import ..Logical.NodeType # make available for extension
 
 NodeType(::Type{<:ProbPosLeaf}) = PosLeaf()
 NodeType(::Type{<:ProbNegLeaf}) = NegLeaf()
@@ -67,6 +68,8 @@ ProbCircuit(c::Circuit△, cache::ProbCache = ProbCache()) = map(n->ProbCircuitN
 #####################
 # methods
 #####################
+
+import ..Logical.cvar # make available for extension
 
 @inline cvar(n::ProbLeafNode)::Var  = cvar(n.origin)
 

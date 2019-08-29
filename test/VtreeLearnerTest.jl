@@ -61,4 +61,6 @@ function psdd_learner_test()
     save_as_dot(psdd, "./test/circuits/test.psdd.dot");
 end
 
-psdd_learner_test()
+@testset "PSDD and Vtree Learner Test" begin
+    @test @no_error psdd_learner_test()
+end

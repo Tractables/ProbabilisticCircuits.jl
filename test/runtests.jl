@@ -2,6 +2,7 @@ using Test;
 
 include("../src/Juice/Juice.jl")
 using .Juice
+using .Utils
 
 tests = [
    "CircuitParserTest.jl",

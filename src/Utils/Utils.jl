@@ -5,7 +5,8 @@ module Utils
 
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
-assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, order_asc, to_long_mi
+assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
+order_asc, to_long_mi, @no_error
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -30,6 +31,18 @@ function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
     δint = max_int - min_int
     return @. round(Int64, m * δint / δmi + min_int)
 end
+
+macro no_error(ex)
+    quote
+        try
+            $(esc(ex))
+            true
+        catch
+            false
+        end
+    end
+end
+
 
 # functional programming basics
 

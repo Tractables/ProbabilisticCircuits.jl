@@ -4,7 +4,7 @@ using SparseArrays
 using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
-using .Juice.Utils
+using ...Utils
 
 const δINT = 999999
 const MIN_INT = 1
@@ -250,66 +250,4 @@ function test_bottom_up!(vars::Set{Var})::Set{Tuple{Var, Var}}
         pop!(vars, sorted_vars[2 * i])
     end
     return matches
-end
-
-#############
-# Learn Vtree from CLT
-#############
-
-function learn_vtree_from_clt(clt::CLT, strategy::String)::Vtree
-    roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
-    root = construct_children(Var.(roots), clt, strategy)
-
-    return order_nodes_leaves_before_parents(root)
-end
-
-function construct_node(v::Var, clt::CLT, strategy::String)::VtreeNode
-    children = Var.(outneighbors(clt, v))
-    if isempty(children) # leaf node
-        return VtreeLeafNode(v)
-    else
-        right = construct_children(children, clt, strategy)
-        return add_parent(v, right)
-    end
-end
-
-function construct_children(children::Vector{Var}, clt::CLT, strategy::String)::VtreeNode
-    sorted_vars = sort(collect(children))
-    children_nodes = Vector{VtreeNode}()
-    foreach(x -> push!(children_nodes, construct_node(x, clt, strategy)), sorted_vars)
-
-    if strategy == "linear"
-        construct_children_linear(children_nodes, clt)
-    elseif strategy == "balanced"
-        construct_children_balanced(children_nodes, clt)
-    else
-        throw("Unknown type of strategy")
-    end
-end
-
-function construct_children_linear(children_nodes::Vector{VtreeNode}, clt::CLT)::VtreeNode
-    children_nodes = Iterators.Stateful(reverse(children_nodes))
-
-    right = popfirst!(children_nodes)
-    for left in children_nodes
-        right = VtreeInnerNode(left, right)
-    end
-    return right
-end
-
-function construct_children_balanced(children_nodes::Vector{VtreeNode}, clt::CLT)::VtreeNode
-    if length(children_nodes) == 1
-        return children_nodes[1]
-    elseif length(children_nodes) == 2
-        return VtreeInnerNode(children_nodes[1], children_nodes[2])
-    else
-        len = trunc(Int64, length(children_nodes) / 2)
-        left = construct_children_balanced(children_nodes[1 : len], clt)
-        right = construct_children_balanced(children_nodes[len + 1 : end], clt)
-        return VtreeInnerNode(left, right)
-    end
-end
-
-function add_parent(parent::Var, children::VtreeNode)
-    return VtreeInnerNode(VtreeLeafNode(parent), children)
 end

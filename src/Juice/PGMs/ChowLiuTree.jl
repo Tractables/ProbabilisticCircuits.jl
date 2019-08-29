@@ -55,6 +55,18 @@ function learn_chow_liu_tree(train_x::WXData; α = 0.0001, parametered = true)
     return clt
 end
 
+function get_cpt(parent, child, dis_cache)
+    if parent == 0
+        p = dis_cache.marginal[child, :]
+        return Dict(0=>p[1], 1=>p[2])
+    else
+        p = dis_cache.pairwise[child, parent, :] ./ [dis_cache.marginal[parent, :]; dis_cache.marginal[parent, :]]
+        @. p[isnan(p)] = 0; @. p[p==Inf] = 0; @. p[p == -Inf] = 0
+        return Dict((0,0)=>p[1], (1,0)=>p[3], (0,1)=>p[2], (1,1)=>p[4]) #p(child|parent)
+    end
+end
+
+
 "Get parent vector of a tree"
 function parent_vector(tree::CLT)::Vector{Int64}
     v = zeros(Int64, nv(tree)) # parent of roots is 0

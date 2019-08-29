@@ -61,14 +61,3 @@ function set_mutual_information(mi::Matrix, sets::Vector{Vector{Var}})::Matrix
     end
     return pmi
 end
-
-function get_cpt(parent, child, dis_cache)
-    if parent == 0
-        p = dis_cache.marginal[child, :]
-        return Dict(0=>p[1], 1=>p[2])
-    else
-        p = dis_cache.pairwise[child, parent, :] ./ [dis_cache.marginal[parent, :]; dis_cache.marginal[parent, :]]
-        @. p[isnan(p)] = 0; @. p[p==Inf] = 0; @. p[p == -Inf] = 0
-        return Dict((0,0)=>p[1], (1,0)=>p[3], (0,1)=>p[2], (1,1)=>p[4]) #p(child|parent)
-    end
-end
