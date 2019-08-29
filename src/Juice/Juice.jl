@@ -12,7 +12,6 @@ using Reexport
 
 # using IterTools
 # using EponymTuples
-# using StatsFuns
 
 
 # USE SIBLING MODULES

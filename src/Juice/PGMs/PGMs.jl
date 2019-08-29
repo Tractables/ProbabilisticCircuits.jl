@@ -1,5 +1,7 @@
 module PGMs
 
+using StatsFuns # logsumexp
+
 using ...Data
 using ..Logical
 using ..Probabilistic

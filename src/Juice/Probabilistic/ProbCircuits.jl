@@ -158,7 +158,7 @@ function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
     if num_children(n) != 1 # other nodes have no effect on likelihood
         origin = n.origin::Prob⋁
         foreach(n.children, origin.log_thetas) do c, theta
-            log_likelihoods .+= prod_fast(π(n), pr_factors(c)) .* theta
+            log_likelihoods .+= prod_fast(path_flow(n), pr_factors(c)) .* theta
         end
     end
 end
