@@ -1,3 +1,12 @@
+if endswith(@__FILE__, PROGRAM_FILE)
+    # this file is run as a script
+    include("../../../src/Juice/Juice.jl")
+ end
+
+using Test
+using .Juice
+using .Utils
+
 function vtree_test_top_down()
     vars = Set(Var.([1,2,3,4,5,6]))
     vtree = construct_top_down(vars, test_top_down)

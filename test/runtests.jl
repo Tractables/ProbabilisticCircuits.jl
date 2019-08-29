@@ -1,21 +1,16 @@
-using Test;
+if endswith(@__FILE__, PROGRAM_FILE)
+   # this file is run as a script
+   include("../src/Juice/Juice.jl")
+end
 
-include("../src/Juice/Juice.jl")
-using .Juice
-using .Utils
+using Test
 
-tests = [
-   "CircuitParserTest.jl",
-   "CircuitQueriesTest.jl",
-   "MixtureCircuitsTest.jl",
-   "LogicTest.jl",
-   "VtreeParserTest.jl",
-   "VtreeLearnerTest.jl",
-   "PSDDLearnerTest.jl"
-   ]
-
-@testset "Juice" begin
-   for test in tests
+@testset "Juice-All" begin
+   for test in [
+      "Utils/runtests.jl",
+      "Data/runtests.jl",
+      "Juice/runtests.jl"
+      ]
      include(test)
    end
 end
