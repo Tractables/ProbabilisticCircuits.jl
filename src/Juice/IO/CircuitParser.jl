@@ -11,18 +11,16 @@ Load a logical circuit from file. Depending on format will load different circui
 
 For example, ".psdd" is for PSDD files, and ".circuit" is for Logistic Circuit files.
 """
-function load_logical_circuit(file::String)::LogicalCircuit△
-    if endswith(file,".circuit")
-        load_lc_logical_circuit(file)
-    elseif endswith(file,".psdd")
-        load_psdd_logical_circuit(file)
-    else
-        throw("Cannot parse this file type as a logical circuit: $file")
-    end
+function load_logical_circuit(file::String)::UnstructLogicalCircuit△
+    compile_lines_logical(parse_circuit_file(file))
 end
 
-load_psdd_logical_circuit(file::String)::LogicalCircuit△ = compile_lines_logical(parse_psdd_file(file))
-load_lc_logical_circuit(file::String)::LogicalCircuit△ = compile_lines_logical(parse_lc_file(file))
+function load_struct_logical_circuit(circuit_file::String, vtree_file::String)
+    circuit_lines = parse_circuit_file(circuit_file)
+    vtree_lines = parse_vtree_file(vtree_file)
+    compile_lines_struct_logical_vtree(circuit_lines, vtree_lines)
+end
+
 
 """
 Load a probabilistic circuit from file. 
@@ -30,14 +28,23 @@ Load a probabilistic circuit from file.
 For now only ".psdd" PSDD files are supported.
 """
 function load_prob_circuit(file::String)::ProbCircuit△
-    if endswith(file,".psdd")
-        load_psdd_prob_circuit(file)
-    else
-        throw("Cannot parse this file type as a probabilistic circuit: $file")
-    end
+    @assert endswith(file,".psdd")
+    compile_lines_prob(parse_psdd_file(file))
 end
 
-load_psdd_prob_circuit(file::String)::Vector{ProbCircuitNode} = compile_lines_prob(parse_psdd_file(file))
+#####################
+# parse based on file extension
+#####################
+
+function parse_circuit_file(file::String)::Vector{CircuitFormatLine}
+    if endswith(file,".circuit")
+        parse_lc_file(file)
+    elseif endswith(file,".psdd")
+        parse_psdd_file(file)
+    else
+        throw("Cannot parse this file type as a logical circuit: $file")
+    end
+end
 
 #####################
 # parser of logistic circuit file format
@@ -148,7 +155,7 @@ end
 
 function parse_literal_line(ln::String)::LiteralLine
     tokens = split(ln)
-    @assert length(tokens)==4
+    @assert length(tokens)==4 "line has too many tokens: $ln"
     head_ints = map(x->parse(UInt32,x),tokens[2:3])
     LiteralLine(head_ints[1],head_ints[2],parse(Int32,tokens[4]))
 end
