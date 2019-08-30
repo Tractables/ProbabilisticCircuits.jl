@@ -80,7 +80,7 @@ end
 """
 Compile lines into a logical circuit
 """
-compile_lines_logical(lines::Vector{CircuitFormatLine})::LogicalCircuit△ = 
+compile_lines_logical(lines::Vector{CircuitFormatLine})::UnstructLogicalCircuit△ = 
     compile_lines_logical_with_mapping(lines)[1]
 
 """
@@ -89,9 +89,9 @@ Compile lines into a logical circuit, while keeping track of id-to-node mappings
 function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
 
     # linearized circuit nodes
-    circuit = Vector{LogicalCircuitNode}()
+    circuit = Vector{UnstructLogicalCircuitNode}()
     # mapping from node ids to node objects
-    id2node = Dict{UInt32,LogicalCircuitNode}()
+    id2node = Dict{UInt32,UnstructLogicalCircuitNode}()
     # literal cache is responsible for making leaf literal nodes unique and adding them to lin
     lit_cache = Dict{Int32,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
