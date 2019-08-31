@@ -2,6 +2,8 @@
 # Compilers to Juice data structures starting from already parsed line objects
 #####################
 
+const ID = UInt32
+
 abstract type CircuitFormatLine <: FormatLine end
 
 struct CommentLine{T<:AbstractString} <: CircuitFormatLine
@@ -10,94 +12,129 @@ end
 
 struct HeaderLine <: CircuitFormatLine end
 
+abstract type LeafLine <: CircuitFormatLine end
 abstract type AbstractLiteralLine <: CircuitFormatLine end
 
-struct WeightedPosLiteralLine <: AbstractLiteralLine
-    node_id::UInt32
-    vtree_id::UInt32
+"""Weighted lines are always for normalized circuits"""
+abstract type WeightedLiteralLine <: AbstractLiteralLine end
+
+struct WeightedPosLiteralLine <: WeightedLiteralLine
+    node_id::ID
+    vtree_id::ID # assume normalized, not trimmed
     variable::Var
     weights::Vector{Float32}
 end
 
-struct WeightedNegLiteralLine <: AbstractLiteralLine
-    node_id::UInt32
-    vtree_id::UInt32
+struct WeightedNegLiteralLine <: WeightedLiteralLine
+    node_id::ID
+    vtree_id::ID # assume normalized, not trimmed
     variable::Var
     weights::Vector{Float32}
 end
 
-struct LiteralLine <: AbstractLiteralLine
-    node_id::UInt32
-    vtree_id::UInt32
+"""Unweighted literal lines could be either normalized or trimmed"""
+abstract type UnweightedLiteralLine <: AbstractLiteralLine end
+
+struct NormalizedLiteralLine <: UnweightedLiteralLine
+    node_id::ID
+    vtree_id::ID # assume normalized, not trimmed
     literal::Lit
 end
 
-struct TrueLeafLine <: CircuitFormatLine
-    # assume this type of true leaf is not trimmed!
-    node_id::UInt32
-    vtree_id::UInt32
+struct TrimmedLiteralLine <: UnweightedLiteralLine
+    node_id::ID
+    vtree_id::ID # assume trimmed, not normalized
+    literal::Lit
+end
+
+abstract type ConstantLine <: CircuitFormatLine end
+
+"""Weighted constants are always normalized"""
+struct WeightedTrueLeafLine <: ConstantLine
+    node_id::ID
+    vtree_id::ID # assume normalized, not trimmed
     variable::Var
     weight::Float32
 end
 
-abstract type ElementTuple end
+struct TrueLeafLine <: ConstantLine
+    node_id::ID
+end
 
-struct LCElementTuple <: ElementTuple
-    prime_id::UInt32
-    sub_id::UInt32
+struct FalseLeafLine <: ConstantLine
+    node_id::ID
+end
+
+"""
+Paired boxes, or elements, are conjunctions 
+in a larger decision node line
+"""
+abstract type Element end
+abstract type NormalizedElement <: Element end
+
+struct LCElement <: NormalizedElement
+    prime_id::ID
+    sub_id::ID
     weights::Vector{Float32}
 end
 
-struct PSDDElementTuple <: ElementTuple
-    prime_id::UInt32
-    sub_id::UInt32
+struct PSDDElement <: NormalizedElement
+    prime_id::ID
+    sub_id::ID
     weight::Float32
 end
 
-abstract type DecisionLine <: CircuitFormatLine end
+abstract type TrimmedElement <: Element end
 
-struct LCDecisionLine <: DecisionLine
-    node_id::UInt32
-    vtree_id::UInt32
-    num_elements::UInt32
-    elements:: Vector{ElementTuple}
+struct SDDElement <: TrimmedElement
+    prime_id::ID
+    sub_id::ID
 end
 
-struct PSDDDecisionLine <: DecisionLine
-    node_id::UInt32
-    vtree_id::UInt32
+
+struct DecisionLine{ET<:Element} <: CircuitFormatLine
+    node_id::ID
+    vtree_id::ID
     num_elements::UInt32
-    elements:: Vector{PSDDElementTuple}
+    elements:: Vector{ET}
 end
 
 struct BiasLine <: CircuitFormatLine
-    node_id::UInt32
+    node_id::ID
     weights::Vector{Float32}
     BiasLine(weights) = new(typemax(UInt32), weights)
 end
 
+const TrimmedLine = Union{TrueLeafLine,FalseLeafLine,TrimmedLiteralLine,DecisionLine{SDDElement}}
 
 """
 Compile lines into a logical circuit
 """
-compile_lines_logical(lines::Vector{CircuitFormatLine})::UnstructLogicalCircuit△ = 
-    compile_lines_logical_with_mapping(lines)[1]
+compile_smooth_logical(lines::Vector{CircuitFormatLine})::UnstLogicalCircuit△ = 
+    compile_smooth_logical_m(lines)[1]
 
 """
 Compile lines into a logical circuit, while keeping track of id-to-node mappings
 """
-function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
+function compile_smooth_logical_m(lines::Vector{CircuitFormatLine})
 
     # linearized circuit nodes
-    circuit = Vector{UnstructLogicalCircuitNode}()
+    circuit = Vector{UnstLogicalCircuitNode}()
+    
     # mapping from node ids to node objects
-    id2node = Dict{UInt32,UnstructLogicalCircuitNode}()
+    id2node = Dict{ID,UnstLogicalCircuitNode}()
+    
     # literal cache is responsible for making leaf literal nodes unique and adding them to lin
-    lit_cache = Dict{Int32,LogicalLeafNode}()
+    lit_cache = Dict{Lit,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
         leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
+    end
+
+    function compile(::TrimmedLine)
+        error("Compiling a smooth circuit from a trimmed logical circuit file: this functionality is not yet implemented. 
+               Instead parse as a non-smooth circuit and smooth afterwards.")
     end
 
     function compile(::Union{HeaderLine,CommentLine})
@@ -109,20 +146,21 @@ function compile_lines_logical_with_mapping(lines::Vector{CircuitFormatLine})
     function compile(ln::WeightedNegLiteralLine)
         id2node[ln.node_id] = literal_node(-var2lit(ln.variable))
     end
-    function compile(ln::LiteralLine)
+    function compile(ln::UnweightedLiteralLine)
         id2node[ln.node_id] = literal_node(ln.literal)
     end
-    function compile(ln::TrueLeafLine)
+    function compile(ln::WeightedTrueLeafLine)
+        # because we promise to compile a smooth circuit, here we need to add a "smoothing or gate"
         n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
         push!(circuit,n)
         id2node[ln.node_id] = n
     end
-    function compile_elements(e::ElementTuple)
+    function compile_elements(e::NormalizedElement)
         n = ⋀Node([id2node[e.prime_id],id2node[e.sub_id]])
         push!(circuit,n)
         n
     end
-    function compile(ln::DecisionLine)
+    function compile(ln::DecisionLine{<:NormalizedElement})
         n = ⋁Node(map(compile_elements, ln.elements))
         push!(circuit,n)
         id2node[ln.node_id] = n
@@ -143,41 +181,48 @@ end
 """
 Compile circuit and vtree lines into a structured logical circuit + vtree
 """
-function compile_lines_struct_logical_vtree(circuit_lines::Vector{CircuitFormatLine}, 
-                                   vtree_lines::Vector{VtreeFormatLine})
-    compile_lines_struct_logical_vtree_with_mapping(circuit_lines,vtree_lines)[1:2]
+function compile_smooth_struct_logical(circuit_lines::Vector{CircuitFormatLine}, 
+                                vtree_lines::Vector{VtreeFormatLine})
+    compile_smooth_struct_logical_m(circuit_lines,vtree_lines)[1:2]
 end
 
-function compile_lines_struct_logical_vtree_with_mapping(circuit_lines::Vector{CircuitFormatLine}, 
-                                   vtree_lines::Vector{VtreeFormatLine})
-    vtree, id2vtree = compile_vtree_format_lines_with_mapping(vtree_lines)
-    circuit, id2circuit = compile_lines_struct_logical_with_mapping(circuit_lines, id2vtree)
+function compile_smooth_struct_logical_m(circuit_lines::Vector{CircuitFormatLine}, 
+                                  vtree_lines::Vector{VtreeFormatLine})
+    vtree, id2vtree = compile_vtree_format_lines_m(vtree_lines)
+    circuit, id2circuit = compile_smooth_struct_logical_m(circuit_lines, id2vtree)
     circuit, vtree, id2vtree, id2circuit
 end
 
 """
 Compile lines into a structured logical circuit
 """
-compile_lines_struct_logical(lines::Vector{CircuitFormatLine}, 
-                             id2vtree::Dict{UInt32, VtreeNode})::LogicalCircuit△ = 
-    compile_lines_struct_logical_with_mapping(lines, id2vtree)[1]
+compile_smooth_struct_logical(lines::Vector{CircuitFormatLine}, 
+                              id2vtree::Dict{ID, VtreeNode})::LogicalCircuit△ = 
+    compile_smooth_struct_logical_m(lines, id2vtree)[1]
 
 """
 Compile lines into a structured logical circuit, while keeping track of id-to-node mappings
 """
-function compile_lines_struct_logical_with_mapping(lines::Vector{CircuitFormatLine}, 
-                                                   id2vtree::Dict{UInt32, VtreeNode})
+function compile_smooth_struct_logical_m(lines::Vector{CircuitFormatLine}, 
+                                         id2vtree::Dict{ID, VtreeNode})
 
     # linearized circuit nodes
     circuit = Vector{StructLogicalCircuitNode}()
+    
     # mapping from node ids to node objects
-    id2node = Dict{UInt32,StructLogicalCircuitNode}()
+    id2node = Dict{ID,StructLogicalCircuitNode}()
     # literal cache is responsible for making leaf literal nodes unique and adding them to lin
-    lit_cache = Dict{Int32,StructLogicalLeafNode}()
-    literal_node(l::Lit, v::VtreeNode) = get!(lit_cache, l) do
+    
+    lit_cache = Dict{Lit,StructLogicalLeafNode}()
+    literal_node(l::Lit, v::VtreeLeafNode) = get!(lit_cache, l) do
         leaf = (l>0 ? StructPosLeafNode(l,v) : StructNegLeafNode(-l,v)) #it's important for l to be a signed int!'
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
+    end
+
+    function compile(::TrimmedLine)
+        error("Compiling a smooth circuit from a trimmed logical circuit file: this functionality is not yet implemented. 
+               Instead parse as a non-smooth circuit and smooth afterwards.")
     end
 
     function compile(::Union{HeaderLine,CommentLine})
@@ -189,21 +234,22 @@ function compile_lines_struct_logical_with_mapping(lines::Vector{CircuitFormatLi
     function compile(ln::WeightedNegLiteralLine)
         id2node[ln.node_id] = literal_node(-var2lit(ln.variable), id2vtree[ln.vtree_id])
     end
-    function compile(ln::LiteralLine)
+    function compile(ln::NormalizedLiteralLine)
         id2node[ln.node_id] = literal_node(ln.literal, id2vtree[ln.vtree_id])
     end
-    function compile(ln::TrueLeafLine)
+    function compile(ln::WeightedTrueLeafLine)
+        # because we promise to compile a smooth circuit, here we need to add an or gate
         vtree = id2vtree[ln.vtree_id]
         n = Struct⋁Node([literal_node(var2lit(ln.variable), vtree), literal_node(-var2lit(ln.variable), vtree)], vtree)
         push!(circuit,n)
         id2node[ln.node_id] = n
     end
-    function compile_elements(e::ElementTuple, v::VtreeNode)
+    function compile_elements(e::NormalizedElement, v::VtreeNode)
         n = Struct⋀Node([id2node[e.prime_id], id2node[e.sub_id]], v)
         push!(circuit,n)
         n
     end
-    function compile(ln::DecisionLine)
+    function compile(ln::DecisionLine{<:NormalizedElement})
         vtree = id2vtree[ln.vtree_id]
         n = Struct⋁Node(map(e -> compile_elements(e, vtree), ln.elements), vtree)
         push!(circuit,n)
@@ -223,11 +269,26 @@ function compile_lines_struct_logical_with_mapping(lines::Vector{CircuitFormatLi
 end
 
 """
-Compile lines into a probabilistic circuit
+Compile lines into a probabilistic circuit.
 """
-function compile_lines_prob(lines::Vector{CircuitFormatLine})::ProbCircuit△
+function compile_prob(lines::Vector{CircuitFormatLine})::ProbCircuit△
     # first compile a logical circuit
-    logical_circuit, id2lognode = compile_lines_logical_with_mapping(lines)
+    logical_circuit, id2lognode = compile_smooth_logical_m(lines)
+    prob_circuit = decorate_prob(lines, logical_circuit, id2lognode)
+    prob_circuit
+end
+
+"""
+Compile lines into a structured probabilistic circuit (one whose logical circuit origin is structured).
+"""
+function compile_struct_prob(circuit_lines::Vector{CircuitFormatLine}, vtree_lines::Vector{VtreeFormatLine})::ProbCircuit△
+    vtree, id2vtree = compile_vtree_format_lines_m(vtree_lines)
+    logical_circuit, id2lognode = compile_smooth_struct_logical_m(circuit_lines, id2vtree)
+    prob_circuit = decorate_prob(circuit_lines, logical_circuit, id2lognode)
+    prob_circuit
+end
+
+function decorate_prob(lines::Vector{CircuitFormatLine}, logical_circuit::LogicalCircuit△, id2lognode::Dict{ID,<:LogicalCircuitNode})::ProbCircuit△
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
@@ -236,12 +297,14 @@ function compile_lines_prob(lines::Vector{CircuitFormatLine})::ProbCircuit△
     id2probnode(id) = lognode2probnode[id2lognode[id]]
 
     # go through lines again and update the probabilistic circuit node parameters
-    compile(::Union{HeaderLine,CommentLine,AbstractLiteralLine}) = () # do nothing
-    function compile(ln::TrueLeafLine)
+    function compile(::Union{HeaderLine,CommentLine,NormalizedLiteralLine})
+        # do nothing
+    end
+    function compile(ln::WeightedTrueLeafLine)
         node = id2probnode(ln.node_id)::Prob⋁
         node.log_thetas .= [ln.weight, log1p(-exp(ln.weight)) ]
     end
-    function compile(ln::DecisionLine)
+    function compile(ln::DecisionLine{<:PSDDElement})
         node = id2probnode(ln.node_id)::Prob⋁
         node.log_thetas .= [x.weight for x in ln.elements]
     end

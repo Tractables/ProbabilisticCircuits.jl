@@ -11,25 +11,37 @@ Load a logical circuit from file. Depending on format will load different circui
 
 For example, ".psdd" is for PSDD files, and ".circuit" is for Logistic Circuit files.
 """
-function load_logical_circuit(file::String)::UnstructLogicalCircuit△
-    compile_lines_logical(parse_circuit_file(file))
+function load_logical_circuit(file::String)::UnstLogicalCircuit△
+    compile_smooth_logical(parse_circuit_file(file))
 end
 
 function load_struct_logical_circuit(circuit_file::String, vtree_file::String)
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
-    compile_lines_struct_logical_vtree(circuit_lines, vtree_lines)
+    compile_smooth_struct_logical(circuit_lines, vtree_lines)
 end
 
 
 """
-Load a probabilistic circuit from file. 
+Load a probabilistic circuit from file (.psdd). 
 
 For now only ".psdd" PSDD files are supported.
 """
 function load_prob_circuit(file::String)::ProbCircuit△
     @assert endswith(file,".psdd")
-    compile_lines_prob(parse_psdd_file(file))
+    compile_prob(parse_psdd_file(file))
+end
+
+"""
+Load a structured probabilistic circuit from files (.psdd and .vtree). 
+
+For now only ".psdd" PSDD files are supported.
+"""
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::ProbCircuit△
+    @assert endswith(circuit_file,".psdd")
+    circuit_lines = parse_circuit_file(circuit_file)
+    vtree_lines = parse_vtree_file(vtree_file)
+    compile_struct_prob(circuit_lines, vtree_lines)
 end
 
 #####################
@@ -52,20 +64,20 @@ end
 
 const parens = r"\(([^\)]+)\)"
 
-function parse_lc_decision_line(ln::String)::LCDecisionLine
+function parse_lc_decision_line(ln::String)::DecisionLine{LCElement}
     @assert startswith(ln, "D")
     head::SubString, tail::SubString = split(ln,'(',limit=2)
     head_tokens = split(head)
     head_ints::Vector{UInt32} = map(x->parse(UInt32,x),head_tokens[2:4])
     elems_str::String = "("*tail
-    elems = Vector{ElementTuple}()
+    elems = Vector{LCElement}()
     for x in eachmatch(parens::Regex, elems_str)
         tokens = split(x[1], limit=3)
         weights::Vector{Float32} = map(x->parse(Float32,x), split(tokens[3]))
-        elem = LCElementTuple(parse(UInt32,tokens[1]), parse(UInt32,tokens[2]), weights)
+        elem = LCElement(parse(UInt32,tokens[1]), parse(UInt32,tokens[2]), weights)
         push!(elems,elem)
     end
-    LCDecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
+    DecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
 function parse_true_literal_line(ln::String)::WeightedPosLiteralLine
@@ -131,33 +143,33 @@ end
 # parser for PSDD circuit file format
 #####################
 
-function parse_psdd_decision_line(ln::String)::PSDDDecisionLine
+function parse_psdd_decision_line(ln::String)::DecisionLine{PSDDElement}
     tokens = split(ln)
     head_ints::Vector{UInt32} = map(x->parse(UInt32,x),tokens[2:4])
-    elems = Vector{ElementTuple}()
+    elems = Vector{PSDDElement}()
     for (p,s,w) in Iterators.partition(tokens[5:end],3)
         prime = parse(UInt32,p)
         sub = parse(UInt32,s)
         weight = parse(Float32,w)
-        elem = PSDDElementTuple(prime, sub, weight)
+        elem = PSDDElement(prime, sub, weight)
         push!(elems,elem)
     end
-    PSDDDecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
+    DecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
-function parse_true_leaf_line(ln::String)::TrueLeafLine
+function parse_true_leaf_line(ln::String)::WeightedTrueLeafLine
     tokens = split(ln)
     @assert length(tokens)==5
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
     weight = parse(Float32,tokens[5])
-    TrueLeafLine(head_ints[1],head_ints[2],head_ints[3],weight)
+    WeightedTrueLeafLine(head_ints[1],head_ints[2],head_ints[3],weight)
 end
 
-function parse_literal_line(ln::String)::LiteralLine
+function parse_literal_line(ln::String)::NormalizedLiteralLine
     tokens = split(ln)
     @assert length(tokens)==4 "line has too many tokens: $ln"
     head_ints = map(x->parse(UInt32,x),tokens[2:3])
-    LiteralLine(head_ints[1],head_ints[2],parse(Int32,tokens[4]))
+    NormalizedLiteralLine(head_ints[1],head_ints[2],parse(Int32,tokens[4]))
 end
 
 function parse_psdd_file(file::String)::Vector{CircuitFormatLine}
