@@ -21,10 +21,10 @@ train_mixture,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!,
-test_top_down, test_bottom_up!, 
+test_top_down, test_bottom_up!,
 
 # PSDDLearner
-partial_copy, calculate_all_bases, VtreeCache, split_operation, clone_operation, 
+partial_copy, calculate_all_bases, VtreeCache, split_operation, clone_operation, parents_vector,
 compile_literal_nodes, add_mapping!, compile_true_nodes, compile_decision_nodes, compile_decision_node,
 
 # MutualInformation
