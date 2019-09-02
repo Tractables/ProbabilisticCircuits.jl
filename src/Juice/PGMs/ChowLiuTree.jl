@@ -25,7 +25,7 @@ function learn_chow_liu_tree(train_x::WXData; α = 0.0001, parametered = true)
     (dis_cache, MI) = mutual_information(train_x; α = α)
 
     # maximum spanning tree/ forest
-    g = SimpleWeightedGraph(CompleteGraph(features_num))
+    g = SimpleWeightedGraph(complete_graph(features_num))
     mst_edges = kruskal_mst(g,- MI)
     tree = SimpleGraph(features_num)
     map(mst_edges) do edge
