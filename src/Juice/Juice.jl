@@ -20,9 +20,10 @@ using Reexport
 # INCLUDE CHILD MODULES
 include("Logical/Logical.jl")
 include("Probabilistic/Probabilistic.jl")
+include("IO/IO.jl")
 include("Logistic/Logistic.jl")
 include("PGMs/PGMs.jl")
-include("IO/IO.jl")
+
 
 # USE CHILD MODULES (in order to re-export some functions)
 @reexport using .Logical

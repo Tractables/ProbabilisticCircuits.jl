@@ -2,9 +2,11 @@ module PGMs
 
 using StatsFuns # logsumexp
 
+
 using ...Data
 using ..Logical
 using ..Probabilistic
+using ..IO
 
 export
 
@@ -22,7 +24,7 @@ train_mixture, initial_mixture_model_with_cluster,train_mixture_with_structure,
 partial_copy, calculate_all_bases, VtreeCache, split_operation, clone_operation, parents_vector,
 compile_literal_nodes, add_mapping!, compile_true_nodes, compile_decision_nodes, compile_decision_node,
 split_clone_ite, learner_single_model, print_ll, pick_variable_mi, pick_variable_rand, pick_edge_max_flow, pick_edge_rand,
-pick_edge_and_variable, split_candidates, not_splited, var_candidates
+pick_edge_and_variable, split_candidates, not_splited, var_candidates, main_mix, plot_h5, check_parents
 
 
 include("ChowLiuTree.jl")
