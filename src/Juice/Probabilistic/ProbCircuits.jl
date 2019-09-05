@@ -193,3 +193,54 @@ function check_parameter_integrity(circuit::ProbCircuit△)
     end
     true
 end
+
+##################
+# Sampling from a psdd
+##################
+# TODO (pashak)
+# 2. Possibly vectorize sampling to make it faster
+# 3. w/ Partial Evidence
+# 4. Add seed
+
+# Samples from a PSDD without any evidence
+function sample(circuit::ProbCircuit△)::AbstractVector{Bool}
+    inst = Dict{Var,Int64}()
+    simulate(circuit[end], inst)
+    len = length(keys(inst))
+    ans = Vector{Bool}()
+    for i = 1:len
+        push!(ans, inst[i])
+    end
+    ans
+end
+
+# Uniformly sample based on the proability of the items
+# and return the selected index
+function sample(probs::AbstractVector)::Int32
+    z = sum(probs)
+    q = rand() * z
+    cur = 0.0
+    for i = 1:length(probs)
+        cur += probs[i]
+        if q <= cur
+            return i
+        end
+    end
+    return length(probs)
+end
+
+function simulate(node::ProbPosLeaf, inst::Dict{Var,Int64})
+    inst[node.origin.cvar] = 1
+end
+function simulate(node::ProbNegLeaf, inst::Dict{Var,Int64})
+    inst[node.origin.cvar] = 0
+end
+function simulate(node::Prob⋁, inst::Dict{Var,Int64})
+    idx = sample(exp.(node.log_thetas))
+    simulate(node.children[idx], inst)
+end
+function simulate(node::Prob⋀, inst::Dict{Var,Int64})
+    for child in node.children
+        simulate(child, inst)
+    end    
+end
