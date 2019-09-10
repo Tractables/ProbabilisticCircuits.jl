@@ -28,10 +28,11 @@ test_top_down, test_bottom_up!,
 # MutualInformation
 mutual_information
 
+include("Bagging.jl")
 include("ProbCircuits.jl")
 include("MutualInformation.jl")
 include("ProbMixtures.jl")
 include("VtreeLearner.jl")
-include("Bagging.jl")
+
 
 end
