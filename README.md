@@ -10,6 +10,9 @@ Assuming you have Julia 1.2 installed, run the following to install the dependen
 
  ``julia install.jl``
 
+If MLDataSets package fails to build, mostly likely will be fixed by installing following (Ubuntu):
+
+  ``sudo apt-get install zlib1g-dev libncurses5-dev``
 
 # Documentation
 

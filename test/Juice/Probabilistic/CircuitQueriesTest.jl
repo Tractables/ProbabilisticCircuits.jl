@@ -128,3 +128,36 @@ end
     end
 
 end
+
+
+@testset "Sampling Test" begin
+    EPS = 1e-3;
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
+    flow_circuit = FlowCircuit(prob_circuit, 16, Bool);
+
+    N = 4;
+    data_all = XData(generate_data_all(N));
+
+    calc_prob_all = log_likelihood_per_instance(flow_circuit, data_all);
+    calc_prob_all = exp.(calc_prob_all);
+
+    using DataStructures
+    hist = DefaultDict{AbstractString,Float64}(0.0)
+
+    Nsamples = 1000 * 1000
+    for i = 1:Nsamples
+        cur = join(Int.(sample(prob_circuit)))
+        hist[cur] += 1
+    end
+
+    for k in keys(hist)
+        hist[k] /= Nsamples
+    end
+    
+    for k in keys(hist)
+        cur = parse(Int32, k, base=2) + 1 # cause Julia arrays start at 1 :(
+        @test calc_prob_all[cur] ≈ hist[k] atol= EPS;
+    end
+
+
+end
