@@ -27,28 +27,29 @@ function compile_smooth_logical_m(lines::Vector{CircuitFormatLine})
         leaf
     end
 
-    function compile(::TrimmedLine)
-        error("Compiling a smooth circuit from a trimmed logical circuit file: this functionality is not yet implemented. 
-               Instead parse as a non-smooth circuit and smooth afterwards.")
+    function compile(ln::CircuitFormatLine)
+        error("Compilation of line $ln is not supported")
     end
-
     function compile(::Union{HeaderLine,CommentLine})
          # do nothing
     end
-    function compile(ln::WeightedPosLiteralLine)
-        id2node[ln.node_id] = literal_node(var2lit(ln.variable))
-    end
-    function compile(ln::WeightedNegLiteralLine)
-        id2node[ln.node_id] = literal_node(-var2lit(ln.variable))
-    end
-    function compile(ln::UnweightedLiteralLine)
+    function compile(ln::LiteralLine)
+        @assert is_normalized(ln)
         id2node[ln.node_id] = literal_node(ln.literal)
     end
-    function compile(ln::WeightedTrueLeafLine)
-        # because we promise to compile a smooth circuit, here we need to add a "smoothing or gate"
-        n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
+
+    function compile(ln::WeightedConstantLine)
+        if constant(ln) == true
+            # because we promise to compile a smooth circuit, here we need to add a "smoothing or gate"
+            n = ⋁Node([literal_node(var2lit(ln.variable)), literal_node(-var2lit(ln.variable))])
+        else
+            error("False leaf logical circuit nodes not yet implemented")
+        end
         push!(circuit,n)
         id2node[ln.node_id] = n
+    end
+    function compile(ln::UnweightedConstantLine)
+        error("Cannot compile a smooth unweighted unstructured literal line because the variable scope is unknown.")
     end
     function compile_elements(e::NormalizedElement)
         n = ⋀Node([id2node[e.prime_id],id2node[e.sub_id]])
@@ -115,27 +116,33 @@ function compile_smooth_struct_logical_m(lines::Vector{CircuitFormatLine},
         leaf
     end
 
-    function compile(::TrimmedLine)
-        error("Compiling a smooth circuit from a trimmed logical circuit file: this functionality is not yet implemented. 
-               Instead parse as a non-smooth circuit and smooth afterwards.")
+    function compile(ln::CircuitFormatLine)
+        error("Compilation of line $ln is not supported")
     end
 
     function compile(::Union{HeaderLine,CommentLine})
          # do nothing
     end
-    function compile(ln::WeightedPosLiteralLine)
-        id2node[ln.node_id] = literal_node(var2lit(ln.variable), id2vtree[ln.vtree_id])
-    end
-    function compile(ln::WeightedNegLiteralLine)
-        id2node[ln.node_id] = literal_node(-var2lit(ln.variable), id2vtree[ln.vtree_id])
-    end
-    function compile(ln::NormalizedLiteralLine)
+    function compile(ln::LiteralLine)
+        @assert is_normalized(ln)
         id2node[ln.node_id] = literal_node(ln.literal, id2vtree[ln.vtree_id])
     end
-    function compile(ln::WeightedTrueLeafLine)
-        # because we promise to compile a smooth circuit, here we need to add an or gate
+
+    function compile(ln::ConstantLine)
         vtree = id2vtree[ln.vtree_id]
-        n = Struct⋁Node([literal_node(var2lit(ln.variable), vtree), literal_node(-var2lit(ln.variable), vtree)], vtree)
+        if ln isa WeightedConstantLine
+            variable = ln.variable
+        elseif is_normalized(ln)
+            variable = (vtree::VtreeLeafNode).var
+        else
+            error("Cannot obtained a smooth constant leaf without the ability to know the variables involved.")
+        end
+        if constant(ln) == true
+            # because we promise to compile a smooth circuit, here we need to add an or gate
+            n = Struct⋁Node([literal_node(var2lit(variable), vtree), literal_node(-var2lit(variable), vtree)], vtree)
+        else
+            error("False leaf logical circuit nodes not yet implemented")
+        end
         push!(circuit,n)
         id2node[ln.node_id] = n
     end
@@ -192,10 +199,15 @@ function decorate_prob(lines::Vector{CircuitFormatLine}, logical_circuit::Logica
     id2probnode(id) = lognode2probnode[id2lognode[id]]
 
     # go through lines again and update the probabilistic circuit node parameters
-    function compile(::Union{HeaderLine,CommentLine,NormalizedLiteralLine})
+
+    function compile(ln::CircuitFormatLine)
+        error("Compilation of line $ln is not supported")
+    end
+    function compile(::Union{HeaderLine,CommentLine,UnweightedLiteralLine})
         # do nothing
     end
-    function compile(ln::WeightedTrueLeafLine)
+    function compile(ln::WeightedConstantLine)
+        # always represents the constant true
         node = id2probnode(ln.node_id)::Prob⋁
         node.log_thetas .= [ln.weight, log1p(-exp(ln.weight)) ]
     end
