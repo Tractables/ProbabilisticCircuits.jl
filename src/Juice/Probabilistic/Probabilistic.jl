@@ -19,6 +19,7 @@ ll_per_instance_per_component,
 sample,
 # ProbMixtures
 train_mixture,
+bootstrap_samples_ids, learn_mixture_bagging, learn_mixture_bagging2,
 
 # VtreeLearner
 to_long_mi, MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!,
@@ -27,9 +28,11 @@ test_top_down, test_bottom_up!,
 # MutualInformation
 mutual_information
 
+include("Bagging.jl")
 include("ProbCircuits.jl")
 include("MutualInformation.jl")
 include("ProbMixtures.jl")
 include("VtreeLearner.jl")
+
 
 end
