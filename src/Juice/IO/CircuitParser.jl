@@ -23,7 +23,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::StructLogicalCircuit△
+function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit△,Vtree△}
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
     compile_smooth_struct_logical(circuit_lines, vtree_lines)
@@ -47,7 +47,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::ProbCircuit△
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit△,Vtree△}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
@@ -90,7 +90,7 @@ function parse_lc_decision_line(ln::String)::DecisionLine{LCElement}
     DecisionLine(head_ints[1],head_ints[2],head_ints[3],elems)
 end
 
-function parse_literal_line(ln::String)::WeightedLiteralLine
+function parse_lc_literal_line(ln::String)::WeightedLiteralLine
     @assert startswith(ln, "T") || startswith(ln, "F")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
@@ -120,14 +120,14 @@ function parse_bias_line(ln::String)::BiasLine
 end
 
 function parse_lc_file(file::String)::CircuitFormatLines
-    q = CircuitFormatLines()
+    q = Vector{CircuitFormatLine}()
     open(file) do file # buffered IO does not seem to speed this up
         for ln in eachline(file)
             @assert !isempty(ln)
             if ln[1] == 'D'
                 push!(q, parse_lc_decision_line(ln))
             elseif ln[1] == 'T' || ln[1] == 'F'
-                push!(q, parse_literal_line(ln))
+                push!(q, parse_lc_literal_line(ln))
             elseif ln[1] == 'c'
                 push!(q, parse_comment_line(ln))
             elseif ln[1] == 'L'
@@ -169,7 +169,7 @@ function parse_true_leaf_line(ln::String)::WeightedNamedConstantLine
     WeightedNamedConstantLine(head_ints[1],head_ints[2],head_ints[3],weight)
 end
 
-function parse_literal_line(ln::String)::UnweightedLiteralLine
+function parse_psdd_literal_line(ln::String)::UnweightedLiteralLine
     tokens = split(ln)
     @assert length(tokens)==4 "line has too many tokens: $ln"
     head_ints = map(x->parse(UInt32,x),tokens[2:3])
@@ -178,7 +178,7 @@ function parse_literal_line(ln::String)::UnweightedLiteralLine
 end
 
 function parse_psdd_file(file::String)::CircuitFormatLines
-    q = CircuitFormatLines()
+    q = Vector{CircuitFormatLine}()
     open(file) do file # buffered IO does not seem to speed this up
         for ln in eachline(file)
             @assert !isempty(ln)
@@ -187,7 +187,7 @@ function parse_psdd_file(file::String)::CircuitFormatLines
             elseif ln[1] == 'T'
                 push!(q, parse_true_leaf_line(ln))
             elseif ln[1] == 'L'
-                push!(q, parse_literal_line(ln))
+                push!(q, parse_psdd_literal_line(ln))
             elseif ln[1] == 'c'
                 push!(q, parse_comment_line(ln))
             elseif startswith(ln,"psdd")

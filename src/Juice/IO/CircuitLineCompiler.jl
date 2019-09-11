@@ -187,9 +187,10 @@ end
 """
 Compile circuit and vtree lines into a structured probabilistic circuit (one whose logical circuit origin is structured).
 """
-function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::VtreeFormatLines)::ProbCircuit△
+function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::VtreeFormatLines)
     logical_circuit, vtree, id2vtree, id2lognode = compile_smooth_struct_logical_m(circuit_lines, vtree_lines)
-    decorate_prob(circuit_lines, logical_circuit, id2lognode)
+    prob_circuit = decorate_prob(circuit_lines, logical_circuit, id2lognode)
+    return prob_circuit, vtree
 end
 
 function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit△, id2lognode::Dict{ID,<:LogicalCircuitNode})::ProbCircuit△
