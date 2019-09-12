@@ -3,6 +3,70 @@
 #####################
 
 """
+Compile lines into a unstructured logical circuit
+"""
+compile_logical(lines::CircuitFormatLines)::UnstLogicalCircuit△ = 
+    compile_logical_m(lines)[1]
+
+"""
+Compile lines into a unstructured logical circuit, 
+while keeping track of id-to-node mappings
+"""
+function compile_logical_m(lines::CircuitFormatLines)
+
+    # linearized circuit nodes
+    circuit = Vector{UnstLogicalCircuitNode}()
+    
+    # mapping from circuit node ids to node objects
+    id2node = Dict{ID,UnstLogicalCircuitNode}()
+    
+    # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
+    lit_cache = Dict{Lit,LogicalLeafNode}()
+    literal_node(l::Lit) = get!(lit_cache, l) do
+        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
+        push!(circuit,leaf) # also add new leaf to linearized circuit before caller
+        leaf
+    end
+
+    function compile(ln::CircuitFormatLine)
+        error("Compilation of line $ln is not supported")
+    end
+    function compile(::Union{CircuitHeaderLine,CircuitCommentLine})
+         # do nothing
+    end
+    function compile(ln::LiteralLine)
+        id2node[ln.node_id] = literal_node(literal(ln))
+    end
+    function compile(ln::ConstantLine)
+        error("TODO: implement constant logical leaf nodes")
+        # n = ConstantNode(true)
+        # push!(circuit,n)
+        # id2node[ln.node_id] = n
+    end
+    function compile_elements(e::Element)
+        n = ⋀Node([id2node[e.prime_id],id2node[e.sub_id]])
+        push!(circuit,n)
+        n
+    end
+    function compile(ln::DecisionLine)
+        n = ⋁Node(map(compile_elements, ln.elements))
+        push!(circuit,n)
+        id2node[ln.node_id] = n
+    end
+    function compile(ln::BiasLine)
+        n = ⋁Node([circuit[end]])
+        push!(circuit,n)
+        id2node[ln.node_id] = n
+    end
+
+    for ln in lines
+        compile(ln)
+    end
+
+    return circuit, id2node
+end
+
+"""
 Compile lines into a smooth unstructured logical circuit
 """
 compile_smooth_logical(lines::CircuitFormatLines)::UnstLogicalCircuit△ = 

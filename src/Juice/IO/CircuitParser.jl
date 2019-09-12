@@ -6,6 +6,17 @@
 # Instead here we hardcode some simpler parsers to speed things up
 
 """
+Load a logical circuit from file.
+Support file formats:
+ * ".sdd" for SDD files
+ * ".psdd" for PSDD files
+ * ".circuit" for Logistic Circuit files
+"""
+function load_logical_circuit(file::String)::UnstLogicalCircuit△
+    compile_logical(parse_circuit_file(file))
+end
+
+"""
 Load a smooth logical circuit from file.
 Support file formats:
  * ".psdd" for PSDD files
@@ -63,6 +74,8 @@ function parse_circuit_file(file::String)::CircuitFormatLines
         parse_lc_file(file)
     elseif endswith(file,".psdd")
         parse_psdd_file(file)
+    elseif endswith(file,".sdd")
+        parse_sdd_file(file)
     else
         throw("Cannot parse this file type as a circuit: $file")
     end
