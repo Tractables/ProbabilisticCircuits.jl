@@ -161,3 +161,47 @@ end
 
 
 end
+
+@testset "Sampling With Evidence" begin
+    # TODO (pashak) this test should be improved by adding few more cases
+    EPS = 1e-3;
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
+
+    opts= (compact⋀=false, compact⋁=false)
+    flow_circuit = FlowCircuit(prob_circuit, 1, Float64, FlowCache(), opts);
+
+    N = 4;
+    data = XData(Int8.([0 -1 0 -1]));
+    calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data);
+    calc_prob = exp.(calc_prob);
+
+    flow_circuit_all = FlowCircuit(prob_circuit, 4, Float64, FlowCache(), opts);
+    data_all = XData(Int8.([
+                            0 0 0 0;
+                            0 0 0 1;
+                            0 1 0 0;
+                            0 1 0 1;
+                        ]));
+    calc_prob_all = marginal_log_likelihood_per_instance(flow_circuit_all, data_all);
+    calc_prob_all = exp.(calc_prob_all);
+
+    calc_prob_all ./= calc_prob[1]
+
+    using DataStructures
+    hist = DefaultDict{AbstractString,Float64}(0.0)
+
+    Nsamples = 1000 * 1000
+    for i = 1:Nsamples
+        cur = join(Int.(sample(flow_circuit)))
+        hist[cur] += 1
+    end
+
+    for k in keys(hist)
+        hist[k] /= Nsamples
+    end
+
+    for ind = 1:4
+        cur = join(data_all.x[ind, :])
+        @test calc_prob_all[ind] ≈ hist[cur] atol= EPS;
+    end
+end

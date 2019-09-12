@@ -244,3 +244,40 @@ function simulate(node::Prob⋀, inst::Dict{Var,Int64})
         simulate(child, inst)
     end    
 end
+
+## Sampling with Evidence
+
+function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVector{Bool}
+    opts= (compact⋀=false, compact⋁=false)
+    flow_circuit = FlowCircuit(circuit, 1, Float64, FlowCache(), opts)
+    marginal_pass_up(flow_circuit, evidence)
+    sample(flow_circuit)
+end
+
+function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
+    inst = Dict{Var,Int64}()
+    simulate2(circuit[end], inst)
+    len = length(keys(inst))
+    ans = Vector{Bool}()
+    for i = 1:len
+        push!(ans, inst[i])
+    end
+    ans
+end
+
+function simulate2(node::Logical.FlowPosLeaf, inst::Dict{Var,Int64})
+    inst[node.origin.origin.cvar] = 1
+end
+function simulate2(node::Logical.FlowNegLeaf, inst::Dict{Var,Int64})
+    inst[node.origin.origin.cvar] = 0
+end
+function simulate2(node::Logical.Flow⋁, inst::Dict{Var,Int64})
+    prs = [ pr(ch)[1] for ch in children(node) ]
+    idx = sample(exp.(node.origin.log_thetas .+ prs))
+    simulate2(children(node)[idx], inst)
+end
+function simulate2(node::Logical.Flow⋀, inst::Dict{Var,Int64})
+    for child in children(node)
+        simulate2(child, inst)
+    end    
+end
