@@ -2,6 +2,7 @@
 Module with general utilities and missing standard library features that could be useful in any Julia project
 """
 module Utils
+import StatsFuns.logsumexp
 
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
@@ -229,6 +230,11 @@ end
 # end
 @inline @generated function sum_weighted_product(weights::AbstractArray{<:Number}, x1::AbstractArray{<:Number}, xs::AbstractArray{<:Number}...)
     :(sum(weights[$(expand_product(length(xs),eltype(x1),:x1,:xs))]))
+end
+
+
+function logsumexp(A::AbstractArray, dims)
+    return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
 end
 
 end #module
