@@ -22,7 +22,7 @@ include("Logical/Logical.jl")
 include("Probabilistic/Probabilistic.jl")
 include("IO/IO.jl")
 include("Logistic/Logistic.jl")
-include("PGMs/PGMs.jl")
+include("StructureLearner/StructureLearner.jl")
 
 
 # USE CHILD MODULES (in order to re-export some functions)
@@ -30,6 +30,6 @@ include("PGMs/PGMs.jl")
 @reexport using .Probabilistic
 @reexport using .IO
 @reexport using .Logistic
-@reexport using .PGMs
+@reexport using .StructureLearner
 
 end

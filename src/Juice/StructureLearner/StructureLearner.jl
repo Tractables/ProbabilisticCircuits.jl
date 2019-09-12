@@ -1,22 +1,19 @@
-module PGMs
-
-using StatsFuns # logsumexp
-
+module StructureLearner
 
 using ...Data
+
 using ..Logical
 using ..Probabilistic
 using ..IO
 
 export
-
 # ChowLiuTree
 learn_chow_liu_tree, parent_vector, print_tree, CLT, parse_clt,
 
 # CircuitBuilder
 compile_prob_circuit_from_clt, learn_prob_circuit,
 
-# Learner
+# PSDDInitializer
 learn_vtree_from_clt, compile_psdd_from_clt, set_base,
 train_mixture, initial_mixture_model_with_cluster,train_mixture_with_structure,
 
@@ -28,10 +25,10 @@ pick_edge_and_variable, check_parents, stop_training, train_bagging, one_bag, sa
 check_psdd, check_base
 
 
+
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
-include("Learner.jl")
+include("PSDDInitializer.jl")
 include("PSDDLearner.jl")
-
-
+include("TrainMixture.jl")
 end
