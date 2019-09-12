@@ -58,9 +58,9 @@ function save_as_dot(circuit::ProbCircuit△, file::String)
 
     for n in reverse(circuit)
         if n isa Prob⋀
-            write(f, "$(node_cache[n]) [label=\"*\"]\n")
+            write(f, "$(node_cache[n]) [label=\"*$(node_cache[n])\"]\n")
         elseif n isa Prob⋁
-            write(f, "$(node_cache[n]) [label=\"+\"]\n")
+            write(f, "$(node_cache[n]) [label=\"+$(node_cache[n])\"]\n")
         elseif n isa ProbPosLeaf
             write(f, "$(node_cache[n]) [label=\"+$(n.origin.cvar)\"]\n")
         elseif n isa ProbNegLeaf

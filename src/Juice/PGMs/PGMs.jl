@@ -24,7 +24,8 @@ train_mixture, initial_mixture_model_with_cluster,train_mixture_with_structure,
 partial_copy, calculate_all_bases, split_operation, parents_vector,
 compile_literal_nodes, add_mapping!, compile_true_nodes, compile_decision_nodes, compile_decision_node,
 split_clone_ite, print_ll, pick_variable_mi, pick_variable_rand, pick_edge_max_flow, pick_edge_rand,
-pick_edge_and_variable, check_parents, stop_training, train_bagging, one_bag, save_h5, train_psdd, main_learner
+pick_edge_and_variable, check_parents, stop_training, train_bagging, one_bag, save_h5, train_psdd, main_learner,
+check_psdd, check_base
 
 
 include("ChowLiuTree.jl")
