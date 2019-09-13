@@ -28,6 +28,9 @@ function compile_logical_m(lines::CircuitFormatLines)
         leaf
     end
 
+    seen_true = false
+    seen_false = false
+
     function compile(ln::CircuitFormatLine)
         error("Compilation of line $ln is not supported")
     end
@@ -38,10 +41,14 @@ function compile_logical_m(lines::CircuitFormatLines)
         id2node[ln.node_id] = literal_node(literal(ln))
     end
     function compile(ln::ConstantLine)
-        error("TODO: implement constant logical leaf nodes")
-        # n = ConstantNode(true)
-        # push!(circuit,n)
-        # id2node[ln.node_id] = n
+        if constant(ln) == true
+            n = TrueNode()
+            seen_true || (push!(circuit,n); seen_true = true)
+        else
+            n = FalseNode()
+            seen_false || (push!(circuit,n); seen_false = true)
+        end
+        id2node[ln.node_id] = n
     end
     function compile_elements(e::Element)
         n = ⋀Node([id2node[e.prime_id],id2node[e.sub_id]])
@@ -65,6 +72,8 @@ function compile_logical_m(lines::CircuitFormatLines)
 
     return circuit, id2node
 end
+
+#TODO add compile_struct_logical
 
 """
 Compile lines into a smooth unstructured logical circuit
