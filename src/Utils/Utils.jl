@@ -7,7 +7,7 @@ import StatsFuns.logsumexp
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
-order_asc, to_long_mi, @no_error
+order_asc, to_long_mi, @no_error, disjoint
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -42,6 +42,18 @@ macro no_error(ex)
             false
         end
     end
+end
+
+function disjoint(set1::AbstractSet, sets::AbstractSet...)::Bool
+    seen = set1
+    for set in sets
+        if !isempty(intersect(seen,set))
+            return false
+        else
+            seen = union(seen, set)
+        end
+    end
+    return true
 end
 
 
