@@ -7,7 +7,7 @@ import StatsFuns.logsumexp
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
-order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_type_argument, map_values, groupby
+order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -59,10 +59,10 @@ end
 
 import Base.typejoin
 "Get the most specific type parameter possible for an array"
-typejoin(array) = map_reduce(e -> typeof(e), typejoin, array)
+typejoin(array) = mapreduce(e -> typeof(e), typejoin, array)
 
 "Specialize the type parameter of an array to be most specific"
-lower_type_argument(array) = similar(array, typejoin(array))
+lower_element_type(array) = copy_with_eltype(array, typejoin(array))
 
 
 # functional programming basics
