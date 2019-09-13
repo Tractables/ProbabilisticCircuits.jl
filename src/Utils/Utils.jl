@@ -7,7 +7,7 @@ import StatsFuns.logsumexp
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
-order_asc, to_long_mi, @no_error, disjoint
+order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_type_argument, map_values, groupby
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -57,6 +57,14 @@ function disjoint(set1::AbstractSet, sets::AbstractSet...)::Bool
 end
 
 
+import Base.typejoin
+"Get the most specific type parameter possible for an array"
+typejoin(array) = map_reduce(e -> typeof(e), typejoin, array)
+
+"Specialize the type parameter of an array to be most specific"
+lower_type_argument(array) = similar(array, typejoin(array))
+
+
 # functional programming basics
 
 #####################
@@ -71,7 +79,21 @@ end
 
 ntimes(f,n) = (for i in 1:n-1; f(); end; f())
 
-@inline safe_div(x::T, y::T) where T = iszero(y) ? 0 : x/y # seems to be much slower than replacing NaN after the fact
+function map_values(f::Function, dict::AbstractDict{K}, vtype::Type)::AbstractDict{K,vtype} where K
+    mapped_dict = Dict{K,vtype}()
+    for key in keys(dict)
+        mapped_dict[key] = f(dict[key])
+    end
+    mapped_dict
+end
+
+function groupby(f::Function, list)
+    groups = Dict()
+    for v in list
+        push!(get!(groups, f(v), []), v)
+    end
+    groups
+end
 
 #####################
 # probability semantics for various data types
@@ -90,6 +112,8 @@ ntimes(f,n) = (for i in 1:n-1; f(); end; f())
 #####################
 # helper arithmetic to fuse complex high-arity operation
 #####################
+
+@inline safe_div(x::T, y::T) where T = iszero(y) ? 0 : x/y # seems to be much slower than replacing NaN after the fact
 
 @inline replace_nan(x::T) where T = isnan(x) ? zero(T) : x
 
