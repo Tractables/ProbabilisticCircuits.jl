@@ -192,12 +192,10 @@ end
 ##################
 # Sampling from a psdd
 ##################
-# TODO (pashak)
-# 2. Possibly vectorize sampling to make it faster
-# 3. w/ Partial Evidence
-# 4. Add seed
 
-# Samples from a PSDD without any evidence
+"""
+Sample from a PSDD without any evidence
+"""
 function sample(circuit::ProbCircuit△)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate(circuit[end], inst)
@@ -242,8 +240,10 @@ function simulate(node::Prob⋀, inst::Dict{Var,Int64})
     end    
 end
 
-## Sampling with Evidence
-
+"""
+Sampling with Evidence from a psdd.
+Internally would call marginal pass up on a newly generated flow circuit.
+"""
 function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVector{Bool}
     opts= (compact⋀=false, compact⋁=false)
     flow_circuit = FlowCircuit(circuit, 1, Float64, FlowCache(), opts)
@@ -251,6 +251,10 @@ function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVe
     sample(flow_circuit)
 end
 
+"""
+Sampling with Evidence from a psdd.
+Assuming already marginal pass up has been done on the flow circuit.
+"""
 function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate2(circuit[end], inst)
