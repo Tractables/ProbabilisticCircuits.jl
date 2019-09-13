@@ -98,8 +98,8 @@ end
     Juice.marginal_pass_up_down(flow_circuit_marg, data_full)
 
     for (ind, node) in enumerate(flow_circuit)
-        if node isa Juice.HasPathFlow
-            @test all(  isapprox.(Juice.path_flow(flow_circuit[ind]), Juice.path_flow(flow_circuit_marg[ind]), atol = EPS) );
+        if node isa Juice.HasDownFlow
+            @test all(  isapprox.(Juice.downflow(flow_circuit[ind]), Juice.downflow(flow_circuit_marg[ind]), atol = EPS) );
         end
     end
 
@@ -124,7 +124,7 @@ end
                 (20, 1.0)]
 
     for ind_val in true_vals
-        @test Juice.path_flow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
+        @test Juice.downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
     end
 
 end

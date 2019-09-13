@@ -146,9 +146,9 @@ end
 #####################
 
 "Add leaf nodes to circuit `lin`"
-function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbPosLeaf, ProbNegLeaf}
-    pos = StructPosLeafNode(var, vtree)
-    neg = StructNegLeafNode(var, vtree)
+function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbLiteral, ProbLiteral}
+    pos = StructLiteralNode( var2lit(var), vtree)
+    neg = StructLiteralNode(-var2lit(var), vtree)
     lit_cache[var2lit(var)] = pos
     lit_cache[-var2lit(var)] = neg
     pos = ProbCircuitNode(pos, prob_cache)
@@ -202,8 +202,14 @@ end
 # Map and cache constraints
 #####################
 
-set_base(index, n::StructPosLeafNode, bases) = bases[n][cvar(n)] = 1
-set_base(index, n::StructNegLeafNode, bases) = bases[n][cvar(n)] = -1
+function set_base(index, n::StructLiteralNode, bases)
+    if positive(n)
+        bases[n][variable(n)] = 1
+    else
+        bases[n][variable(n)] = -1
+    end
+end
+
 function set_base(index, n::Struct⋁Node, bases)
     len = num_children(n)
     temp = sum([bases[c] for c in n.children])

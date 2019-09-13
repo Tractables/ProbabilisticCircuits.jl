@@ -28,8 +28,8 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit△
 
     "compile leaf node into circuits"
     function compile_leaf(ln::Var)
-        pos = PosLeafNode(ln)
-        neg = NegLeafNode(ln)
+        pos = LiteralNode( var2lit(ln))
+        neg = LiteralNode(-var2lit(ln))
         node_cache[var2lit(ln)] = pos
         node_cache[-var2lit(ln)] = neg
         pos = ProbCircuitNode(pos, prob_cache)

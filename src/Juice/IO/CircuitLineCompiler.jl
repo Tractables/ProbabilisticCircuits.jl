@@ -23,7 +23,7 @@ function compile_logical_m(lines::CircuitFormatLines)
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
-        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
+        leaf = LiteralNode(l)
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
     end
@@ -87,7 +87,7 @@ function compile_smooth_logical_m(lines::CircuitFormatLines)
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,LogicalLeafNode}()
     literal_node(l::Lit) = get!(lit_cache, l) do
-        leaf = (l>0 ? PosLeafNode(l) : NegLeafNode(-l)) #it's important for l to be a signed int!'
+        leaf = LiteralNode(l)
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
     end
@@ -177,7 +177,7 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,StructLogicalLeafNode}()
     literal_node(l::Lit, v::VtreeLeafNode) = get!(lit_cache, l) do
-        leaf = (l>0 ? StructPosLeafNode(l,v) : StructNegLeafNode(-l,v)) #it's important for l to be a signed int!'
+        leaf = StructLiteralNode(l,v)
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
     end

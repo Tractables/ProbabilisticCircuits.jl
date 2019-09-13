@@ -24,11 +24,10 @@ split_clone_ite, print_ll, pick_variable_mi, pick_variable_rand, pick_edge_max_f
 pick_edge_and_variable, check_parents, stop_training, train_bagging, one_bag, save_h5, train_psdd, main_learner,
 check_psdd, check_base
 
-
-
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
 include("PSDDInitializer.jl")
 include("PSDDLearner.jl")
 include("TrainMixture.jl")
+
 end

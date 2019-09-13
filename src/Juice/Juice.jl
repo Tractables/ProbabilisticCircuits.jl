@@ -10,10 +10,6 @@ module Juice
 
 using Reexport
 
-# using IterTools
-# using EponymTuples
-
-
 # USE SIBLING MODULES
 @reexport using ..Data
 
