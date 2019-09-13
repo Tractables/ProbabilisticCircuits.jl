@@ -59,17 +59,15 @@ function check_equality()
     end
 end
 
-function psdd_learner_test()
+@testset "PSDD and Vtree Learner Test" begin
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1);
     train_data = train(data);
     clt = learn_chow_liu_tree(WXData(train_data));
     #clt = parse_clt("./test/circuits/test.clt")
     vtree = learn_vtree_from_clt(clt, "balanced"); # or "linear"
+    @test vtree isa Vtree△
     save(vtree,"./test/circuits/test.vtree.dot");
     (psdd, _) = compile_psdd_from_clt(clt, vtree);
+    @test psdd isa ProbCircuit△
     save_as_dot(psdd, "./test/circuits/test.psdd.dot");
-end
-
-@testset "PSDD and Vtree Learner Test" begin
-    @test @no_error psdd_learner_test()
 end

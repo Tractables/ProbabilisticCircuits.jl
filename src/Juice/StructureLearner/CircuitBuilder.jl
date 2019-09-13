@@ -15,7 +15,7 @@ function learn_prob_circuit(data::WXData; α, pseudocount, parametered = false)
     pc
 end
 
-"Build probability circuits from Chow-Liu tree"
+"Build decomposable probability circuits from Chow-Liu tree"
 function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit△
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
     lin = Vector{ProbCircuitNode}()
@@ -28,8 +28,8 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit△
 
     "compile leaf node into circuits"
     function compile_leaf(ln::Var)
-        pos = PosLeafNode(ln)
-        neg = NegLeafNode(ln)
+        pos = LiteralNode( var2lit(ln))
+        neg = LiteralNode(-var2lit(ln))
         node_cache[var2lit(ln)] = pos
         node_cache[-var2lit(ln)] = neg
         pos = ProbCircuitNode(pos, prob_cache)

@@ -2,15 +2,11 @@
 # Probabilistic circuits
 #####################
 
-abstract type ProbCircuitNode<: CircuitNode end
+abstract type ProbCircuitNode <: DecoratorCircuitNode end
 abstract type ProbLeafNode <: ProbCircuitNode end
 abstract type ProbInnerNode <: ProbCircuitNode end
 
-struct ProbPosLeaf <: ProbLeafNode
-    origin::CircuitNode
-end
-
-struct ProbNegLeaf <: ProbLeafNode
+struct ProbLiteral <: ProbLeafNode
     origin::CircuitNode
 end
 
@@ -33,9 +29,7 @@ const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
 
 import ..Logical.NodeType # make available for extension
 
-NodeType(::Type{<:ProbPosLeaf}) = PosLeaf()
-NodeType(::Type{<:ProbNegLeaf}) = NegLeaf()
-
+NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
 NodeType(::Type{<:Prob⋀}) = ⋀()
 NodeType(::Type{<:Prob⋁}) = ⋁()
 
@@ -47,11 +41,11 @@ const ProbCache = Dict{CircuitNode, ProbCircuitNode}
 
 ProbCircuitNode(n::CircuitNode, cache::ProbCache) = ProbCircuitNode(NodeType(n), n, cache)
 
-ProbCircuitNode(::PosLeaf, n::CircuitNode, cache::ProbCache) =
-    get!(()-> ProbPosLeaf(n), cache, n)
+ProbCircuitNode(::LiteralLeaf, n::CircuitNode, cache::ProbCache) =
+    get!(()-> ProbLiteral(n), cache, n)
 
-ProbCircuitNode(::NegLeaf, n::CircuitNode, cache::ProbCache) =
-    get!(()-> ProbNegLeaf(n), cache, n)
+ProbCircuitNode(::ConstantLeaf, ::CircuitNode, ::ProbCache) =
+    error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
 ProbCircuitNode(::⋀, n::CircuitNode, cache::ProbCache) =
     get!(cache, n) do
@@ -69,12 +63,13 @@ ProbCircuit(c::Circuit△, cache::ProbCache = ProbCache()) = map(n->ProbCircuitN
 # methods
 #####################
 
-import ..Logical.cvar # make available for extension
+import ..Logical: literal, children # make available for extension
 
-@inline cvar(n::ProbLeafNode)::Var  = cvar(n.origin)
+@inline literal(n::ProbLiteral)::Lit  = literal(n.origin)
+@inline children(n::ProbInnerNode) = n.children
 
 num_parameters(n::Prob⋁) = num_children(n)
-num_parameters(c::Circuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
+num_parameters(c::ProbCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
@@ -158,14 +153,14 @@ function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
     if num_children(n) != 1 # other nodes have no effect on likelihood
         origin = n.origin::Prob⋁
         foreach(n.children, origin.log_thetas) do c, theta
-            log_likelihoods .+= prod_fast(path_flow(n), pr_factors(c)) .* theta
+            log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* theta
         end
     end
 end
 
 """
 Calculate log likelihood for a batch of samples with partial evidence P(e).
-(Also retures the generated FlowCircuit)
+(Also returns the generated FlowCircuit)
 
 To indicate a variable is not observed, pass -1 for that variable.
 """
@@ -197,12 +192,10 @@ end
 ##################
 # Sampling from a psdd
 ##################
-# TODO (pashak)
-# 2. Possibly vectorize sampling to make it faster
-# 3. w/ Partial Evidence
-# 4. Add seed
 
-# Samples from a PSDD without any evidence
+"""
+Sample from a PSDD without any evidence
+"""
 function sample(circuit::ProbCircuit△)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate(circuit[end], inst)
@@ -229,12 +222,14 @@ function sample(probs::AbstractVector)::Int32
     return length(probs)
 end
 
-function simulate(node::ProbPosLeaf, inst::Dict{Var,Int64})
-    inst[node.origin.cvar] = 1
+function simulate(node::ProbLiteral, inst::Dict{Var,Int64})
+    if positive(node)
+        inst[variable(node.origin)] = 1
+    else
+        inst[variable(node.origin)] = 0
+    end
 end
-function simulate(node::ProbNegLeaf, inst::Dict{Var,Int64})
-    inst[node.origin.cvar] = 0
-end
+    
 function simulate(node::Prob⋁, inst::Dict{Var,Int64})
     idx = sample(exp.(node.log_thetas))
     simulate(node.children[idx], inst)
@@ -245,8 +240,10 @@ function simulate(node::Prob⋀, inst::Dict{Var,Int64})
     end    
 end
 
-## Sampling with Evidence
-
+"""
+Sampling with Evidence from a psdd.
+Internally would call marginal pass up on a newly generated flow circuit.
+"""
 function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVector{Bool}
     opts= (compact⋀=false, compact⋁=false)
     flow_circuit = FlowCircuit(circuit, 1, Float64, FlowCache(), opts)
@@ -254,6 +251,10 @@ function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVe
     sample(flow_circuit)
 end
 
+"""
+Sampling with Evidence from a psdd.
+Assuming already marginal pass up has been done on the flow circuit.
+"""
 function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate2(circuit[end], inst)
@@ -265,19 +266,23 @@ function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
     ans
 end
 
-function simulate2(node::Logical.FlowPosLeaf, inst::Dict{Var,Int64})
-    inst[node.origin.origin.cvar] = 1
+function simulate2(node::Logical.FlowLiteral, inst::Dict{Var,Int64})
+    if positive(node)
+        inst[variable(node.origin.origin)] = 1
+    else
+        inst[variable(node.origin.origin)] = 0
+    end
 end
-function simulate2(node::Logical.FlowNegLeaf, inst::Dict{Var,Int64})
-    inst[node.origin.origin.cvar] = 0
-end
+
 function simulate2(node::Logical.Flow⋁, inst::Dict{Var,Int64})
     prs = [ pr(ch)[1] for ch in children(node) ]
     idx = sample(exp.(node.origin.log_thetas .+ prs))
     simulate2(children(node)[idx], inst)
 end
+
 function simulate2(node::Logical.Flow⋀, inst::Dict{Var,Int64})
     for child in children(node)
         simulate2(child, inst)
     end    
 end
+
