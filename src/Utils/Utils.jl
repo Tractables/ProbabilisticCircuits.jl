@@ -7,7 +7,8 @@ import StatsFuns.logsumexp
 export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vector,
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
-order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby
+order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby,
+unzip
 
 function __init__()
     set_zero_subnormals(true) # this is supposed to speed up floating point arithmetic on certain architectures
@@ -272,5 +273,7 @@ end
 function logsumexp(A::AbstractArray, dims)
     return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
 end
+
+@inline unzip(x) = zip(x...)
 
 end #module
