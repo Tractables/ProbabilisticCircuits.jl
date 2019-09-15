@@ -29,9 +29,9 @@ const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
 
 import ..Logical.NodeType # make available for extension
 
-NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
-NodeType(::Type{<:Prob⋀}) = ⋀()
-NodeType(::Type{<:Prob⋁}) = ⋁()
+@inline NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
+@inline NodeType(::Type{<:Prob⋀}) = ⋀()
+@inline NodeType(::Type{<:Prob⋁}) = ⋁()
 
 #####################
 # constructors and conversions
@@ -152,8 +152,8 @@ add_log_likelihood_per_instance(::FlowCircuitNode, ::Any) = () # do nothing
 function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
     if num_children(n) != 1 # other nodes have no effect on likelihood
         origin = n.origin::Prob⋁
-        foreach(n.children, origin.log_thetas) do c, theta
-            log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* theta
+        foreach(n.children, origin.log_thetas) do c, log_theta
+            log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* log_theta
         end
     end
 end
