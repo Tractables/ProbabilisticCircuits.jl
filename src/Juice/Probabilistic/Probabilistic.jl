@@ -1,6 +1,5 @@
 module Probabilistic
 
-using Query
 using StatsFuns # logsumexp
 
 using ...Data
