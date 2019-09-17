@@ -128,9 +128,8 @@ log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_chi
 Calculates log likelihood for a batch of fully observed samples.
 (Also retures the generated FlowCircuit)
 """
-function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})
-    opts = (flow_opts★..., el_type=Bool, compact⋁=false) #keep default options but insist on Bool flows
-    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache(), opts)
+function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})    
+    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache())
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
