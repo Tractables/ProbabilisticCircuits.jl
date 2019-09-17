@@ -142,20 +142,23 @@ function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool}
     @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
+    indices = some_vector(Bool, flow_length(fc))
     for n in fc
-         add_log_likelihood_per_instance(n, log_likelihoods)
+         add_log_likelihood_per_instance(n, log_likelihoods, indices)
     end
     log_likelihoods
 end
 
-add_log_likelihood_per_instance(::FlowCircuitNode, ::Any) = () # do nothing
-function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
+add_log_likelihood_per_instance(::FlowCircuitNode, ::Any, ::Any) = () # do nothing
+function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods, indices)
     if num_children(n) != 1 # other nodes have no effect on likelihood
         origin = n.origin::Prob⋁
         foreach(n.children, origin.log_thetas) do c, log_theta
             #  be careful here to allow for the Boolean multiplication to be done using & before switching to float arithmetic, or risk losing a lot of runtime!
             # log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* log_theta
-            log_likelihoods[prod_fast(downflow(n), pr_factors(c))] .+=  log_theta # see MixedProductKernelBenchmark.jl
+            assign_prod(indices, downflow(n), pr_factors(c))
+            log_likelihoods[indices] .+=  log_theta # see MixedProductKernelBenchmark.jl
+
         end
     end
 end
