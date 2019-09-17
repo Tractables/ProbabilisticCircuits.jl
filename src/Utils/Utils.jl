@@ -277,16 +277,39 @@ end
 
 @inline unzip(x) = zip(x...)
 
-using Suppressor:@suppress_err
-macro printlog(filename)
+# overwrite @time and println, write to log file and stdout at the same time
+using Suppressor:@capture_out
+import Base.@time
+import Base.println
+
+macro printlog(filename = "./temp.log")
     @eval begin
-        @suppress_err Base.println(xs...) =
-            open(f -> (println(f, xs...); println(stdout, xs...)), $filename, "a")
-        @suppress_err Base.print(xs...) =
-            open(f -> (print(f, xs...); print(stdout, xs...)), $filename, "a")
-        #content = @suppress_err Base.@time = 
-        #    open(f -> (print(f, ); @time ), $filename, "a")
-    end
+            f = open($filename, "w")
+
+            macro time(arg)
+                result = nothing
+                str = @capture_out result = Base.@time(arg)
+                Base.print(f, str)
+                Base.print(stdout, str)
+                flush(f)
+                result
+            end
+
+            function println(args...)
+                Base.println(stdout, args...)
+                Base.print(f, args...)
+                flush(f)
+                nothing
+            end
+
+        end
+    nothing
+end
+
+macro stop_printlog(filename)
+    @eval begin
+            close(f)
+        end
     nothing
 end
 
