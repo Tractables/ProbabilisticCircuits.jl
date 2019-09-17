@@ -14,11 +14,6 @@ unzip, @printlog
 # various utilities
 
 """
-Copy the array while changing the element type
-"""
-copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
-
-"""
 Is the argument not `nothing`?
 """
 issomething(x) = !isnothing(x)
@@ -58,6 +53,20 @@ function disjoint(set1::AbstractSet, sets::AbstractSet...)::Bool
     return true
 end
 
+function logsumexp(A::AbstractArray, dims)
+    return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
+end
+
+@inline unzip(x) = zip(x...)
+
+#####################
+# array parametric type helpers
+#####################
+
+"""
+Copy the array while changing the element type
+"""
+copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
 
 import Base.typejoin
 
@@ -67,22 +76,44 @@ typejoin(array) = mapreduce(e -> typeof(e), typejoin, array)
 "Specialize the type parameter of an array to be most specific"
 lower_element_type(array) = copy_with_eltype(array, typejoin(array))
 
-function logsumexp(A::AbstractArray, dims)
-    return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
+
+#####################
+# logging helpers
+#####################
+
+# overwrite @time and println, write to log file and stdout at the same time
+using Suppressor:@capture_out
+import Base.@time
+import Base.println
+
+macro printlog(filename = "./temp.log")
+    @eval begin
+            f = open($filename, "w")
+
+            macro time(arg)
+                result = nothing
+                str = @capture_out result = Base.@time(arg)
+                Base.print(f, str)
+                Base.print(stdout, str)
+                flush(f)
+                result
+            end
+
+            function println(args...)
+                Base.println(stdout, args...)
+                Base.print(f, args...)
+                flush(f)
+                nothing
+            end
+
+        end
+    nothing
 end
 
-@inline unzip(x) = zip(x...)
-
-using Suppressor:@suppress_err
-macro printlog(filename)
+macro stop_printlog(filename)
     @eval begin
-        @suppress_err Base.println(xs...) =
-            open(f -> (println(f, xs...); println(stdout, xs...)), $filename, "a")
-        @suppress_err Base.print(xs...) =
-            open(f -> (print(f, xs...); print(stdout, xs...)), $filename, "a")
-        #content = @suppress_err Base.@time = 
-        #    open(f -> (print(f, ); @time ), $filename, "a")
-    end
+            close(f)
+        end
     nothing
 end
 
