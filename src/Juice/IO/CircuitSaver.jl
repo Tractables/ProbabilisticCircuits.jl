@@ -5,6 +5,246 @@ import Base.copy
 
 # Saving psdd
 
+#####################
+# saver for elements
+#####################
+@inline to_string(v::Vector) = rstrip(reduce(*, map(x -> string(x) * " ", v)))
+function to_string(e::LCElement)
+    "(" * string(e.prime_id) * " " * string(e.sub_id) * " " * to_string(e.weights) * ")"
+end
+
+function to_string(e::PSDDElement)
+    string(e.prime_id) * " " * string(e.sub_id) * " " * string(e.weight)
+end
+
+function to_string(e::SDDElement)
+    string(e.prime_id) * " " * string(e.sub_id)
+end
+
+#####################
+# saver for format lines
+#####################
+function save_line(ln::DecisionLine{ET}) where ET
+    str = "D " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.num_elements)
+    for e in ln.elements
+        str *= " " * to_string(e)
+    end
+    str
+end
+
+function save_line(ln::BiasLine)
+    str = "B " * to_string(ln.weights)
+end
+
+function save_line(ln::WeightedNamedConstantLine)
+    str = "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.variable) * " " * string(ln.weight)
+end
+
+function save_line(ln::UnweightedLiteralLine)
+    str = "L " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal)
+end
+
+function save_line(ln::WeightedLiteralLine)
+    @assert ln.normalized
+    if ln.literal > 0
+        "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal) * " " * to_string(ln.weights)
+    else
+        "F " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(- ln.literal) * " " * to_string(ln.weights)
+    end
+end
+
+function save_line(ln::AnonymousConstantLine)
+    @assert !ln.normalized
+    if ln.constant
+        "T " * string(ln.node_id)
+    else
+        "F " * string(ln.node_id)
+    end
+end
+
+function save_line(ln::CircuitCommentLine) # not used
+    ln.comment
+end
+
+function save_lc_line()
+"""
+c variables (from inputs) start from 1
+c ids of logistic circuit nodes start from 0
+c nodes appear bottom-up, children before parents
+c the last line of the file records the bias parameter
+c three types of nodes:
+c	T (terminal nodes that correspond to true literals)
+c	F (terminal nodes that correspond to false literals)
+c	D (OR gates)
+c
+c file syntax:
+c Logisitic Circuit
+c T id-of-true-literal-node id-of-vtree variable parameters
+c F id-of-false-literal-node id-of-vtree variable parameters
+c D id-of-or-gate id-of-vtree number-of-elements (id-of-prime id-of-sub parameters)s
+c B bias-parameters
+c"""
+end
+
+function save_sdd_comment_line()
+"""
+c ids of sdd nodes start at 0
+c sdd nodes appear bottom-up, children before parents
+c
+c file syntax:
+c sdd count-of-sdd-nodes
+c F id-of-false-sdd-node
+c T id-of-true-sdd-node
+c L id-of-literal-sdd-node id-of-vtree literal
+c D id-of-decomposition-sdd-node id-of-vtree number-of-elements {id-of-prime id-of-sub}*
+c"""
+end
+
+function save_psdd_comment_line()
+"""
+c ids of psdd nodes start at 0
+c psdd nodes appear bottom-up, children before parents
+c
+c file syntax:
+c psdd count-of-sdd-nodes
+c L id-of-literal-sdd-node id-of-vtree literal
+c T id-of-trueNode-sdd-node id-of-vtree variable log(litProb)
+c D id-of-decomposition-sdd-node id-of-vtree number-of-elements {id-of-prime id-of-sub log(elementProb)}*
+c"""
+end
+
+function save_lines(file::String, lns::Vector{CircuitFormatLine})
+    open(file, "a") do f
+        for ln in lns
+            println(f, save_line(ln))
+        end
+    end
+end
+
+#####################
+# decompile for nodes
+#####################
+
+# decompile for sdd circuit
+decompile(n::StructLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
+    UnweightedLiteralLine(node2id[n], vtree2id[n.vtree], literal(n), false)
+
+decompile(n::StructConstantNode, node2id, vtree2id)::AnonymousConstantLine = 
+    AnonymousConstantLine(node2id[n], constant(n), false)
+
+make_element(n::Struct⋀Node, node2id) = 
+    SDDElement(node2id[n.children[1]],  node2id[n.children[2]])
+
+decompile(n::Struct⋁Node, node2id, vtree2id)::DecisionLine{SDDElement} = 
+    DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(c -> make_element(c, node2id), children(n)))
+
+# decompile for psdd
+decompile(n::ProbLiteral, node2id, vtree2id)::UnweightedLiteralLine = 
+    UnweightedLiteralLine(node2id[n], vtree2id[n.origin.vtree], literal(n), true)
+
+make_element(n::Prob⋀, w::AbstractFloat, node2id) = 
+    PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
+
+is_true_node(n)::Bool = NodeType(n) isa ⋁ && num_children(n) == 2 && NodeType(children(n)[1]) isa LiteralLeaf && NodeType(children(n)[2]) isa LiteralLeaf && positive(children(n)[1]) && negative(children(n)[2])
+
+function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
+    if is_true_node(n)
+        WeightedNamedConstantLine(node2id[n], vtree2id[n.origin.vtree], lit2var(n.children[1].origin.literal), n.log_thetas[1]) # TODO
+    else
+        DecisionLine(node2id[n], vtree2id[n.origin.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
+    end
+end
+
+# TODO: decompile for logical circuit
+# decompile(n::LiteralNode, node2id)::UnweightedLiteralLine = ()
+# decompile(n::TrueNode, node2id) = ()
+# decompile(n::FalseNode, node2id) = ()
+# decompile(n::⋀Node, node2id) = ()
+# decompile(n::⋁Node, node2id) = ()
+
+#####################
+# build maping
+#####################
+
+function get_node2id(ln::AbstractVector{X}, T::DataType)where X #<: T#::Dict{T, ID}
+    node2id = Dict{T, ID}()
+    index = ID(0) # node id start from 0
+    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+        node2id[n] = index
+        index += ID(1)
+    end
+    node2id
+end
+
+@inline vtree_node(n::ProbCircuitNode) = n.origin.vtree
+@inline vtree_node(n::StructLogicalCircuitNode) = n.vtree
+
+function get_vtree2id(ln::Vtree△):: Dict{VtreeNode, ID}
+    vtree2id = Dict{VtreeNode, ID}()
+    index = ID(0) # vtree id start from 0
+
+    for n in ln
+        vtree2id[n] = index
+        index += ID(1)
+    end
+    vtree2id
+end
+
+#####################
+# saver for circuits
+#####################
+
+extract_origin(ln::ProbCircuit△) = map(n -> n.origin,ln)
+
+function save_psdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△)
+    @assert ln[end].origin isa StructLogicalCircuitNode "PSDD should decorate on StructLogicalCircuit"
+    @assert endswith(name, ".psdd")
+
+    node2id = get_node2id(ln, ProbCircuitNode)
+    vtree2id = get_vtree2id(vtree)
+    formatlines = Vector{CircuitFormatLine}()
+    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+        push!(formatlines, decompile(n, node2id, vtree2id))
+    end
+    open(name, "w") do f
+        println(f, save_psdd_comment_line())
+        println(f, "psdd " * string(length(ln)))
+    end
+    save_lines(name, formatlines)
+end
+
+save_sdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△) = 
+    save_sdd_file(name, extract_origin(ln), vtree)
+
+function save_sdd_file(name::String, ln::StructLogicalCircuit△, vtree::Vtree△)
+    @assert endswith(name, ".sdd")
+    node2id = get_node2id(ln, StructLogicalCircuitNode)
+    vtree2id = get_vtree2id(vtree)
+    formatlines = Vector{CircuitFormatLine}()
+    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+        push!(formatlines, decompile(n, node2id, vtree2id))
+    end
+
+    open(name, "w") do f
+        println(f, save_sdd_comment_line())
+        println(f, "sdd " * string(length(ln)))
+    end
+
+    save_lines(name, formatlines)
+end
+
+function save_circuit(name::String, ln, vtree=nothing)
+    if endswith(name, ".sdd")
+        save_sdd_file(name, ln, vtree)
+    elseif endswith(name, ".psdd")
+        save_psdd_file(name, ln, vtree)
+    elseif endswith(name. ".circuit")
+        save_lc_file(name, ln)
+    else
+        throw("Cannot save this file type as a circuit: $name")
+    end
+    nothing
+end
 # Saving Logistic Circuits
 
 # Save as .dot

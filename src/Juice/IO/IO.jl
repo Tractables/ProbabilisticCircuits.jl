@@ -13,7 +13,9 @@ load_logical_circuit, load_smooth_logical_circuit, load_struct_smooth_logical_ci
 # can be kept internal
 
 # CircuitSaver
-save_as_dot,
+save_as_dot, is_true_node, save_circuit,
+# get_node2id,get_vtree2id,vtree_node, decompile, make_element, save_lines, save_psdd_comment_line, save_sdd_comment_line, 
+# save_line, to_string
 
 # VtreeParser / Saver
 parse_vtree_file, compile_vtree_format_lines, load_vtree, save
