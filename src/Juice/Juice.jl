@@ -12,6 +12,7 @@ using Reexport
 
 # USE SIBLING MODULES
 @reexport using ..Data
+@reexport using ..Utils
 
 # INCLUDE CHILD MODULES
 include("Logical/Logical.jl")
