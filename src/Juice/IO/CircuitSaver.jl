@@ -6,64 +6,35 @@ import Base.copy
 # Saving psdd
 
 #####################
-# saver for elements
+# Serialization for elements
 #####################
-@inline to_string(v::Vector) = rstrip(reduce(*, map(x -> string(x) * " ", v)))
-function to_string(e::LCElement)
-    "(" * string(e.prime_id) * " " * string(e.sub_id) * " " * to_string(e.weights) * ")"
-end
-
-function to_string(e::PSDDElement)
-    string(e.prime_id) * " " * string(e.sub_id) * " " * string(e.weight)
-end
-
-function to_string(e::SDDElement)
-    string(e.prime_id) * " " * string(e.sub_id)
-end
+import Base.string
+string(v::Vector{X}) where X <: Union{Element, AbstractFloat} = rstrip(reduce(*, map(x -> string(x) * " ", v)))
+@inline string(e::LCElement) = "(" * string(e.prime_id) * " " * string(e.sub_id) * " " * string(e.weights) * ")"
+@inline string(e::PSDDElement) = string(e.prime_id) * " " * string(e.sub_id) * " " * string(e.weight)
+@inline string(e::SDDElement) = string(e.prime_id) * " " * string(e.sub_id)
 
 #####################
-# saver for format lines
+# Serialization for format lines
 #####################
-function save_line(ln::DecisionLine{ET}) where ET
-    str = "D " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.num_elements)
-    for e in ln.elements
-        str *= " " * to_string(e)
-    end
-    str
-end
 
-function save_line(ln::BiasLine)
-    str = "B " * to_string(ln.weights)
-end
+string(ln::CircuitCommentLine) = ln.comment
+string(ln::DecisionLine{ET}) where ET = "D " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.num_elements) * " " * string(ln.elements)
+string(ln::BiasLine) = "B " * string(ln.weights)
+string(ln::WeightedNamedConstantLine) = "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.variable) * " " * string(ln.weight)
+string(ln::UnweightedLiteralLine) = "L " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal)
 
-function save_line(ln::WeightedNamedConstantLine)
-    str = "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.variable) * " " * string(ln.weight)
-end
-
-function save_line(ln::UnweightedLiteralLine)
-    str = "L " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal)
-end
-
-function save_line(ln::WeightedLiteralLine)
+function string(ln::WeightedLiteralLine)
     @assert ln.normalized
-    if ln.literal > 0
-        "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal) * " " * to_string(ln.weights)
-    else
-        "F " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(- ln.literal) * " " * to_string(ln.weights)
-    end
+    ln.literal > 0 ? 
+        "T " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(ln.literal) * " " * string(ln.weights) :
+        "F " * string(ln.node_id) * " " * string(ln.vtree_id) * " " * string(- ln.literal) * " " * string(ln.weights)
 end
 
-function save_line(ln::AnonymousConstantLine)
+
+function string(ln::AnonymousConstantLine)
     @assert !ln.normalized
-    if ln.constant
-        "T " * string(ln.node_id)
-    else
-        "F " * string(ln.node_id)
-    end
-end
-
-function save_line(ln::CircuitCommentLine) # not used
-    ln.comment
+    ln.constant ? "T " * string(ln.node_id) : "F " * string(ln.node_id)
 end
 
 function save_lc_line()
@@ -116,7 +87,7 @@ end
 function save_lines(file::String, lns::Vector{CircuitFormatLine})
     open(file, "a") do f
         for ln in lns
-            println(f, save_line(ln))
+            println(f, string(ln))
         end
     end
 end
@@ -145,7 +116,9 @@ decompile(n::ProbLiteral, node2id, vtree2id)::UnweightedLiteralLine =
 make_element(n::Prob⋀, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
 
-is_true_node(n)::Bool = NodeType(n) isa ⋁ && num_children(n) == 2 && NodeType(children(n)[1]) isa LiteralLeaf && NodeType(children(n)[2]) isa LiteralLeaf && positive(children(n)[1]) && negative(children(n)[2])
+is_true_node(n)::Bool = 
+    NodeType(n) isa ⋁ && num_children(n) == 2 && NodeType(children(n)[1]) isa LiteralLeaf && NodeType(children(n)[2]) isa LiteralLeaf && 
+    positive(children(n)[1]) && negative(children(n)[2])
 
 function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if is_true_node(n)
@@ -175,9 +148,6 @@ function get_node2id(ln::AbstractVector{X}, T::DataType)where X #<: T#::Dict{T, 
     end
     node2id
 end
-
-@inline vtree_node(n::ProbCircuitNode) = n.origin.vtree
-@inline vtree_node(n::StructLogicalCircuitNode) = n.vtree
 
 function get_vtree2id(ln::Vtree△):: Dict{VtreeNode, ID}
     vtree2id = Dict{VtreeNode, ID}()
@@ -245,6 +215,10 @@ function save_circuit(name::String, ln, vtree=nothing)
     end
     nothing
 end
+
+# TODO 
+# function save_lc_file(name::String, ln)
+# end
 # Saving Logistic Circuits
 
 # Save as .dot
