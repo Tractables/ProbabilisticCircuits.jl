@@ -141,7 +141,7 @@ function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool}
     @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
-    indices = some_vector(Bool, flow_length(fc))
+    indices = some_vector(Bool, flow_length(fc))::BitVector
     for n in fc
          if n isa Flow⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
             origin = n.origin::Prob⋁
@@ -149,7 +149,8 @@ function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool}
                 #  be careful here to allow for the Boolean multiplication to be done using & before switching to float arithmetic, or risk losing a lot of runtime!
                 # log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* log_theta
                 assign_prod(indices, downflow(n), pr_factors(c))
-                view(log_likelihoods, indices) .+=  log_theta # see MixedProductKernelBenchmark.jl
+                view(log_likelihoods, indices::BitVector) .+=  log_theta # see MixedProductKernelBenchmark.jl
+                # TODO put the lines above in Utils in order to ensure we have specialized types
             end
          end
     end
