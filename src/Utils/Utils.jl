@@ -57,6 +57,7 @@ function disjoint(set1::AbstractSet, sets::AbstractSet...)::Bool
     return true
 end
 
+"Marginalize out dimensions `dims` from log-probability tensor"
 function logsumexp(A::AbstractArray, dims)
     return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
 end
@@ -157,6 +158,8 @@ end
 
 @inline some_vector(::Type{T}, dims::Int...) where T<:Number = Vector{T}(undef, dims...)
 @inline some_vector(::Type{T}, dims::Int...) where T<:Bool = BitArray(undef, dims...)
+
+@inline uniform(dims::Int...) = ones(Float64, dims...) ./ prod(dims)
 
 #####################
 # functional programming
