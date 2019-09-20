@@ -26,7 +26,7 @@ struct FlatMixtureWithFlow <: AbstractFlatMixture
     origin::FlatMixture
     flowcircuits::Vector{<:FlowCircuit△}
     FlatMixtureWithFlow(origin,f) = begin
-        @assert foreach((x,y) -> x === y.origin, components(origin), f)
+        @assert foreach((x,y) -> x === prob_origin(y), components(origin), f)
         new(m,f)
     end
 end
@@ -54,6 +54,9 @@ ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
     FlatMixtureWithFlow(m,flowcircuits)
 end
 ensure_with_flows(m::FlatMixtureWithFlow, ::Int)::FlatMixtureWithFlow = m
+
+replace_prob_circuits(m::FlatMixture, pcs::Vector{ProbCircuit△}) =
+    FlatMixture(component_weights(m), pcs)
 
 # log_likelihood
 
