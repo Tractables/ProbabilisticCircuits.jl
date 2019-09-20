@@ -66,7 +66,7 @@ function train_mixture( mixture::AbstractFlatMixture, # we start from component 
             aggregate_flows_cached(mixture_flow, batch, example_weights)
 
             # store the aggregated component probabilities such that the maximization step can re-estimate the component weights
-            total_component_probability .+= exp.(logsumexp(log_p_of_x_and_c, 1)) # marginalize out examples
+            total_component_probability .+= dropdims(sum(example_weights, dims=1), dims=1)
 
             # cache the example weights for the structure learner at the end of this EM iteration
             is_learnstruct_iter && push!(all_example_weights, example_weights)
