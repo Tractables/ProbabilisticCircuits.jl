@@ -21,8 +21,13 @@ sample,
 # ProbFlowCircuits
 marginal_pass_up, marginal_pass_down, marginal_pass_up_down,
 
+# Mixtures
+Mixture, AbstractFlatMixture, FlatMixture, FlatMixtureWithFlows,
+
 # ProbMixtures
 train_mixture,
+
+# Bagging
 bootstrap_samples_ids, learn_mixture_bagging, learn_mixture_bagging2,
 
 # VtreeLearner
@@ -40,7 +45,8 @@ include("Clustering.jl")
 include("ProbCircuits.jl")
 include("ProbFlowCircuits.jl")
 include("MutualInformation.jl")
-include("ProbMixtures.jl")
+include("Mixtures.jl")
+include("EMLearner.jl")
 include("VtreeLearner.jl")
 
 

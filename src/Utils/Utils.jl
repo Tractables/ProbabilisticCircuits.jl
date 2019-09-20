@@ -9,7 +9,7 @@ export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vecto
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby,
-unzip, @printlog, println, print, @time 
+unzip, @printlog, uniform
 
 import Base.@time
 import Base.print
@@ -57,6 +57,7 @@ function disjoint(set1::AbstractSet, sets::AbstractSet...)::Bool
     return true
 end
 
+"Marginalize out dimensions `dims` from log-probability tensor"
 function logsumexp(A::AbstractArray, dims)
     return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
 end
@@ -157,6 +158,8 @@ end
 
 @inline some_vector(::Type{T}, dims::Int...) where T<:Number = Vector{T}(undef, dims...)
 @inline some_vector(::Type{T}, dims::Int...) where T<:Bool = BitArray(undef, dims...)
+
+@inline uniform(dims::Int...) = ones(Float64, dims...) ./ prod(dims)
 
 #####################
 # functional programming
