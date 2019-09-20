@@ -30,7 +30,7 @@ MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!,
 test_top_down, test_bottom_up!,
 
 # MutualInformation
-mutual_information,
+mutual_information,DisCache,
 
 # Clustering
 clustering

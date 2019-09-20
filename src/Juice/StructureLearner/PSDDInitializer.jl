@@ -138,7 +138,7 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::Vtree△)
     end
 
     foreach(compile_from_vtree_node, vtree)
-    bases = calculate_all_bases(lin, v2p, nv(clt))
+    bases = calculate_all_bases(lin)
     return (lin, bases)
 end
 
@@ -221,7 +221,8 @@ function set_base(index, n::Struct⋀Node, bases)
     bases[n] = sum([bases[c] for c in n.children])
 end
 
-function calculate_all_bases(circuit::ProbCircuit△, v2p::Dict{VtreeNode, ProbCircuit△}, num_var::Integer)::BaseCache
+function calculate_all_bases(circuit::ProbCircuit△)::BaseCache
+    num_var = num_variables(circuit[end].origin.vtree)
     bases = BaseCache()
     foreach(n -> bases[n.origin] = fill(⊤, num_var), circuit)
     foreach(n -> set_base(n[1], n[2].origin, bases), enumerate(circuit))
