@@ -71,9 +71,13 @@ import ..Logical: literal, children # make available for extension
 num_parameters(n::Prob⋁) = num_children(n)
 num_parameters(c::ProbCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
-"Return the first origin node that is a probabilistic circuit node"
-prob_origin(n::DecoratorCircuitNode) = prob_origin(n.origin)
-prob_origin(n::ProbCircuitNode) = n
+"Return the first origin that is a probabilistic circuit node"
+prob_origin(n::DecoratorCircuitNode)::ProbCircuitNode = prob_origin(n.origin)
+prob_origin(n::ProbCircuitNode)::ProbCircuitNode = n
+
+"Return the first origin that is a probabilistic circuit"
+prob_origin(c::DecoratorCircuit△)::ProbCircuit△ = prob_origin(origin(c))
+prob_origin(c::ProbCircuit△)::ProbCircuit△ = c
 
 function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)

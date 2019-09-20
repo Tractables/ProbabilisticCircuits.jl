@@ -25,9 +25,12 @@ FlatMixture(c) = FlatMixture(uniform(length(c)),c)
 struct FlatMixtureWithFlow <: AbstractFlatMixture
     origin::FlatMixture
     flowcircuits::Vector{<:FlowCircuit△}
-    FlatMixtureWithFlow(origin,f) = begin
-        @assert foreach((x,y) -> x === prob_origin(y), components(origin), f)
-        new(m,f)
+    FlatMixtureWithFlow(origin,fcs) = begin
+        @assert num_components(origin) == length(fcs)
+        foreach(components(origin), fcs) do or, fc
+            @assert or[end] === prob_origin(fc)[end]
+        end
+        new(origin,fcs)
     end
 end
 
@@ -50,7 +53,7 @@ FlatMixtureWithFlow(w,c,f) = FlatMixtureWithFlow(FlatMixture(w,c),f)
 
 "Convert a given flat mixture into one with cached flows"
 ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
-    flowcircuits = [FlowCircuit(pc, size_hint, Bool) for pc in components(m)]
+    flowcircuits = [FlowCircuit(pc, size_hint, Bool, FlowCache(), opts_accumulate_flows) for pc in components(m)]
     FlatMixtureWithFlow(m,flowcircuits)
 end
 ensure_with_flows(m::FlatMixtureWithFlow, ::Int)::FlatMixtureWithFlow = m
@@ -95,7 +98,7 @@ end
 
 "Log likelihood per instance and component. A vector of matrices per batch where the first dimension is instance, second is components."
 function log_likelihood_per_instance_component(mixture::FlatMixtureWithFlow, batches::XBatches{Bool})::Vector{Matrix{Float64}}
-    [log_likelihood_per_instance_component(mixture, batch)) for batch in batches]
+    [log_likelihood_per_instance_component(mixture, batch) for batch in batches]
 end
 
 "Log likelihood per instance and component. First dimension is instance, second is components."

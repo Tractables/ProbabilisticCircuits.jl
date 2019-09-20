@@ -9,7 +9,7 @@ export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vecto
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby,
-unzip, @printlog, println, print, @time 
+unzip, @printlog, uniform
 
 import Base.@time
 import Base.print
