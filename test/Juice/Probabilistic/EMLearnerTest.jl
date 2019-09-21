@@ -23,7 +23,14 @@ function train_mixture_clt_test()
         clt = learn_chow_liu_tree(train(data); α = 1.0, parametered = true);
         pcs = [compile_prob_circuit_from_clt(clt) for i in 1:3];
         mixture = FlatMixture([1/3, 1/3, 1/3], pcs)
-        logger, log_option = construct_logger(;directory="./", name=name, train_x=train(data), valid_x=valid(data), test_x=test(data), 
+        #
+        # av TODO: make this more generic
+        directory="./"
+        log_path = directory * name
+        logger, log_option = construct_logger(;log_path=log_path,
+                                              train_x=train(data),
+                                              valid_x=valid(data),
+                                              test_x=test(data), 
             cache_per_example=false, cache_per_ite=true, iters=iters, opts=[])
     
         train_mixture(mixture, convert(XBatches, train(data)), pseudocount, iters; logger = logger)
@@ -79,7 +86,10 @@ function train_mixture_mnist_test()
 
     mixture = FlatMixture([1/3, 1/3, 1/3], pcs);
 
-    logger, log_option = construct_logger(;directory="./", name="mnist", train_x=train(data), valid_x=valid(data), test_x=test(data), 
+    directory="./"
+    log_path = directory * "mnist"
+    logger, log_option = construct_logger(;log_path=log_path,
+                                          train_x=train(data), valid_x=valid(data), test_x=test(data), 
             cache_per_example=false, cache_per_ite=true, iters=5, opts=[]);
 
     train_mixture(mixture, train(data), 1.0, 5; logger=logger);
