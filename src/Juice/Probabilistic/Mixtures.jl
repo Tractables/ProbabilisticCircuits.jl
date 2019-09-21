@@ -85,7 +85,7 @@ function log_likelihood_per_instance(mixture::FlatMixture, batches::XBatches{Boo
 end
 
 function log_likelihood_per_instance(mixture::FlatMixtureWithFlow, batches::XBatches{Bool})::Vector{Float64}
-    mapreduce(b -> log_likelihood_per_instance(b), vcat, batches)
+    mapreduce(b -> log_likelihood_per_instance(mixture, b), vcat, batches)
 end
 
 function log_likelihood_per_instance(mixture::FlatMixtureWithFlow, batch::PlainXData{Bool})::Vector{Float64}

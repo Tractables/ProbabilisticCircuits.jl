@@ -22,9 +22,10 @@ sample,
 marginal_pass_up, marginal_pass_down, marginal_pass_up_down,
 
 # Mixtures
-Mixture, AbstractFlatMixture, FlatMixture, FlatMixtureWithFlows,
+Mixture, AbstractFlatMixture, FlatMixture, FlatMixtureWithFlows,component_weights,
+log_likelihood, log_likelihood_per_instance, log_likelihood_per_instance_component,
 
-# ProbMixtures
+# EM Learner
 train_mixture,
 
 # Bagging
@@ -38,7 +39,10 @@ test_top_down, test_bottom_up!,
 mutual_information,DisCache,
 
 # Clustering
-clustering
+clustering,
+
+# Logger
+LogOption, collect_results, construct_logger, write_to
 
 include("Bagging.jl")
 include("Clustering.jl")
@@ -48,6 +52,7 @@ include("MutualInformation.jl")
 include("Mixtures.jl")
 include("EMLearner.jl")
 include("VtreeLearner.jl")
+include("Logger.jl")
 
 
 end
