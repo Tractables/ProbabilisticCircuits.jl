@@ -80,7 +80,7 @@ function train_mixture( mixture::AbstractFlatMixture, # we start from component 
             new_mixture_flow = structure_learner(mixture_flow, train_x, all_example_weights)
             # mixture = replace_prob_circuits(mixture, new_pcs)
             # re-initialize data structures
-            mixture_flow = init_mixture_with_flows(mixture, train_x)
+            mixture_flow = init_mixture_with_flows(new_mixture_flow, train_x)
         end
 
         if i % logging_step == 0 && issomething(logger)
