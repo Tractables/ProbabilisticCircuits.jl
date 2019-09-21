@@ -15,7 +15,7 @@ ProbLiteral, Prob⋀, Prob⋁, ProbCache, variable, num_parameters, compute_log_
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
 initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log_likelihood,
 expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure, check_parameter_integrity,
-ll_per_instance_per_component, ll_per_instance_for_ensemble,
+ll_per_instance_per_component, ll_per_instance_for_ensemble,estimate_parameters_cached,
 sample,
 
 # ProbFlowCircuits

@@ -149,6 +149,13 @@ function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool}
 end
 
 """
+Calculate log likelihood per instance for batches of samples.
+"""
+function log_likelihood_per_instance(pc::ProbCircuit△, batches::XBatches{Bool})::Vector{Float64}
+    mapreduce(b -> log_likelihood_per_instance(pc, b)[2], vcat, batches)
+end
+
+"""
 Calculate log likelihood for a batch of fully observed samples.
 (This is for when you already have a FlowCircuit)
 """
