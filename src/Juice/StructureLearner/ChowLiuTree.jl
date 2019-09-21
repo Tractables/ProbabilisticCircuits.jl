@@ -33,20 +33,20 @@ function learn_chow_liu_tree(train_x::WXData; α = 0.0001, parametered = true)
     end
 
     # Build rooted tree / forest
-#    clt = SimpleDiGraph(features_num)
-#    if nv(tree) == ne(tree) + 1
-#        clt = bfs_tree(tree, LightGraphs.center(tree)[1])
-#    else
-#        for c in filter(c -> (length(c) > 1), connected_components(tree))
-#            sg, vmap = induced_subgraph(tree, c)
-#            sub_root = vmap[LightGraphs.center(sg)[1]]
-#            clt = union(clt, bfs_tree(tree, sub_root))
-#        end
-#    end
-
-    roots = [c[1] for c in connected_components(tree)]
     clt = SimpleDiGraph(features_num)
-    for root in roots clt = union(clt, bfs_tree(tree, root)) end
+    if nv(tree) == ne(tree) + 1
+        clt = bfs_tree(tree, LightGraphs.center(tree)[1])
+    else
+        for c in filter(c -> (length(c) > 1), connected_components(tree))
+            sg, vmap = induced_subgraph(tree, c)
+            sub_root = vmap[LightGraphs.center(sg)[1]]
+            clt = union(clt, bfs_tree(tree, sub_root))
+        end
+    end
+
+    #roots = [c[1] for c in connected_components(tree)]
+    #clt = SimpleDiGraph(features_num)
+    #for root in roots clt = union(clt, bfs_tree(tree, root)) end
 
     # if parametered, cache CPTs in vertices
     if parametered

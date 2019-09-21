@@ -96,7 +96,7 @@ function parse_lc_decision_line(ln::String)::DecisionLine{LCElement}
     elems = Vector{LCElement}()
     for x in eachmatch(parens::Regex, elems_str)
         tokens = split(x[1], limit=3)
-        weights::Vector{Float32} = map(x->parse(Float32,x), split(tokens[3]))
+        weights::Vector{Float64} = map(x->parse(Float64,x), split(tokens[3]))
         elem = LCElement(parse(UInt32,tokens[1]), parse(UInt32,tokens[2]), weights)
         push!(elems,elem)
     end
@@ -107,7 +107,7 @@ function parse_lc_literal_line(ln::String)::WeightedLiteralLine
     @assert startswith(ln, "T") || startswith(ln, "F")
     tokens = split(ln)
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
-    weights = map(x->parse(Float32,x), tokens[5:end])
+    weights = map(x->parse(Float64,x), tokens[5:end])
     lit = var2lit(head_ints[3])
     if startswith(ln, "F")
        lit = -lit # negative literal 
@@ -128,7 +128,7 @@ end
 function parse_bias_line(ln::String)::BiasLine
     @assert startswith(ln, "B")
     tokens = split(ln)
-    weights = map(x->parse(Float32,x), tokens[2:end])
+    weights = map(x->parse(Float64,x), tokens[2:end])
     BiasLine(weights)
 end
 
@@ -168,7 +168,7 @@ function parse_psdd_decision_line(ln::String)::DecisionLine{PSDDElement}
     for (p,s,w) in Iterators.partition(tokens[5:end],3)
         prime = parse(UInt32,p)
         sub = parse(UInt32,s)
-        weight = parse(Float32,w)
+        weight = parse(Float64,w)
         elem = PSDDElement(prime, sub, weight)
         push!(elems,elem)
     end
@@ -180,7 +180,7 @@ function parse_psdd_true_leaf_line(ln::String)::WeightedNamedConstantLine
     tokens = split(ln)
     @assert length(tokens)==5
     head_ints = map(x->parse(UInt32,x),tokens[2:4])
-    weight = parse(Float32,tokens[5])
+    weight = parse(Float64,tokens[5])
     WeightedNamedConstantLine(head_ints[1],head_ints[2],head_ints[3],weight)
 end
 

@@ -29,9 +29,9 @@ const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
 
 import ..Logical.NodeType # make available for extension
 
-NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
-NodeType(::Type{<:Prob⋀}) = ⋀()
-NodeType(::Type{<:Prob⋁}) = ⋁()
+@inline NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
+@inline NodeType(::Type{<:Prob⋀}) = ⋀()
+@inline NodeType(::Type{<:Prob⋁}) = ⋁()
 
 #####################
 # constructors and conversions
@@ -71,6 +71,14 @@ import ..Logical: literal, children # make available for extension
 num_parameters(n::Prob⋁) = num_children(n)
 num_parameters(c::ProbCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
+"Return the first origin that is a probabilistic circuit node"
+prob_origin(n::DecoratorCircuitNode)::ProbCircuitNode = prob_origin(n.origin)
+prob_origin(n::ProbCircuitNode)::ProbCircuitNode = n
+
+"Return the first origin that is a probabilistic circuit"
+prob_origin(c::DecoratorCircuit△)::ProbCircuit△ = prob_origin(origin(c))
+prob_origin(c::ProbCircuit△)::ProbCircuit△ = c
+
 function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
 end
@@ -79,12 +87,19 @@ function estimate_parameters(afc::AggregateFlowCircuit△, data::XBatches{Bool};
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
     @assert (afc[end].origin isa ProbCircuitNode) "AggregateFlowCircuit must originate in a ProbCircuit"
     collect_aggr_flows(afc, data)
-    estimate_parameters(afc; pseudocount=pseudocount)
+    estimate_parameters_cached(afc; pseudocount=pseudocount)
     afc
 end
 
+function estimate_parameters(fc::FlowCircuit△, data::XBatches{Bool}; pseudocount::Float64)
+    @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
+    @assert (prob_origin(afc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    collect_aggr_flows(fc, data)
+    estimate_parameters_cached(origin(fc); pseudocount=pseudocount)
+end
+
  # turns aggregate statistics into theta parameters
-function estimate_parameters(afc::AggregateFlowCircuit△; pseudocount::Float64)
+function estimate_parameters_cached(afc::AggregateFlowCircuit△; pseudocount::Float64)
     foreach(n -> estimate_parameters_node(n; pseudocount=pseudocount), afc)
 end
 
@@ -128,10 +143,16 @@ log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_chi
 Calculates log likelihood for a batch of fully observed samples.
 (Also retures the generated FlowCircuit)
 """
-function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})
-    opts = (flow_opts★..., el_type=Bool, compact⋁=false) #keep default options but insist on Bool flows
-    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache(), opts)
+function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})    
+    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache())
     (fc, log_likelihood_per_instance(fc, batch))
+end
+
+"""
+Calculate log likelihood per instance for batches of samples.
+"""
+function log_likelihood_per_instance(pc::ProbCircuit△, batches::XBatches{Bool})::Vector{Float64}
+    mapreduce(b -> log_likelihood_per_instance(pc, b)[2], vcat, batches)
 end
 
 """
@@ -139,23 +160,23 @@ Calculate log likelihood for a batch of fully observed samples.
 (This is for when you already have a FlowCircuit)
 """
 function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool})
-    @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(fc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
+    indices = some_vector(Bool, flow_length(fc))::BitVector
     for n in fc
-         add_log_likelihood_per_instance(n, log_likelihoods)
+         if n isa Flow⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
+            origin = prob_origin(n)::Prob⋁
+            foreach(n.children, origin.log_thetas) do c, log_theta
+                #  be careful here to allow for the Boolean multiplication to be done using & before switching to float arithmetic, or risk losing a lot of runtime!
+                # log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* log_theta
+                assign_prod(indices, downflow(n), pr_factors(c))
+                view(log_likelihoods, indices::BitVector) .+=  log_theta # see MixedProductKernelBenchmark.jl
+                # TODO put the lines above in Utils in order to ensure we have specialized types
+            end
+         end
     end
     log_likelihoods
-end
-
-add_log_likelihood_per_instance(::FlowCircuitNode, ::Any) = () # do nothing
-function add_log_likelihood_per_instance(n::Flow⋁, log_likelihoods)
-    if num_children(n) != 1 # other nodes have no effect on likelihood
-        origin = n.origin::Prob⋁
-        foreach(n.children, origin.log_thetas) do c, theta
-            log_likelihoods .+= prod_fast(downflow(n), pr_factors(c)) .* theta
-        end
-    end
 end
 
 """
@@ -177,13 +198,13 @@ Calculate log likelihood for a batch of samples with partial evidence P(e).
 To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Int8})
-    @assert (fc[end].origin isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(fc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     marginal_pass_up(fc, batch)
     pr(fc[end])
 end
 
 function check_parameter_integrity(circuit::ProbCircuit△)
-    for node in circuit |> @filter(_ isa Prob⋁)
+    for node in filter(n -> NodeType(n) isa Prob⋁, circuit)
         @assert all(θ -> !isnan(θ), node.log_thetas) "There is a NaN in one of the log_thetas"
     end
     true

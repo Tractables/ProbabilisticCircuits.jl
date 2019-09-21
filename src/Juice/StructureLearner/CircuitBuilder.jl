@@ -6,6 +6,10 @@ using MetaGraphs
 "convert literal+/- to probability value 0/1"
 @inline lit2value(l::Lit)::Int = (l > 0 ? 1 : 0)
 
+function learn_prob_circuit(data::XData; α, pseudocount, parametered = false)
+    learn_prob_circuit(WXData(data); α=α, pseudocount=pseudocount, parametered=parametered)
+end
+
 function learn_prob_circuit(data::WXData; α, pseudocount, parametered = false)
     clt = learn_chow_liu_tree(data; α = α, parametered = parametered)
     pc = compile_prob_circuit_from_clt(clt)
