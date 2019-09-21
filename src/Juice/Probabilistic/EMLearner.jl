@@ -53,7 +53,7 @@ function train_mixture( mixture::AbstractFlatMixture, # we start from component 
         # are we doing structure learning at the end of this iteration?
         is_learnstruct_iter = issomething(structure_learner) && i % learnstruct_step == 0 
 
-        all_example_weights = Vector{Matrix{Float32}}()
+        all_example_weights = Vector{Matrix{Float64}}()
 
         # Expectation step (update example weights given mixture parameters)
         # + collecting aggregate statistics for subsequent maximization step
@@ -77,8 +77,8 @@ function train_mixture( mixture::AbstractFlatMixture, # we start from component 
 
         # Structural EM step
         if is_learnstruct_iter
-            new_pcs = structure_learner(mixture_flow, train_x, all_example_weights)
-            mixture = replace_prob_circuits(mixture, new_pcs)
+            new_mixture_flow = structure_learner(mixture_flow, train_x, all_example_weights)
+            # mixture = replace_prob_circuits(mixture, new_pcs)
             # re-initialize data structures
             mixture_flow = init_mixture_with_flows(mixture, train_x)
         end

@@ -13,8 +13,8 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 #####################
 # Methods for pairwise and marginal distribution
 #####################
-@inline get_parameters(bm::BitMatrix, α) = size(bm)[2], Float64(size(bm)[1]), @. Float64(bm), @. Float64(!bm)
-@inline get_parameters(bm::BitMatrix, w, α) = size(bm)[2], sum(w), @. Float64(bm), Float64(!bm)
+@inline get_parameters(bm::Union{BitMatrix, SubArray{Bool,2,BitArray{2}}}, α) = size(bm)[2], Float64(size(bm)[1]), @. Float64(bm), @. Float64(!bm)
+@inline get_parameters(bm::Union{BitMatrix, SubArray{Bool,2,BitArray{2}}}, w, α) = size(bm)[2], sum(w), @. Float64(bm), Float64(!bm)
 
 function get_mutual_information(dis_cache::DisCache, D, p0, p1)
     pxpy = Array{Float64}(undef, D, D, 4)
@@ -29,7 +29,7 @@ end
 
 "Calculate mutual information of given bit matrix `bm`, and smoothing pseudocount `α`"
 # speed up for single model / unweighted data, save 4 times matrix .* vector
-function mutual_information(bm::BitMatrix; α) 
+function mutual_information(bm::Union{BitMatrix, SubArray{Bool,2,BitArray{2}}}; α) 
     # get parameters
     D, N, (m, notm) = get_parameters(bm, α)
     dis_cache = DisCache(D)
@@ -51,7 +51,7 @@ function mutual_information(bm::BitMatrix; α)
 end
 
 "Calculate mutual information of given bit matrix `bm`, example weights `w`, and smoothing pseudocount `α`"
-function mutual_information(bm::BitMatrix, w::Vector{Float64}; α)
+function mutual_information(bm::Union{BitMatrix, SubArray{Bool,2,BitArray{2}}}, w::AbstractVector{Float64}; α)
     # get parameters
     D, N, (m, notm) = get_parameters(bm, w, α)
     dis_cache = DisCache(D)
@@ -73,7 +73,7 @@ function mutual_information(bm::BitMatrix, w::Vector{Float64}; α)
 end
 
 mutual_information(train_x::PlainXData; α) = mutual_information(feature_matrix(train_x); α=α)
-mutual_information(train_x::PlainXData, w::Vector{Float64}; α) = mutual_information(feature_matrix(train_x), w; α=α)
+mutual_information(train_x::PlainXData, w::AbstractVector{Float64}; α) = mutual_information(feature_matrix(train_x), w; α=α)
 mutual_information(train_x::WXData; α) = mutual_information(feature_matrix(train_x), Data.weights(train_x); α=α)
 # mutual_information(train_x::XBatches{<:Bool,<:PlainXData{<:Bool}}, w::Vector{Float64}; α) = mutual_information(unbatch(train_x), w; α=α)
 
