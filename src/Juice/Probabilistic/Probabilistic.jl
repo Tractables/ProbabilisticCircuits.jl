@@ -25,7 +25,7 @@ marginal_pass_up, marginal_pass_down, marginal_pass_up_down,
 Mixture, AbstractFlatMixture, FlatMixture, FlatMixtureWithFlow,component_weights,FlatMixtureWithFlows,
 log_likelihood, log_likelihood_per_instance, log_likelihood_per_instance_component,
 init_mixture_with_flows, reset_mixture_aggregate_flows, aggregate_flows, estimate_parameters,
-AbstractMetaMixture, MetaMixture,
+AbstractMetaMixture, MetaMixture,AbstractFlatMixture,
 
 # EM Learner
 train_mixture,
@@ -47,12 +47,13 @@ clustering,
 # Logger
 LogOption, collect_results, construct_logger, write_to
 
-include("Bagging.jl")
+
 include("Clustering.jl")
 include("ProbCircuits.jl")
 include("ProbFlowCircuits.jl")
 include("MutualInformation.jl")
 include("Mixtures.jl")
+include("Bagging.jl")
 include("EMLearner.jl")
 include("VtreeLearner.jl")
 include("Logger.jl")

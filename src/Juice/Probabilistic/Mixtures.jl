@@ -101,7 +101,7 @@ function log_likelihood(mixture::MetaMixture, batches::XBatches{Bool})::Float64
     sum(batch -> log_likelihood(mixture, batch), batches)
 end
 
-function log_likelihood(mixture::MetaMixture, batch::batch::PlainXData{Bool})::Float64
+function log_likelihood(mixture::MetaMixture, batch::PlainXData{Bool})::Float64
     sum(log_likelihood_per_instance(mixture, batch))
 end
 
