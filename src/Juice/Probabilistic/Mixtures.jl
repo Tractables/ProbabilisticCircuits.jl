@@ -8,6 +8,9 @@ abstract type AbstractMixture end
 "A probabilistic mixture model whose components are not themselves mixtures"
 abstract type AbstractFlatMixture <: AbstractMixture end
 
+"A probabilistic mixture model whose components are themselves mixtures"
+abstract type AbstractMetaMixture <: AbstractMixture end
+
 "A probabilistic mixture model of probabilistic circuits"
 struct FlatMixture <: AbstractFlatMixture
     weights::Vector{Float64}
@@ -36,6 +39,20 @@ end
 
 FlatMixtureWithFlow(w,c,f) = FlatMixtureWithFlow(FlatMixture(w,c),f)
 
+"A probabilistic mixture model of mixture models"
+struct MetaMixture <: AbstractMetaMixture
+    weights::Vector{Float64}
+    components::Vector{<:AbstractMixture}
+    MetaMixture(w,c) = begin
+        @assert length(w) == length(c)
+        @assert sum(w) ≈ 1.0
+        new(w,c)
+    end
+end
+
+MetaMixture(c) = MetaMixture(uniform(length(c)),c)
+
+
 #####################
 # Functions
 #####################
@@ -43,12 +60,15 @@ FlatMixtureWithFlow(w,c,f) = FlatMixtureWithFlow(FlatMixture(w,c),f)
 "Get the components in this mixture"
 @inline components(m::FlatMixture) = m.components
 @inline components(m::FlatMixtureWithFlow) = components(m.origin)
+@inline components(m::MetaMixture) = m.components
 
 "Get the component weights in this mixture"
 @inline component_weights(m::FlatMixture) = m.weights
 @inline component_weights(m::FlatMixtureWithFlow) = component_weights(m.origin)
+@inline component_weights(m::MetaMixture) = m.weights
 
 "Number of components in a mixture"
+@inline num_components(m)::Int = length(components(m))
 @inline num_components(m)::Int = length(components(m))
 
 "Convert a given flat mixture into one with cached flows"
@@ -77,6 +97,14 @@ function log_likelihood(mixture::FlatMixtureWithFlow, batch::PlainXData{Bool})::
     sum(log_likelihood_per_instance(mixture, batch))
 end
 
+function log_likelihood(mixture::MetaMixture, batches::XBatches{Bool})::Float64
+    sum(batch -> log_likelihood(mixture, batch), batches)
+end
+
+function log_likelihood(mixture::MetaMixture, batch::batch::PlainXData{Bool})::Float64
+    sum(log_likelihood_per_instance(mixture, batch))
+end
+
 # log_likelihood_per_instance (including mixture weight likelihood)
 
 function log_likelihood_per_instance(mixture::FlatMixture, batches::XBatches{Bool})::Vector{Float64}
@@ -89,6 +117,15 @@ function log_likelihood_per_instance(mixture::FlatMixtureWithFlow, batches::XBat
 end
 
 function log_likelihood_per_instance(mixture::FlatMixtureWithFlow, batch::PlainXData{Bool})::Vector{Float64}
+    log_p_of_x_and_c = log_likelihood_per_instance_component(mixture, batch)
+    logsumexp(log_p_of_x_and_c, 2)
+end
+
+function log_likelihood_per_instance(mixture::MetaMixture, batches::XBatches{Bool})::Vector{Float64}
+    mapreduce(b -> log_likelihood_per_instance(mixture, b), vcat, batches)
+end
+
+function log_likelihood_per_instance(mixture::MetaMixture, batches::PlainXData{Bool})::Vector{Float64}
     log_p_of_x_and_c = log_likelihood_per_instance_component(mixture, batch)
     logsumexp(log_p_of_x_and_c, 2)
 end
@@ -110,5 +147,22 @@ end
 function log_likelihood_per_component_instance(mixture::FlatMixtureWithFlow, batch::PlainXData{Bool})::Vector{Vector{Float64}}
     map(mixture.flowcircuits, component_weights(mixture)) do fc, component_weight
         log_likelihood_per_instance(fc, batch) .+ log(component_weight)
+    end
+end
+
+"Log likelihood per instance and component. A vector of matrices per batch where the first dimension is instance, second is components."
+function log_likelihood_per_instance_component(mixture::MetaMixture, batches::XBatches{Bool})::Vector{Matrix{Float64}}
+    [log_likelihood_per_instance_component(mixture, batch) for batch in batches]
+end
+
+"Log likelihood per instance and component. First dimension is instance, second is components."
+function log_likelihood_per_instance_component(mixture::MetaMixture, batch::PlainXData{Bool})::Matrix{Float64}
+    hcat(log_likelihood_per_component_instance(mixture, batch)...)
+end
+
+"Log likelihood per component and instance. Outer vector is components, inner vector is instances"
+function log_likelihood_per_component_instance(mixture::MetaMixture, batch::PlainXData{Bool})::Vector{Vector{Float64}}
+    map(mixture.components, component_weights(mixture)) do c, component_weight
+        log_likelihood_per_instance(c, batch) .+ log(component_weight)
     end
 end

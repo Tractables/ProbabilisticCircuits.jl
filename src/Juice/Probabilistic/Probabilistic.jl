@@ -25,11 +25,14 @@ marginal_pass_up, marginal_pass_down, marginal_pass_up_down,
 Mixture, AbstractFlatMixture, FlatMixture, FlatMixtureWithFlow,component_weights,FlatMixtureWithFlows,
 log_likelihood, log_likelihood_per_instance, log_likelihood_per_instance_component,
 init_mixture_with_flows, reset_mixture_aggregate_flows, aggregate_flows, estimate_parameters,
+AbstractMetaMixture, MetaMixture,
+
 # EM Learner
 train_mixture,
 
 # Bagging
 bootstrap_samples_ids, learn_mixture_bagging, learn_mixture_bagging2,
+init_bagging_samples, train_bagging, 
 
 # VtreeLearner
 MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!,
