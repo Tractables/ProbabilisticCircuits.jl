@@ -11,7 +11,7 @@ const ⊤ = convert(Lit, 0)
 const BaseCache = Dict{LogicalCircuitNode, Vector{Lit}}
 
 "Learn structure decomposable probabilistic circuit with tree distribution from data"
-# learn_psdd_circuit(train_x::XBatches; α) = learn_psdd_circuit(unbatch(train_x); α = α)
+learn_psdd_circuit(train_x::XBatches; α) = learn_psdd_circuit(unbatch(train_x); α = α)
 learn_psdd_circuit(train_x::XData; α) = learn_psdd_circuit(WXData(train_x); α = α)
 function learn_psdd_circuit(train_x::WXData; α)
     clt = learn_chow_liu_tree(train_x; α = α, parametered = true);
