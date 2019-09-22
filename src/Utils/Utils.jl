@@ -63,7 +63,14 @@ function logsumexp(A::AbstractArray, dims)
     return dropdims(mapslices(StatsFuns.logsumexp, A, dims=dims), dims=dims)
 end
 
-@inline unzip(x) = zip(x...)
+macro unzip(x) 
+    quote
+        local a, b = zip($(esc(x))...)
+        a = collect(a)
+        b = collect(b)
+        a, b
+    end
+end
 
 #####################
 # array parametric type helpers
