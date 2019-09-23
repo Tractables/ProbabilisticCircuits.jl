@@ -193,6 +193,12 @@ function groupby(f::Function, list)
     groups
 end
 
+function index_dict(x::AbstractVector{E})::Dict{E,Int} where E
+    Dict(x[k] => k for k in eachindex(x))
+end
+
+#TODO create a struct that embeds an array and a index_dict result and acts like a Vector
+
 #####################
 # compute kernels
 #####################
