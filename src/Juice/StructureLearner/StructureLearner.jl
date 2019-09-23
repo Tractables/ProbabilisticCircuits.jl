@@ -28,7 +28,7 @@ learn_single_psdd, main_psdd_learner, print_ll, single_psdd_learner, em_psdd_lea
 load_data, construct_structure_learner,
 
 # Logger
-LogOption, collect_results, construct_logger, write_to
+LogOption, collect_results, construct_logger, write_to, log_str!
 
 include("Logger.jl")
 include("ChowLiuTree.jl")

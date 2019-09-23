@@ -9,7 +9,7 @@ function clustering(train_x::XData, mix_num::Int64; maxiter=200)::XBatches{<:Boo
     X = feature_matrix(train_x)'
 
     println("Running K-means clustering algorithm with num of components $mix_num, maximum iterations $maxiter")
-    @time R = kmeans(X, mix_num; maxiter=maxiter)
+    R = kmeans(X, mix_num; maxiter=maxiter)
     @assert nclusters(R) == mix_num
     a = assignments(R)
 
