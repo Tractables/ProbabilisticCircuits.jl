@@ -9,7 +9,8 @@ export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vecto
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby, logsumexp,
-unzip, @printlog, uniform
+unzip, @printlog, uniform,
+IndirectVector, index_dict
 
 
 import Base.@time
@@ -193,11 +194,42 @@ function groupby(f::Function, list)
     groups
 end
 
+#####################
+# indexing vectors by other vector indices
+#####################
+
 function index_dict(x::AbstractVector{E})::Dict{E,Int} where E
     Dict(x[k] => k for k in eachindex(x))
 end
 
-#TODO create a struct that embeds an array and a index_dict result and acts like a Vector
+struct IndirectVector{K,V} <: AbstractVector{V}
+    i_dict::Dict{K,Int}
+    vec::AbstractVector{V}
+end
+
+function IndirectVector(keys::AbstractVector{K}, vec::AbstractVector{V}) where {K,V}
+    @assert length(keys) == length(vec)
+    @assert allunique(keys)
+    IndirectVector(index_dict(keys),vec)
+end
+
+# implement interface to make IndirectVector behave like a Vector (https://docs.julialang.org/en/v1/manual/interfaces/)
+# but also allow indexing by K-values
+Base.size(iv::IndirectVector) = size(iv.vec)
+Base.setindex!(iv::IndirectVector{K,V}, v::V, i::Int) where {K,V} = 
+    setindex!(iv.vec, v, i)
+Base.setindex!(iv::IndirectVector{K,V}, v::V, k::K) where {K,V} = 
+    setindex!(iv.vec, v, iv.i_dict[k])
+Base.firstindex(iv::IndirectVector) = firstindex(iv.vec)
+Base.lastindex(iv::IndirectVector) = lastindex(iv.vec)
+
+function Base.getindex(iv::IndirectVector{K,V}, i::Int)::V where {V,K} 
+    getindex(iv.vec, i)
+end
+
+function Base.getindex(iv::IndirectVector{K,V}, k::K)::V where {K,V}
+    getindex(iv.vec, iv.i_dict[k])
+end
 
 #####################
 # compute kernels
