@@ -4,6 +4,7 @@ if endswith(@__FILE__, PROGRAM_FILE)
  end
 
 using Test
+using Statistics
 using .Juice
 using .Utils
 
@@ -94,11 +95,9 @@ function train_mixture_mnist_test()
 
     train_mixture(mixture, train(data), 1.0, 5; logger=logger);
 
-    for i in 1 : 5
-        @test log_option.train_ll[i] ≈ ll_per_ite[i][1] atol=1.0e-5
-        @test log_option.valid_ll[i] ≈ ll_per_ite[i][2] atol=1.0e-5
-        @test log_option.test_ll[i] ≈ ll_per_ite[i][3] atol=1.0e-5
-    end
+    @test mean(log_option.train_ll) ≈ ll_per_ite[5][1] atol=1.0e-5
+    @test mean(log_option.valid_ll) ≈ ll_per_ite[5][2] atol=1.0e-5
+    @test mean(log_option.test_ll) ≈ ll_per_ite[5][3] atol=1.0e-5
 end
 
 @testset "EM parameter learner" begin
