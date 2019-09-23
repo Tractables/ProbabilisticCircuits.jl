@@ -16,7 +16,8 @@ learn_psdd_circuit(train_x::XData; α) = learn_psdd_circuit(WXData(train_x); α 
 function learn_psdd_circuit(train_x::WXData; α)
     clt = learn_chow_liu_tree(train_x; α = α, parametered = true);
     vtree = learn_vtree_from_clt(clt, "balanced");
-    return compile_psdd_from_clt(clt, vtree);
+    psdd, bases = compile_psdd_from_clt(clt, vtree);
+    return psdd, bases, vtree
 end
 
 #############
