@@ -83,7 +83,7 @@ end
 partition(G, nparts; alg = :KWAY) = partition(graph(G), nparts, alg = alg)
 
 "Metis top down method"
-function metis_top_down(vars::Set{Var}, context::MetisContext)::Tuple{Set{Var}, Set{Var}}
+function metis_top_down(vars::Vector{Var}, context::MetisContext)::Tuple{Vector{Var}, Vector{Var}}
 
     vertices = sort(collect(vars))
     sub_context = context.info[vertices, vertices]
@@ -94,7 +94,7 @@ function metis_top_down(vars::Set{Var}, context::MetisContext)::Tuple{Set{Var}, 
     g = convert(SparseMatrixCSC, sub_context)
     partition = Metis.partition(graph(g), 2, alg = :RECURSIVE)
 
-    subsets = (Set{Var}(), Set{Var}())
+    subsets = (Vector{Var}(), Vector{Var}())
     for (index, p) in enumerate(partition)
         push!(subsets[p], vertices[index])
     end
@@ -119,17 +119,17 @@ mutable struct BlossomContext
     info::Matrix
 end
 
-BlossomContext(vars::Set{Var}, mi::Matrix{Float64}) =
+BlossomContext(vars::Vector{Var}, mi::Matrix{Float64}) =
     BlossomContext( [[v] for v in sort(collect(vars))],
                     collect(1 : length(vars)),
                     round.(Int64, 1000001 .+ to_long_mi(mi, -1, -1000000)))
                     #mi)
 
 "Blossom bottom up method, vars are not used"
-function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{Var, Var}}
+function blossom_bottom_up!(vars::Vector{Var}, context::BlossomContext)::Vector{Tuple{Var, Var}}
 
     "even number of nodes, use blossomv alg"
-    function blossom_bottom_up_even!(vars::Set{Var}, context::BlossomContext; update = true)::Tuple{Set{Tuple{Var, Var}}, Int64}
+    function blossom_bottom_up_even!(vars::Vector{Var}, context::BlossomContext; update = true)::Tuple{Vector{Tuple{Var, Var}}, Int64}
         "1. calculate pMI"
         pMI = set_mutual_information(context.info, context.variable_sets)
         #pMI = 1000001 .+ to_long_mi(pMI, -1, -1000000)
@@ -143,7 +143,7 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
         end
 
         solve(m)
-        all_matches = Set{Tuple{Var, Var}}()
+        all_matches = Vector{Tuple{Var, Var}}()
         for v in 1 : len
             push!(all_matches, order_asc(v, get_match(m, v - 1) + 1))
         end
@@ -157,7 +157,7 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
             score += pMI[x, y]
             all_matches[i] = (context.variable_sets[x][1], context.variable_sets[y][1])
         end
-        all_matches = Set(all_matches)
+        all_matches
 
         "4. update context when called by outer layer"
         if update
@@ -168,10 +168,10 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
     end
 
     "odd number of nodes, try every 2 combinations"
-    function blossom_bottom_up_odd!(vars::Set{Var}, context::BlossomContext)::Tuple{Set{Tuple{Var, Var}}, Int64}
+    function blossom_bottom_up_odd!(vars::Vector{Var}, context::BlossomContext)::Tuple{Vector{Tuple{Var, Var}}, Int64}
 
         "1. try all len - 1 conditions, find best score(minimun cost)"
-        (best_matches, best_score) = (Set{Tuple{Var, Var}}(), typemax(Int64))
+        (best_matches, best_score) = (Vector{Tuple{Var, Var}}(), typemax(Int64))
 
         for index in 1 : length(context.variable_sets)
             sub_context = deepcopy(context)
@@ -192,7 +192,7 @@ function blossom_bottom_up!(vars::Set{Var}, context::BlossomContext)::Set{Tuple{
 
     end
 
-    function updata_context(matches::Set{Tuple{Var, Var}}, context::BlossomContext)
+    function updata_context(matches::Vector{Tuple{Var, Var}}, context::BlossomContext)
         for (x, y) in matches
             y_partition = copy(context.variable_sets[context.partition_id[y]])
             context.variable_sets[context.partition_id[y]] = Vector()
@@ -232,19 +232,19 @@ end
 
 
 "Test top down method, split nodes by ascending order, balanced"
-function test_top_down(vars::Set{Var})::Tuple{Set{Var}, Set{Var}}
+function test_top_down(vars::Vector{Var})::Tuple{Vector{Var}, Vector{Var}}
     sorted_vars = sort(collect(vars))
     len = length(sorted_vars)
     len1 = Int64(len % 2 == 0 ? len // 2 : (len - 1) // 2)
-    return (Set(sorted_vars[1 : len1]), Set(sorted_vars[len1 + 1 : end]))
+    return (sorted_vars[1 : len1], sorted_vars[len1 + 1 : end])
 end
 
 "Test bottom up method, split nodes by ascending order, balanced"
-function test_bottom_up!(vars::Set{Var})::Set{Tuple{Var, Var}}
+function test_bottom_up!(vars::Vector{Var})::Vector{Tuple{Var, Var}}
     sorted_vars = sort(collect(vars))
     len = length(sorted_vars)
     len1 = Int64(len % 2 == 0 ? len // 2 : (len - 1) // 2)
-    matches = Set{Tuple{Var, Var}}()
+    matches = Vector{Tuple{Var, Var}}()
     for i in 1 : len1
         push!(matches, (sorted_vars[2 * i - 1], sorted_vars[2 * i]))
         pop!(vars, sorted_vars[2 * i])
