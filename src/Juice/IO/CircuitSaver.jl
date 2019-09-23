@@ -141,8 +141,10 @@ end
 
 function get_node2id(ln::AbstractVector{X}, T::DataType)where X #<: T#::Dict{T, ID}
     node2id = Dict{T, ID}()
+    outnodes = filter(n -> !(NodeType(n) isa ⋀), ln)
+    sizehint!(node2id, length(outnodes))
     index = ID(0) # node id start from 0
-    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+    for n in outnodes
         node2id[n] = index
         index += ID(1)
     end
@@ -151,6 +153,7 @@ end
 
 function get_vtree2id(ln::Vtree△):: Dict{VtreeNode, ID}
     vtree2id = Dict{VtreeNode, ID}()
+    sizehint!(vtree2id, length(ln))
     index = ID(0) # vtree id start from 0
 
     for n in ln
