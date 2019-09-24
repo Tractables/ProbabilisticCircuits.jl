@@ -75,7 +75,7 @@ Mixture(w, c::Vector{<:ProbCircuit△}) = FlatMixture(w, c)
 
 "Convert a given flat mixture into one with cached flows"
 ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
-    flowcircuits = [FlowCircuit(pc, size_hint, Bool, FlowCache(), opts_accumulate_flows) for pc in components(m)]
+    flowcircuits = [FlowCircuit(pc, size_hint, Bool, opts_accumulate_flows) for pc in components(m)]
     FlatMixtureWithFlow(m,flowcircuits)
 end
 ensure_with_flows(m::FlatMixtureWithFlow, ::Int)::FlatMixtureWithFlow = m
