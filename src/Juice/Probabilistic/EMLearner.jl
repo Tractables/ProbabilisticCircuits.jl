@@ -101,7 +101,7 @@ function init_mixture_with_flows(mixture::FlatMixtureWithFlow, ::XBatches{Bool})
 end
 function init_mixture_with_flows(mixture::FlatMixture, train_x::XBatches{Bool})::FlatMixtureWithFlow
     aggr_circuits = [AggregateFlowCircuit(pc, Float64) for pc in components(mixture)]
-    flow_circuits = [FlowCircuit(afc, max_batch_size(train_x), Bool, FlowCache(), opts_accumulate_flows) for afc in aggr_circuits]
+    flow_circuits = [FlowCircuit(afc, max_batch_size(train_x), Bool, opts_accumulate_flows) for afc in aggr_circuits]
     FlatMixtureWithFlow(mixture, flow_circuits)
 end
 

@@ -71,7 +71,7 @@ end
                     0.3499999999999; 0.1; 1.0; 0.8] 
     
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    flow_circuit = FlowCircuit(prob_circuit, 16, Float64, opts)
     calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data)
     calc_prob = exp.(calc_prob)
 
@@ -89,8 +89,8 @@ end
     data_full = XData(Int8.(generate_data_all(N)))
     opts= (compact⋀=false, compact⋁=false)
     
-    flow_circuit   = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
-    flow_circuit_marg = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    flow_circuit   = FlowCircuit(prob_circuit, 16, Float64, opts)
+    flow_circuit_marg = FlowCircuit(prob_circuit, 16, Float64, opts)
     
 
     # Comparing with down pass with fully obeserved data
@@ -106,7 +106,7 @@ end
 
     # Validating one example with missing features done by hand
     data_partial = XData(Int8.([-1 1 -1 1]))
-    flow_circuit_part  = FlowCircuit(prob_circuit, 16, Float64, FlowCache(), opts)
+    flow_circuit_part  = FlowCircuit(prob_circuit, 16, Float64, opts)
     Juice.marginal_pass_up_down(flow_circuit_part, data_partial)
 
     # (node index, correct down_flow_value)
@@ -168,14 +168,14 @@ end
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(prob_circuit, 1, Float64, FlowCache(), opts);
+    flow_circuit = FlowCircuit(prob_circuit, 1, Float64, opts);
 
     N = 4;
     data = XData(Int8.([0 -1 0 -1]));
     calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data);
     calc_prob = exp.(calc_prob);
 
-    flow_circuit_all = FlowCircuit(prob_circuit, 4, Float64, FlowCache(), opts);
+    flow_circuit_all = FlowCircuit(prob_circuit, 4, Float64, opts);
     data_all = XData(Int8.([
                             0 0 0 0;
                             0 0 0 1;
