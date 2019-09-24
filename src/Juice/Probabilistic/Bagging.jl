@@ -29,11 +29,11 @@ function train_bagging(train_x::XBatches{Bool},
     end
 
     # mixture
-    mixtures = Vector()
+    # mixtures = Vector()
 
     # train
     for i in 1 : n_components
-        push!(mixtures, learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...))
+        learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...)
     end
 
     
