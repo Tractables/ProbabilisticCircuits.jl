@@ -202,6 +202,7 @@ function index_dict(x::AbstractVector{E})::Dict{E,Int} where E
     Dict(x[k] => k for k in eachindex(x))
 end
 
+# warning: this approach is slower than directly constructing a dictionary from K to V... not advised
 struct IndirectVector{K,V} <: AbstractVector{V}
     i_dict::Dict{K,Int}
     vec::AbstractVector{V}
