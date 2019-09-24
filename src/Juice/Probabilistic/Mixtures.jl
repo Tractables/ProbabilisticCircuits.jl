@@ -52,6 +52,8 @@ end
 
 MetaMixture(c) = MetaMixture(uniform(length(c)),c)
 
+Mixture(w, c::Vector{<:AbstractMixture}) = MetaMixture(w, c)
+Mixture(w, c::Vector{<:ProbCircuit△}) = FlatMixture(w, c)
 
 #####################
 # Functions

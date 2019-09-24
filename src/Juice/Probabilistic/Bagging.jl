@@ -9,49 +9,36 @@ function bootstrap_samples_ids(train_x::PlainXData, n_samples::Int
         #rand_gen,
         ids, n_instances, replace=true) for i in 1:n_samples]
 end
-
-function learn_mixture_bagging2(train_x::PlainXData,
-                               n_components::Int,
-                               #, rand_gen::AbstractRNG,
-                               learn_base_estimator;
-                               base_estimator_params,
-                               mixture_weights="uniform")
-    #
-    # bootstrapping samples
-    bootstrapped_ids = bootstrap_samples_ids(train_x, n_components)
-    n_components = length(bootstrapped_ids)
     
-
+function train_bagging(train_x::XBatches{Bool},
+                        n_components::Int64;
+                        mixture_weights,
+                        learn_base_estimator,
+                        base_estimator_params,
+                        logs)
+    @assert length(logs) == n_components "Dimension not match in train bagging."
+    # bootstrapping samples
+    bagging_samples = init_bagging_samples(train_x, n_components)
+    
+    # weights
     weights = nothing
     if mixture_weights == "uniform"
-        weights = [1/n_components for i in 1:n_components]
+        weights = ones(Float64, n_components) ./ n_components
     else
         throw(DomainError(mixture_weights, "Unrecognized mixture weight mode"))
     end
-    println(typeof(bootstrapped_ids[1]))
-    components = [learn_base_estimator(PlainXData(train_x.x[b_ids,:]))
-                  for b_ids in bootstrapped_ids]
-        
-    return components, weights
-end
-    
-function train_bagging( mixtures::Union{Vector{<:AbstractFlatMixture}, AbstractFlatMixture},
-                        train_x::XBatches{Bool},
-                        num_bags::Int64; component_trainer)
-    # initialize bagging samples
-    bagging_samples = init_bagging_samples(train_x, num_bags)
 
-    #= 
-    for ite in 1 : num_iters
-        map(mixtures, bagging_samples) do model, sample
-            component_trainer(model, sample)
-        end
+    # mixture
+    # mixtures = Vector()
+
+    # train
+    for i in 1 : n_components
+        learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...)
     end
-    =#
+
     
-    for i in 1 : num_bags
-        component_trainer(mixtures[i], bagging_samples[i])
-    end
+    # mixtures = Mixture(weights, mixtures)
+
 end
 
 function init_bagging_samples(train_x::XBatches{Bool}, num_bags::Int64)::Vector{XBatches{Bool}}

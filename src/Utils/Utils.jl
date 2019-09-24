@@ -10,8 +10,8 @@ assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby, logsumexp,
 unzip, @printlog, uniform,
-IndirectVector, index_dict
-
+IndirectVector, index_dict,
+collect_exp_paths, path_to_args_dict, filter_exps
 
 import Base.@time
 import Base.print
