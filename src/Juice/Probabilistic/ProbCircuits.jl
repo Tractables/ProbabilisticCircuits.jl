@@ -37,27 +37,36 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
+function Prob⋁(origin, children)
+    Prob⋁(origin, children, some_vector(Float64, length(children)))
+end
+
+
 const ProbCache = Dict{CircuitNode, ProbCircuitNode}
 
-ProbCircuitNode(n::CircuitNode, cache::ProbCache) = ProbCircuitNode(NodeType(n), n, cache)
+function ProbCircuit(circuit::Circuit△, cache::ProbCache = ProbCache())
 
-ProbCircuitNode(::LiteralLeaf, n::CircuitNode, cache::ProbCache) =
-    get!(()-> ProbLiteral(n), cache, n)
+    sizehint!(cache, length(circuit)*4÷3)
+    
+    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral(n)
+    pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-ProbCircuitNode(::ConstantLeaf, ::CircuitNode, ::ProbCache) =
-    error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
-
-ProbCircuitNode(::⋀, n::CircuitNode, cache::ProbCache) =
-    get!(cache, n) do
-        Prob⋀(n, ProbCircuit(n.children, cache))
+    pc_node(::⋀, n::CircuitNode) = begin
+        children = map(c -> cache[c], n.children)
+        Prob⋀(n, children)
     end
 
-ProbCircuitNode(::⋁, n::CircuitNode, cache::ProbCache) =
-    get!(cache, n) do
-        Prob⋁(n, ProbCircuit(n.children, cache), some_vector(Float64, num_children(n)))
+    pc_node(::⋁, n::CircuitNode) = begin
+        children = map(c -> cache[c], n.children)
+        Prob⋁(n, children)
     end
-
-ProbCircuit(c::Circuit△, cache::ProbCache = ProbCache()) = map(n->ProbCircuitNode(n,cache), c)
+        
+    map(circuit) do node
+        pcn = pc_node(NodeType(node), node)
+        cache[node] = pcn
+        pcn
+    end
+end
 
 #####################
 # methods
