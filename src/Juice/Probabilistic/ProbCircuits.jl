@@ -153,7 +153,7 @@ Calculates log likelihood for a batch of fully observed samples.
 (Also retures the generated FlowCircuit)
 """
 function log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Bool})    
-    fc = FlowCircuit(pc, num_examples(batch), Bool, FlowCache())
+    fc = FlowCircuit(pc, num_examples(batch), Bool)
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
@@ -196,7 +196,7 @@ To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Int8})
     opts = (flow_opts★..., el_type=Float64, compact⋁=false)
-    fc = FlowCircuit(pc, num_examples(batch), Float64, FlowCache(), opts)
+    fc = FlowCircuit(pc, num_examples(batch), Float64, opts)
     (fc, marginal_log_likelihood_per_instance(fc, batch))
 end
 
@@ -276,7 +276,7 @@ Internally would call marginal pass up on a newly generated flow circuit.
 """
 function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVector{Bool}
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(circuit, 1, Float64, FlowCache(), opts)
+    flow_circuit = FlowCircuit(circuit, 1, Float64, opts)
     marginal_pass_up(flow_circuit, evidence)
     sample(flow_circuit)
 end
