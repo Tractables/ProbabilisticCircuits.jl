@@ -91,7 +91,7 @@ function train_mixture_mnist_test()
     log_path = directory * "mnist"
     logger, log_option = construct_logger(;log_path=log_path,
                                           train_x=train(data), valid_x=valid(data), test_x=test(data), 
-            cache_per_example=false, cache_per_ite=true, iters=5, opts=[]);
+            cache_per_example=false, cache_per_ite=true, iters=6, opts=[]);
 
     train_mixture(mixture, train(data), 1.0, 5; logger=logger);
 
