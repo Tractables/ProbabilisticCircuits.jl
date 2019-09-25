@@ -9,3 +9,7 @@
 *.code-workspace
 *.vscode
 /exp/*
+*.sh
+*.txt
+*.pdf
+**checkpoint.ipynb
