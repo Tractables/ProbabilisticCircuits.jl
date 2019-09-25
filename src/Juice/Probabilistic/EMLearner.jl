@@ -43,6 +43,10 @@ function train_mixture( mixture::AbstractFlatMixture, # we start from component 
 
     # initialize data structures
     mixture_flow = init_mixture_with_flows(mixture, train_x)
+
+    if issomething(logger)
+        logger(mixture_flow)
+    end
     
     for i in 1:num_iters
 
