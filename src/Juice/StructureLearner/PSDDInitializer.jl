@@ -40,17 +40,6 @@ function build_clt_structure(data::PlainXData;
     return PSDDWrapper(pc, bases, parents, vtree)
 end
 
-#= 
-"Learn structure decomposable probabilistic circuit with tree distribution from data"
-learn_psdd_circuit(train_x::XBatches; α) = learn_psdd_circuit(unbatch(train_x); α = α)
-learn_psdd_circuit(train_x::XData; α) = learn_psdd_circuit(WXData(train_x); α = α)
-function learn_psdd_circuit(train_x::WXData; α)
-    clt = learn_chow_liu_tree(train_x; α = α, parametered = true);
-    vtree = learn_vtree_from_clt(clt;vtree_mode="balanced");
-    psdd, bases = compile_psdd_from_clt(clt, vtree);
-    return psdd, bases, vtree
-end =#
-
 #############
 # Learn Vtree from CLT
 #############
