@@ -10,15 +10,46 @@ const ⊤ = convert(Lit, 0)
 "Map logical variable to bases"
 const BaseCache = Dict{LogicalCircuitNode, Vector{Lit}}
 
+"Cache circuit node parents "
+const ParentsCache = Dict{ProbCircuitNode,Vector{<:ProbCircuitNode}}
+
+"Wrapper for PSDD, cache structures used in learning process"
+mutable struct PSDDWrapper
+    pc::ProbCircuit△
+    bases::BaseCache
+    parents::ParentsCache
+    vtree::Vtree△
+    PSDDWrapper(pc, bases, parents, vtree) = new(pc, bases, parents, vtree)
+end
+
+import Base.length
+@inline length(psdd::PSDDWrapper) = length(psdd.pc) 
+
+"""
+Builds a Chow-Liu tree from complete data
+"""
+function build_clt_structure(data::PlainXData; 
+                            vtree_mode="balanced",
+                            clt_kwargs=(α=1.0,
+                                        parametered=true,
+                                        clt_root="graph_center"))::PSDDWrapper
+    clt = learn_chow_liu_tree(data; clt_kwargs...);
+    vtree = learn_vtree_from_clt(clt; vtree_mode=vtree_mode);
+    pc, bases = compile_psdd_from_clt(clt, vtree);
+    parents = parents_vector(pc)
+    return PSDDWrapper(pc, bases, parents, vtree)
+end
+
+#= 
 "Learn structure decomposable probabilistic circuit with tree distribution from data"
 learn_psdd_circuit(train_x::XBatches; α) = learn_psdd_circuit(unbatch(train_x); α = α)
 learn_psdd_circuit(train_x::XData; α) = learn_psdd_circuit(WXData(train_x); α = α)
 function learn_psdd_circuit(train_x::WXData; α)
     clt = learn_chow_liu_tree(train_x; α = α, parametered = true);
-    vtree = learn_vtree_from_clt(clt, "balanced");
+    vtree = learn_vtree_from_clt(clt;vtree_mode="balanced");
     psdd, bases = compile_psdd_from_clt(clt, vtree);
     return psdd, bases, vtree
-end
+end =#
 
 #############
 # Learn Vtree from CLT
@@ -28,9 +59,9 @@ end
 Learn a vtree from clt,
 with strategy (close to) `linear` or `balanced`
 "
-function learn_vtree_from_clt(clt::CLT, strategy::String)::Vtree△
+function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::Vtree△
     roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
-    root = construct_children(Var.(roots), clt, strategy)
+    root = construct_children(Var.(roots), clt, vtree_mode)
 
     return order_nodes_leaves_before_parents(root)
 end

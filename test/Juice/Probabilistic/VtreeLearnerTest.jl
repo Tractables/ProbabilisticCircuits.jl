@@ -64,7 +64,7 @@ end
     train_data = train(data);
     clt = learn_chow_liu_tree(WXData(train_data));
     #clt = parse_clt("./test/circuits/test.clt")
-    vtree = learn_vtree_from_clt(clt, "balanced"); # or "linear"
+    vtree = learn_vtree_from_clt(clt; vtree_mode="balanced"); # or "linear"
     @test vtree isa Vtree△
     save(vtree,"./test/circuits/test.vtree.dot");
     (psdd, _) = compile_psdd_from_clt(clt, vtree);

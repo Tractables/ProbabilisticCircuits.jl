@@ -25,7 +25,7 @@ pick_variable_mi, pick_variable_rand, pick_edge_max_flow, pick_edge_rand,pick_ed
 pick_edge_and_variable, stop_training, train_bagging, one_bag, save_h5, train_psdd, main_learner, 
 learn_psdd_circuit, initialize_mixture_model, edge_variable_candidate, data_splits,
 learn_single_psdd, main_psdd_learner, print_ll, single_psdd_learner, em_psdd_learner, learn_structure_by_split, 
-load_data, construct_structure_learner,
+load_data, construct_structure_learner,PSDDWrapper,
 
 # Logger
 LogOption, collect_results, construct_logger, write_to, log_str!, per_n, load_data, learn_bagging_psdd, em_psdd_learner

@@ -14,15 +14,15 @@ for simplification, if `parametered=false`, CPTs are not cached in vertices,
 to get parameters, run `learn_prob_circuit` as wrapper;
 if `parametered=true`, cache CPTs in vertices.
 """
-function learn_chow_liu_tree(train_x::XData; α = 0.0001, parametered=true)
-    learn_chow_liu_tree(WXData(train_x);α = α, parametered = parametered)
+function learn_chow_liu_tree(train_x::XData; α = 0.0001, parametered=true, clt_root="graph_center")
+    learn_chow_liu_tree(WXData(train_x);α=α, parametered=parametered, clt_root=clt_root)
 end
 
-function learn_chow_liu_tree(train_x::WXData; α = 0.0001, parametered = true)
+function learn_chow_liu_tree(train_x::WXData; α=0.0001, parametered=true, clt_root="graph_center")
     features_num = num_features(train_x)
 
     # calculate mutual information
-    (dis_cache, MI) = mutual_information(train_x; α = α)
+    (dis_cache, MI) = mutual_information(feature_matrix(train_x), Data.weights(train_x); α = α)
 
     # maximum spanning tree/ forest
     g = SimpleWeightedGraph(complete_graph(features_num))
@@ -33,20 +33,23 @@ function learn_chow_liu_tree(train_x::WXData; α = 0.0001, parametered = true)
     end
 
     # Build rooted tree / forest
-    clt = SimpleDiGraph(features_num)
-    if nv(tree) == ne(tree) + 1
-        clt = bfs_tree(tree, LightGraphs.center(tree)[1])
-    else
-        for c in filter(c -> (length(c) > 1), connected_components(tree))
-            sg, vmap = induced_subgraph(tree, c)
-            sub_root = vmap[LightGraphs.center(sg)[1]]
-            clt = union(clt, bfs_tree(tree, sub_root))
+    if clt_root == "graph_center"
+        clt = SimpleDiGraph(features_num)
+        if nv(tree) == ne(tree) + 1
+            clt = bfs_tree(tree, LightGraphs.center(tree)[1])
+        else
+            for c in filter(c -> (length(c) > 1), connected_components(tree))
+                sg, vmap = induced_subgraph(tree, c)
+                sub_root = vmap[LightGraphs.center(sg)[1]]
+                clt = union(clt, bfs_tree(tree, sub_root))
+            end
         end
+    elseif clt_root == "rand"
+        roots = [rand(c) for c in connected_components(tree)]
+        clt = SimpleDiGraph(features_num)
+        for root in roots clt = union(clt, bfs_tree(tree, root)) end
     end
-
-    #roots = [c[1] for c in connected_components(tree)]
-    #clt = SimpleDiGraph(features_num)
-    #for root in roots clt = union(clt, bfs_tree(tree, root)) end
+    
 
     # if parametered, cache CPTs in vertices
     if parametered
