@@ -96,7 +96,7 @@ function entropy(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:
     return (dis_cache, entropy(dis_cache))
 end
 
-function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
+function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)::Float64
     @assert x <= size(bm)[2]
     vars = [1 : x-1; x+1 : size(bm)[2]]
     indexes_left = bm[:,x].== 0
@@ -107,10 +107,10 @@ function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothin
     subm_left = @view bm[indexes_left, vars]
     subm_right = @view bm[indexes_right, vars]
     
-    w_left = issomething(w) ? w[indexes_left] : nothing
-    w_right = issomething(w) ? w[indexes_right] : nothing
+    w_left = issomething(w) ? (@view w[indexes_left]) : nothing
+    w_right = issomething(w) ? (@view w[indexes_right]): nothing
 
-    w1 * sum(entropy(subm_left, w_left; α=α)) + w2 * sum(entropy(subm_right, w_right); α=α)
+    w1 * sum(entropy(subm_left, w_left; α=α)[2]) + w2 * sum(entropy(subm_right, w_right; α=α)[2])
 end
 
 function conditional_entropy(dis_cache::DisCache)
