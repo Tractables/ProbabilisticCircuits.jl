@@ -16,7 +16,7 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 #####################
 @inline get_parameters(bm::AbstractMatrix{<:Bool}, α, w=nothing) = size(bm)[2], issomething(w) ? sum(w) : size(bm)[1], @. Float64(bm), @. Float64(!bm)
 
-function cache_distributions(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
+function cache_distributions(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α, flag=(pairwise=true, marginal=true))
     # parameters
     D, N, (m, notm) = get_parameters(bm, α, w)
     dis_cache = DisCache(D)
@@ -24,15 +24,18 @@ function cache_distributions(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, Abstr
     w = isnothing(w) ? ones(Float64, N) : w
 
     # pairwise distribution
-    dis_cache.pairwise[:,:,1] = (notm' * (notm .* w) .+ α) / base   # p00
-    dis_cache.pairwise[:,:,2] = (notm' * (m .* w) .+ α) / base      # p01
-    dis_cache.pairwise[:,:,3] = (m' * (notm .* w) .+ α) / base      # p10
-    dis_cache.pairwise[:,:,4] = (m' * (m .* w) .+ α) / base         # p11
-
+    if flag.pairwise
+        dis_cache.pairwise[:,:,1] = (notm' * (notm .* w) .+ α) / base   # p00
+        dis_cache.pairwise[:,:,2] = (notm' * (m .* w) .+ α) / base      # p01
+        dis_cache.pairwise[:,:,3] = (m' * (notm .* w) .+ α) / base      # p10
+        dis_cache.pairwise[:,:,4] = (m' * (m .* w) .+ α) / base         # p11
+    end
     # marginal distribution
-    dis_cache.marginal[:, 1] = (sum(notm .* w, dims=1) .+ 2 * α) / base
-    dis_cache.marginal[:, 2] = (sum(m .* w, dims=1).+ 2 * α) / base
 
+    if flag.marginal
+        dis_cache.marginal[:, 1] = (sum(notm .* w, dims=1) .+ 2 * α) / base
+        dis_cache.marginal[:, 2] = (sum(m .* w, dims=1).+ 2 * α) / base
+    end
     dis_cache
 end
 
@@ -82,6 +85,34 @@ end
 #####################
 # Entropy
 #####################
+function entropy(dis_cache::DisCache)
+    D = dimension(dis_cache)
+    px_log_px = @. xlogx(dis_cache.marginal)
+    - dropdims(sum(px_log_px; dims=2); dims=2)
+end
+
+function entropy(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
+    dis_cache = cache_distributions(bm, w; α=α, flag=(pairwise=true, marginal=true))
+    return (dis_cache, entropy(dis_cache))
+end
+
+function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
+    @assert x <= size(bm)[2]
+    vars = [1 : x-1; x+1 : size(bm)[2]]
+    indexes_left = bm[:,x].== 0
+    indexes_right = bm[:,x] .== 1
+    w1 = sum(Float64.(indexes_left))
+    w2 = sum(Float64.(indexes_right))
+    w1, w2 = w1 / (w1 + w2), w2 / (w1 + w2)
+    subm_left = @view bm[indexes_left, vars]
+    subm_right = @view bm[indexes_right, vars]
+    
+    w_left = issomething(w) ? w[indexes_left] : nothing
+    w_right = issomething(w) ? w[indexes_right] : nothing
+
+    w1 * sum(entropy(subm_left, w_left; α=α)) + w2 * sum(entropy(subm_right, w_right); α=α)
+end
+
 function conditional_entropy(dis_cache::DisCache)
     D = dimension(dis_cache)
     pxy_log_pxy = @. xlogx(dis_cache.pairwise)

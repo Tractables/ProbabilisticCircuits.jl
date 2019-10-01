@@ -13,6 +13,7 @@ end
 function train_bagging(# pcs::Vector{<:ProbCircuit△},
                         train_x::XBatches{Bool},
                         n_components::Int64;
+                        init_models=nothing,
                         mixture_weights,
                         learn_base_estimator,
                         base_estimator_params,
@@ -30,9 +31,16 @@ function train_bagging(# pcs::Vector{<:ProbCircuit△},
         throw(DomainError(mixture_weights, "Unrecognized mixture weight mode"))
     end
 
-    # train
-    for i in 1 : n_components
-        learn_base_estimator(pcs[i], bagging_samples[i]; log=logs[i], base_estimator_params...)
+    if issomething(init_models)
+        @assert length(init_models) == n_components "Dimension not match in train bagging."
+        for i in 1 : n_components
+            learn_base_estimator(bagging_samples[i], init_models[i]; log=logs[i], base_estimator_params...)
+        end
+    
+    else
+        for i in 1 : n_components
+            learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...)
+        end
     end
 end
 
