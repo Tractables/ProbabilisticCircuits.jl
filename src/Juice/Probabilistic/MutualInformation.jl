@@ -108,7 +108,7 @@ function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothin
     subm_right = @view bm[indexes_right, vars]
     
     w_left = issomething(w) ? (@view w[indexes_left]) : nothing
-    w_right = issomething(w) ? (@view w[indexes_right]): nothing
+    w_right = issomething(w) ? (@view w[indexes_right]) : nothing
 
     w1 * sum(entropy(subm_left, w_left; α=α)[2]) + w2 * sum(entropy(subm_right, w_right; α=α)[2])
 end
