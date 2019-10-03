@@ -24,7 +24,7 @@ compile_literal_nodes, compile_true_nodes, compile_decision_nodes, compile_decis
 pick_variable_mi, pick_variable_rand, pick_edge_max_flow, pick_edge_rand,pick_edge_max_gradient,
 pick_edge_and_variable, stop_training, train_bagging, one_bag, save_h5, train_psdd, main_learner, 
 learn_psdd_circuit, initialize_mixture_model, edge_variable_candidate, data_splits,
-learn_single_psdd, main_psdd_learner, print_ll, single_psdd_learner, em_psdd_learner, learn_structure_by_split, 
+learn_single_psdd, main_psdd_learner, print_ll, single_psdd_learner, learn_em_psdd, learn_structure_by_split, 
 load_data, construct_structure_learner,PSDDWrapper,split_candidates,
 
 # Logger
