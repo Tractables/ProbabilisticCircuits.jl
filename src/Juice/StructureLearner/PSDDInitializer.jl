@@ -40,6 +40,14 @@ function build_clt_structure(data::PlainXData;
     return PSDDWrapper(pc, bases, parents, vtree)
 end
 
+function build_rand_structure(data::PlainXData; vtree_mode="rand")::PSDDWrapper
+    vtree = random_vtree(num_features(data); vtree_mode="rand") # TODO: add interface later
+    pc = compile_fully_factorized_psdd_from_vtree(vtree)
+    bases = calculate_all_bases(pc)
+    parents = parents_vector(pc)
+    return PSDDWrapper(pc, bases, parents, vtree)
+end
+
 #############
 # Learn Vtree from CLT
 #############
@@ -255,4 +263,39 @@ function calculate_all_bases(circuit::ProbCircuit△)::BaseCache
     foreach(n -> set_base(n[1], n[2].origin, bases), enumerate(circuit))
     @assert all(bases[circuit[end].origin] .== ⊤) "Base of root node should be true"
     return bases
+end
+
+#####################
+# Compile fully factorized PSDD from vtree, all variables are independent initially
+#####################
+
+function compile_fully_factorized_psdd_from_vtree(vtree::Vtree△)::ProbCircuit△
+
+    function ful_factor_node(v::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, v2n, lin)
+        var = variables(v)[1]
+        pos, neg = add_prob_leaf_node(var, v, lit_cache, prob_cache, lin)
+        prob_or = add_prob⋁_node([pos, neg], v, [0.5, 0.5], prob_cache, lin)
+        v2n[v] = prob_or
+        nothing
+    end
+
+    function ful_factor_node(v::VtreeInnerNode, lit_cache::LitCache, prob_cache::ProbCache, v2n, lin)
+        left = v2n[v.left]
+        right = v2n[v.right]
+        prob_and = add_prob⋀_node([left, right], v, prob_cache, lin)
+        prob_or = add_prob⋁_node([prob_and], v, [1.0], prob_cache, lin)
+        v2n[v] = prob_or
+        nothing
+    end
+
+    lin = Vector{ProbCircuitNode}()
+    prob_cache = ProbCache()
+    lit_cache = LitCache()
+    v2n = Dict{VtreeNode, ProbCircuitNode}()
+
+    for v in vtree
+        ful_factor_node(v, lit_cache, prob_cache, v2n, lin)
+    end
+
+    lin
 end
