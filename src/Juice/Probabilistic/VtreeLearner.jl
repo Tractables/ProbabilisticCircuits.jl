@@ -143,7 +143,7 @@ function blossom_bottom_up!(vars::Vector{Var}, context::BlossomContext)::Vector{
         end
 
         solve(m)
-        all_matches = Vector{Tuple{Var, Var}}()
+        all_matches = Set{Tuple{Var, Var}}()
         for v in 1 : len
             push!(all_matches, order_asc(v, get_match(m, v - 1) + 1))
         end
@@ -161,7 +161,7 @@ function blossom_bottom_up!(vars::Vector{Var}, context::BlossomContext)::Vector{
 
         "4. update context when called by outer layer"
         if update
-            updata_context(all_matches, context)
+            update_context(all_matches, context)
         end
 
         return (all_matches, score)
@@ -187,12 +187,12 @@ function blossom_bottom_up!(vars::Vector{Var}, context::BlossomContext)::Vector{
         end
 
         "2. update information"
-        updata_context(best_matches, context)
+        update_context(best_matches, context)
         return (best_matches, best_score)
 
     end
 
-    function updata_context(matches::Vector{Tuple{Var, Var}}, context::BlossomContext)
+    function update_context(matches::Vector{Tuple{Var, Var}}, context::BlossomContext)
         for (x, y) in matches
             y_partition = copy(context.variable_sets[context.partition_id[y]])
             context.variable_sets[context.partition_id[y]] = Vector()
@@ -214,17 +214,23 @@ function blossom_bottom_up!(vars::Vector{Var}, context::BlossomContext)::Vector{
     end
 
     for (left, right) in matches
-        pop!(vars, right)
+        deleteat!(vars, findall(v->v==right, vars))
     end
-
     return matches
 end
 
 function blossom_bottom_up_curry(context::BlossomContext)
-    f(vars) = blossom_bottom_up(vars, context)
+    f(vars) = blossom_bottom_up!(vars, context)
     return f
 end
 
+# refactor later
+function learn_vtree_bottom_up(train_x::PlainXData; α)
+    (_, mi) = mutual_information(feature_matrix(train_x), Data.weights(train_x); α = α)
+    vars = Var.(collect(1:num_features(train_x)))
+    context = BlossomContext(vars, mi)
+    vtree = construct_bottom_up(vars, blossom_bottom_up_curry(context))
+end
 
 #############
 # Test method
