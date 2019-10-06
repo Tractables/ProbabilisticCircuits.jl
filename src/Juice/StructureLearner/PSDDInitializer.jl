@@ -48,6 +48,14 @@ function build_rand_structure(data::PlainXData; vtree_mode="rand")::PSDDWrapper
     return PSDDWrapper(pc, bases, parents, vtree)
 end
 
+function build_bottom_up_structure(data::PlainXData; α)::PSDDWrapper
+    vtree = learn_vtree_bottom_up(data;α=α)
+    pc = compile_fully_factorized_psdd_from_vtree(vtree)
+    bases = calculate_all_bases(pc)
+    parents = parents_vector(pc)
+    return PSDDWrapper(pc, bases, parents, vtree)
+end
+
 #############
 # Learn Vtree from CLT
 #############

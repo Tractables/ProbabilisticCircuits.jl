@@ -36,7 +36,7 @@ init_bagging_samples, train_bagging,
 
 # VtreeLearner
 MetisContext, metis_top_down, BlossomContext, blossom_bottom_up!,
-test_top_down, test_bottom_up!,
+test_top_down, test_bottom_up!,learn_vtree_bottom_up,
 
 # MutualInformation
 mutual_information, DisCache, conditional_entropy, sum_entropy_given_x,
