@@ -10,12 +10,15 @@ function bootstrap_samples_ids(train_x::PlainXData, n_samples::Int
         ids, n_instances, replace=true) for i in 1:n_samples]
 end
     
-function train_bagging(train_x::XBatches{Bool},
+function train_bagging(# pcs::Vector{<:ProbCircuit△},
+                        train_x::XBatches{Bool},
                         n_components::Int64;
+                        init_models=nothing,
                         mixture_weights,
                         learn_base_estimator,
                         base_estimator_params,
                         logs)
+                        
     @assert length(logs) == n_components "Dimension not match in train bagging."
     # bootstrapping samples
     bagging_samples = init_bagging_samples(train_x, n_components)
@@ -28,17 +31,17 @@ function train_bagging(train_x::XBatches{Bool},
         throw(DomainError(mixture_weights, "Unrecognized mixture weight mode"))
     end
 
-    # mixture
-    # mixtures = Vector()
-
-    # train
-    for i in 1 : n_components
-        learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...)
-    end
-
+    if issomething(init_models)
+        @assert length(init_models) == n_components "Dimension not match in train bagging."
+        for i in 1 : n_components
+            learn_base_estimator(bagging_samples[i], init_models[i]; log=logs[i], base_estimator_params...)
+        end
     
-    # mixtures = Mixture(weights, mixtures)
-
+    else
+        for i in 1 : n_components
+            learn_base_estimator(bagging_samples[i]; log=logs[i], base_estimator_params...)
+        end
+    end
 end
 
 function init_bagging_samples(train_x::XBatches{Bool}, num_bags::Int64)::Vector{XBatches{Bool}}

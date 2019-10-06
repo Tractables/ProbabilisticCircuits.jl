@@ -22,7 +22,7 @@ register(DataDep(
 ))
 
 const twenty_dataset_names = ["accidents", "ad", "baudio", "bbc", "bnetflix", "book", "c20ng", "cr52", "cwebkb",
-           "dna", "jester", "kdd", "msnbc", "msweb", "nltcs", "plants", "pumsb_star", "tmovie", "tretail"]
+           "dna", "jester", "kdd", "kosarek", "msnbc", "msweb", "nltcs", "plants", "pumsb_star", "tmovie", "tretail"]
 
 register(DataDep(
     "20Datasets",
