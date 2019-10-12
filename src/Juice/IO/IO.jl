@@ -2,11 +2,22 @@ module IO
 
 using ..Logical
 using ..Probabilistic
+using ..Logistic
 
 export
 
 # CircuitParser
-load_logical_circuit, load_smooth_logical_circuit, load_struct_smooth_logical_circuit, load_prob_circuit, load_struct_prob_circuit, load_psdd_logical_circuit,load_lc_logical_circuit, load_psdd_prob_circuit, parse_lc_file, parse_psdd_file,
+load_logical_circuit, 
+load_smooth_logical_circuit, 
+load_struct_smooth_logical_circuit, 
+load_prob_circuit, 
+load_struct_prob_circuit, 
+load_psdd_logical_circuit,
+load_lc_logical_circuit, 
+load_psdd_prob_circuit, 
+parse_lc_file, 
+parse_psdd_file,
+load_logistic_circuit,
 
 # CircuitLineCompiler
 # CircuitLineTypes

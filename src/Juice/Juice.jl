@@ -17,9 +17,10 @@ using Reexport
 # INCLUDE CHILD MODULES
 include("Logical/Logical.jl")
 include("Probabilistic/Probabilistic.jl")
-include("IO/IO.jl")
 include("Logistic/Logistic.jl")
+include("IO/IO.jl")
 include("StructureLearner/StructureLearner.jl")
+include("Reasoning/Reasoning.jl")
 
 
 # USE CHILD MODULES (in order to re-export some functions)
@@ -28,5 +29,6 @@ include("StructureLearner/StructureLearner.jl")
 @reexport using .IO
 @reexport using .Logistic
 @reexport using .StructureLearner
+@reexport using .Reasoning
 
 end
