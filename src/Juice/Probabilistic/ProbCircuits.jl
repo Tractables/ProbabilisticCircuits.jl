@@ -2,26 +2,26 @@
 # Probabilistic circuits
 #####################
 
-abstract type ProbCircuitNode <: DecoratorCircuitNode end
-abstract type ProbLeafNode <: ProbCircuitNode end
-abstract type ProbInnerNode <: ProbCircuitNode end
+abstract type ProbCircuitNode{O} <: DecoratorCircuitNode{O} end
+abstract type ProbLeafNode{O} <: ProbCircuitNode{O} end
+abstract type ProbInnerNode{O} <: ProbCircuitNode{O} end
 
-struct ProbLiteral <: ProbLeafNode
-    origin::CircuitNode
+struct ProbLiteral{O} <: ProbLeafNode{O}
+    origin::O
 end
 
-struct Prob⋀ <: ProbInnerNode
-    origin::CircuitNode
-    children::Vector{<:ProbCircuitNode}
+struct Prob⋀{O}<: ProbInnerNode{O}
+    origin::O
+    children::Vector{<:ProbCircuitNode{O}}
 end
 
-mutable struct Prob⋁ <: ProbInnerNode
-    origin::CircuitNode
-    children::Vector{<:ProbCircuitNode}
+mutable struct Prob⋁{O} <: ProbInnerNode{O}
+    origin::O
+    children::Vector{<:ProbCircuitNode{<:O}}
     log_thetas::Vector{Float64}
 end
 
-const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
+const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{O}}
 
 #####################
 # traits
@@ -37,8 +37,8 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Prob⋁(origin, children)
-    Prob⋁(origin, children, some_vector(Float64, length(children)))
+function Prob⋁(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O<:CircuitNode}
+    Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
 end
 
 

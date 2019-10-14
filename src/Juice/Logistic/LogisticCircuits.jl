@@ -3,32 +3,33 @@
 #######################
 
 
-abstract type LogisticCircuitNode <: DecoratorCircuitNode end
-abstract type LogisticLeafNode <: LogisticCircuitNode end
-abstract type LogisticInnerNode <: LogisticCircuitNode end
+abstract type LogisticCircuitNode{O} <: DecoratorCircuitNode{O} end
+abstract type LogisticLeafNode{O} <: LogisticCircuitNode{O} end
+abstract type LogisticInnerNode{O} <: LogisticCircuitNode{O} end
 
-struct LogisticLiteral <: LogisticLeafNode
-    origin::CircuitNode
+struct LogisticLiteral{O} <: LogisticLeafNode{O}
+    origin::O
     thetas::Array{Float64, 1}
 end
 
-struct Logistic⋀ <: LogisticInnerNode
-    origin::CircuitNode
-    children::Vector{<:LogisticCircuitNode}
+struct Logistic⋀{O} <: LogisticInnerNode{O}
+    origin::O
+    children::Vector{<:LogisticCircuitNode{O}}
 end
 
-mutable struct Logistic⋁ <: LogisticInnerNode
-    origin::CircuitNode
-    children::Vector{<:LogisticCircuitNode}
+mutable struct Logistic⋁{O} <: LogisticInnerNode{O}
+    origin::O
+    children::Vector{<:LogisticCircuitNode{O}}
     thetas::Array{Float64, 2}
 end
 
-mutable struct LogisticBias <: LogisticInnerNode
+mutable struct LogisticBias{O} <: LogisticInnerNode{O}
+    # NOTE: a bias node should have as its origin a disjunction with one child! (guy)
     biases::Array{Float64, 1}
 end
 
 
-const LogisticCircuit△ = AbstractVector{<:LogisticCircuitNode}
+const LogisticCircuit△{O} = AbstractVector{<:LogisticCircuitNode{O}}
 
 #####################
 # traits
