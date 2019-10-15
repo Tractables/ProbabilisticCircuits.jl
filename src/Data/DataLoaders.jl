@@ -30,7 +30,8 @@ register(DataDep(
     flatmap(twenty_dataset_names) do ds
            expand_folds(x -> "https://raw.githubusercontent.com/UCLA-StarAI/Density-Estimation-Datasets/master/datasets/$ds/$ds.$x.data")
     end,
-     "38658a594750b17edcea50d82c0b7bde6c8298095f1d0ad1296a63b871c83377"
+     #"38658a594750b17edcea50d82c0b7bde6c8298095f1d0ad1296a63b871c83377"
+     "96a9fec15b4569aae8a0e5c4d92173b17b9e92ccde41d12cab15f270da851b9c"
 ))
 
 #####################

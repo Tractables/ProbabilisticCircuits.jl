@@ -9,14 +9,14 @@ env:
 codecov: true
 
 julia:
-- nightly
+- 1.2
 
 matrix:
   allow_failures:
   - julia: nightly
 
 before_install:
-- julia install.jl
+- julia install.jl 
 
 script:
 - julia --code-coverage test/runtests.jl
