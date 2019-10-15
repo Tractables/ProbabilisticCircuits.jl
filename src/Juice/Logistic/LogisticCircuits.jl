@@ -86,10 +86,13 @@ import ..Logical: literal, children # make available for extension
 
 @inline literal(n::LogisticLiteral)::Lit  = literal(n.origin)
 @inline children(n::LogisticInnerNode) = n.children
-@inline classes(n::Logistic⋁) = if length(n.children) > 0 length(n.children[1]) else 0 end;
+@inline classes(n::Logistic⋁) = if length(n.children) > 0 length(n.thetas[1]) else 0 end;
 
 num_parameters(n::Logistic⋁) = num_children(n) * classes(n)
 num_parameters(c::LogisticCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
+
+num_parameters_perclass(n::Logistic⋁) = num_children(n)
+num_parameters_perclass(c::LogisticCircuit△) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
 logistic_origin(n::DecoratorCircuitNode)::LogisticCircuitNode = logistic_origin(n.origin)
@@ -108,30 +111,26 @@ logistic_origin(c::LogisticCircuit△)::LogisticCircuit△ = c
 function class_conditional_likelihood_per_instance(fc::FlowCircuit△, 
                                                     classes::Int, 
                                                     batch::PlainXData{Bool})
-    @assert(1 == 2) # this has bugs, so not use it for now
     lc = origin(fc)
     @assert(lc isa LogisticCircuit△)
     pass_up_down(fc, batch)
     likelihoods = zeros(num_examples(batch), classes)
     for n in fc
-        if n isa Flow⋁
-            origin = logistic_origin(n)::Logistic⋁
+        origin = logistic_origin(n)
+        if origin isa Logistic⋁
+            # For each class. origin.thetas is 2D so used eachcol
             for (idx, thetaC) in enumerate(eachcol(origin.thetas))
                 foreach(n.children, thetaC) do c, theta
                     likelihoods[:, idx] .+= prod_fast(downflow(n), pr_factors(c)) .* theta
-                    # println(downflow(n));
-                    # println();
-                    # println(theta);
-                    # println();
-                    # println(prod_fast(downflow(n), pr_factors(c)) .* theta);
-                    # println("--")
                 end
+            end
+        elseif origin isa LogisticLiteral
+            # For each class. origin.thetas is 1D so used eachrow
+            for (idx, thetaC) in enumerate(eachrow(origin.thetas))
+                likelihoods[:, idx] .+= n.pr .* thetaC
             end
         end
     end
-    # norms = sum(likelihoods, dims = 2)
-    # likelihoods ./= norms
-
     likelihoods
 end
 
