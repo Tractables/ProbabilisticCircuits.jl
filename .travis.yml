@@ -18,6 +18,9 @@ matrix:
 before_install:
 - julia install.jl 
 
+install: 
+- travis_wait 30 mvn install
+
 script:
 - julia --code-coverage test/runtests.jl
 
