@@ -11,6 +11,7 @@ using Test
       "Data/runtests.jl",
       "Juice/runtests.jl"
       ]
+     @info "Starting tests for {$test}"
      include(test)
    end
 end
