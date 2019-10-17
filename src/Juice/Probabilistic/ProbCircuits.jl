@@ -10,7 +10,7 @@ struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
 end
 
-struct Prob⋀{O}<: ProbInnerNode{O}
+struct Prob⋀{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbCircuitNode{<:O}}
 end
@@ -19,9 +19,6 @@ mutable struct Prob⋁{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbCircuitNode{<:O}}
     log_thetas::Vector{Float64}
-    function Prob⋁(o::O,c,l) where O 
-        new(o,c,l)
-    end
 end
 
 const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{O}}
@@ -40,8 +37,8 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Prob⋁(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where O <: CircuitNode
-    Prob⋁(origin, children, some_vector(Float64, length(children)))
+function Prob⋁{O}(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O}
+    Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
 end
 
 
@@ -49,19 +46,20 @@ const ProbCache = Dict{CircuitNode, ProbCircuitNode}
 
 function ProbCircuit(circuit::Circuit△, cache::ProbCache = ProbCache())
 
+    O = circuitnodetype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)
     
-    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral(n)
+    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral{O}(n)
     pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
     pc_node(::⋀, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋀(n, children)
+        Prob⋀{O}(n, children)
     end
 
     pc_node(::⋁, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋁(n, children)
+        Prob⋁{O}(n, children)
     end
         
     map(circuit) do node
