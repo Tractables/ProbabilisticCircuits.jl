@@ -12,13 +12,16 @@ end
 
 struct Prob⋀{O}<: ProbInnerNode{O}
     origin::O
-    children::Vector{<:ProbCircuitNode{O}}
+    children::Vector{<:ProbCircuitNode{<:O}}
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbCircuitNode{<:O}}
     log_thetas::Vector{Float64}
+    function Prob⋁(o::O,c,l) where O 
+        new(o,c,l)
+    end
 end
 
 const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{O}}
@@ -37,8 +40,8 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Prob⋁(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O<:CircuitNode}
-    Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
+function Prob⋁(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where O <: CircuitNode
+    Prob⋁(origin, children, some_vector(Float64, length(children)))
 end
 
 
