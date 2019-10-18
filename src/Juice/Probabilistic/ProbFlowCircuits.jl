@@ -13,7 +13,7 @@ marginal_pass_up_node(n::UpFlowCircuitNode, ::PlainXData) = ()
 function marginal_pass_up_node(n::UpFlowLiteral{O,F}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
     pass_up_node(n, data)
     # now override missing values by 1
-    npr = pr(origin(n))
+    npr = pr(n)
     missing_features = feature_matrix(data)[:,variable(n)] .< zero(eltype(F))
     npr[missing_features] .= 1
     npr .= log.( npr .+ 1e-300 )
@@ -75,10 +75,10 @@ function marginal_pass_down_node(n::DownFlow⋁Cached)
     for (ind, c) in enumerate(n.children)
         for sink in downflow_sinks(c)
             if !sink.in_progress
-                sink.downflow .= downflow(n) .* exp.(n.origin.log_thetas[ind] .+ pr(c) .- pr(n) )
+                sink.downflow .= downflow(n) .* exp.(n.origin.origin.log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n)) )
                 sink.in_progress = true
             else
-                sink.downflow .+= downflow(n) .* exp.(n.origin.log_thetas[ind] .+ pr(c) .- pr(n)) 
+                sink.downflow .+= downflow(n) .* exp.(n.origin.origin.log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n))) 
             end
         end
     end
@@ -88,6 +88,6 @@ end
 
 function marginal_pass_up_down(circuit::DownFlowCircuit△{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
     @assert !(E isa Bool)
-    marginal_pass_up(circuit, data)
+    marginal_pass_up(origin(circuit), data)
     marginal_pass_down(circuit)
 end

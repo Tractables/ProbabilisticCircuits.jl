@@ -198,7 +198,7 @@ To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(pc::ProbCircuit△, batch::PlainXData{Int8})
     opts = (flow_opts★..., el_type=Float64, compact⋁=false)
-    fc = FlowCircuit(pc, num_examples(batch), Float64, opts)
+    fc = UpFlowCircuit(pc, num_examples(batch), Float64, opts)
     (fc, marginal_log_likelihood_per_instance(fc, batch))
 end
 
@@ -208,7 +208,7 @@ Calculate log likelihood for a batch of samples with partial evidence P(e).
 
 To indicate a variable is not observed, pass -1 for that variable.
 """
-function marginal_log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Int8})
+function marginal_log_likelihood_per_instance(fc::UpFlowCircuit△, batch::PlainXData{Int8})
     @assert (prob_origin(fc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
     marginal_pass_up(fc, batch)
     pr(fc[end])
@@ -239,9 +239,9 @@ function sample(circuit::ProbCircuit△)::AbstractVector{Bool}
     ans
 end
 
-# Uniformly sample based on the proability of the items
+# Uniformly sample based on the probability of the items
 # and return the selected index
-function sample(probs::AbstractVector)::Int32
+function sample(probs::AbstractVector{<:Number})::Int32
     z = sum(probs)
     q = rand() * z
     cur = 0.0
@@ -278,7 +278,7 @@ Internally would call marginal pass up on a newly generated flow circuit.
 """
 function sample(circuit::ProbCircuit△, evidence::PlainXData{Int8})::AbstractVector{Bool}
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(circuit, 1, Float64, opts)
+    flow_circuit = UpFlowCircuit(circuit, 1, Float64, opts)
     marginal_pass_up(flow_circuit, evidence)
     sample(flow_circuit)
 end
@@ -287,7 +287,7 @@ end
 Sampling with Evidence from a psdd.
 Assuming already marginal pass up has been done on the flow circuit.
 """
-function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
+function sample(circuit::UpFlowCircuit△)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate2(circuit[end], inst)
     len = length(keys(inst))
@@ -298,21 +298,22 @@ function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
     ans
 end
 
-function simulate2(node::DownFlowLeaf, inst::Dict{Var,Int64})
+function simulate2(node::UpFlowLiteral, inst::Dict{Var,Int64})
     if positive(node)
+        #TODO I don't think we need these 'origin' parts below
         inst[variable(node.origin.origin)] = 1
     else
         inst[variable(node.origin.origin)] = 0
     end
 end
 
-function simulate2(node::DownFlow⋁, inst::Dict{Var,Int64})
+function simulate2(node::UpFlow⋁, inst::Dict{Var,Int64})
     prs = [ pr(ch)[1] for ch in children(node) ]
     idx = sample(exp.(node.origin.log_thetas .+ prs))
     simulate2(children(node)[idx], inst)
 end
 
-function simulate2(node::DownFlow⋀, inst::Dict{Var,Int64})
+function simulate2(node::UpFlow⋀, inst::Dict{Var,Int64})
     for child in children(node)
         simulate2(child, inst)
     end    
