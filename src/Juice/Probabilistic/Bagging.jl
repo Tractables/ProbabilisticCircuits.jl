@@ -1,4 +1,4 @@
-using StatsBase
+import StatsBase
 
 function bootstrap_samples_ids(train_x::PlainXData, n_samples::Int
                                #, rand_gen::AbstractRNG
