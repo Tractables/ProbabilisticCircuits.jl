@@ -21,7 +21,7 @@ mutable struct Prob⋁{O} <: ProbInnerNode{O}
     log_thetas::Vector{Float64}
 end
 
-const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{O}}
+const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{<:O}}
 
 #####################
 # traits
@@ -37,7 +37,8 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Prob⋁{O}(origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O}
+# for some unknown reason, making the type parameter O be part of this outer constructer as `Prob⋁{O}` does not work. It gives `UndefVarError: O not defined`. Hence pass it as an argument...
+function Prob⋁(::Type{O}, origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O}
     Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
 end
 

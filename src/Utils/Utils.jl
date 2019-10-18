@@ -80,7 +80,7 @@ end
 """
 Copy the array while changing the element type
 """
-copy_with_eltype(input, Eltype) = copyto!(similar(input, Eltype), input)
+copy_with_eltype(input, Eltype::Type) = copyto!(similar(input, Eltype), input)
 
 import Base.typejoin
 
