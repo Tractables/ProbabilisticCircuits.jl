@@ -14,7 +14,7 @@ abstract type AbstractMetaMixture <: AbstractMixture end
 "A probabilistic mixture model of probabilistic circuits"
 struct FlatMixture <: AbstractFlatMixture
     weights::Vector{Float64}
-    components::Vector{<:ProbCircuit△}
+    components::Vector{<:ProbCircuit}
     FlatMixture(w,c) = begin
         @assert length(w) == length(c)
         @assert sum(w) ≈ 1.0
@@ -27,7 +27,7 @@ FlatMixture(c) = FlatMixture(uniform(length(c)),c)
 "A mixture with cached flow circuits for each component (which are assumed to be ProbCircuits)"
 struct FlatMixtureWithFlow <: AbstractFlatMixture
     origin::FlatMixture
-    flowcircuits::Vector{<:FlowCircuit△}
+    flowcircuits::Vector{<:FlowCircuit}
     FlatMixtureWithFlow(origin,fcs) = begin
         @assert num_components(origin) == length(fcs)
         foreach(components(origin), fcs) do or, fc
@@ -53,7 +53,7 @@ end
 MetaMixture(c) = MetaMixture(uniform(length(c)),c)
 
 Mixture(w, c::Vector{<:AbstractMixture}) = MetaMixture(w, c)
-Mixture(w, c::Vector{<:ProbCircuit△}) = FlatMixture(w, c)
+Mixture(w, c::Vector{<:ProbCircuit}) = FlatMixture(w, c)
 
 #####################
 # Functions
@@ -80,7 +80,7 @@ ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
 end
 ensure_with_flows(m::FlatMixtureWithFlow, ::Int)::FlatMixtureWithFlow = m
 
-replace_prob_circuits(m::FlatMixture, pcs::Vector{ProbCircuit△}) =
+replace_prob_circuits(m::FlatMixture, pcs::Vector{ProbCircuit}) =
     FlatMixture(component_weights(m), pcs)
 
 # log_likelihood

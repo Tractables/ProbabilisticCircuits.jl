@@ -76,7 +76,7 @@ function train_mixture_mnist_test()
     copy_b(i) = ProbCircuit(lc_b);
     copy_c(i) = ProbCircuit(lc_c);
 
-    pcs = Vector{ProbCircuit△}()
+    pcs = Vector{ProbCircuit}()
     append!(pcs, [copy_a(i) for i in 1:num_copies_a]);
     append!(pcs, [copy_b(i) for i in 1:num_copies_b]);
     append!(pcs, [copy_c(i) for i in 1:num_copies_c]);

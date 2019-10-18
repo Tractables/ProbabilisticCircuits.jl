@@ -20,7 +20,7 @@ function learn_prob_circuit(data::WXData; α, pseudocount, parametered = false)
 end
 
 "Build decomposable probability circuits from Chow-Liu tree"
-function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit△
+function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
     lin = Vector{ProbCircuitNode}()
     node_cache = Dict{Lit, LogicalCircuitNode}()

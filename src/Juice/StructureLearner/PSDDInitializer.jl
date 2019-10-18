@@ -15,10 +15,10 @@ const ParentsCache = Dict{ProbCircuitNode,Vector{<:ProbCircuitNode}}
 
 "Wrapper for PSDD, cache structures used in learning process"
 mutable struct PSDDWrapper
-    pc::ProbCircuit△
+    pc::ProbCircuit
     bases::BaseCache
     parents::ParentsCache
-    vtree::Vtree△
+    vtree::Vtree
     PSDDWrapper(pc, bases, parents, vtree) = new(pc, bases, parents, vtree)
 end
 
@@ -64,7 +64,7 @@ end
 Learn a vtree from clt,
 with strategy (close to) `linear` or `balanced`
 "
-function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::Vtree△
+function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::Vtree
     roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
     root = construct_children(Var.(roots), clt, vtree_mode)
 
@@ -127,17 +127,17 @@ end
 #####################
 
 "Compile a psdd circuit from clt and vtree"
-function compile_psdd_from_clt(clt::MetaDiGraph, vtree::Vtree△)
+function compile_psdd_from_clt(clt::MetaDiGraph, vtree::Vtree)
     order = order_nodes_leaves_before_parents(vtree[end])
     parent_clt = Var.(parent_vector(clt))
 
     lin = Vector{ProbCircuitNode}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2p = Dict{VtreeNode, ProbCircuit△}()
+    v2p = Dict{VtreeNode, ProbCircuit}()
 
     get_params(cpt::Dict) = length(cpt) == 2 ? [cpt[1], cpt[0]] : [cpt[(1,1)], cpt[(0,1)], cpt[(1,0)], cpt[(0,0)]]
-    function add_mapping!(v::VtreeNode, circuits::ProbCircuit△)
+    function add_mapping!(v::VtreeNode, circuits::ProbCircuit)
         if !haskey(v2p, v); v2p[v] = Vector{ProbCircuitNode}(); end
         foreach(c -> if !(c in v2p[v]) push!(v2p[v], c);end, circuits)
     end
@@ -202,7 +202,7 @@ function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache,
 end
 
 "Add prob⋀ node to circuit `lin`"
-function add_prob⋀_node(children::ProbCircuit△, vtree::VtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
+function add_prob⋀_node(children::ProbCircuit, vtree::VtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
     logic = Struct⋀Node([c.origin for c in children], vtree)
     prob = Prob⋀{StructLogicalCircuitNode}(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
@@ -211,7 +211,7 @@ function add_prob⋀_node(children::ProbCircuit△, vtree::VtreeInnerNode, prob_
 end
 
 "Add prob⋁ node to circuit `lin`"
-function add_prob⋁_node(children::ProbCircuit△, vtree::VtreeNode, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
+function add_prob⋁_node(children::ProbCircuit, vtree::VtreeNode, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
     logic = Struct⋁Node([c.origin for c in children], vtree)
     prob = Prob⋁(StructLogicalCircuitNode, logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
@@ -221,7 +221,7 @@ function add_prob⋁_node(children::ProbCircuit△, vtree::VtreeNode, thetas::Ve
 end
 
 "Construct decision nodes given `primes` and `subs`"
-function compile_decision_node(primes::ProbCircuit△, subs::ProbCircuit△, vtree::VtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
+function compile_decision_node(primes::ProbCircuit, subs::ProbCircuit, vtree::VtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
     elements = [add_prob⋀_node([prime, sub], vtree, prob_cache, lin) for (prime, sub) in zip(primes, subs)]
     return add_prob⋁_node(elements, vtree, params, prob_cache, lin)
 end
@@ -239,7 +239,7 @@ function compile_true_nodes(var::Var, vtree::VtreeLeafNode, probs::Vector{Float6
 end
 
 "Construct decision nodes conditiond on different distribution"
-function compile_decision_nodes(primes::ProbCircuit△, subs::ProbCircuit△, vtree::VtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
+function compile_decision_nodes(primes::ProbCircuit, subs::ProbCircuit, vtree::VtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
     return [compile_decision_node(primes, subs, vtree, params[i:i+1], prob_cache, lin) for i in 1:2:length(params)]
 end
 
@@ -265,7 +265,7 @@ function set_base(index, n::Struct⋀Node, bases)
     bases[n] = sum([bases[c] for c in n.children])
 end
 
-function calculate_all_bases(circuit::ProbCircuit△)::BaseCache
+function calculate_all_bases(circuit::ProbCircuit)::BaseCache
     num_var = num_variables(circuit[end].origin.vtree)
     bases = BaseCache()
     foreach(n -> bases[n.origin] = fill(⊤, num_var), circuit)
@@ -278,7 +278,7 @@ end
 # Compile fully factorized PSDD from vtree, all variables are independent initially
 #####################
 
-function compile_fully_factorized_psdd_from_vtree(vtree::Vtree△)::ProbCircuit△
+function compile_fully_factorized_psdd_from_vtree(vtree::Vtree)::ProbCircuit
 
     function ful_factor_node(v::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, v2n, lin)
         var = variables(v)[1]

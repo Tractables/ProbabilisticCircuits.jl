@@ -151,7 +151,7 @@ function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id
 end
 
-function get_vtree2id(ln::Vtree△):: Dict{VtreeNode, ID}
+function get_vtree2id(ln::Vtree):: Dict{VtreeNode, ID}
     vtree2id = Dict{VtreeNode, ID}()
     sizehint!(vtree2id, length(ln))
     index = ID(0) # vtree id start from 0
@@ -167,7 +167,7 @@ end
 # saver for circuits
 #####################
 
-function save_psdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△)
+function save_psdd_file(name::String, ln::ProbCircuit, vtree::Vtree)
     @assert ln[end].origin isa StructLogicalCircuitNode "PSDD should decorate on StructLogicalCircuit"
     @assert endswith(name, ".psdd")
 
@@ -184,10 +184,10 @@ function save_psdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△)
     save_lines(name, formatlines)
 end
 
-save_sdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△) = 
+save_sdd_file(name::String, ln::ProbCircuit, vtree::Vtree) = 
     save_sdd_file(name, origin(ln), vtree)
 
-function save_sdd_file(name::String, ln::StructLogicalCircuit△, vtree::Vtree△)
+function save_sdd_file(name::String, ln::StructLogicalCircuit, vtree::Vtree)
     @assert endswith(name, ".sdd")
     node2id = get_node2id(ln, StructLogicalCircuitNode)
     vtree2id = get_vtree2id(vtree)
@@ -224,7 +224,7 @@ end
 
 # Save as .dot
 "Rank nodes in the same layer left to right"
-function get_nodes_level(circuit::ProbCircuit△)
+function get_nodes_level(circuit::ProbCircuit)
     levels = Vector{Vector{ProbCircuitNode}}()
     current = Vector{ProbCircuitNode}()
     next = Vector{ProbCircuitNode}()
@@ -248,7 +248,7 @@ function get_nodes_level(circuit::ProbCircuit△)
 end
 
 "Save prob circuits to .dot file"
-function save_as_dot(circuit::ProbCircuit△, file::String)
+function save_as_dot(circuit::ProbCircuit, file::String)
 
     node_cache = Dict{ProbCircuitNode, Int64}()
     for (i, n) in enumerate(circuit)

@@ -5,7 +5,7 @@
 """
 Compile lines into a unstructured logical circuit
 """
-compile_logical(lines::CircuitFormatLines)::UnstLogicalCircuit△ = 
+compile_logical(lines::CircuitFormatLines)::UnstLogicalCircuit = 
     compile_logical_m(lines)[1]
 
 """
@@ -78,7 +78,7 @@ end
 """
 Compile lines into a smooth unstructured logical circuit
 """
-compile_smooth_logical(lines::CircuitFormatLines)::UnstLogicalCircuit△ = 
+compile_smooth_logical(lines::CircuitFormatLines)::UnstLogicalCircuit = 
     compile_smooth_logical_m(lines)[1]
 
 """
@@ -251,7 +251,7 @@ end
 """
 Compile lines into a probabilistic circuit.
 """
-function compile_prob(lines::CircuitFormatLines)::ProbCircuit△
+function compile_prob(lines::CircuitFormatLines)::ProbCircuit
     # first compile a logical circuit
     logical_circuit, id2lognode = compile_smooth_logical_m(lines)
     decorate_prob(lines, logical_circuit, id2lognode)
@@ -260,7 +260,7 @@ end
 """
 Compile lines into a logistic circuit.
 """
-function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticCircuit△
+function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticCircuit
     # first compile a logical circuit
     logical_circuit, id2lognode = compile_smooth_logical_m(lines)
     decorate_logistic(lines, logical_circuit, classes, id2lognode)
@@ -275,7 +275,7 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit△, id2lognode::Dict{ID,<:LogicalCircuitNode})::ProbCircuit△
+function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalCircuitNode})::ProbCircuit
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
@@ -308,8 +308,8 @@ function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircui
 end
 
 
-function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalCircuit△, 
-                            classes::Int, id2lognode::Dict{ID,<:LogicalCircuitNode})::LogisticCircuit△
+function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, 
+                            classes::Int, id2lognode::Dict{ID,<:LogicalCircuitNode})::LogisticCircuit
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
     log2logistic = LogisticCache()

@@ -29,7 +29,7 @@ mutable struct LogisticBias{O} <: LogisticInnerNode{O}
 end
 
 
-const LogisticCircuit△{O} = AbstractVector{<:LogisticCircuitNode{O}}
+const LogisticCircuit{O} = AbstractVector{<:LogisticCircuitNode{O}}
 
 #####################
 # traits
@@ -54,7 +54,7 @@ end
 
 const LogisticCache = Dict{CircuitNode, LogisticCircuitNode}
 
-function LogisticCircuit(circuit::Circuit△, classes::Int, cache::LogisticCache = LogisticCache())
+function LogisticCircuit(circuit::Circuit, classes::Int, cache::LogisticCache = LogisticCache())
 
     sizehint!(cache, length(circuit)*4÷3)
     
@@ -92,16 +92,16 @@ import ..Logical: literal, children # make available for extension
 @inline classes(n::Logistic⋁) = if length(n.children) > 0 length(n.thetas[1]) else 0 end;
 
 num_parameters(n::Logistic⋁) = num_children(n) * classes(n)
-num_parameters(c::LogisticCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
+num_parameters(c::LogisticCircuit) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 num_parameters_perclass(n::Logistic⋁) = num_children(n)
-num_parameters_perclass(c::LogisticCircuit△) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
+num_parameters_perclass(c::LogisticCircuit) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
 logistic_origin(n::DecoratorCircuitNode)::LogisticCircuitNode = origin(n,LogisticCircuitNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorCircuit△)::LogisticCircuit△ = origin(c,LogisticCircuitNode)
+logistic_origin(c::DecoratorCircuit)::LogisticCircuit = origin(c,LogisticCircuitNode)
 
 
 # TODO Learning
@@ -109,11 +109,11 @@ logistic_origin(c::DecoratorCircuit△)::LogisticCircuit△ = origin(c,LogisticC
 
 
 # Class Conditional Probability
-function class_conditional_likelihood_per_instance(fc::FlowCircuit△, 
+function class_conditional_likelihood_per_instance(fc::FlowCircuit, 
                                                     classes::Int, 
                                                     batch::PlainXData{Bool})
     lc = origin(origin(fc))
-    @assert(lc isa LogisticCircuit△)
+    @assert(lc isa LogisticCircuit)
     pass_up_down(fc, batch)
     likelihoods = zeros(num_examples(batch), classes)
     for n in fc

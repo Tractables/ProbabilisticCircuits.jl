@@ -1,7 +1,7 @@
 """
 Train a mixture of probabilistic circuits from data, starting with random example weights.
 """
-function train_mixture( pcs::Vector{<:ProbCircuit△},
+function train_mixture( pcs::Vector{<:ProbCircuit},
                         train_x::XBatches{Bool},
                         pseudocount, num_iters;
                         structure_learner=nothing, learnstruct_step = num_iters + 1, # structure learning
@@ -97,7 +97,7 @@ end
 
 "Ensure we have a FlatMixtureWithFlow where the flow circuits have aggregate flow circuits as origin"
 function init_mixture_with_flows(mixture::FlatMixtureWithFlow, ::XBatches{Bool})::FlatMixtureWithFlow 
-    if ! all(fc -> grand_origin(fc) isa AggregateFlowCircuit△, mixture.flowcircuits)
+    if ! all(fc -> grand_origin(fc) isa AggregateFlowCircuit, mixture.flowcircuits)
         init_mixture_with_flows(origin(mixture))
     else
         mixture 

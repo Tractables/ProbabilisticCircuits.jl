@@ -13,7 +13,7 @@ import .Juice.IO:
 @testset "Load a small PSDD and test methods" begin
    file = "test/circuits/little_4var.psdd"
    prob_circuit = load_prob_circuit(file);
-   @test prob_circuit isa ProbCircuit△
+   @test prob_circuit isa ProbCircuit
 
    # Testing number of nodes and parameters
    @test  9 == num_parameters(prob_circuit)
@@ -46,7 +46,7 @@ end
    circuit, vtree = load_struct_prob_circuit(
       "test/circuits/little_4var.psdd", "test/circuits/little_4var.vtree")
    @test check_parameter_integrity(circuit)
-   @test vtree isa Vtree△
+   @test vtree isa Vtree
    # no other combinations of vtree and psdd are in this repo?
    # @test check_parameter_integrity(load_struct_prob_circuit(
    #          "test/circuits/mnist-antonio.psdd", "test/circuits/balanced.vtree"))

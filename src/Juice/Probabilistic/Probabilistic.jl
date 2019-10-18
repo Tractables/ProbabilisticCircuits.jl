@@ -10,7 +10,7 @@ using ..Logical
 export
 
 # ProbCircuits
-ProbCircuitNode, ProbCircuit, ProbCircuit△, ProbLeafNode, ProbInnerNode,
+ProbCircuitNode, ProbCircuit, ProbCircuit, ProbLeafNode, ProbInnerNode,
 ProbLiteral, Prob⋀, Prob⋁, ProbCache, variable, num_parameters, compute_log_likelihood,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
 initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log_likelihood,

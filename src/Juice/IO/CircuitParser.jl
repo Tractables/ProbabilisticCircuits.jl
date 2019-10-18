@@ -12,7 +12,7 @@ Support file formats:
  * ".psdd" for PSDD files
  * ".circuit" for Logistic Circuit files
 """
-function load_logical_circuit(file::String)::UnstLogicalCircuit△
+function load_logical_circuit(file::String)::UnstLogicalCircuit
     compile_logical(parse_circuit_file(file))
 end
 
@@ -22,7 +22,7 @@ Support file formats:
  * ".psdd" for PSDD files
  * ".circuit" for Logistic Circuit files
 """
-function load_smooth_logical_circuit(file::String)::UnstLogicalCircuit△
+function load_smooth_logical_circuit(file::String)::UnstLogicalCircuit
     compile_smooth_logical(parse_circuit_file(file))
 end
 
@@ -34,7 +34,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit△,Vtree△}
+function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit,Vtree}
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
     compile_smooth_struct_logical(circuit_lines, vtree_lines)
@@ -46,7 +46,7 @@ Load a probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
  """
-function load_prob_circuit(file::String)::ProbCircuit△
+function load_prob_circuit(file::String)::ProbCircuit
     @assert endswith(file,".psdd")
     compile_prob(parse_psdd_file(file))
 end
@@ -58,7 +58,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit△,Vtree△}
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit,Vtree}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
@@ -66,7 +66,7 @@ function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tup
 end
 
 
-function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticCircuit△
+function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticCircuit
     @assert endswith(circuit_file,".circuit")
     circuit_lines = parse_circuit_file(circuit_file)
     compile_logistic(circuit_lines, classes)

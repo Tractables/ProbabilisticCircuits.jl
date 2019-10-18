@@ -10,7 +10,7 @@ function bootstrap_samples_ids(train_x::PlainXData, n_samples::Int
         ids, n_instances, replace=true) for i in 1:n_samples]
 end
     
-function train_bagging(# pcs::Vector{<:ProbCircuit△},
+function train_bagging(# pcs::Vector{<:ProbCircuit},
                         train_x::XBatches{Bool},
                         n_components::Int64;
                         init_models=nothing,

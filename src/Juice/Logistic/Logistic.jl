@@ -12,7 +12,7 @@ export
     LogisticLiteral,
     Logistic⋀,
     Logistic⋁,
-    LogisticCircuit△,
+    LogisticCircuit,
     LogisticCircuit,
     LogisticCache,
     num_parameters_perclass,
