@@ -45,7 +45,7 @@ end
 
 const ProbCache = Dict{ΔNode, ProbΔNode}
 
-function ProbΔ(circuit::Circuit, cache::ProbCache = ProbCache())
+function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
     O = circuitnodetype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)

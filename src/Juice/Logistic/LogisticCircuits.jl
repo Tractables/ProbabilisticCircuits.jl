@@ -54,7 +54,7 @@ end
 
 const LogisticCache = Dict{ΔNode, LogisticΔNode}
 
-function LogisticΔ(circuit::Circuit, classes::Int, cache::LogisticCache = LogisticCache())
+function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCache())
 
     sizehint!(cache, length(circuit)*4÷3)
     
