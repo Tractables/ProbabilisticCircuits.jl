@@ -167,8 +167,6 @@ end
 # saver for circuits
 #####################
 
-extract_origin(ln::ProbCircuit△) = map(n -> n.origin,ln)
-
 function save_psdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△)
     @assert ln[end].origin isa StructLogicalCircuitNode "PSDD should decorate on StructLogicalCircuit"
     @assert endswith(name, ".psdd")
@@ -187,7 +185,7 @@ function save_psdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△)
 end
 
 save_sdd_file(name::String, ln::ProbCircuit△, vtree::Vtree△) = 
-    save_sdd_file(name, extract_origin(ln), vtree)
+    save_sdd_file(name, origin(ln), vtree)
 
 function save_sdd_file(name::String, ln::StructLogicalCircuit△, vtree::Vtree△)
     @assert endswith(name, ".sdd")

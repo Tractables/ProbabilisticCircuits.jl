@@ -98,12 +98,10 @@ num_parameters_perclass(n::Logistic⋁) = num_children(n)
 num_parameters_perclass(c::LogisticCircuit△) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
-logistic_origin(n::DecoratorCircuitNode)::LogisticCircuitNode = logistic_origin(n.origin)
-logistic_origin(n::LogisticCircuitNode)::LogisticCircuitNode = n
+logistic_origin(n::DecoratorCircuitNode)::LogisticCircuitNode = origin(n,LogisticCircuitNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorCircuit△)::LogisticCircuit△ = logistic_origin(origin(c))
-logistic_origin(c::LogisticCircuit△)::LogisticCircuit△ = c
+logistic_origin(c::DecoratorCircuit△)::LogisticCircuit△ = origin(c,LogisticCircuitNode)
 
 
 # TODO Learning

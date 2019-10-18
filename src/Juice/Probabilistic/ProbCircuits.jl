@@ -83,12 +83,10 @@ num_parameters(n::Prob⋁) = num_children(n)
 num_parameters(c::ProbCircuit△) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 "Return the first origin that is a probabilistic circuit node"
-prob_origin(n::DecoratorCircuitNode)::ProbCircuitNode = prob_origin(n.origin)
-prob_origin(n::ProbCircuitNode)::ProbCircuitNode = n
+prob_origin(n::DecoratorCircuitNode)::ProbCircuitNode = origin(n, ProbCircuitNode)
 
 "Return the first origin that is a probabilistic circuit"
-prob_origin(c::DecoratorCircuit△)::ProbCircuit△ = prob_origin(origin(c))
-prob_origin(c::ProbCircuit△)::ProbCircuit△ = c
+prob_origin(c::DecoratorCircuit△)::ProbCircuit△ = origin(c, ProbCircuitNode)
 
 function estimate_parameters(pc::ProbCircuit△, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
@@ -300,10 +298,10 @@ end
 
 function simulate2(node::UpFlowLiteral, inst::Dict{Var,Int64})
     if positive(node)
-        #TODO I don't think we need these 'origin' parts below
-        inst[variable(node.origin.origin)] = 1
+        #TODO I don't think we need these 'grand_origin' parts below
+        inst[variable(grand_origin(node))] = 1
     else
-        inst[variable(node.origin.origin)] = 0
+        inst[variable(grand_origin(node))] = 0
     end
 end
 

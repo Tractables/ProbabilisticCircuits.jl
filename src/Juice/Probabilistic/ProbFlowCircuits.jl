@@ -75,10 +75,10 @@ function marginal_pass_down_node(n::DownFlow⋁Cached)
     for (ind, c) in enumerate(n.children)
         for sink in downflow_sinks(c)
             if !sink.in_progress
-                sink.downflow .= downflow(n) .* exp.(n.origin.origin.log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n)) )
+                sink.downflow .= downflow(n) .* exp.(grand_origin(n).log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n)) )
                 sink.in_progress = true
             else
-                sink.downflow .+= downflow(n) .* exp.(n.origin.origin.log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n))) 
+                sink.downflow .+= downflow(n) .* exp.(grand_origin(n).log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n))) 
             end
         end
     end
