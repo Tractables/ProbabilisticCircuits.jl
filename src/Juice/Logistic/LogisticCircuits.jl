@@ -14,12 +14,12 @@ end
 
 struct Logistic⋀{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticCircuitNode{O}}
+    children::Vector{<:LogisticCircuitNode{<:O}}
 end
 
 mutable struct Logistic⋁{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticCircuitNode{O}}
+    children::Vector{<:LogisticCircuitNode{<:O}}
     thetas::Array{Float64, 2}
 end
 
@@ -47,8 +47,8 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Logistic⋁(origin, children, classes::Int)
-    Logistic⋁(origin, children, Array{Float64, 2}(undef, (length(children), classes)))
+function Logistic⋁(::Type{O}, origin, children, classes::Int) where {O}
+    Logistic⋁{O}(origin, children, Array{Float64, 2}(undef, (length(children), classes)))
 end
 
 
@@ -58,17 +58,19 @@ function LogisticCircuit(circuit::Circuit△, classes::Int, cache::LogisticCache
 
     sizehint!(cache, length(circuit)*4÷3)
     
-    pc_node(::LiteralLeaf, n::CircuitNode) = LogisticLiteral(n, Array{Float64, 1}(undef, classes))
+    O = circuitnodetype(circuit) # type of node in the origin
+
+    pc_node(::LiteralLeaf, n::CircuitNode) = LogisticLiteral{O}(n, Array{Float64, 1}(undef, classes))
     pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
     pc_node(::⋀, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Logistic⋀(n, children)
+        Logistic⋀{O}(n, children)
     end
 
     pc_node(::⋁, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Logistic⋁(n, children, classes)
+        Logistic⋁(O, n, children, classes)
     end
         
     map(circuit) do node
