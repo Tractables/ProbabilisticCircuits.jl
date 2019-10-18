@@ -298,7 +298,7 @@ function sample(circuit::FlowCircuit△)::AbstractVector{Bool}
     ans
 end
 
-function simulate2(node::Logical.FlowLiteral, inst::Dict{Var,Int64})
+function simulate2(node::DownFlowLeaf, inst::Dict{Var,Int64})
     if positive(node)
         inst[variable(node.origin.origin)] = 1
     else
@@ -306,13 +306,13 @@ function simulate2(node::Logical.FlowLiteral, inst::Dict{Var,Int64})
     end
 end
 
-function simulate2(node::Logical.Flow⋁, inst::Dict{Var,Int64})
+function simulate2(node::DownFlow⋁, inst::Dict{Var,Int64})
     prs = [ pr(ch)[1] for ch in children(node) ]
     idx = sample(exp.(node.origin.log_thetas .+ prs))
     simulate2(children(node)[idx], inst)
 end
 
-function simulate2(node::Logical.Flow⋀, inst::Dict{Var,Int64})
+function simulate2(node::DownFlow⋀, inst::Dict{Var,Int64})
     for child in children(node)
         simulate2(child, inst)
     end    
