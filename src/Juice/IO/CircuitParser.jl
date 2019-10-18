@@ -66,7 +66,7 @@ function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tup
 end
 
 
-function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticCircuit
+function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticΔ
     @assert endswith(circuit_file,".circuit")
     circuit_lines = parse_circuit_file(circuit_file)
     compile_logistic(circuit_lines, classes)

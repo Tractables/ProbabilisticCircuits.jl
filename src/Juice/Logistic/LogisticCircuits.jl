@@ -29,7 +29,7 @@ mutable struct LogisticBias{O} <: LogisticInnerNode{O}
 end
 
 
-const LogisticCircuit{O} = AbstractVector{<:LogisticΔNode{O}}
+const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
 
 #####################
 # traits
@@ -54,7 +54,7 @@ end
 
 const LogisticCache = Dict{ΔNode, LogisticΔNode}
 
-function LogisticCircuit(circuit::Circuit, classes::Int, cache::LogisticCache = LogisticCache())
+function LogisticΔ(circuit::Circuit, classes::Int, cache::LogisticCache = LogisticCache())
 
     sizehint!(cache, length(circuit)*4÷3)
     
@@ -92,16 +92,16 @@ import ..Logical: literal, children # make available for extension
 @inline classes(n::Logistic⋁) = if length(n.children) > 0 length(n.thetas[1]) else 0 end;
 
 num_parameters(n::Logistic⋁) = num_children(n) * classes(n)
-num_parameters(c::LogisticCircuit) = sum(n -> num_parameters(n), ⋁_nodes(c))
+num_parameters(c::LogisticΔ) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 num_parameters_perclass(n::Logistic⋁) = num_children(n)
-num_parameters_perclass(c::LogisticCircuit) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
+num_parameters_perclass(c::LogisticΔ) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
 logistic_origin(n::DecoratorΔNode)::LogisticΔNode = origin(n,LogisticΔNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorΔ)::LogisticCircuit = origin(c,LogisticΔNode)
+logistic_origin(c::DecoratorΔ)::LogisticΔ = origin(c,LogisticΔNode)
 
 
 # TODO Learning
@@ -113,7 +113,7 @@ function class_conditional_likelihood_per_instance(fc::FlowΔ,
                                                     classes::Int, 
                                                     batch::PlainXData{Bool})
     lc = origin(origin(fc))
-    @assert(lc isa LogisticCircuit)
+    @assert(lc isa LogisticΔ)
     pass_up_down(fc, batch)
     likelihoods = zeros(num_examples(batch), classes)
     for n in fc

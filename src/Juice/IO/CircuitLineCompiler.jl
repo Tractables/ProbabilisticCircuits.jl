@@ -260,7 +260,7 @@ end
 """
 Compile lines into a logistic circuit.
 """
-function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticCircuit
+function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticΔ
     # first compile a logical circuit
     logical_circuit, id2lognode = compile_smooth_logical_m(lines)
     decorate_logistic(lines, logical_circuit, classes, id2lognode)
@@ -309,12 +309,12 @@ end
 
 
 function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, 
-                            classes::Int, id2lognode::Dict{ID,<:LogicalΔNode})::LogisticCircuit
+                            classes::Int, id2lognode::Dict{ID,<:LogicalΔNode})::LogisticΔ
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
     log2logistic = LogisticCache()
     # build a corresponding probabilistic circuit
-    logistic_circuit = LogisticCircuit(logical_circuit, classes, log2logistic)
+    logistic_circuit = LogisticΔ(logical_circuit, classes, log2logistic)
     # map from line node ids to probabilistic circuit nodes
     id2logisticnode(id) = log2logistic[id2lognode[id]]
 
