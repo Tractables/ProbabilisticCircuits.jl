@@ -139,7 +139,7 @@ end
 # build maping
 #####################
 
-function get_node2id(ln::AbstractVector{X}, T::DataType)where X #<: T#::Dict{T, ID}
+function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id = Dict{T, ID}()
     outnodes = filter(n -> !(NodeType(n) isa ⋀), ln)
     sizehint!(node2id, length(outnodes))

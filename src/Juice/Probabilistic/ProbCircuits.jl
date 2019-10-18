@@ -2,26 +2,26 @@
 # Probabilistic circuits
 #####################
 
-abstract type ProbCircuitNode <: DecoratorCircuitNode end
-abstract type ProbLeafNode <: ProbCircuitNode end
-abstract type ProbInnerNode <: ProbCircuitNode end
+abstract type ProbCircuitNode{O} <: DecoratorCircuitNode{O} end
+abstract type ProbLeafNode{O} <: ProbCircuitNode{O} end
+abstract type ProbInnerNode{O} <: ProbCircuitNode{O} end
 
-struct ProbLiteral <: ProbLeafNode
-    origin::CircuitNode
+struct ProbLiteral{O} <: ProbLeafNode{O}
+    origin::O
 end
 
-struct Prob⋀ <: ProbInnerNode
-    origin::CircuitNode
-    children::Vector{<:ProbCircuitNode}
+struct Prob⋀{O} <: ProbInnerNode{O}
+    origin::O
+    children::Vector{<:ProbCircuitNode{<:O}}
 end
 
-mutable struct Prob⋁ <: ProbInnerNode
-    origin::CircuitNode
-    children::Vector{<:ProbCircuitNode}
+mutable struct Prob⋁{O} <: ProbInnerNode{O}
+    origin::O
+    children::Vector{<:ProbCircuitNode{<:O}}
     log_thetas::Vector{Float64}
 end
 
-const ProbCircuit△ = AbstractVector{<:ProbCircuitNode}
+const ProbCircuit△{O} = AbstractVector{<:ProbCircuitNode{<:O}}
 
 #####################
 # traits
@@ -37,8 +37,9 @@ import ..Logical.NodeType # make available for extension
 # constructors and conversions
 #####################
 
-function Prob⋁(origin, children)
-    Prob⋁(origin, children, some_vector(Float64, length(children)))
+# for some unknown reason, making the type parameter O be part of this outer constructer as `Prob⋁{O}` does not work. It gives `UndefVarError: O not defined`. Hence pass it as an argument...
+function Prob⋁(::Type{O}, origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O}
+    Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
 end
 
 
@@ -46,19 +47,20 @@ const ProbCache = Dict{CircuitNode, ProbCircuitNode}
 
 function ProbCircuit(circuit::Circuit△, cache::ProbCache = ProbCache())
 
+    O = circuitnodetype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)
     
-    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral(n)
+    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral{O}(n)
     pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
     pc_node(::⋀, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋀(n, children)
+        Prob⋀{O}(n, children)
     end
 
     pc_node(::⋁, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋁(n, children)
+        Prob⋁(O, n, children)
     end
         
     map(circuit) do node
