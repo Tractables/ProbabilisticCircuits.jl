@@ -71,7 +71,7 @@ end
                     0.3499999999999; 0.1; 1.0; 0.8] 
     
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(prob_circuit, 16, Float64, opts)
+    flow_circuit = UpFlowCircuit(prob_circuit, 16, Float64, opts)
     calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data)
     calc_prob = exp.(calc_prob)
 
@@ -130,6 +130,7 @@ end
 end
 
 
+#TODO this test is incorrectly named??
 @testset "Sampling Test" begin
     EPS = 1e-3;
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
@@ -168,14 +169,14 @@ end
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = FlowCircuit(prob_circuit, 1, Float64, opts);
+    flow_circuit = UpFlowCircuit(prob_circuit, 1, Float64, opts);
 
     N = 4;
     data = XData(Int8.([0 -1 0 -1]));
     calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data);
     calc_prob = exp.(calc_prob);
 
-    flow_circuit_all = FlowCircuit(prob_circuit, 4, Float64, opts);
+    flow_circuit_all = UpFlowCircuit(prob_circuit, 4, Float64, opts);
     data_all = XData(Int8.([
                             0 0 0 0;
                             0 0 0 1;

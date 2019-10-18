@@ -114,23 +114,23 @@ logistic_origin(c::LogisticCircuit△)::LogisticCircuit△ = c
 function class_conditional_likelihood_per_instance(fc::FlowCircuit△, 
                                                     classes::Int, 
                                                     batch::PlainXData{Bool})
-    lc = origin(fc)
+    lc = origin(origin(fc))
     @assert(lc isa LogisticCircuit△)
     pass_up_down(fc, batch)
     likelihoods = zeros(num_examples(batch), classes)
     for n in fc
-        origin = logistic_origin(n)
-        if origin isa Logistic⋁
-            # For each class. origin.thetas is 2D so used eachcol
-            for (idx, thetaC) in enumerate(eachcol(origin.thetas))
+        orig = logistic_origin(n)
+        if orig isa Logistic⋁
+            # For each class. orig.thetas is 2D so used eachcol
+            for (idx, thetaC) in enumerate(eachcol(orig.thetas))
                 foreach(n.children, thetaC) do c, theta
-                    likelihoods[:, idx] .+= prod_fast(downflow(n), pr_factors(c)) .* theta
+                    likelihoods[:, idx] .+= prod_fast(downflow(n), pr_factors(origin(c))) .* theta
                 end
             end
-        elseif origin isa LogisticLiteral
-            # For each class. origin.thetas is 1D so used eachrow
-            for (idx, thetaC) in enumerate(eachrow(origin.thetas))
-                likelihoods[:, idx] .+= n.pr .* thetaC
+        elseif orig isa LogisticLiteral
+            # For each class. orig.thetas is 1D so used eachrow
+            for (idx, thetaC) in enumerate(eachrow(orig.thetas))
+                likelihoods[:, idx] .+= pr(origin(n)) .* thetaC
             end
         end
     end
