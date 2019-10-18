@@ -109,7 +109,7 @@ logistic_origin(c::DecoratorCircuit)::LogisticCircuit = origin(c,LogisticΔNode)
 
 
 # Class Conditional Probability
-function class_conditional_likelihood_per_instance(fc::FlowCircuit, 
+function class_conditional_likelihood_per_instance(fc::FlowΔ, 
                                                     classes::Int, 
                                                     batch::PlainXData{Bool})
     lc = origin(origin(fc))

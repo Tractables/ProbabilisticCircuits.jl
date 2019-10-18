@@ -97,15 +97,15 @@ end
 
 "Ensure we have a FlatMixtureWithFlow where the flow circuits have aggregate flow circuits as origin"
 function init_mixture_with_flows(mixture::FlatMixtureWithFlow, ::XBatches{Bool})::FlatMixtureWithFlow 
-    if ! all(fc -> grand_origin(fc) isa AggregateFlowCircuit, mixture.flowcircuits)
+    if ! all(fc -> grand_origin(fc) isa AggregateFlowΔ, mixture.flowcircuits)
         init_mixture_with_flows(origin(mixture))
     else
         mixture 
     end
 end
 function init_mixture_with_flows(mixture::FlatMixture, train_x::XBatches{Bool})::FlatMixtureWithFlow
-    aggr_circuits = [AggregateFlowCircuit(pc, Float64) for pc in components(mixture)]
-    flow_circuits = [FlowCircuit(afc, max_batch_size(train_x), Bool, opts_accumulate_flows) for afc in aggr_circuits]
+    aggr_circuits = [AggregateFlowΔ(pc, Float64) for pc in components(mixture)]
+    flow_circuits = [FlowΔ(afc, max_batch_size(train_x), Bool, opts_accumulate_flows) for afc in aggr_circuits]
     FlatMixtureWithFlow(mixture, flow_circuits)
 end
 

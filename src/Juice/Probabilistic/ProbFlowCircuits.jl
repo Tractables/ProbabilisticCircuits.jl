@@ -1,7 +1,7 @@
 #####################
 
 #TODO This code seems to assume logspace flows as floating point numbers. if so, enforca that on type F
-function marginal_pass_up(circuit::UpFlowCircuit{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
+function marginal_pass_up(circuit::UpFlowΔ{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
     resize_flows(circuit, num_examples(data))
     for n in circuit
         marginal_pass_up_node(n, data)
@@ -37,7 +37,7 @@ end
 
 ##### marginal_pass_down
 
-function marginal_pass_down(circuit::DownFlowCircuit{O,F}) where {O,F}
+function marginal_pass_down(circuit::DownFlowΔ{O,F}) where {O,F}
     resize_flows(circuit, flow_length(origin(circuit)))
     for n in circuit
         reset_downflow_in_progress(n)
@@ -86,7 +86,7 @@ end
 
 #### marginal_pass_up_down
 
-function marginal_pass_up_down(circuit::DownFlowCircuit{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
+function marginal_pass_up_down(circuit::DownFlowΔ{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
     @assert !(E isa Bool)
     marginal_pass_up(origin(circuit), data)
     marginal_pass_down(circuit)

@@ -89,26 +89,26 @@ prob_origin(n::DecoratorΔNode)::ProbΔNode = origin(n, ProbΔNode)
 prob_origin(c::DecoratorCircuit)::ProbCircuit = origin(c, ProbΔNode)
 
 function estimate_parameters(pc::ProbCircuit, data::XBatches{Bool}; pseudocount::Float64)
-    estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
+    estimate_parameters(AggregateFlowΔ(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
 end
 
-function estimate_parameters(afc::AggregateFlowCircuit, data::XBatches{Bool}; pseudocount::Float64)
+function estimate_parameters(afc::AggregateFlowΔ, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (afc[end].origin isa ProbΔNode) "AggregateFlowCircuit must originate in a ProbCircuit"
+    @assert (afc[end].origin isa ProbΔNode) "AggregateFlowΔ must originate in a ProbCircuit"
     collect_aggr_flows(afc, data)
     estimate_parameters_cached(afc; pseudocount=pseudocount)
     afc
 end
 
-function estimate_parameters(fc::FlowCircuit, data::XBatches{Bool}; pseudocount::Float64)
+function estimate_parameters(fc::FlowΔ, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (prob_origin(afc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(afc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbCircuit"
     collect_aggr_flows(fc, data)
     estimate_parameters_cached(origin(fc); pseudocount=pseudocount)
 end
 
  # turns aggregate statistics into theta parameters
-function estimate_parameters_cached(afc::AggregateFlowCircuit; pseudocount::Float64)
+function estimate_parameters_cached(afc::AggregateFlowΔ; pseudocount::Float64)
     foreach(n -> estimate_parameters_node(n; pseudocount=pseudocount), afc)
 end
 
@@ -129,11 +129,11 @@ end
 
 # compute log likelihood
 function compute_log_likelihood(pc::ProbCircuit, data::XBatches{Bool})
-    compute_log_likelihood(AggregateFlowCircuit(pc, aggr_weight_type(data)))
+    compute_log_likelihood(AggregateFlowΔ(pc, aggr_weight_type(data)))
 end
 
-# compute log likelihood, reusing AggregateFlowCircuit but ignoring its current aggregate values
-function compute_log_likelihood(afc::AggregateFlowCircuit, data::XBatches{Bool})
+# compute log likelihood, reusing AggregateFlowΔ but ignoring its current aggregate values
+function compute_log_likelihood(afc::AggregateFlowΔ, data::XBatches{Bool})
     @assert feature_type(data) == Bool "Can only test probabilistic circuits on Bool data"
     collect_aggr_flows(afc, data)
     ll = log_likelihood(afc)
@@ -141,7 +141,7 @@ function compute_log_likelihood(afc::AggregateFlowCircuit, data::XBatches{Bool})
 end
 
 # return likelihoods given current aggregate flows.
-function log_likelihood(afc::AggregateFlowCircuit)
+function log_likelihood(afc::AggregateFlowΔ)
     sum(n -> log_likelihood(n), afc)
 end
 
@@ -150,10 +150,10 @@ log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_chi
 
 """
 Calculates log likelihood for a batch of fully observed samples.
-(Also retures the generated FlowCircuit)
+(Also retures the generated FlowΔ)
 """
 function log_likelihood_per_instance(pc::ProbCircuit, batch::PlainXData{Bool})    
-    fc = FlowCircuit(pc, num_examples(batch), Bool)
+    fc = FlowΔ(pc, num_examples(batch), Bool)
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
@@ -166,10 +166,10 @@ end
 
 """
 Calculate log likelihood for a batch of fully observed samples.
-(This is for when you already have a FlowCircuit)
+(This is for when you already have a FlowΔ)
 """
-function log_likelihood_per_instance(fc::FlowCircuit, batch::PlainXData{Bool})
-    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
+function log_likelihood_per_instance(fc::FlowΔ, batch::PlainXData{Bool})
+    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbCircuit"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
     indices = some_vector(Bool, flow_length(fc))::BitVector
@@ -190,24 +190,24 @@ end
 
 """
 Calculate log likelihood for a batch of samples with partial evidence P(e).
-(Also returns the generated FlowCircuit)
+(Also returns the generated FlowΔ)
 
 To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(pc::ProbCircuit, batch::PlainXData{Int8})
     opts = (flow_opts★..., el_type=Float64, compact⋁=false)
-    fc = UpFlowCircuit(pc, num_examples(batch), Float64, opts)
+    fc = UpFlowΔ(pc, num_examples(batch), Float64, opts)
     (fc, marginal_log_likelihood_per_instance(fc, batch))
 end
 
 """
 Calculate log likelihood for a batch of samples with partial evidence P(e).
-(If you already have a FlowCircuit)
+(If you already have a FlowΔ)
 
 To indicate a variable is not observed, pass -1 for that variable.
 """
-function marginal_log_likelihood_per_instance(fc::UpFlowCircuit, batch::PlainXData{Int8})
-    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
+function marginal_log_likelihood_per_instance(fc::UpFlowΔ, batch::PlainXData{Int8})
+    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbCircuit"
     marginal_pass_up(fc, batch)
     pr(fc[end])
 end
@@ -276,7 +276,7 @@ Internally would call marginal pass up on a newly generated flow circuit.
 """
 function sample(circuit::ProbCircuit, evidence::PlainXData{Int8})::AbstractVector{Bool}
     opts= (compact⋀=false, compact⋁=false)
-    flow_circuit = UpFlowCircuit(circuit, 1, Float64, opts)
+    flow_circuit = UpFlowΔ(circuit, 1, Float64, opts)
     marginal_pass_up(flow_circuit, evidence)
     sample(flow_circuit)
 end
@@ -285,7 +285,7 @@ end
 Sampling with Evidence from a psdd.
 Assuming already marginal pass up has been done on the flow circuit.
 """
-function sample(circuit::UpFlowCircuit)::AbstractVector{Bool}
+function sample(circuit::UpFlowΔ)::AbstractVector{Bool}
     inst = Dict{Var,Int64}()
     simulate2(circuit[end], inst)
     len = length(keys(inst))

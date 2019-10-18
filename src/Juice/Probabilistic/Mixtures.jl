@@ -27,7 +27,7 @@ FlatMixture(c) = FlatMixture(uniform(length(c)),c)
 "A mixture with cached flow circuits for each component (which are assumed to be ProbCircuits)"
 struct FlatMixtureWithFlow <: AbstractFlatMixture
     origin::FlatMixture
-    flowcircuits::Vector{<:FlowCircuit}
+    flowcircuits::Vector{<:FlowΔ}
     FlatMixtureWithFlow(origin,fcs) = begin
         @assert num_components(origin) == length(fcs)
         foreach(components(origin), fcs) do or, fc
@@ -75,7 +75,7 @@ Mixture(w, c::Vector{<:ProbCircuit}) = FlatMixture(w, c)
 
 "Convert a given flat mixture into one with cached flows"
 ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
-    flowcircuits = [FlowCircuit(pc, size_hint, Bool, opts_accumulate_flows) for pc in components(m)]
+    flowcircuits = [FlowΔ(pc, size_hint, Bool, opts_accumulate_flows) for pc in components(m)]
     FlatMixtureWithFlow(m,flowcircuits)
 end
 ensure_with_flows(m::FlatMixtureWithFlow, ::Int)::FlatMixtureWithFlow = m
