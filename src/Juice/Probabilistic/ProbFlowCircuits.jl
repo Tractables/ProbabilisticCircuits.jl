@@ -1,4 +1,3 @@
-
 #####################
 
 #TODO This code seems to assume logspace flows as floating point numbers. if so, enforca that on type F
@@ -14,7 +13,7 @@ marginal_pass_up_node(n::FlowCircuitNode, ::PlainXData) = ()
 function marginal_pass_up_node(n::FlowLiteral{O,F}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
     pass_up_node(n, data)
     # now override missing values by 1
-    npr = pr(n)
+    npr = pr(origin(n))
     missing_features = feature_matrix(data)[:,variable(n)] .< zero(eltype(F))
     npr[missing_features] .= 1
     npr .= log.( npr .+ 1e-300 )
