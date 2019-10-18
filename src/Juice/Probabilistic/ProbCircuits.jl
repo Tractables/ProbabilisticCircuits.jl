@@ -60,7 +60,7 @@ function ProbCircuit(circuit::Circuit△, cache::ProbCache = ProbCache())
 
     pc_node(::⋁, n::CircuitNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋁{O}(n, children)
+        Prob⋁(O, n, children)
     end
         
     map(circuit) do node
