@@ -40,7 +40,7 @@ register(DataDep(
 
 function dataset(data; do_threshold=false, do_shuffle=false, batch_size=-1)
     shuffled_data = do_shuffle ? shuffle(data) : data
-    thresholded_data = do_threshold ? threshold(data) : data
+    thresholded_data = do_threshold ? threshold(shuffled_data) : shuffled_data
     batch_size > 0 ? batch(thresholded_data, batch_size) : thresholded_data
 end
 
