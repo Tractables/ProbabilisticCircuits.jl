@@ -12,7 +12,7 @@ Support file formats:
  * ".psdd" for PSDD files
  * ".circuit" for Logistic Circuit files
 """
-function load_logical_circuit(file::String)::UnstLogicalCircuit
+function load_logical_circuit(file::String)::UnstLogicalΔ
     compile_logical(parse_circuit_file(file))
 end
 
@@ -22,7 +22,7 @@ Support file formats:
  * ".psdd" for PSDD files
  * ".circuit" for Logistic Circuit files
 """
-function load_smooth_logical_circuit(file::String)::UnstLogicalCircuit
+function load_smooth_logical_circuit(file::String)::UnstLogicalΔ
     compile_smooth_logical(parse_circuit_file(file))
 end
 

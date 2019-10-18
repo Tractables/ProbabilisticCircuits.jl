@@ -5,7 +5,7 @@
 """
 Compile lines into a unstructured logical circuit
 """
-compile_logical(lines::CircuitFormatLines)::UnstLogicalCircuit = 
+compile_logical(lines::CircuitFormatLines)::UnstLogicalΔ = 
     compile_logical_m(lines)[1]
 
 """
@@ -78,7 +78,7 @@ end
 """
 Compile lines into a smooth unstructured logical circuit
 """
-compile_smooth_logical(lines::CircuitFormatLines)::UnstLogicalCircuit = 
+compile_smooth_logical(lines::CircuitFormatLines)::UnstLogicalΔ = 
     compile_smooth_logical_m(lines)[1]
 
 """
@@ -275,7 +275,7 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalΔNode})::ProbΔ
+function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalΔ, id2lognode::Dict{ID,<:LogicalΔNode})::ProbΔ
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
@@ -308,7 +308,7 @@ function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircui
 end
 
 
-function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, 
+function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalΔ, 
                             classes::Int, id2lognode::Dict{ID,<:LogicalΔNode})::LogisticΔ
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
