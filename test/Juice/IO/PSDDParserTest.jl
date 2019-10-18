@@ -13,7 +13,7 @@ import .Juice.IO:
 @testset "Load a small PSDD and test methods" begin
    file = "test/circuits/little_4var.psdd"
    prob_circuit = load_prob_circuit(file);
-   @test prob_circuit isa ProbCircuit
+   @test prob_circuit isa ProbΔ
 
    # Testing number of nodes and parameters
    @test  9 == num_parameters(prob_circuit)

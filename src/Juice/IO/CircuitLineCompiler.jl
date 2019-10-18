@@ -251,7 +251,7 @@ end
 """
 Compile lines into a probabilistic circuit.
 """
-function compile_prob(lines::CircuitFormatLines)::ProbCircuit
+function compile_prob(lines::CircuitFormatLines)::ProbΔ
     # first compile a logical circuit
     logical_circuit, id2lognode = compile_smooth_logical_m(lines)
     decorate_prob(lines, logical_circuit, id2lognode)
@@ -275,11 +275,11 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalΔNode})::ProbCircuit
+function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalΔNode})::ProbΔ
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
-    prob_circuit = ProbCircuit(logical_circuit,lognode2probnode)
+    prob_circuit = ProbΔ(logical_circuit,lognode2probnode)
     # map from line node ids to probabilistic circuit nodes
     id2probnode(id) = lognode2probnode[id2lognode[id]]
 

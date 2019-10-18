@@ -46,7 +46,7 @@ Load a probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
  """
-function load_prob_circuit(file::String)::ProbCircuit
+function load_prob_circuit(file::String)::ProbΔ
     @assert endswith(file,".psdd")
     compile_prob(parse_psdd_file(file))
 end
@@ -58,7 +58,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit,Vtree}
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,Vtree}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)

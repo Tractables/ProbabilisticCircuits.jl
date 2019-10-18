@@ -68,6 +68,6 @@ end
     @test vtree isa Vtree
     save(vtree,"./test/circuits/test.vtree.dot");
     (psdd, _) = compile_psdd_from_clt(clt, vtree);
-    @test psdd isa ProbCircuit
+    @test psdd isa ProbΔ
     save_as_dot(psdd, "./test/circuits/test.psdd.dot");
 end

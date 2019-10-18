@@ -72,11 +72,11 @@ function train_mixture_mnist_test()
     lc_b = load_smooth_logical_circuit("test/circuits/mnist-large.circuit")
     lc_c = load_smooth_logical_circuit("test/circuits/mnist-1M.circuit")
 
-    copy_a(i) = ProbCircuit(lc_a);
-    copy_b(i) = ProbCircuit(lc_b);
-    copy_c(i) = ProbCircuit(lc_c);
+    copy_a(i) = ProbΔ(lc_a);
+    copy_b(i) = ProbΔ(lc_b);
+    copy_c(i) = ProbΔ(lc_c);
 
-    pcs = Vector{ProbCircuit}()
+    pcs = Vector{ProbΔ}()
     append!(pcs, [copy_a(i) for i in 1:num_copies_a]);
     append!(pcs, [copy_b(i) for i in 1:num_copies_b]);
     append!(pcs, [copy_c(i) for i in 1:num_copies_c]);
