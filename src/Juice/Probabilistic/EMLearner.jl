@@ -111,7 +111,7 @@ end
 
 function reset_mixture_aggregate_flows(mixture_flow::FlatMixtureWithFlow)
     for fc in mixture_flow.flowcircuits
-        reset_aggregate_flows(origin(fc))
+        reset_aggregate_flows(grand_origin(fc))
     end
 end
 
