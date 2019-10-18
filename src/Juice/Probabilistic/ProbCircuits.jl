@@ -176,7 +176,7 @@ function log_likelihood_per_instance(fc::FlowCircuit△, batch::PlainXData{Bool}
     log_likelihoods = zeros(num_examples(batch))
     indices = some_vector(Bool, flow_length(fc))::BitVector
     for n in fc
-         if n isa Flow⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
+         if n isa DownFlow⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
             origin = prob_origin(n)::Prob⋁
             foreach(n.children, origin.log_thetas) do c, log_theta
                 #  be careful here to allow for the Boolean multiplication to be done using & before switching to float arithmetic, or risk losing a lot of runtime!

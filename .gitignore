@@ -13,4 +13,4 @@
 *.txt
 *.pdf
 **checkpoint.ipynb
-temp/*
+temp*
