@@ -1,17 +1,17 @@
 using Printf
 using HDF5
 
-"Map from literal to LogicalCircuitNode"
-const LitCache = Dict{Lit, LogicalCircuitNode}
+"Map from literal to LogicalΔNode"
+const LitCache = Dict{Lit, LogicalΔNode}
 
 "Use literal to represent constraint (1 to X, -1 to not X), 0 to represent true"
 const ⊤ = convert(Lit, 0)
 
 "Map logical variable to bases"
-const BaseCache = Dict{LogicalCircuitNode, Vector{Lit}}
+const BaseCache = Dict{LogicalΔNode, Vector{Lit}}
 
 "Cache circuit node parents "
-const ParentsCache = Dict{ProbCircuitNode,Vector{<:ProbCircuitNode}}
+const ParentsCache = Dict{ProbΔNode,Vector{<:ProbΔNode}}
 
 "Wrapper for PSDD, cache structures used in learning process"
 mutable struct PSDDWrapper
@@ -131,14 +131,14 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::Vtree)
     order = order_nodes_leaves_before_parents(vtree[end])
     parent_clt = Var.(parent_vector(clt))
 
-    lin = Vector{ProbCircuitNode}()
+    lin = Vector{ProbΔNode}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
     v2p = Dict{VtreeNode, ProbCircuit}()
 
     get_params(cpt::Dict) = length(cpt) == 2 ? [cpt[1], cpt[0]] : [cpt[(1,1)], cpt[(0,1)], cpt[(1,0)], cpt[(0,0)]]
     function add_mapping!(v::VtreeNode, circuits::ProbCircuit)
-        if !haskey(v2p, v); v2p[v] = Vector{ProbCircuitNode}(); end
+        if !haskey(v2p, v); v2p[v] = Vector{ProbΔNode}(); end
         foreach(c -> if !(c in v2p[v]) push!(v2p[v], c);end, circuits)
     end
 
@@ -184,7 +184,7 @@ end
 #####################
 
 prob_children(n, prob_cache) =  
-    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbCircuitNode{<:StructLogicalCircuitNode})
+    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:StructLogicalΔNode})
 
 "Add leaf nodes to circuit `lin`"
 function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbLiteral, ProbLiteral}
@@ -204,7 +204,7 @@ end
 "Add prob⋀ node to circuit `lin`"
 function add_prob⋀_node(children::ProbCircuit, vtree::VtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
     logic = Struct⋀Node([c.origin for c in children], vtree)
-    prob = Prob⋀{StructLogicalCircuitNode}(logic, prob_children(logic, prob_cache))
+    prob = Prob⋀{StructLogicalΔNode}(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
     push!(lin, prob)
     return prob
@@ -213,7 +213,7 @@ end
 "Add prob⋁ node to circuit `lin`"
 function add_prob⋁_node(children::ProbCircuit, vtree::VtreeNode, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
     logic = Struct⋁Node([c.origin for c in children], vtree)
-    prob = Prob⋁(StructLogicalCircuitNode, logic, prob_children(logic, prob_cache))
+    prob = Prob⋁(StructLogicalΔNode, logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
     prob_cache[logic] = prob
     push!(lin, prob)
@@ -297,10 +297,10 @@ function compile_fully_factorized_psdd_from_vtree(vtree::Vtree)::ProbCircuit
         nothing
     end
 
-    lin = Vector{ProbCircuitNode}()
+    lin = Vector{ProbΔNode}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2n = Dict{VtreeNode, ProbCircuitNode}()
+    v2n = Dict{VtreeNode, ProbΔNode}()
 
     for v in vtree
         ful_factor_node(v, lit_cache, prob_cache, v2n, lin)

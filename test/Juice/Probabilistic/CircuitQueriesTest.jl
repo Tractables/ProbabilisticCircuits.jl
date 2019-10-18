@@ -24,10 +24,10 @@ end
 
     EPS = 1e-7;
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
-    @test prob_circuit isa Vector{<:ProbCircuitNode};
+    @test prob_circuit isa Vector{<:ProbΔNode};
 
     flow_circuit = FlowCircuit(prob_circuit, 16, Bool)
-    @test flow_circuit isa Vector{<:FlowCircuitNode};
+    @test flow_circuit isa Vector{<:FlowΔNode};
 
     
     # Step 1. Check Probabilities for 3 samples

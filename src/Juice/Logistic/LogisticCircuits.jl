@@ -3,9 +3,9 @@
 #######################
 
 
-abstract type LogisticCircuitNode{O} <: DecoratorCircuitNode{O} end
-abstract type LogisticLeafNode{O} <: LogisticCircuitNode{O} end
-abstract type LogisticInnerNode{O} <: LogisticCircuitNode{O} end
+abstract type LogisticΔNode{O} <: DecoratorΔNode{O} end
+abstract type LogisticLeafNode{O} <: LogisticΔNode{O} end
+abstract type LogisticInnerNode{O} <: LogisticΔNode{O} end
 
 struct LogisticLiteral{O} <: LogisticLeafNode{O}
     origin::O
@@ -14,12 +14,12 @@ end
 
 struct Logistic⋀{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticCircuitNode{<:O}}
+    children::Vector{<:LogisticΔNode{<:O}}
 end
 
 mutable struct Logistic⋁{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticCircuitNode{<:O}}
+    children::Vector{<:LogisticΔNode{<:O}}
     thetas::Array{Float64, 2}
 end
 
@@ -29,7 +29,7 @@ mutable struct LogisticBias{O} <: LogisticInnerNode{O}
 end
 
 
-const LogisticCircuit{O} = AbstractVector{<:LogisticCircuitNode{O}}
+const LogisticCircuit{O} = AbstractVector{<:LogisticΔNode{O}}
 
 #####################
 # traits
@@ -52,7 +52,7 @@ function Logistic⋁(::Type{O}, origin, children, classes::Int) where {O}
 end
 
 
-const LogisticCache = Dict{CircuitNode, LogisticCircuitNode}
+const LogisticCache = Dict{ΔNode, LogisticΔNode}
 
 function LogisticCircuit(circuit::Circuit, classes::Int, cache::LogisticCache = LogisticCache())
 
@@ -60,15 +60,15 @@ function LogisticCircuit(circuit::Circuit, classes::Int, cache::LogisticCache = 
     
     O = circuitnodetype(circuit) # type of node in the origin
 
-    pc_node(::LiteralLeaf, n::CircuitNode) = LogisticLiteral{O}(n, Array{Float64, 1}(undef, classes))
-    pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralLeaf, n::ΔNode) = LogisticLiteral{O}(n, Array{Float64, 1}(undef, classes))
+    pc_node(::ConstantLeaf, n::ΔNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀, n::CircuitNode) = begin
+    pc_node(::⋀, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋀{O}(n, children)
     end
 
-    pc_node(::⋁, n::CircuitNode) = begin
+    pc_node(::⋁, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋁(O, n, children, classes)
     end
@@ -98,10 +98,10 @@ num_parameters_perclass(n::Logistic⋁) = num_children(n)
 num_parameters_perclass(c::LogisticCircuit) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
-logistic_origin(n::DecoratorCircuitNode)::LogisticCircuitNode = origin(n,LogisticCircuitNode)
+logistic_origin(n::DecoratorΔNode)::LogisticΔNode = origin(n,LogisticΔNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorCircuit)::LogisticCircuit = origin(c,LogisticCircuitNode)
+logistic_origin(c::DecoratorCircuit)::LogisticCircuit = origin(c,LogisticΔNode)
 
 
 # TODO Learning

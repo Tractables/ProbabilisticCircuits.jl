@@ -8,7 +8,7 @@ function marginal_pass_up(circuit::UpFlowCircuit{O,F}, data::XData{E}) where {E 
     end
 end
 
-marginal_pass_up_node(n::UpFlowCircuitNode, ::PlainXData) = ()
+marginal_pass_up_node(n::UpFlowΔNode, ::PlainXData) = ()
 
 function marginal_pass_up_node(n::UpFlowLiteral{O,F}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
     pass_up_node(n, data)
@@ -51,7 +51,7 @@ function marginal_pass_down(circuit::DownFlowCircuit{O,F}) where {O,F}
     end 
 end
 
-marginal_pass_down_node(n::DownFlowCircuitNode) = () # do nothing
+marginal_pass_down_node(n::DownFlowΔNode) = () # do nothing
 marginal_pass_down_node(n::DownFlowLeaf) = ()
 
 function marginal_pass_down_node(n::DownFlow⋀Cached)

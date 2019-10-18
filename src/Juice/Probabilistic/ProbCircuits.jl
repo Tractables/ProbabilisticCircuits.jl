@@ -2,9 +2,9 @@
 # Probabilistic circuits
 #####################
 
-abstract type ProbCircuitNode{O} <: DecoratorCircuitNode{O} end
-abstract type ProbLeafNode{O} <: ProbCircuitNode{O} end
-abstract type ProbInnerNode{O} <: ProbCircuitNode{O} end
+abstract type ProbΔNode{O} <: DecoratorΔNode{O} end
+abstract type ProbLeafNode{O} <: ProbΔNode{O} end
+abstract type ProbInnerNode{O} <: ProbΔNode{O} end
 
 struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
@@ -12,16 +12,16 @@ end
 
 struct Prob⋀{O} <: ProbInnerNode{O}
     origin::O
-    children::Vector{<:ProbCircuitNode{<:O}}
+    children::Vector{<:ProbΔNode{<:O}}
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
     origin::O
-    children::Vector{<:ProbCircuitNode{<:O}}
+    children::Vector{<:ProbΔNode{<:O}}
     log_thetas::Vector{Float64}
 end
 
-const ProbCircuit{O} = AbstractVector{<:ProbCircuitNode{<:O}}
+const ProbCircuit{O} = AbstractVector{<:ProbΔNode{<:O}}
 
 #####################
 # traits
@@ -38,27 +38,27 @@ import ..Logical.NodeType # make available for extension
 #####################
 
 # for some unknown reason, making the type parameter O be part of this outer constructer as `Prob⋁{O}` does not work. It gives `UndefVarError: O not defined`. Hence pass it as an argument...
-function Prob⋁(::Type{O}, origin::O, children::Vector{<:ProbCircuitNode{<:O}}) where {O}
+function Prob⋁(::Type{O}, origin::O, children::Vector{<:ProbΔNode{<:O}}) where {O}
     Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
 end
 
 
-const ProbCache = Dict{CircuitNode, ProbCircuitNode}
+const ProbCache = Dict{ΔNode, ProbΔNode}
 
 function ProbCircuit(circuit::Circuit, cache::ProbCache = ProbCache())
 
     O = circuitnodetype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)
     
-    pc_node(::LiteralLeaf, n::CircuitNode) = ProbLiteral{O}(n)
-    pc_node(::ConstantLeaf, n::CircuitNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralLeaf, n::ΔNode) = ProbLiteral{O}(n)
+    pc_node(::ConstantLeaf, n::ΔNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀, n::CircuitNode) = begin
+    pc_node(::⋀, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋀{O}(n, children)
     end
 
-    pc_node(::⋁, n::CircuitNode) = begin
+    pc_node(::⋁, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋁(O, n, children)
     end
@@ -83,10 +83,10 @@ num_parameters(n::Prob⋁) = num_children(n)
 num_parameters(c::ProbCircuit) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 "Return the first origin that is a probabilistic circuit node"
-prob_origin(n::DecoratorCircuitNode)::ProbCircuitNode = origin(n, ProbCircuitNode)
+prob_origin(n::DecoratorΔNode)::ProbΔNode = origin(n, ProbΔNode)
 
 "Return the first origin that is a probabilistic circuit"
-prob_origin(c::DecoratorCircuit)::ProbCircuit = origin(c, ProbCircuitNode)
+prob_origin(c::DecoratorCircuit)::ProbCircuit = origin(c, ProbΔNode)
 
 function estimate_parameters(pc::ProbCircuit, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowCircuit(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)
@@ -94,7 +94,7 @@ end
 
 function estimate_parameters(afc::AggregateFlowCircuit, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (afc[end].origin isa ProbCircuitNode) "AggregateFlowCircuit must originate in a ProbCircuit"
+    @assert (afc[end].origin isa ProbΔNode) "AggregateFlowCircuit must originate in a ProbCircuit"
     collect_aggr_flows(afc, data)
     estimate_parameters_cached(afc; pseudocount=pseudocount)
     afc
@@ -102,7 +102,7 @@ end
 
 function estimate_parameters(fc::FlowCircuit, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (prob_origin(afc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(afc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
     collect_aggr_flows(fc, data)
     estimate_parameters_cached(origin(fc); pseudocount=pseudocount)
 end
@@ -112,7 +112,7 @@ function estimate_parameters_cached(afc::AggregateFlowCircuit; pseudocount::Floa
     foreach(n -> estimate_parameters_node(n; pseudocount=pseudocount), afc)
 end
 
-estimate_parameters_node(::AggregateFlowCircuitNode; pseudocount::Float64) = () # do nothing
+estimate_parameters_node(::AggregateFlowΔNode; pseudocount::Float64) = () # do nothing
 function estimate_parameters_node(n::AggregateFlow⋁; pseudocount)
     origin = n.origin::Prob⋁
     if num_children(n) == 1
@@ -145,7 +145,7 @@ function log_likelihood(afc::AggregateFlowCircuit)
     sum(n -> log_likelihood(n), afc)
 end
 
-log_likelihood(::AggregateFlowCircuitNode) = 0.0
+log_likelihood(::AggregateFlowΔNode) = 0.0
 log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_children)
 
 """
@@ -169,7 +169,7 @@ Calculate log likelihood for a batch of fully observed samples.
 (This is for when you already have a FlowCircuit)
 """
 function log_likelihood_per_instance(fc::FlowCircuit, batch::PlainXData{Bool})
-    @assert (prob_origin(fc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
     indices = some_vector(Bool, flow_length(fc))::BitVector
@@ -207,7 +207,7 @@ Calculate log likelihood for a batch of samples with partial evidence P(e).
 To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(fc::UpFlowCircuit, batch::PlainXData{Int8})
-    @assert (prob_origin(fc[end]) isa ProbCircuitNode) "FlowCircuit must originate in a ProbCircuit"
+    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowCircuit must originate in a ProbCircuit"
     marginal_pass_up(fc, batch)
     pr(fc[end])
 end

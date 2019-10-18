@@ -15,10 +15,10 @@ while keeping track of id-to-node mappings
 function compile_logical_m(lines::CircuitFormatLines)
 
     # linearized circuit nodes
-    circuit = Vector{UnstLogicalCircuitNode}()
+    circuit = Vector{UnstLogicalΔNode}()
     
     # mapping from circuit node ids to node objects
-    id2node = Dict{ID,UnstLogicalCircuitNode}()
+    id2node = Dict{ID,UnstLogicalΔNode}()
     
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,LogicalLeafNode}()
@@ -88,10 +88,10 @@ while keeping track of id-to-node mappings
 function compile_smooth_logical_m(lines::CircuitFormatLines)
 
     # linearized circuit nodes
-    circuit = Vector{UnstLogicalCircuitNode}()
+    circuit = Vector{UnstLogicalΔNode}()
     
     # mapping from circuit node ids to node objects
-    id2node = Dict{ID,UnstLogicalCircuitNode}()
+    id2node = Dict{ID,UnstLogicalΔNode}()
     
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,LogicalLeafNode}()
@@ -178,10 +178,10 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
                                          id2vtree::Dict{ID, VtreeNode})
 
     # linearized circuit nodes
-    circuit = Vector{StructLogicalCircuitNode}()
+    circuit = Vector{StructLogicalΔNode}()
     
     # mapping from node ids to node objects
-    id2node = Dict{ID,StructLogicalCircuitNode}()
+    id2node = Dict{ID,StructLogicalΔNode}()
 
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
     lit_cache = Dict{Lit,StructLogicalLeafNode}()
@@ -275,7 +275,7 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalCircuitNode})::ProbCircuit
+function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, id2lognode::Dict{ID,<:LogicalΔNode})::ProbCircuit
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
@@ -309,7 +309,7 @@ end
 
 
 function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalCircuit, 
-                            classes::Int, id2lognode::Dict{ID,<:LogicalCircuitNode})::LogisticCircuit
+                            classes::Int, id2lognode::Dict{ID,<:LogicalΔNode})::LogisticCircuit
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
     log2logistic = LogisticCache()

@@ -6,7 +6,7 @@ using ...Utils
 using ..Logical
 
 export 
-    LogisticCircuitNode, 
+    LogisticΔNode, 
     LogisticLeafNode, 
     LogisticInnerNode, 
     LogisticLiteral,

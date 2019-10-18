@@ -22,14 +22,14 @@ end
 "Build decomposable probability circuits from Chow-Liu tree"
 function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
-    lin = Vector{ProbCircuitNode}()
-    node_cache = Dict{Lit, LogicalCircuitNode}()
+    lin = Vector{ProbΔNode}()
+    node_cache = Dict{Lit, LogicalΔNode}()
     prob_cache = ProbCache()
     parent = parent_vector(clt)
     parametered = clt isa MetaDiGraph
 
-    prob_children(n)::Vector{<:ProbCircuitNode{<:LogicalCircuitNode}} =  
-        copy_with_eltype(map(c -> prob_cache[c], n.children), ProbCircuitNode{<:LogicalCircuitNode})
+    prob_children(n)::Vector{<:ProbΔNode{<:LogicalΔNode}} =  
+        copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:LogicalΔNode})
 
     "default order of circuit node, from left to right: +/1 -/0"
 
@@ -56,7 +56,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
             #build logical ciruits
             temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
             push!(logical_nodes, temp)
-            n = Prob⋁(LogicalCircuitNode,temp, prob_children(temp))
+            n = Prob⋁(LogicalΔNode,temp, prob_children(temp))
             prob_cache[temp] = n
             n.log_thetas = zeros(Float64, 2)
             if parametered
@@ -75,7 +75,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
         leaf = node_cache[indicator]
         temp = ⋀Node(vcat([leaf], children))
         node_cache[indicator] = temp
-        n = Prob⋀{LogicalCircuitNode}(temp, prob_children(temp))
+        n = Prob⋀{LogicalΔNode}(temp, prob_children(temp))
         prob_cache[temp] = n
         push!(lin, n)
     end
@@ -92,7 +92,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
     "compile root, add another disjunction node"
     function compile_root(root::Var)
         temp = ⋁Node([node_cache[s] for s in [var2lit(root), -var2lit(root)]])
-        n = Prob⋁(LogicalCircuitNode, temp, prob_children(temp))
+        n = Prob⋁(LogicalΔNode, temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = zeros(Float64, 2)
         if parametered
@@ -104,19 +104,19 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
         return n
     end
 
-    function compile_independent_roots(roots::Vector{ProbCircuitNode})
+    function compile_independent_roots(roots::Vector{ProbΔNode})
         temp = ⋀Node([c.origin for c in roots])
-        n = Prob⋀{LogicalCircuitNode}(temp, prob_children(temp))
+        n = Prob⋀{LogicalΔNode}(temp, prob_children(temp))
         prob_cache[temp] = n
         push!(lin, n)
         temp = ⋁Node([temp])
-        n = Prob⋁{LogicalCircuitNode}(temp, prob_children(temp))
+        n = Prob⋁{LogicalΔNode}(temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = [0.0]
         push!(lin, n)
     end
 
-    roots = Vector{ProbCircuitNode}()
+    roots = Vector{ProbΔNode}()
     for id in topo_order
         children = Var.(outneighbors(clt, id))
         if isequal(children, [])
