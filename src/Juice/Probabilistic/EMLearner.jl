@@ -97,7 +97,7 @@ end
 
 "Ensure we have a FlatMixtureWithFlow where the flow circuits have aggregate flow circuits as origin"
 function init_mixture_with_flows(mixture::FlatMixtureWithFlow, ::XBatches{Bool})::FlatMixtureWithFlow 
-    if ! all(fc -> origin(fc) isa AggregateFlowCircuit△, mixture.flowcircuits)
+    if ! all(fc -> grand_origin(fc) isa AggregateFlowCircuit△, mixture.flowcircuits)
         init_mixture_with_flows(origin(mixture))
     else
         mixture 
@@ -145,7 +145,7 @@ end
 function estimate_parameters(mixture_flow, total_component_probability; pseudocount)
     component_weights(mixture_flow) .= total_component_probability ./ sum(total_component_probability)
     for fc in mixture_flow.flowcircuits
-        estimate_parameters_cached(origin(fc); pseudocount=pseudocount)
+        estimate_parameters_cached(grand_origin(fc); pseudocount=pseudocount)
     end
 end
 
