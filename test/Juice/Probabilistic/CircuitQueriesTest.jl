@@ -132,7 +132,7 @@ end
 
 #TODO this test is incorrectly named??
 @testset "Sampling Test" begin
-    EPS = 1e-3;
+    EPS = 1e-2;
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
     flow_circuit = FlowCircuit(prob_circuit, 16, Bool);
 
