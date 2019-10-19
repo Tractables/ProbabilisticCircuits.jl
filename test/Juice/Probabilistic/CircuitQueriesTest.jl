@@ -10,7 +10,7 @@ function generate_data_all(N)
     # N = 4;
     data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
     for mask = 1: (1<<N) - 1
-        data_all = vcat(data_all, 
+        data_all = vcat(data_all,
             transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
         );
     end
@@ -19,7 +19,7 @@ end
 
 # This tests are supposed to test queries on the circuits
 @testset "Probability of Full Evidence" begin
-    # Uses a PSDD with 4 variables, and tests 3 of the configurations to 
+    # Uses a PSDD with 4 variables, and tests 3 of the configurations to
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
@@ -29,23 +29,23 @@ end
     flow_circuit = FlowΔ(prob_circuit, 16, Bool)
     @test flow_circuit isa Vector{<:FlowΔNode};
 
-    
+
     # Step 1. Check Probabilities for 3 samples
     data = XData(Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]));
-    true_prob = [0.07; 0.03; 0.13999999999999999]    
-    
+    true_prob = [0.07; 0.03; 0.13999999999999999]
+
     calc_prob = log_likelihood_per_instance(flow_circuit, data)
     calc_prob = exp.(calc_prob)
-    
+
     for i = 1:3
         @test true_prob[i] ≈ calc_prob[i] atol= EPS;
     end
-    
+
     # Step 2. Add up all probabilities and see if they add up to one
     N = 4;
     # data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
     # for mask = 1: (1<<N) - 1
-    #     data_all = vcat(data_all, 
+    #     data_all = vcat(data_all,
     #         transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
     #     );
     # end
@@ -56,7 +56,7 @@ end
     calc_prob_all = exp.(calc_prob_all)
     sum_prob_all = sum(calc_prob_all)
 
-    @test 1 ≈ sum_prob_all atol = EPS; 
+    @test 1 ≈ sum_prob_all atol = EPS;
 end
 
 @testset "Probability of partial Evidence (marginals)" begin
@@ -64,12 +64,12 @@ end
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     data = XData(
-        Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1; 
+        Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1;
                 0 0 0 -1; -1 1 0 -1; -1 -1 -1 -1; 0 -1 -1 -1])
     );
-    true_prob = [0.07; 0.03; 0.13999999999999999; 
-                    0.3499999999999; 0.1; 1.0; 0.8] 
-    
+    true_prob = [0.07; 0.03; 0.13999999999999999;
+                    0.3499999999999; 0.1; 1.0; 0.8]
+
     opts= (compact⋀=false, compact⋁=false)
     flow_circuit = UpFlowΔ(prob_circuit, 16, Float64, opts)
     calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data)
@@ -81,17 +81,17 @@ end
 
 end
 
-@testset "Marginal Pass Down" begin    
+@testset "Marginal Pass Down" begin
     EPS = 1e-7;
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
-    
+
     N = 4
     data_full = XData(Int8.(generate_data_all(N)))
     opts= (compact⋀=false, compact⋁=false)
-    
+
     flow_circuit   = FlowΔ(prob_circuit, 16, Float64, opts)
     flow_circuit_marg = FlowΔ(prob_circuit, 16, Float64, opts)
-    
+
 
     # Comparing with down pass with fully obeserved data
     Juice.pass_up_down(flow_circuit, data_full)
@@ -154,7 +154,7 @@ end
     for k in keys(hist)
         hist[k] /= Nsamples
     end
-    
+
     for k in keys(hist)
         cur = parse(Int32, k, base=2) + 1 # cause Julia arrays start at 1 :(
         @test calc_prob_all[cur] ≈ hist[k] atol= EPS;
@@ -205,4 +205,33 @@ end
         cur = join(data_all.x[ind, :])
         @test calc_prob_all[ind] ≈ hist[cur] atol= EPS;
     end
+end
+
+@testset "pr_constraint Query" begin
+    # two nodes
+    clt = parse_clt("./test/circuits/2.clt");
+    vtree = learn_vtree_from_clt(clt; vtree_mode="balanced");
+    (pc, bases) = compile_psdd_from_clt(clt, vtree);
+    parents = parents_vector(pc);
+    psdd = PSDDWrapper(pc, bases, parents, vtree)
+
+    split_operation(psdd.pc[end], psdd.pc[7], Var.(1), psdd; depth = 0)
+    split_operation(pc[end], pc[7], Var.(2), psdd; depth = 0)
+
+    psdd.pc[9].log_thetas = [
+        log(0.5),
+        log(0.25),
+        log(0.25)
+    ]
+
+    psdd.pc[5].log_thetas = [
+        log(0.2),
+        log(0.8)
+    ]
+
+    cache = Dict{Tuple{ProbΔNode, ProbΔNode}, Float64}()
+
+    @test abs(pr_constraint(psdd.pc[end], psdd.pc[end], cache) - 1.0) < 1e-8
+    @test abs(pr_constraint(psdd.pc[5], psdd.pc[3], cache) - 0.2) < 1e-8
+    @test abs(pr_constraint(psdd.pc[5], psdd.pc[4], cache) - 0.8) < 1e-8
 end
