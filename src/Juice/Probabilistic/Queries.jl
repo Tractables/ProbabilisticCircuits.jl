@@ -2,23 +2,23 @@
 # Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
 # spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
 "Calculate the probability of the logic formula given by sdd for the psdd"
-function pr_constraint(psdd::Prob⋁, sdd::Prob⋁)
-    cache = Dict{Tuple{ProbΔNode, ProbΔNode}, Float64}()
+function pr_constraint(psdd::ProbΔNode, sdd::Union{ProbΔNode, StructLogicalΔNode})
+    cache = Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64}()
 
     return pr_constraint(psdd, sdd, cache)
 end
-function pr_constraint(psdd::ProbΔNode, sdd::ProbΔNode, cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64})::Float64
+function pr_constraint(psdd::ProbΔNode, sdd::Union{ProbΔNode, StructLogicalΔNode},
+                       cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})::Float64
     if (psdd, sdd) in keys(cache) # Cache hit
         return cache[(psdd, sdd)]
     elseif psdd isa ProbLiteral # Boundary cases
-        if sdd isa ProbLiteral # Both are literals, just check whether they agrees with each other
-            if psdd.origin.literal == sdd.origin.literal
+        if sdd isa Union{ProbLiteral, StructLiteralNode} # Both are literals, just check whether they agrees with each other
+            if literal(psdd) == literal(sdd)
                 return get!(cache, (psdd, sdd), 1.0)
             else
                 return get!(cache, (psdd, sdd), 0.0)
             end
-        else # the other is [True] literal
-            @assert sdd.children[1] isa ProbLiteral
+        else
             pr_constraint(psdd, sdd.children[1], cache)
             pr_constraint(psdd, sdd.children[2], cache)
             return get!(cache, (psdd, sdd), 1.0)
