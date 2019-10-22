@@ -21,8 +21,14 @@ function pr_constraint(psdd_node::ProbΔNode, sdd_node::Union{ProbΔNode, Struct
             end
         else
             pr_constraint(psdd_node, sdd_node.children[1], cache)
-            pr_constraint(psdd_node, sdd_node.children[2], cache)
-            return get!(cache, (psdd_node, sdd_node), 1.0)
+            if length(sdd_node.children) > 1
+                pr_constraint(psdd_node, sdd_node.children[2], cache)
+                return get!(cache, (psdd_node, sdd_node), 1.0)
+            else
+                return get!(cache, (psdd_node, sdd_node),
+                    literal(sdd_node.children[1]) == literal(psdd_node) ? 1.0 : 0.0
+                )
+            end
         end
     elseif psdd_node.children[1] isa ProbLiteral # The psdd is true
         theta = exp(psdd_node.log_thetas[1])
