@@ -37,6 +37,15 @@ function compile_logical_m(lines::CircuitFormatLines)
     function compile(::Union{CircuitHeaderLine,CircuitCommentLine})
          # do nothing
     end
+    function compile(ln::WeightedLiteralLine)
+        # Weighted Literal are implicitly an OR node
+        # Here making that explicit in the Circuit
+        lit_node = literal_node(literal(ln))
+        or_node = ⋁Node([lit_node])
+        push!(circuit, lit_node)
+        push!(circuit, or_node)
+        id2node[ln.node_id] = or_node 
+    end
     function compile(ln::LiteralLine)
         id2node[ln.node_id] = literal_node(literal(ln))
     end
@@ -108,6 +117,16 @@ function compile_smooth_logical_m(lines::CircuitFormatLines)
     end
     function compile(::Union{CircuitHeaderLine,CircuitCommentLine})
          # do nothing
+    end
+    function compile(ln::WeightedLiteralLine)
+        # Weighted Literal are implicitly an OR node
+        # Here making that explicit in the Circuit
+        @assert is_normalized(ln) " $smoothing_warning"
+        lit_node = literal_node(literal(ln))
+        or_node = ⋁Node([lit_node])
+        push!(circuit, lit_node)
+        push!(circuit, or_node)
+        id2node[ln.node_id] = or_node 
     end
     function compile(ln::LiteralLine)
         @assert is_normalized(ln) " $smoothing_warning"
@@ -198,6 +217,17 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
     end
     function compile(::Union{CircuitHeaderLine,CircuitCommentLine})
          # do nothing
+    end
+    function compile(ln::WeightedLiteralLine)
+        # Weighted Literal are implicitly an OR node
+        # Here making that explicit in the Circuit
+        @assert is_normalized(ln) smoothing_warning
+        lit_node = literal_node(ln.literal, id2vtree[ln.vtree_id])
+        or_node = Struct⋁Node([lit_node], id2vtree[ln.vtree_id])
+
+        push!(circuit, lit_node)
+        push!(circuit, or_node)
+        id2node[ln.node_id] = or_node 
     end
     function compile(ln::LiteralLine)
         @assert is_normalized(ln) smoothing_warning
@@ -332,8 +362,8 @@ function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalΔ
     end
 
     function compile(ln::WeightedLiteralLine)
-        node = id2logisticnode(ln.node_id)::LogisticLiteral
-        node.thetas .= ln.weights
+        node = id2logisticnode(ln.node_id)::Logistic⋁
+        node.thetas[1, :] .= ln.weights
     end
 
     function compile(ln::DecisionLine{<:LCElement})

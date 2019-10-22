@@ -9,7 +9,6 @@ abstract type LogisticInnerNode{O} <: LogisticΔNode{O} end
 
 struct LogisticLiteral{O} <: LogisticLeafNode{O}
     origin::O
-    thetas::Array{Float64, 1}
 end
 
 struct Logistic⋀{O} <: LogisticInnerNode{O}
@@ -23,10 +22,6 @@ mutable struct Logistic⋁{O} <: LogisticInnerNode{O}
     thetas::Array{Float64, 2}
 end
 
-mutable struct LogisticBias{O} <: LogisticInnerNode{O}
-    # NOTE: a bias node should have as its origin a disjunction with one child! (guy)
-    biases::Array{Float64, 1}
-end
 
 
 const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
@@ -60,7 +55,7 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
     
     O = circuitnodetype(circuit) # type of node in the origin
 
-    pc_node(::LiteralLeaf, n::ΔNode) = LogisticLiteral{O}(n, Array{Float64, 1}(undef, classes))
+    pc_node(::LiteralLeaf, n::ΔNode) = LogisticLiteral{O}(n)
     pc_node(::ConstantLeaf, n::ΔNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
     pc_node(::⋀, n::ΔNode) = begin
@@ -101,7 +96,7 @@ num_parameters_perclass(c::LogisticΔ) = sum(n -> num_parameters_perclass(n), �
 logistic_origin(n::DecoratorΔNode)::LogisticΔNode = origin(n,LogisticΔNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorΔ)::LogisticΔ = origin(c,LogisticΔNode)
+logistic_origin(c::DecoratorΔ)::LogisticΔ = origin(c, LogisticΔNode)
 
 
 # TODO Learning
@@ -124,11 +119,6 @@ function class_conditional_likelihood_per_instance(fc::FlowΔ,
                 foreach(n.children, thetaC) do c, theta
                     likelihoods[:, idx] .+= prod_fast(downflow(n), pr_factors(origin(c))) .* theta
                 end
-            end
-        elseif orig isa LogisticLiteral
-            # For each class. orig.thetas is 1D so used eachrow
-            for (idx, thetaC) in enumerate(eachrow(orig.thetas))
-                likelihoods[:, idx] .+= pr(origin(n)) .* thetaC
             end
         end
     end
