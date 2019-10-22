@@ -46,7 +46,7 @@ mutual_information, DisCache, conditional_entropy, sum_entropy_given_x,
 clustering,
 
 # Queries
-pr_constraint
+pr_constraint, psdd_entropy, psdd_kl_divergence
 
 include("Clustering.jl")
 include("ProbCircuits.jl")
