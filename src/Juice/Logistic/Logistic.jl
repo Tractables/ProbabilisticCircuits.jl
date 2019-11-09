@@ -17,7 +17,8 @@ export
     LogisticCache,
     num_parameters_perclass,
     logistic_origin,
-    class_conditional_likelihood_per_instance
+    class_conditional_likelihood_per_instance,
+    classes
 
 
 

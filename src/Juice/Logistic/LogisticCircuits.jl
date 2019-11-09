@@ -84,7 +84,7 @@ import ..Logical: literal, children # make available for extension
 
 @inline literal(n::LogisticLiteral)::Lit  = literal(n.origin)
 @inline children(n::LogisticInnerNode) = n.children
-@inline classes(n::Logistic⋁) = if length(n.children) > 0 length(n.thetas[1]) else 0 end;
+@inline classes(n::Logistic⋁) = size(n.thetas)[2]
 
 num_parameters(n::Logistic⋁) = num_children(n) * classes(n)
 num_parameters(c::LogisticΔ) = sum(n -> num_parameters(n), ⋁_nodes(c))
