@@ -195,7 +195,7 @@ Calculate log likelihood for a batch of samples with partial evidence P(e).
 To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(pc::ProbΔ, batch::PlainXData{Int8})
-    opts = (flow_opts★..., el_type=Float64, compact⋁=false)
+    opts = (flow_opts★..., el_type=Float64, compact⋀=false, compact⋁=false)
     fc = UpFlowΔ(pc, num_examples(batch), Float64, opts)
     (fc, marginal_log_likelihood_per_instance(fc, batch))
 end
