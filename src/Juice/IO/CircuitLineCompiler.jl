@@ -197,15 +197,15 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
                                          id2vtree::Dict{ID, VtreeNode})
 
     # linearized circuit nodes
-    circuit = Vector{StructLogicalΔNode}()
+    circuit = Vector{StructLogicalΔNode{VtreeNode}}()
     
     # mapping from node ids to node objects
-    id2node = Dict{ID,StructLogicalΔNode}()
+    id2node = Dict{ID,StructLogicalΔNode{VtreeNode}}()
 
     # literal cache is responsible for making leaf literal nodes unique and adding them to `circuit`
-    lit_cache = Dict{Lit,StructLogicalLeafNode}()
+    lit_cache = Dict{Lit,StructLogicalLeafNode{VtreeNode}}()
     literal_node(l::Lit, v::VtreeLeafNode) = get!(lit_cache, l) do
-        leaf = StructLiteralNode(l,v)
+        leaf = StructLiteralNode{VtreeNode}(l,v)
         push!(circuit,leaf) # also add new leaf to linearized circuit before caller
         leaf
     end
@@ -223,7 +223,7 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
         # Here making that explicit in the Circuit
         @assert is_normalized(ln) smoothing_warning
         lit_node = literal_node(ln.literal, id2vtree[ln.vtree_id])
-        or_node = Struct⋁Node([lit_node], id2vtree[ln.vtree_id])
+        or_node = Struct⋁Node{VtreeNode}([lit_node], id2vtree[ln.vtree_id])
 
         push!(circuit, lit_node)
         push!(circuit, or_node)
@@ -244,7 +244,7 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
         end
         if constant(ln) == true
             # because we promise to compile a smooth circuit, here we need to add an or gate
-            n = Struct⋁Node([literal_node(var2lit(variable), vtree), literal_node(-var2lit(variable), vtree)], vtree)
+            n = Struct⋁Node{VtreeNode}([literal_node(var2lit(variable), vtree), literal_node(-var2lit(variable), vtree)], vtree)
         else
             error("False leaf logical circuit nodes not yet implemented")
         end
@@ -255,18 +255,18 @@ function compile_smooth_struct_logical_m(lines::CircuitFormatLines,
         error(smoothing_warning)
     end
     function compile_elements(e::NormalizedElement, v::VtreeNode)
-        n = Struct⋀Node([id2node[e.prime_id], id2node[e.sub_id]], v)
+        n = Struct⋀Node{VtreeNode}([id2node[e.prime_id], id2node[e.sub_id]], v)
         push!(circuit,n)
         n
     end
     function compile(ln::DecisionLine)
         vtree = id2vtree[ln.vtree_id]
-        n = Struct⋁Node(map(e -> compile_elements(e, vtree), ln.elements), vtree)
+        n = Struct⋁Node{VtreeNode}(map(e -> compile_elements(e, vtree), ln.elements), vtree)
         push!(circuit,n)
         id2node[ln.node_id] = n
     end
     function compile(ln::BiasLine)
-        n = Struct⋁Node([circuit[end]], circuit[end].vtree)
+        n = Struct⋁Node{VtreeNode}([circuit[end]], circuit[end].vtree)
         push!(circuit,n)
         id2node[ln.node_id] = n
     end

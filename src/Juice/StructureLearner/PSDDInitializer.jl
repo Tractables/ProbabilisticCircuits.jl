@@ -184,16 +184,16 @@ end
 #####################
 
 prob_children(n, prob_cache) =  
-    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:StructLogicalΔNode})
+    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:StructLogicalΔNode{<:VtreeNode}})
 
 "Add leaf nodes to circuit `lin`"
-function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbLiteral, ProbLiteral}
-    pos = StructLiteralNode( var2lit(var), vtree)
-    neg = StructLiteralNode(-var2lit(var), vtree)
+function add_prob_leaf_node(var::Var, vtree::VtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbLiteral{<:StructLiteralNode{<:VtreeNode}}, ProbLiteral{<:StructLiteralNode{<:VtreeNode}}}
+    pos = StructLiteralNode{VtreeNode}( var2lit(var), vtree)
+    neg = StructLiteralNode{VtreeNode}(-var2lit(var), vtree)
     lit_cache[var2lit(var)] = pos
     lit_cache[-var2lit(var)] = neg
-    pos2 = ProbLiteral{StructLiteralNode}(pos)
-    neg2 = ProbLiteral{StructLiteralNode}(neg)
+    pos2 = ProbLiteral{StructLiteralNode{<:VtreeNode}}(pos)
+    neg2 = ProbLiteral{StructLiteralNode{<:VtreeNode}}(neg)
     prob_cache[pos] = pos2
     prob_cache[neg] = neg2
     push!(lin, pos2)
@@ -203,8 +203,8 @@ end
 
 "Add prob⋀ node to circuit `lin`"
 function add_prob⋀_node(children::ProbΔ, vtree::VtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
-    logic = Struct⋀Node([c.origin for c in children], vtree)
-    prob = Prob⋀{StructLogicalΔNode}(logic, prob_children(logic, prob_cache))
+    logic = Struct⋀Node{VtreeNode}([c.origin for c in children], vtree)
+    prob = Prob⋀{StructLogicalΔNode{<:VtreeNode}}(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
     push!(lin, prob)
     return prob
@@ -212,8 +212,8 @@ end
 
 "Add prob⋁ node to circuit `lin`"
 function add_prob⋁_node(children::ProbΔ, vtree::VtreeNode, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
-    logic = Struct⋁Node([c.origin for c in children], vtree)
-    prob = Prob⋁(StructLogicalΔNode, logic, prob_children(logic, prob_cache))
+    logic = Struct⋁Node{VtreeNode}([c.origin for c in children], vtree)
+    prob = Prob⋁(StructLogicalΔNode{<:VtreeNode}, logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
     prob_cache[logic] = prob
     push!(lin, prob)
