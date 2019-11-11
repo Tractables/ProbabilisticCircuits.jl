@@ -66,8 +66,15 @@ end
     #clt = parse_clt("./test/circuits/test.clt")
     vtree = learn_vtree_from_clt(clt; vtree_mode="balanced"); # or "linear"
     @test vtree isa Vtree
-    save(vtree,"./test/circuits/test.vtree.dot");
+    tmp_path = joinpath(tempname(), "test.vtree.dot")
+    mkpath(dirname(tmp_path))
+    save(vtree, tmp_path);
+    rm(tmp_path)
     (psdd, _) = compile_psdd_from_clt(clt, vtree);
     @test psdd isa ProbΔ
-    save_as_dot(psdd, "./test/circuits/test.psdd.dot");
+    tmp_path = joinpath(tempname(), "test.psdd.dot")
+    mkpath(dirname(tmp_path))
+    save_as_dot(psdd, tmp_path);
+    rm(tmp_path)
+    
 end

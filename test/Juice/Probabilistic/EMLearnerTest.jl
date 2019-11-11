@@ -87,8 +87,9 @@ function train_mixture_mnist_test()
 
     mixture = FlatMixture([1/3, 1/3, 1/3], pcs);
 
-    directory="./"
-    log_path = directory * "mnist"
+    log_dir = joinpath(tempname(), "mnist")
+    rm(log_dir;recursive=true, force=true)
+    log_path = joinpath(log_dir, "tmp.log")
     logger, log_option = construct_logger(;log_path=log_path,
                                           train_x=train(data), valid_x=valid(data), test_x=test(data), 
             cache_per_example=false, cache_per_ite=true, iters=6, opts=[]);
@@ -98,6 +99,7 @@ function train_mixture_mnist_test()
     @test mean(log_option.train_ll) ≈ ll_per_ite[5][1] atol=1.0e-5
     @test mean(log_option.valid_ll) ≈ ll_per_ite[5][2] atol=1.0e-5
     @test mean(log_option.test_ll) ≈ ll_per_ite[5][3] atol=1.0e-5
+    rm(log_dir;recursive=true)
 end
 
 @testset "EM parameter learner" begin
