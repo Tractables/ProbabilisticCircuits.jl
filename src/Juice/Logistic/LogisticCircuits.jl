@@ -125,3 +125,15 @@ function class_conditional_likelihood_per_instance(fc::FlowΔ,
     likelihoods
 end
 
+"""
+Calculate conditional log likelihood for a batch of samples with evidence P(c | x).
+(Also returns the generated FlowΔ)
+"""
+function class_conditional_likelihood_per_instance(lc::LogisticΔ, 
+                                                    classes::Int, 
+                                                    batch::PlainXData{Bool})
+    opts = (max_factors = 2, compact⋀=false, compact⋁=false)
+    fc = FlowΔ(lc, num_examples(batch), Float64, opts)
+    (fc, class_conditional_likelihood_per_instance(fc, classes, batch))
+end
+

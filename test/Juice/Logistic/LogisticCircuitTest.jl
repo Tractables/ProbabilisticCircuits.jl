@@ -37,4 +37,14 @@ using .Juice
             @test true_prob[i,j] ≈ calc_prob[i,j] atol= EPS;
         end
     end
+
+    # 2. Testing different API
+    fc2, calc_prob2 = class_conditional_likelihood_per_instance(logistic_circuit, CLASSES, data)
+    for i = 1:3
+        for j = 1:2
+            @test true_prob[i,j] ≈ calc_prob2[i,j] atol= EPS;
+        end
+    end
+
+
 end
