@@ -35,11 +35,12 @@ end
 #   Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
 
 function exp_f(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.f, Pair(n, m)) do
+    @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
-        for i in 1:length(n.children)
-            for j in 1:length(m.children)
-                value .+= (exp(n.log_thetas[i]) .* exp_f(n.children[i], m.children[j], data, cache))
+        pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
+        @fastmath @simd for i in 1:length(n.children)
+            @simd for j in 1:length(m.children)
+                value .+= (pthetas[i] .* exp_f(n.children[i], m.children[j], data, cache))
             end
         end
         return value
@@ -47,57 +48,66 @@ function exp_f(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::Expectation
 end
 
 function exp_f(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.f, Pair(n, m)) do
+    @inbounds get!(cache.f, Pair(n, m)) do
         value = ones(1 , num_examples(data) )
-        for (i,j) in zip(n.children, m.children)
+        @fastmath for (i,j) in zip(n.children, m.children)
             value .*= exp_f(i, j, data, cache)
+        end
+        return value
+        # exp_f(n.children[1], m.children[1], data, cache) .* exp_f(n.children[2], m.children[2], data, cache)
+    end
+end
+
+
+@inline function exp_f(n::ProbLiteral, m::LogisticLiteral, data::XData{Int8}, cache::ExpectationCache)
+    @inbounds get!(cache.f, Pair(n, m)) do
+        value = zeros(1 , num_examples(data) )
+        var = lit2var(literal(m))
+        X = feature_matrix(data)
+        if positive(n) && positive(m) 
+            # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
+            # value[1, X[:, var] .== 1 ] .= 1.0 # positive observations
+            value[1, X[:, var] .!= 0 ] .= 1.0 # positive or missing observations
+        elseif negative(n) && negative(m)
+            # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
+            # value[1, X[:, var] .== 0 ] .= 1.0 # negative observations
+            value[1, X[:, var] .!= 1 ] .= 1.0 # negative or missing observations
         end
         return value
     end
 end
-
 
 """
 Has to be a Logistic⋁ with only one child, which is a leaf node 
 """
-function exp_f(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.f, Pair(n, m)) do
-        value = zeros(1 , num_examples(data) )
-        var = lit2var(literal(m.children[1]))
-        X = feature_matrix(data)
-        if positive(n) && positive(m.children[1]) 
-            value[:, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
-            value[:, X[:, var] .== 1 ] .= 1.0 # positive observations
-        elseif negative(n) && negative(m.children[1])
-            value[:, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
-            value[:, X[:, var] .== 0 ] .= 1.0 # negative observations
-        end
-        return value
-    end
+@inline function exp_f(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+    exp_f(n, m.children[1], data, cache)
 end
 
-
-function exp_g(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    return exp_fg(n, m, data, cache) # exp_fg and exp_g are the same for OR nodes
+@inline function exp_g(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+    exp_fg(n, m, data, cache) # exp_fg and exp_g are the same for OR nodes
 end
+
 function exp_g(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.fg, Pair(n, m)) do
+    @inbounds get!(cache.fg, Pair(n, m)) do
         value = zeros(classes(m) , num_examples(data))
-        for (i,j) in zip(n.children, m.children)
+        @fastmath for (i,j) in zip(n.children, m.children)
             value .+= exp_fg(i, j, data, cache)
         end
         return value
+        # exp_fg(n.children[1], m.children[1], data, cache) .+ exp_fg(n.children[2], m.children[2], data, cache)
     end
 end
 
 
 function exp_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.fg, Pair(n, m)) do
+    @inbounds get!(cache.fg, Pair(n, m)) do
         value = zeros(classes(m) , num_examples(data) )
-        for i in 1:length(n.children)
+        pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
+        @fastmath @simd for i in 1:length(n.children)
             for j in 1:length(m.children)
-                value .+= (exp(n.log_thetas[i]) .* m.thetas[j,:]) .* exp_f(n.children[i], m.children[j], data, cache)
-                value .+= exp(n.log_thetas[i]) .* exp_fg(n.children[i], m.children[j], data, cache)
+                value .+= (pthetas[i] .* m.thetas[j,:]) .* exp_f(n.children[i], m.children[j], data, cache)
+                value .+= pthetas[i] .* exp_fg(n.children[i], m.children[j], data, cache)
             end
         end
         return value
@@ -105,7 +115,7 @@ function exp_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::Expectatio
 end
 
 function exp_fg(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.fg, Pair(n, m)) do
+    @inbounds get!(cache.fg, Pair(n, m)) do
         # Assuming 2 children
         value = exp_f(n.children[1], m.children[1], data, cache) .* exp_fg(n.children[2], m.children[2], data, cache)
         value .+= exp_f(n.children[2], m.children[2], data, cache) .* exp_fg(n.children[1], m.children[1], data, cache)
@@ -117,8 +127,14 @@ end
 """
 Has to be a Logistic⋁ with only one child, which is a leaf node 
 """
-function exp_fg(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    get!(cache.fg, Pair(n, m)) do
+@inline function exp_fg(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+    @inbounds get!(cache.fg, Pair(n, m)) do
         m.thetas[1,:] .* exp_f(n, m, data, cache)
+    end
+end
+
+@inline function exp_fg(n::ProbLiteral, m::LogisticLiteral, data::XData{Int8}, cache::ExpectationCache)
+    @inbounds get!(cache.fg, Pair(n, m)) do
+        exp_f(n, m, data, cache)
     end
 end
