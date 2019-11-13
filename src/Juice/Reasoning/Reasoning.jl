@@ -10,7 +10,8 @@ export
     UpExpFlow,
     ExpFlowΔ,
     exp_pass_up,
-    Expectation
+    Expectation,
+    ExpectationUpward
 
 include("Expectation.jl")
 include("ExpFlowCircuits.jl")

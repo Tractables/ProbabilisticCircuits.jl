@@ -78,5 +78,14 @@ end
             @test true_exp[i,j] ≈ calc_exp[i,j] atol= EPS;
         end
     end    
+
+    # Compute Bottom Up Expectation
+    calc_exp_2, exp_flow = ExpectationUpward(pc, lc, data);
+    for i = 1:COUNT
+        for j = 1:CLASSES
+            @test true_exp[i,j] ≈ calc_exp_2[i,j] atol= EPS;
+        end
+    end    
+
     
 end

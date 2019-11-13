@@ -30,6 +30,25 @@ function Expectation(pc::ProbΔ, lc::LogisticΔ, data::XData{Int8})
     results, cache
 end
 
+function ExpectationUpward(pc::ProbΔ, lc::LogisticΔ, data::XData{Int8})
+        # 1. Get probability of each observation
+        fc, log_likelihoods = marginal_log_likelihood_per_instance(pc, data)
+        p_observed = exp.( log_likelihoods )
+        
+        # 2. Expectation w.r.t. P(x_m, x_o)
+        exps_flow = exp_pass_up(pc, lc, data)
+        results_unnormalized = exps_flow[end].fg
+    
+        # 3. Expectation w.r.t P(x_m | x_o)
+        results = transpose(results_unnormalized) ./ p_observed
+    
+        # 4. Add Bias terms
+        biases = lc[end].thetas
+        results .+= biases
+        
+        results, exps_flow
+end
+
 
 # exp_f (pr-constraint) is originally from:
 #   Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
@@ -81,23 +100,23 @@ end
 Has to be a Logistic⋁ with only one child, which is a leaf node 
 """
 @inline function exp_f(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
-    exp_f(n, m.children[1], data, cache)
+    @inbounds get!(cache.f, Pair(n, m)) do
+        exp_f(n, m.children[1], data, cache)
+    end
 end
 
 @inline function exp_g(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
     exp_fg(n, m, data, cache) # exp_fg and exp_g are the same for OR nodes
 end
 
-function exp_g(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
-    @inbounds get!(cache.fg, Pair(n, m)) do
-        value = zeros(classes(m) , num_examples(data))
-        @fastmath for (i,j) in zip(n.children, m.children)
-            value .+= exp_fg(i, j, data, cache)
-        end
-        return value
-        # exp_fg(n.children[1], m.children[1], data, cache) .+ exp_fg(n.children[2], m.children[2], data, cache)
-    end
-end
+# function exp_g(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
+#     value = zeros(classes(m) , num_examples(data))
+#     @fastmath for (i,j) in zip(n.children, m.children)
+#         value .+= exp_fg(i, j, data, cache)
+#     end
+#     return value
+#     # exp_fg(n.children[1], m.children[1], data, cache) .+ exp_fg(n.children[2], m.children[2], data, cache)
+# end
 
 
 function exp_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
