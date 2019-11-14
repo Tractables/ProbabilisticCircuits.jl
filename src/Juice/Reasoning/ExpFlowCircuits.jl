@@ -145,7 +145,7 @@ function exp_pass_up_node(node::ExpFlowΔNode{PC,LC,F}, data::XData{E}) where{E 
         if node.f_origin isa Logistic⋁
             node.fg .= node.f .* transpose(node.f_origin.thetas)
         else
-            node.fg .= node.f
+            node.fg .= 0.0
         end
 
     else

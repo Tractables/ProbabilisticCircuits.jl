@@ -154,6 +154,6 @@ end
 
 @inline function exp_fg(n::ProbLiteral, m::LogisticLiteral, data::XData{Int8}, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
-        exp_f(n, m, data, cache)
+        zeros(1 , num_examples(data)) #dont know how many classes, boradcasting does the job
     end
 end
