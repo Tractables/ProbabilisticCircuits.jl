@@ -95,9 +95,6 @@ function exp_pass_up(fc::ExpFlowΔ, data::XData{E}) where{E <: eltype(F)} where{
     end
 end
 
-
-
-## Not finished, do not use for now
 function exp_pass_up_node(node::ExpFlowΔNode{PC,LC,F}, data::XData{E}) where{E <: eltype(F)} where{PC, LC, F}
     pType = typeof(node.p_origin)
     fType = typeof(node.f_origin)
