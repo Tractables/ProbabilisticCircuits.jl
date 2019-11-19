@@ -11,7 +11,8 @@ export
     ExpFlowΔ,
     exp_pass_up,
     Expectation,
-    ExpectationUpward
+    ExpectationUpward,
+    Moment
 
 include("Expectation.jl")
 include("ExpFlowCircuits.jl")
