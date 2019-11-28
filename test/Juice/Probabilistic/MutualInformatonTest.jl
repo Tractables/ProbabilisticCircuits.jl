@@ -1,8 +1,3 @@
-if endswith(@__FILE__, PROGRAM_FILE)
-    # this file is run as a script
-    include("../../../src/Juice/Juice.jl")
- end
-
 using Test
 using .Juice
 

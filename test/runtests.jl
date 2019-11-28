@@ -1,17 +1,6 @@
-if endswith(@__FILE__, PROGRAM_FILE)
-   # this file is run as a script
-   include("../src/Juice/Juice.jl")
-end
+include("../src/Juice/Juice.jl")
 
-using Test
+# Driver script for all unit tests
 
-@testset "Juice-All" begin
-   for test in [
-      "Utils/runtests.jl",
-      "Data/runtests.jl",
-      "Juice/runtests.jl"
-      ]
-     @info "Starting tests for {$test}"
-     include(test)
-   end
-end
+using Jive
+runtests(@__DIR__)

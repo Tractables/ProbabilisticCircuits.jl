@@ -43,14 +43,14 @@ To build the documentation locally, run the following to build the documentation
 
 We will be adding automated tests under `/test` folder. To run all the test cases, run:
 
-    julia test/runtests.jl
+    test$ julia --color=yes runtests.jl
 
-You can also run all the tests for a single module, for example:
+You can also run all the tests for a single (sub-)module, for example:
 
-    julia test/Juice/IO/runtests.jl
+    test$ julia --color=yes runtests.jl Juice/IO
 
 Or even any individual test, for example:
 
-    julia test/Juice/IO/CircuitParserTest.jl
+    test$ julia --color=yes runtests.jl Juice/IO/VtreeParserTest.jl
 
 Make sure to run the tests before commiting new code.
