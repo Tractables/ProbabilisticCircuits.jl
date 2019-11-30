@@ -83,9 +83,9 @@ end
 
 
 @testset "Expectation Brute Force Test Small (4 Var)" begin
-    vtree_file      = "circuits/little_4var.vtree"
-    psdd_file       = "circuits/little_4var.psdd"
-    logistic_file   = "circuits/little_4var.circuit";
+    vtree_file      = "test/circuits/little_4var.vtree"
+    psdd_file       = "test/circuits/little_4var.psdd"
+    logistic_file   = "test/circuits/little_4var.circuit";
     CLASSES = 2
     N = 4
 
@@ -110,9 +110,9 @@ end
 
 
 @testset "Expectation Brute Force Test Big (15 Var)" begin
-    vtree_file      = "circuits/expectation/exp-D15-N1000-C4.vtree"
-    psdd_file       = "circuits/expectation/exp-D15-N1000-C4.psdd"
-    logistic_file   = "circuits/expectation/exp-D15-N1000-C4.circuit";
+    vtree_file      = "test/circuits/expectation/exp-D15-N1000-C4.vtree"
+    psdd_file       = "test/circuits/expectation/exp-D15-N1000-C4.psdd"
+    logistic_file   = "test/circuits/expectation/exp-D15-N1000-C4.circuit";
     CLASSES = 4
     N = 15
     COUNT = 10
@@ -126,9 +126,9 @@ end
 
 
 @testset "Moment Brute Force Test Small (4 Var)" begin
-    vtree_file      = "circuits/little_4var.vtree"
-    psdd_file       = "circuits/little_4var.psdd"
-    logistic_file   = "circuits/little_4var.circuit";
+    vtree_file      = "test/circuits/little_4var.vtree"
+    psdd_file       = "test/circuits/little_4var.psdd"
+    logistic_file   = "test/circuits/little_4var.circuit";
     CLASSES = 2
     N = 4
     COUNT = 100
@@ -146,9 +146,9 @@ end
 end
 
 @testset "Moment Brute Force Test Big (15 Var)" begin
-    vtree_file      = "circuits/expectation/exp-D15-N1000-C4.vtree"
-    psdd_file       = "circuits/expectation/exp-D15-N1000-C4.psdd"
-    logistic_file   = "circuits/expectation/exp-D15-N1000-C4.circuit";
+    vtree_file      = "test/circuits/expectation/exp-D15-N1000-C4.vtree"
+    psdd_file       = "test/circuits/expectation/exp-D15-N1000-C4.psdd"
+    logistic_file   = "test/circuits/expectation/exp-D15-N1000-C4.circuit";
     CLASSES = 4
     N = 15
     COUNT = 10

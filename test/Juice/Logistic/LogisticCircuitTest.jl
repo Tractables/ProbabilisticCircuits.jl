@@ -11,7 +11,7 @@ using .Juice
             compact⋀=false,
             compact⋁=false)
         
-    logistic_circuit = load_logistic_circuit("circuits/little_4var.circuit", 2);
+    logistic_circuit = load_logistic_circuit("test/circuits/little_4var.circuit", 2);
     @test logistic_circuit isa Vector{<:LogisticΔNode};
 
     flow_circuit = FlowΔ(logistic_circuit, 16, Float64, my_opts)

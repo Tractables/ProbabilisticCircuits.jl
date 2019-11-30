@@ -17,7 +17,7 @@ end
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
     @test prob_circuit isa Vector{<:ProbΔNode};
 
     flow_circuit = FlowΔ(prob_circuit, 16, Bool)
@@ -55,7 +55,7 @@ end
 
 @testset "Probability of partial Evidence (marginals)" begin
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     data = XData(
         Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1;
@@ -84,7 +84,7 @@ end
 
 @testset "Marginal Pass Down" begin
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     N = 4
     data_full = XData(Int8.(generate_data_all(N)))
@@ -134,7 +134,7 @@ end
 #TODO this test is incorrectly named??
 @testset "Sampling Test" begin
     EPS = 1e-2;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
     flow_circuit = FlowΔ(prob_circuit, 16, Bool);
 
     N = 4;
@@ -167,7 +167,7 @@ end
 @testset "Sampling With Evidence" begin
     # TODO (pashak) this test should be improved by adding few more cases
     EPS = 1e-3;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
 
     opts= (compact⋀=false, compact⋁=false)
     flow_circuit = UpFlowΔ(prob_circuit, 1, Float64, opts);
@@ -210,7 +210,7 @@ end
 
 @testset "pr_constraint Query" begin
     # two nodes
-    clt = parse_clt("./circuits/2.clt");
+    clt = parse_clt("./test/circuits/2.clt");
     vtree = learn_vtree_from_clt(clt; vtree_mode="balanced");
     (pc, bases) = compile_psdd_from_clt(clt, vtree);
     parents = parents_vector(pc);
@@ -236,17 +236,17 @@ end
     @test abs(pr_constraint(psdd.pc[5], psdd.pc[3], cache) - 0.2) < 1e-8
     @test abs(pr_constraint(psdd.pc[5], psdd.pc[4], cache) - 0.8) < 1e-8
 
-    file_circuit = "circuits/little_4var.circuit"
-    file_vtree = "circuits/little_4var.vtree"
+    file_circuit = "test/circuits/little_4var.circuit"
+    file_vtree = "test/circuits/little_4var.vtree"
     logical_circuit, vtree = load_struct_smooth_logical_circuit(file_circuit, file_vtree)
 
-    file = "circuits/little_4var.psdd"
+    file = "test/circuits/little_4var.psdd"
     pc = load_prob_circuit(file)
 
     @test abs(pr_constraint(pc[end], logical_circuit[end - 1], cache) - 1.0) < 1e-8
 
     # Test with two psdds
-    clt1 = parse_clt("./circuits/2.clt");
+    clt1 = parse_clt("./test/circuits/2.clt");
     vtree1 = learn_vtree_from_clt(clt1, vtree_mode="balanced");
     (pc1, bases1) = compile_psdd_from_clt(clt1, vtree1);
     parents1 = parents_vector(pc1);
@@ -258,7 +258,7 @@ end
     pc1[9].log_thetas = map(log, [0.5, 0.25, 0.25]);
     pc1[5].log_thetas = map(log, [0.2, 0.8]);
 
-    clt2 = parse_clt("./circuits/2.clt");
+    clt2 = parse_clt("./test/circuits/2.clt");
     vtree2 = learn_vtree_from_clt(clt2, vtree_mode="balanced");
     (pc2, bases2) = compile_psdd_from_clt(clt2, vtree2);
     parents2 = parents_vector(pc2)
@@ -283,7 +283,7 @@ end
 
 
 @testset "Entropy and KLD" begin
-    clt1 = parse_clt("./circuits/2.clt");
+    clt1 = parse_clt("./test/circuits/2.clt");
     vtree1 = learn_vtree_from_clt(clt1, vtree_mode="balanced");
     (pc1, bases1) = compile_psdd_from_clt(clt1, vtree1);
     parents1 = parents_vector(pc1);
@@ -295,7 +295,7 @@ end
     pc1[9].log_thetas = map(log, [0.5, 0.25, 0.25]);
     pc1[5].log_thetas = map(log, [0.2, 0.8]);
 
-    clt2 = parse_clt("./circuits/2.clt");
+    clt2 = parse_clt("./test/circuits/2.clt");
     vtree2 = learn_vtree_from_clt(clt2, vtree_mode="balanced");
     (pc2, bases2) = compile_psdd_from_clt(clt2, vtree2);
     parents2 = parents_vector(pc2)
@@ -306,7 +306,7 @@ end
     pc2[8].log_thetas = map(log, [0.3, 0.7])
     pc2[3].log_thetas = map(log, [0.9, 0.1])
 
-    clt3 = parse_clt("./circuits/2.clt");
+    clt3 = parse_clt("./test/circuits/2.clt");
     vtree3 = learn_vtree_from_clt(clt2, vtree_mode="balanced");
     (pc3, bases3) = compile_psdd_from_clt(clt3, vtree3);
     parents3 = parents_vector(pc3)

@@ -63,9 +63,9 @@ function train_mixture_mnist_test()
 
     data = dataset(sampled_mnist(); do_shuffle=false, batch_size=batch_size);
 
-    lc_a = load_smooth_logical_circuit("circuits/mnist-antonio.psdd")
-    lc_b = load_smooth_logical_circuit("circuits/mnist-large.circuit")
-    lc_c = load_smooth_logical_circuit("circuits/mnist-1M.circuit")
+    lc_a = load_smooth_logical_circuit("test/circuits/mnist-antonio.psdd")
+    lc_b = load_smooth_logical_circuit("test/circuits/mnist-large.circuit")
+    lc_c = load_smooth_logical_circuit("test/circuits/mnist-1M.circuit")
 
     copy_a(i) = ProbΔ(lc_a);
     copy_b(i) = ProbΔ(lc_b);

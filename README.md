@@ -43,15 +43,15 @@ To build the documentation locally, run the following to build the documentation
 
 We will be adding automated tests under `/test` folder. To run all the test cases, run:
 
-    test$ julia --color=yes -pauto runtests.jl
+    julia --color=yes -pauto test/run.jl
 
 The flag `-pauto` parallelizes the tests across all CPU cores.
 You can also run all the tests for a single (sub-)module, for example:
 
-    test$ julia --color=yes -pauto runtests.jl Juice/IO
+    julia --color=yes -pauto test/run.jl test/Juice/IO
 
 Or even any individual test, for example:
 
-    test$ julia --color=yes -pauto runtests.jl Juice/IO/VtreeParserTest.jl
+    julia --color=yes -pauto test/run.jl test/Juice/IO/VtreeParserTest.jl
 
 Make sure to run the tests before commiting new code.
