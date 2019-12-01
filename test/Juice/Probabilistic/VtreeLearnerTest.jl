@@ -54,13 +54,13 @@ function check_equality()
     end
 end
 
-@testset "PSDD and Vtree Learner Test" begin
+@testset "PSDD and PlainVtree Learner Test" begin
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1);
     train_data = train(data);
     clt = learn_chow_liu_tree(WXData(train_data));
     #clt = parse_clt("./test/circuits/test.clt")
     vtree = learn_vtree_from_clt(clt; vtree_mode="balanced"); # or "linear"
-    @test vtree isa Vtree
+    @test vtree isa PlainVtree
     tmp_path = joinpath(tempname(), "test.vtree.dot")
     mkpath(dirname(tmp_path))
     save(vtree, tmp_path);

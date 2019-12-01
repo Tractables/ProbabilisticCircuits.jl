@@ -34,7 +34,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit{VtreeNode},Vtree}
+function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit{PlainVtreeNode},PlainVtree}
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
     compile_smooth_struct_logical(circuit_lines, vtree_lines)
@@ -58,7 +58,7 @@ Support circuit file formats:
 Supported vtree file formats:
  * ".vtree" for VTree files 
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,Vtree}
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,PlainVtree}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)

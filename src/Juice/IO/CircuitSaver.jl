@@ -151,8 +151,8 @@ function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id
 end
 
-function get_vtree2id(ln::Vtree):: Dict{VtreeNode, ID}
-    vtree2id = Dict{VtreeNode, ID}()
+function get_vtree2id(ln::PlainVtree):: Dict{PlainVtreeNode, ID}
+    vtree2id = Dict{PlainVtreeNode, ID}()
     sizehint!(vtree2id, length(ln))
     index = ID(0) # vtree id start from 0
 
@@ -167,7 +167,7 @@ end
 # saver for circuits
 #####################
 
-function save_psdd_file(name::String, ln::ProbΔ, vtree::Vtree)
+function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
     @assert ln[end].origin isa StructLogicalΔNode "PSDD should decorate on StructLogicalCircuit"
     @assert endswith(name, ".psdd")
 
@@ -184,10 +184,10 @@ function save_psdd_file(name::String, ln::ProbΔ, vtree::Vtree)
     save_lines(name, formatlines)
 end
 
-save_sdd_file(name::String, ln::ProbΔ, vtree::Vtree) = 
+save_sdd_file(name::String, ln::ProbΔ, vtree::PlainVtree) = 
     save_sdd_file(name, origin(ln), vtree)
 
-function save_sdd_file(name::String, ln::StructLogicalCircuit, vtree::Vtree)
+function save_sdd_file(name::String, ln::StructLogicalCircuit, vtree::PlainVtree)
     @assert endswith(name, ".sdd")
     node2id = get_node2id(ln, StructLogicalΔNode)
     vtree2id = get_vtree2id(vtree)

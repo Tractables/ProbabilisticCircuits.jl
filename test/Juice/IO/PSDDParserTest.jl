@@ -41,7 +41,7 @@ end
    circuit, vtree = load_struct_prob_circuit(
       "test/circuits/little_4var.psdd", "test/circuits/little_4var.vtree")
    @test check_parameter_integrity(circuit)
-   @test vtree isa Vtree
+   @test vtree isa PlainVtree
    # no other combinations of vtree and psdd are in this repo?
    # @test check_parameter_integrity(load_struct_prob_circuit(
    #          "test/circuits/mnist-antonio.psdd", "test/circuits/balanced.vtree"))
