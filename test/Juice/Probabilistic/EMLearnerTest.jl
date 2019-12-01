@@ -67,6 +67,8 @@ function train_mixture_mnist_test()
 
     lc_a = load_smooth_logical_circuit("test/circuits/mnist-antonio.psdd")
     lc_b = load_smooth_logical_circuit("test/circuits/mnist-large.circuit")
+    
+    #TODO there is no need to have the unit test run on this huge circuit below. Better use a smaller set of circuits as a test? 
     lc_c = load_smooth_logical_circuit("test/circuits/mnist-1M.circuit")
 
     copy_a(i) = ProbΔ(lc_a);
