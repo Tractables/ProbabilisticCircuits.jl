@@ -21,4 +21,5 @@ using .Juice
         rm("temp.psdd")
     #end
     #TODO add some actual @test statements
+    @test true
 end
