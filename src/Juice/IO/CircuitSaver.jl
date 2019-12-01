@@ -117,7 +117,7 @@ make_element(n::Prob⋀, w::AbstractFloat, node2id) =
     PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
 
 is_true_node(n)::Bool = 
-    NodeType(n) isa ⋁ && num_children(n) == 2 && NodeType(children(n)[1]) isa LiteralLeaf && NodeType(children(n)[2]) isa LiteralLeaf && 
+    GateType(n) isa ⋁ && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralLeaf && GateType(children(n)[2]) isa LiteralLeaf && 
     positive(children(n)[1]) && negative(children(n)[2])
 
 function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
@@ -141,7 +141,7 @@ end
 
 function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id = Dict{T, ID}()
-    outnodes = filter(n -> !(NodeType(n) isa ⋀), ln)
+    outnodes = filter(n -> !(GateType(n) isa ⋀), ln)
     sizehint!(node2id, length(outnodes))
     index = ID(0) # node id start from 0
     for n in outnodes
@@ -174,7 +174,7 @@ function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
     node2id = get_node2id(ln, ProbΔNode)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
-    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+    for n in filter(n -> !(GateType(n) isa ⋀), ln)
         push!(formatlines, decompile(n, node2id, vtree2id))
     end
     open(name, "w") do f
@@ -192,7 +192,7 @@ function save_sdd_file(name::String, ln::StructLogicalCircuit, vtree::PlainVtree
     node2id = get_node2id(ln, StructLogicalΔNode)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
-    for n in filter(n -> !(NodeType(n) isa ⋀), ln)
+    for n in filter(n -> !(GateType(n) isa ⋀), ln)
         push!(formatlines, decompile(n, node2id, vtree2id))
     end
 

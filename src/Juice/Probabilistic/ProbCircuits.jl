@@ -27,11 +27,11 @@ const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
 # traits
 #####################
 
-import ..Logical.NodeType # make available for extension
+import ..Logical.GateType # make available for extension
 
-@inline NodeType(::Type{<:ProbLiteral}) = LiteralLeaf()
-@inline NodeType(::Type{<:Prob⋀}) = ⋀()
-@inline NodeType(::Type{<:Prob⋁}) = ⋁()
+@inline GateType(::Type{<:ProbLiteral}) = LiteralLeaf()
+@inline GateType(::Type{<:Prob⋀}) = ⋀()
+@inline GateType(::Type{<:Prob⋁}) = ⋁()
 
 #####################
 # constructors and conversions
@@ -64,7 +64,7 @@ function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
     end
         
     map(circuit) do node
-        pcn = pc_node(NodeType(node), node)
+        pcn = pc_node(GateType(node), node)
         cache[node] = pcn
         pcn
     end
@@ -213,7 +213,7 @@ function marginal_log_likelihood_per_instance(fc::UpFlowΔ, batch::PlainXData{In
 end
 
 function check_parameter_integrity(circuit::ProbΔ)
-    for node in filter(n -> NodeType(n) isa Prob⋁, circuit)
+    for node in filter(n -> GateType(n) isa Prob⋁, circuit)
         @assert all(θ -> !isnan(θ), node.log_thetas) "There is a NaN in one of the log_thetas"
     end
     true

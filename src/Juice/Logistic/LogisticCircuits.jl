@@ -30,11 +30,11 @@ const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
 # traits
 #####################
 
-import ..Logical.NodeType # make available for extension
+import ..Logical.GateType # make available for extension
 
-@inline NodeType(::Type{<:LogisticLiteral}) = LiteralLeaf()
-@inline NodeType(::Type{<:Logistic⋀}) = ⋀()
-@inline NodeType(::Type{<:Logistic⋁}) = ⋁()
+@inline GateType(::Type{<:LogisticLiteral}) = LiteralLeaf()
+@inline GateType(::Type{<:Logistic⋀}) = ⋀()
+@inline GateType(::Type{<:Logistic⋁}) = ⋁()
 
 
 
@@ -69,7 +69,7 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
     end
         
     map(circuit) do node
-        pcn = pc_node(NodeType(node), node)
+        pcn = pc_node(GateType(node), node)
         cache[node] = pcn
         pcn
     end

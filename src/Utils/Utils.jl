@@ -11,7 +11,10 @@ assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product,
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby, logsumexp,
 unzip, @printlog, uniform,
 IndirectVector, index_dict,
-collect_exp_paths, path_to_args_dict, filter_exps
+collect_exp_paths, path_to_args_dict, filter_exps,
+Node, DagNode, TreeNode, DiGraph, Dag, Tree, 
+NodeType, Leaf, Inner, 
+inode, leafnode
 
 import Base.@time
 import Base.print
@@ -237,5 +240,11 @@ end
 #####################
 
 include("Kernels.jl")
+
+#####################
+# graphs
+#####################
+
+include("Graphs.jl")
 
 end #module
