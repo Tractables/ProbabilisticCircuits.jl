@@ -55,7 +55,9 @@ function train_mixture_mnist_test()
         [-131.25402582740003, -131.80634620543526, -130.771358334033]]
 
     batch_size = 10000
-    iterations = 3
+
+    # keep this number low to speed up tests (<=5). Two iterations should be enough to touch all code.
+    iterations = 2
 
     num_copies_a = 1
     num_copies_b = 1
@@ -89,11 +91,11 @@ function train_mixture_mnist_test()
                                           train_x=train(data), valid_x=valid(data), test_x=test(data), 
             cache_per_example=false, cache_per_ite=true, iters=6, opts=[]);
 
-    train_mixture(mixture, train(data), 1.0, 5; logger=logger);
+    train_mixture(mixture, train(data), 1.0, iterations; logger=logger);
 
-    @test mean(log_option.train_ll) ≈ ll_per_ite[5][1] atol=1.0e-5
-    @test mean(log_option.valid_ll) ≈ ll_per_ite[5][2] atol=1.0e-5
-    @test mean(log_option.test_ll) ≈ ll_per_ite[5][3] atol=1.0e-5
+    @test mean(log_option.train_ll) ≈ ll_per_ite[iterations][1] atol=1.0e-5
+    @test mean(log_option.valid_ll) ≈ ll_per_ite[iterations][2] atol=1.0e-5
+    @test mean(log_option.test_ll) ≈ ll_per_ite[iterations][3] atol=1.0e-5
     rm(log_dir;recursive=true)
 end
 
