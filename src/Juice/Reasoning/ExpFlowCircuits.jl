@@ -27,8 +27,8 @@ Construct a upward expectation flow circuit from a given pair of PC and LC circu
 Note that its assuming the two circuits share the same vtree
 """
 function ExpFlowΔ(pc::ProbΔ, lc::LogisticΔ, batch_size::Int, ::Type{El}) where El
-    pc_type = circuitnodetype(pc)
-    lc_type = circuitnodetype(lc)
+    pc_type = grapheltype(pc)
+    lc_type = grapheltype(lc)
 
     F = Array{El, 2}
     fmem = () -> zeros(1, batch_size) #Vector{El}(undef, batch_size)  #some_vector(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)

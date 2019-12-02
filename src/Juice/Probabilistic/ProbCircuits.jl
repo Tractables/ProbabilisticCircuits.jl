@@ -47,7 +47,7 @@ const ProbCache = Dict{ΔNode, ProbΔNode}
 
 function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
-    O = circuitnodetype(circuit) # type of node in the origin
+    O = grapheltype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)
     
     pc_node(::LiteralLeaf, n::ΔNode) = ProbLiteral{O}(n)

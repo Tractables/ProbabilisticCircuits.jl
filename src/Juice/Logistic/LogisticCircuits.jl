@@ -53,7 +53,7 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
 
     sizehint!(cache, length(circuit)*4÷3)
     
-    O = circuitnodetype(circuit) # type of node in the origin
+    O = grapheltype(circuit) # type of node in the origin
 
     pc_node(::LiteralLeaf, n::ΔNode) = LogisticLiteral{O}(n)
     pc_node(::ConstantLeaf, n::ΔNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
