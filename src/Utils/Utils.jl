@@ -9,7 +9,7 @@ export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vecto
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby, logsumexp,
-unzip, @printlog, uniform,
+unzip, @printlog, uniform, pushrand!,
 IndirectVector, index_dict,
 collect_exp_paths, path_to_args_dict, filter_exps,
 Node, DagNode, TreeNode, DiGraph, Dag, Tree, 
@@ -75,6 +75,22 @@ macro unzip(x)
         b = collect(b)
         a, b
     end
+end
+
+
+
+"""
+Push element into random position
+"""
+function pushrand!(v::AbstractVector{<:Any}, element)
+    len = length(v)
+    i = rand(1:len + 1)
+    if i == len + 1
+        push!(v, element)
+    else
+        splice!(v, i:i, [element, v[i]])
+    end
+    v
 end
 
 #####################

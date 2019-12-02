@@ -1,5 +1,5 @@
 using Printf
-using HDF5
+using HDF5: h5write, h5open, close
 
 "Map from literal to LogicalΔNode"
 const LitCache = Dict{Lit, LogicalΔNode}
@@ -41,7 +41,7 @@ function build_clt_structure(data::PlainXData;
 end
 
 function build_rand_structure(data::PlainXData; vtree_mode="rand")::PSDDWrapper
-    vtree = random_vtree(num_features(data); vtree_mode="rand") # TODO: add interface later
+    vtree = random_vtree(PlainVtreeNode, num_features(data); vtree_mode="rand") # TODO: add interface later
     pc = compile_fully_factorized_psdd_from_vtree(vtree)
     bases = calculate_all_bases(pc)
     parents = parents_vector(pc)
@@ -66,9 +66,9 @@ with strategy (close to) `linear` or `balanced`
 "
 function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::PlainVtree
     roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
-    root = construct_children(Var.(roots), clt, vtree_mode)
+    rootnode = construct_children(Var.(roots), clt, vtree_mode)
 
-    return order_nodes_leaves_before_parents(root)
+    return root(rootnode)
 end
 
 function construct_node(v::Var, clt::CLT, strategy::String)::PlainVtreeNode
@@ -128,7 +128,7 @@ end
 
 "Compile a psdd circuit from clt and vtree"
 function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
-    order = order_nodes_leaves_before_parents(vtree[end])
+    order = root(vtree[end])
     parent_clt = Var.(parent_vector(clt))
 
     lin = Vector{ProbΔNode}()
