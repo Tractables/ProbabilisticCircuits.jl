@@ -15,7 +15,8 @@ collect_exp_paths, path_to_args_dict, filter_exps,
 Node, DagNode, TreeNode, DiGraph, Dag, Tree, 
 NodeType, Leaf, Inner, 
 inode, leafnode, children, num_children, has_children, num_nodes, num_edges,
-node_stats, leaf_stats, inode_stats, tree_num_nodes, root, grapheltype
+node_stats, leaf_stats, inode_stats, tree_num_nodes, root, grapheltype, 
+isequal_unordered, isequal_local
 
 import Base.@time
 import Base.print
