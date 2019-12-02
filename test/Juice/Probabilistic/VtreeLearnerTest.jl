@@ -4,14 +4,14 @@ using .Utils
 
 function vtree_test_top_down()
     vars = Var.([1,2,3,4,5,6])
-    vtree = construct_top_down(vars, test_top_down)
+    vtree = top_down_vtree(vars, test_top_down)
     save(vtree, "./test/circuits/vtree/vtree-test-top-down.vtree.dot")
     return vtree
 end
 
 function vtree_test_bottom_up()
     vars = Var.([1,2,3,4,5,6])
-    vtree = construct_bottom_up(vars, test_bottom_up!)
+    vtree = bottom_up_vtree(vars, test_bottom_up!)
     save(vtree, "./test/circuits/vtree/vtree-test-bottom-up.vtree.dot")
     return vtree
 end
@@ -24,7 +24,7 @@ function vtree_blossom_simply()
             9.0 5.0 0.0 7.0;
             6.0 8.0 7.0 0.0]
     context = BlossomContext(vars, mi)
-    vtree = construct_bottom_up(vars, blossom_bottom_up_curry(context))
+    vtree = bottom_up_vtree(vars, blossom_bottom_up_curry(context))
     save(vtree, "./test/circuits/vtree/vtree-blossom-bottom-up-even.vtree.dot")
 
     # odd
@@ -35,7 +35,7 @@ function vtree_blossom_simply()
             6.0 8.0 7.0 0.0 2.0;
             1.0 4.0 3.0 2.0 0.0]
     context = BlossomContext(vars, mi)
-    vtree = construct_bottom_up(vars, blossom_bottom_up_curry(context))
+    vtree = bottom_up_vtree(vars, blossom_bottom_up_curry(context))
     save(vtree, "./test/circuits/vtree/vtree-blossom-bottom-up-odd.vtree.dot")
 end
 

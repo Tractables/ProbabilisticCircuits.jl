@@ -1,5 +1,6 @@
 using Printf
 using HDF5: h5write, h5open, close
+using ..Utils
 
 "Map from literal to LogicalΔNode"
 const LitCache = Dict{Lit, LogicalΔNode}
