@@ -208,8 +208,8 @@ function map_values(f::Function, dict::AbstractDict{K}, vtype::Type)::AbstractDi
     mapped_dict
 end
 
-function groupby(f::Function, list)
-    groups = Dict()
+function groupby(f::Function, list::Vector{E})::Dict{Any,Vector{E}} where E
+    groups = Dict{Any,Vector{E}}()
     for v in list
         push!(get!(groups, f(v), []), v)
     end
