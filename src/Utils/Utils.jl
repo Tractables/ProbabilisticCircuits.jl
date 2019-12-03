@@ -17,7 +17,7 @@ NodeType, Leaf, Inner,
 inode, leafnode, children, num_children, has_children, num_nodes, num_edges,
 node_stats, leaf_stats, inode_stats, tree_num_nodes, root, grapheltype, 
 isequal_unordered, isequal_local, pre_order_traverse, 
-left_most_child, right_most_child, isleaf, isinner, lca
+left_most_child, right_most_child, isleaf, isinner, lca, parent, descendents
 
 import Base.@time
 import Base.print
@@ -28,7 +28,7 @@ import Base.println
 """
 Is the argument not `nothing`?
 """
-issomething(x) = !isnothing(x)
+@inline issomething(x) = !isnothing(x)
 
 @inline map_something(f,v) = (v == nothing) ? nothing : f(v)
 
@@ -208,7 +208,7 @@ function map_values(f::Function, dict::AbstractDict{K}, vtype::Type)::AbstractDi
     mapped_dict
 end
 
-function groupby(f::Function, list::Vector{E})::Dict{Any,Vector{E}} where E
+function groupby(f::Function, list::Union{Vector{E},Set{E}})::Dict{Any,Vector{E}} where E
     groups = Dict{Any,Vector{E}}()
     for v in list
         push!(get!(groups, f(v), []), v)
