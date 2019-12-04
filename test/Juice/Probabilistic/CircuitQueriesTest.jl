@@ -1,16 +1,6 @@
 using Test
 using .Juice
 
-function generate_data_all(N::Int)
-    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
-    for mask = 1: (1<<N) - 1
-        data_all = vcat(data_all,
-            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
-        );
-    end
-    data_all
-end
-
 # This tests are supposed to test queries on the circuits
 @testset "Probability of Full Evidence" begin
     # Uses a PSDD with 4 variables, and tests 3 of the configurations to
@@ -130,3 +120,42 @@ end
 
 end
 
+function test_mpe_brute_force(prob_circuit, evidence)
+    EPS = 1e-9;
+    result = MPE(prob_circuit, evidence);
+    for idx = 1 : num_examples(evidence)
+        marg = XData(generate_all(evidence.x[idx,:]));
+        fc, lls = log_likelihood_per_instance(prob_circuit, marg);
+        brute_mpe = marg.x[argmax(lls), :]
+
+        # Compare and validate p(result[idx]) == p(brute_mpe)
+        comp_data = XData(vcat(result[idx,:]',  brute_mpe'))
+        fc2, lls2 = log_likelihood_per_instance(prob_circuit, comp_data);
+
+        @test lls2[1] ≈ lls2[2] atol= EPS
+    end
+end
+
+@testset "MPE Brute Force Test Small (4 var)" begin
+    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
+    evidence = Juice.XData( Int8.( [-1 0 0 0;
+                                0 -1 -1 0;
+                                1 1 1 -1;
+                                1 0 1 0;
+                                -1 -1 -1 1; 
+                                -1 -1 -1 -1] ))
+
+    test_mpe_brute_force(prob_circuit, evidence)
+
+end
+
+@testset "MPE Brute Force Test Big (15 var)" begin
+    psdd_file = "test/circuits/expectation/exp-D15-N1000-C4.psdd"
+    N = 15
+    COUNT = 10
+
+    prob_circuit = load_prob_circuit(psdd_file);
+    evidence = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
+
+    test_mpe_brute_force(prob_circuit, evidence)
+end

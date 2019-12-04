@@ -1,16 +1,6 @@
 using Test
 using .Juice
 
-function generate_data_all(N::Int)
-    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
-    for mask = 1: (1<<N) - 1
-        data_all = vcat(data_all,
-            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
-        );
-    end
-    data_all
-end
-
 @testset "Sampling Test" begin
     EPS = 1e-2;
     prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");

@@ -1,27 +1,6 @@
 using Test
 using .Juice
 
-"""
-Given some missing values generates all possible fillings
-"""
-function generate_all(row::Array{Int8})
-    miss_count = count(row .== -1)
-    lits = length(row)
-    result = Bool.(zeros(1 << miss_count, lits))
-
-    if miss_count == 0
-        result[1, :] = copy(row)
-    else
-        for mask = 0: (1<<miss_count) - 1
-            cur = copy(row)
-            cur[row .== -1] = transpose(parse.(Bool, split(bitstring(mask)[end-miss_count+1:end], "")))
-            result[mask+1,:] = cur
-        end
-    end
-    result
-end
-
-
 function test_expectation_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, CLASSES::Int)
     EPS = 1e-7;
     COUNT = size(data.x)[1]
