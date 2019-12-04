@@ -32,7 +32,7 @@ Support circuit file formats:
  * ".psdd" for PSDD files
  * ".circuit" for Logistic Circuit files
 Supported vtree file formats:
- * ".vtree" for VTree files 
+ * ".vtree" for VTree files
 """
 function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::String)::Tuple{StructLogicalCircuit{PlainVtreeNode},PlainVtree}
     circuit_lines = parse_circuit_file(circuit_file)
@@ -40,9 +40,8 @@ function load_struct_smooth_logical_circuit(circuit_file::String, vtree_file::St
     compile_smooth_struct_logical(circuit_lines, vtree_lines)
 end
 
-
 """
-Load a probabilistic circuit from file. 
+Load a probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
  """
@@ -56,7 +55,7 @@ Load a structured probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
 Supported vtree file formats:
- * ".vtree" for VTree files 
+ * ".vtree" for VTree files
 """
 function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,PlainVtree}
     @assert endswith(circuit_file,".psdd")
@@ -118,7 +117,7 @@ function parse_lc_literal_line(ln::String)::WeightedLiteralLine
     weights = map(x->parse(Float64,x), tokens[5:end])
     lit = var2lit(head_ints[3])
     if startswith(ln, "F")
-       lit = -lit # negative literal 
+       lit = -lit # negative literal
     end
     WeightedLiteralLine(head_ints[1],head_ints[2],lit,true,weights)
 end
@@ -270,4 +269,146 @@ function parse_sdd_file(file::String)::CircuitFormatLines
         end
     end
     q
+end
+
+#####################
+# loader for CNF file format
+#####################
+
+"""
+Load a CNF as a logical circuit from file.
+Supppor file formats:
+* ".cnf" for CNF files
+"""
+function load_cnf(file::String)::UnstLogicalΔ
+    @assert endswith(file, ".cnf")
+
+    # linearized circuit nodes
+    circuit = Vector{UnstLogicalΔNode}()
+
+    # linearized clauses (disjunctions)
+    clauses = Vector{⋁Node}()
+
+    # literal cache is responsible for making leaf literals nodes unique and adding them to `circuit`
+    lit_cache = Dict{Lit,LogicalLeafNode}()
+    literal_node(l::Lit) = get!(lit_cache, l) do
+        leaf = LiteralNode(l)
+        push!(circuit,leaf) # also add new leaf to linearized circuit before caller
+        leaf
+    end
+
+    # record the current clause
+    clause = ⋁Node([])
+
+    count_clauses = 0
+
+    open(file) do file
+
+        for ln in eachline(file)
+            @assert !isempty(ln)
+            if ln[1] == 'c' || startswith(ln, "p cnf")
+                # skip comment and header lines
+                continue
+            else
+                tokens = split(ln)
+                for token in tokens
+                    if !occursin(r"^\s*[-]?[0-9]+\s*$", token)
+                        error("Cannot parse CNF file format line $ln")
+                    end
+                    literal = parse(Lit, token)
+                    if literal == 0
+                        push!(clauses, clause)
+                        push!(circuit, clause)
+                        clause = ⋁Node([])
+                        count_clauses += 1
+                    else
+                        push!(clause.children, literal_node(literal))
+                    end
+                end
+            end
+        end
+
+        # handle the last clause
+        if length(clause.children) > 0
+            push!(clauses, clause)
+            push!(circuit, clause)
+            count_clauses + 1
+        end
+
+        # create the root conjunction node
+        if length(clauses) > 0
+            push!(circuit, ⋀Node(clauses))
+        end
+    end
+
+    circuit
+end
+
+#####################
+# loader for DNF file format
+#####################
+
+"""
+Load a CNF as a logical circuit from file.
+Supppor file formats:
+* ".cnf" for CNF files
+"""
+function load_dnf(file::String)::UnstLogicalΔ
+    @assert endswith(file, ".dnf")
+
+    # linearized circuit nodes
+    circuit = Vector{UnstLogicalΔNode}()
+
+    # linearized clauses (conjunctions)
+    clauses = Vector{⋀Node}()
+
+    # literal cache is responsible for making leaf literals nodes unique and adding them to `circuit`
+    lit_cache = Dict{Lit,LogicalLeafNode}()
+    literal_node(l::Lit) = get!(lit_cache, l) do
+        leaf = LiteralNode(l)
+        push!(circuit,leaf) # also add new leaf to linearized circuit before caller
+        leaf
+    end
+
+    # record the current clause
+    clause = ⋀Node([])
+
+    open(file) do file
+
+        for ln in eachline(file)
+            @assert !isempty(ln)
+            if ln[1] == 'c' || startswith(ln, "p dnf")
+                # skip comment and header lines
+                continue
+            else
+                tokens = split(ln)
+                for token in tokens
+                    if !occursin(r"^\s*[-]?[0-9]+\s*$", token)
+                        error("Cannot parse CNF file format line $ln")
+                    end
+                    literal = parse(Lit, token)
+                    if literal == 0
+                        push!(clauses, clause)
+                        push!(circuit, clause)
+                        clause = ⋀Node([])
+                    else
+                        push!(clause.children, literal_node(literal))
+                    end
+                end
+            end
+        end
+
+        # handle the last clause
+        if length(clause.children) > 0
+            push!(clauses, clause)
+            push!(circuit, clause)
+        end
+
+        # create the root disjunction node
+        if length(clauses) > 0
+            push!(circuit, ⋁Node(clauses))
+        end
+    end
+
+    circuit
 end
