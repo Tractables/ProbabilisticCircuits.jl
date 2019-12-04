@@ -19,7 +19,7 @@ before_install:
 - julia install.jl 
 
 script:
-- julia --code-coverage test/runtests.jl
+- julia --color=yes --project=. -e 'using Pkg; pkg"instantiate"; pkg"precompile"; Pkg.test()'
 
 after_success:
 - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
