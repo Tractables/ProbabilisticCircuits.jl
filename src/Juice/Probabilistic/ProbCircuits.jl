@@ -157,6 +157,14 @@ function log_likelihood_per_instance(pc::ProbΔ, batch::PlainXData{Bool})
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
+function log_proba(pc::ProbΔ, batch::PlainXData{Bool})    
+    log_likelihood_per_instance(pc, batch)[2]
+end
+
+function log_proba(pc::ProbΔ, batch::PlainXData{Int8})    
+    marginal_log_likelihood_per_instance(pc, batch)[2]
+end
+
 """
 Calculate log likelihood per instance for batches of samples.
 """
@@ -352,12 +360,12 @@ function mpe_simulate(node::UpFlowLiteral, active_samples::Vector{Bool}, result:
 end
 function mpe_simulate(node::UpFlow⋁, active_samples::Vector{Bool}, result::Matrix{Bool})
     prs = zeros( length(node.children), size(active_samples)[1] )
-    for i=1:length(node.children)
+    @simd  for i=1:length(node.children)
         prs[i,:] .= pr(node.children[i]) .+ (node.origin.log_thetas[i])
     end
     
     max_child_ids = [a[1] for a in argmax(prs, dims = 1) ]
-    for i=1:length(node.children)
+    @simd for i=1:length(node.children)
         ids = Vector{Bool}( active_samples .* (max_child_ids .== i)[1,:] )  # Only active for this child if it was the max for that sample
         mpe_simulate(node.children[i], ids, result)
     end
