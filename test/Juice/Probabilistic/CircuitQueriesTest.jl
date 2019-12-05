@@ -27,13 +27,6 @@ using .Juice
 
     # Step 2. Add up all probabilities and see if they add up to one
     N = 4;
-    # data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
-    # for mask = 1: (1<<N) - 1
-    #     data_all = vcat(data_all,
-    #         transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
-    #     );
-    # end
-    # data_all = XData(data_all)
     data_all = XData(generate_data_all(N))
 
     calc_prob_all = log_likelihood_per_instance(flow_circuit, data_all)
