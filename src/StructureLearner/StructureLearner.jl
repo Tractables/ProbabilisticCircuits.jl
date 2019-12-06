@@ -1,7 +1,7 @@
 module StructureLearner
 
-using ...Data
-using ...Utils
+using ..Data
+using ..Utils
 
 using ..Logical
 using ..Probabilistic

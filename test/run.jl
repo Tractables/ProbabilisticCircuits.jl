@@ -2,7 +2,7 @@
 
 using Distributed
 # Load Juice code on all processes
-@everywhere include("./src/Juice/Juice.jl")
+@everywhere include("./src/Juice.jl")
 
 using Jive
 # runtests("./test/", 

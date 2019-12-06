@@ -4,7 +4,7 @@ using SparseArrays
 using LightGraphs
 using SimpleWeightedGraphs
 using MetaGraphs
-using ...Utils
+using ..Utils
 
 const δINT = 999999
 const MIN_INT = 1

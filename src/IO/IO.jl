@@ -1,6 +1,6 @@
 module IO
 
-using ...Utils
+using ..Utils
 using ..Logical
 using ..Probabilistic
 using ..Logistic
