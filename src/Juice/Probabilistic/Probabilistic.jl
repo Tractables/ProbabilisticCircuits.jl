@@ -12,6 +12,7 @@ export
 # ProbCircuits
 ProbΔNode, ProbΔ, ProbΔ, ProbLeafNode, ProbInnerNode,
 ProbLiteral, Prob⋀, Prob⋁, ProbCache, variable, num_parameters, compute_log_likelihood,
+log_proba,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,
 initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log_likelihood,
 expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure, check_parameter_integrity,
