@@ -23,6 +23,8 @@ end
 
 const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
 
+Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbΔNode{<:O}
+
 #####################
 # traits
 #####################
