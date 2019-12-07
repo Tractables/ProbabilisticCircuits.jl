@@ -1,8 +1,8 @@
 module Logistic
 
 using StatsFuns # logsumexp
-using ...Data
-using ...Utils
+using ..Data
+using ..Utils
 using ..Logical
 
 export 

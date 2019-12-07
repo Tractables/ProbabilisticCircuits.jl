@@ -1,8 +1,5 @@
 # JUICE LIBRARY ROOT
 
-# INCLUDE SIBLING MODULES
-include("../Utils/Utils.jl")
-include("../Data/Data.jl")
 
 module Juice
 
@@ -10,9 +7,12 @@ module Juice
 
 using Reexport
 
-# USE SIBLING MODULES
-@reexport using ..Data
-@reexport using ..Utils
+
+include("Utils/Utils.jl")
+include("Data/Data.jl")
+
+@reexport using .Data
+@reexport using .Utils
 
 # INCLUDE CHILD MODULES
 include("Logical/Logical.jl")

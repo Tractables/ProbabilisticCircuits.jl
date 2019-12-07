@@ -3,8 +3,8 @@ module Reasoning
 using ..Logical
 using ..Probabilistic
 using ..Logistic
-using ...Data
-using ...Utils
+using ..Data
+using ..Utils
 
 export 
     UpExpFlow,
