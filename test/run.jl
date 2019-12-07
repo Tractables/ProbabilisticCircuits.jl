@@ -9,4 +9,7 @@ using Jive
 #          skip=["run.jl"],
 #          targets=ARGS)
 
-runtests(@__DIR__, skip=["run.jl"], targets=map(x -> replace(x, "test/" => "", count=1), ARGS))
+runtests(@__DIR__, 
+         skip=["run.jl", "helper"], 
+         targets=map(x -> replace(x, "test/" => "", count=1), 
+         ARGS))
