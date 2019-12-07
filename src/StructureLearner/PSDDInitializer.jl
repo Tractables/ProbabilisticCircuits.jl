@@ -69,7 +69,7 @@ function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::PlainVtree
     roots = [i for (i, x) in enumerate(parent_vector(clt)) if x == 0]
     rootnode = construct_children(Var.(roots), clt, vtree_mode)
 
-    return root(rootnode)
+    return node2dag(rootnode)
 end
 
 function construct_node(v::Var, clt::CLT, strategy::String)::PlainVtreeNode
@@ -129,7 +129,7 @@ end
 
 "Compile a psdd circuit from clt and vtree"
 function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
-    order = root(vtree[end])
+    order = node2dag(vtree[end])
     parent_clt = Var.(parent_vector(clt))
 
     lin = Vector{ProbΔNode}()
