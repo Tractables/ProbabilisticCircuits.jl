@@ -32,7 +32,6 @@ Builds a Chow-Liu tree from complete data
 function build_clt_structure(data::PlainXData; 
                             vtree_mode="balanced",
                             clt_kwargs=(α=1.0,
-                                        parametered=true,
                                         clt_root="graph_center"))::PSDDWrapper
     clt = learn_chow_liu_tree(data; clt_kwargs...);
     vtree = learn_vtree_from_clt(clt; vtree_mode=vtree_mode);

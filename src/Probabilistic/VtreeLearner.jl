@@ -1,7 +1,7 @@
 using BlossomV
 using Metis
 using SparseArrays
-using LightGraphs
+using LightGraphs: add_edge! 
 using SimpleWeightedGraphs
 using MetaGraphs
 using ..Utils

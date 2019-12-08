@@ -1,22 +1,23 @@
-using LightGraphs
-using SimpleWeightedGraphs
-using MetaGraphs
+using LightGraphs: topological_sort_by_dfs, outneighbors
+using MetaGraphs: get_prop
 
 
 "convert literal+/- to probability value 0/1"
 @inline lit2value(l::Lit)::Int = (l > 0 ? 1 : 0)
 
-function learn_prob_circuit(data::XData; α, pseudocount, parametered = false)
-    learn_prob_circuit(WXData(data); α=α, pseudocount=pseudocount, parametered=parametered)
-end
-
-function learn_prob_circuit(data::WXData; α, pseudocount, parametered = false)
-    clt = learn_chow_liu_tree(data; α = α, parametered = parametered)
-    pc = compile_prob_circuit_from_clt(clt)
-    if !parametered
+"""
+Learning from data a circuit with several structure learning algorithms
+"""
+function learn_probabilistic_circuit(data::Union{XData, WXData}; 
+        pseudocount = 1.0, algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"))::ProbΔ
+    if algo == "chow-liu"
+        clt = learn_chow_liu_tree(data; algo_kwargs...)
+        pc = compile_prob_circuit_from_clt(clt)
         estimate_parameters(pc, convert(XBatches,data); pseudocount = pseudocount)
+        pc 
+    else
+        error("Cannot learn a probabilistic circuit with algorithm $algo")
     end
-    pc
 end
 
 "Build decomposable probability circuits from Chow-Liu tree"
@@ -26,7 +27,6 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     node_cache = Dict{Lit, LogicalΔNode}()
     prob_cache = ProbCache()
     parent = parent_vector(clt)
-    parametered = clt isa MetaDiGraph
 
     prob_children(n)::Vector{<:ProbΔNode{<:LogicalΔNode}} =  
         copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:LogicalΔNode})
@@ -59,11 +59,9 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
             n = Prob⋁(LogicalΔNode,temp, prob_children(temp))
             prob_cache[temp] = n
             n.log_thetas = zeros(Float64, 2)
-            if parametered
-                cpt = get_prop(clt, c, :cpt)
-                weights = [cpt[(1, v)], cpt[(0, v)]]
-                n.log_thetas = log.(weights)
-            end
+            cpt = get_prop(clt, c, :cpt)
+            weights = [cpt[(1, v)], cpt[(0, v)]]
+            n.log_thetas = log.(weights)
             push!(lin, n)
         end
 
@@ -95,11 +93,9 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
         n = Prob⋁(LogicalΔNode, temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = zeros(Float64, 2)
-        if parametered
-            cpt = get_prop(clt, root, :cpt)
-            weights = [cpt[1], cpt[0]]
-            n.log_thetas = log.(weights)
-        end
+        cpt = get_prop(clt, root, :cpt)
+        weights = [cpt[1], cpt[0]]
+        n.log_thetas = log.(weights)
         push!(lin, n)
         return n
     end

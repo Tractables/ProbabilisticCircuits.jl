@@ -12,7 +12,7 @@ export
 learn_chow_liu_tree, parent_vector, print_tree, CLT, parse_clt,
 
 # CircuitBuilder
-compile_prob_circuit_from_clt, learn_prob_circuit, BaseCache, ⊤, LitCache,
+compile_prob_circuit_from_clt, learn_probabilistic_circuit, BaseCache, ⊤, LitCache,
 
 # PSDDInitializer
 learn_vtree_from_clt, compile_psdd_from_clt, set_base, build_clt_structure,

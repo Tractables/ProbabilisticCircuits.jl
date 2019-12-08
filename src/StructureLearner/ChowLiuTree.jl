@@ -1,24 +1,26 @@
-using LightGraphs
-using SimpleWeightedGraphs
-using MetaGraphs
+using LightGraphs: SimpleGraph, SimpleDiGraph, complete_graph, add_edge!, kruskal_mst, bfs_tree, center, 
+    connected_components, induced_subgraph, nv, ne, edges, vertices, src, dst
+using SimpleWeightedGraphs: SimpleWeightedGraph
+using MetaGraphs: MetaDiGraph, set_prop!, props
 
 #####################
-# Learn a Chow-Liu tree from weighted data
+# Learn a Chow-Liu tree from (weighted) data
 #####################
 
-const CLT = Union{MetaDiGraph, SimpleDiGraph}
+"""
+Chow-Liu Tree
+"""
+const CLT = MetaDiGraph
 
 """
-learn a Chow-Liu tree from training set `train_x`, with Laplace smoothing factor `α`,
-for simplification, if `parametered=false`, CPTs are not cached in vertices,
-to get parameters, run `learn_prob_circuit` as wrapper;
-if `parametered=true`, cache CPTs in vertices.
+learn a Chow-Liu tree from training set `train_x`, with Laplace smoothing factor `α`, specifying the tree root by `clt_root`
+return a `CLT`
 """
-function learn_chow_liu_tree(train_x::XData; α = 0.0001, parametered=true, clt_root="graph_center")
-    learn_chow_liu_tree(WXData(train_x);α=α, parametered=parametered, clt_root=clt_root)
+function learn_chow_liu_tree(train_x::XData; α = 1.0, clt_root="graph_center")::CLT
+    learn_chow_liu_tree(WXData(train_x);α=α, clt_root=clt_root)
 end
 
-function learn_chow_liu_tree(train_x::WXData; α=0.0001, parametered=true, clt_root="graph_center")
+function learn_chow_liu_tree(train_x::WXData; α = 1.0, clt_root="graph_center")::CLT
     features_num = num_features(train_x)
 
     # calculate mutual information
@@ -36,11 +38,11 @@ function learn_chow_liu_tree(train_x::WXData; α=0.0001, parametered=true, clt_r
     if clt_root == "graph_center"
         clt = SimpleDiGraph(features_num)
         if nv(tree) == ne(tree) + 1
-            clt = bfs_tree(tree, LightGraphs.center(tree)[1])
+            clt = bfs_tree(tree, center(tree)[1])
         else
             for c in filter(c -> (length(c) > 1), connected_components(tree))
                 sg, vmap = induced_subgraph(tree, c)
-                sub_root = vmap[LightGraphs.center(sg)[1]]
+                sub_root = vmap[center(sg)[1]]
                 clt = union(clt, bfs_tree(tree, sub_root))
             end
         end
@@ -48,27 +50,28 @@ function learn_chow_liu_tree(train_x::WXData; α=0.0001, parametered=true, clt_r
         roots = [rand(c) for c in connected_components(tree)]
         clt = SimpleDiGraph(features_num)
         for root in roots clt = union(clt, bfs_tree(tree, root)) end
+    else
+        error("Cannot learn CLT with root $clt_root")
     end
     
+    clt = MetaDiGraph(clt)
+    parent = parent_vector(clt)
+    for (c, p) in enumerate(parent)
+        set_prop!(clt, c, :parent, p)
+    end
 
-    # if parametered, cache CPTs in vertices
-    if parametered
-        clt = MetaDiGraph(clt)
-        parent = parent_vector(clt)
-        for (c, p) in enumerate(parent)
-            set_prop!(clt, c, :parent, p)
-        end
-
-        for v in vertices(clt)
-            p = parent[v]
-            cpt_matrix = get_cpt(p, v, dis_cache)
-            set_prop!(clt, v, :cpt, cpt_matrix)
-        end
+    for v in vertices(clt)
+        p = parent[v]
+        cpt_matrix = get_cpt(p, v, dis_cache)
+        set_prop!(clt, v, :cpt, cpt_matrix)
     end
 
     return clt
 end
 
+"""
+Calculate CPT of `child` conditioned on `parent` from `dis_cache`
+"""
 function get_cpt(parent, child, dis_cache)
     if parent == 0
         p = dis_cache.marginal[child, :]
