@@ -17,7 +17,7 @@ To build the documentation locally, run the following to build the documentation
 
 ## Dependencies
 
-For local developlement, you can use the `Project.toml` to activate a Julia environment with the requirements. See [the documentation](https://julialang.github.io/Pkg.jl/stable/environments/) for more deatils on how to use environments.
+For local developlement, you can use the `Project.toml` to activate a Julia environment with the requirements. See [the documentation](https://julialang.github.io/Pkg.jl/stable/environments/) for more details on how to use environments.
 
 Alternatively, you can run the following to install the dependencies in your default Julia environment (to be deprecated soon).
 
