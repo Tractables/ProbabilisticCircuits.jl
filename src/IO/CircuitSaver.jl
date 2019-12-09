@@ -209,7 +209,7 @@ function save_circuit(name::String, ln, vtree=nothing)
         save_sdd_file(name, ln, vtree)
     elseif endswith(name, ".psdd")
         save_psdd_file(name, ln, vtree)
-    elseif endswith(name. ".circuit")
+    elseif endswith(name, ".circuit")
         save_lc_file(name, ln)
     else
         throw("Cannot save this file type as a circuit: $name")
