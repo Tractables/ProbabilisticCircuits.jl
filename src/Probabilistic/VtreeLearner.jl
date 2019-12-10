@@ -27,7 +27,6 @@ import Metis.idx_t
 import Metis.partition
 import Metis.ishermitian
 import Metis.graph
-import Metis.partition
 
 struct WeightedGraph
     nvtxs::idx_t
@@ -65,7 +64,7 @@ function my_graph(G::SparseMatrixCSC; check_hermitian=true)
     return WeightedGraph(idx_t(N), xadj, adjncy, adjwgt)
 end
 
-function partition(G::WeightedGraph, nparts::Integer; alg = :KWAY)
+function my_partition(G::WeightedGraph, nparts::Integer; alg = :KWAY)
     part = Vector{Metis.idx_t}(undef, G.nvtxs)
     edgecut = fill(idx_t(0), 1)
     if alg === :RECURSIVE
@@ -80,7 +79,7 @@ function partition(G::WeightedGraph, nparts::Integer; alg = :KWAY)
     return part
 end
 
-partition(G, nparts; alg = :KWAY) = partition(my_graph(G), nparts, alg = alg)
+my_partition(G, nparts; alg = :KWAY) = my_partition(my_graph(G), nparts, alg = alg)
 
 "Metis top down method"
 function metis_top_down(vars::Vector{Var}, context::MetisContext)::Tuple{Vector{Var}, Vector{Var}}

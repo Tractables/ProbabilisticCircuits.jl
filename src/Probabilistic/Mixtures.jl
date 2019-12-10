@@ -71,7 +71,6 @@ Mixture(w, c::Vector{<:ProbΔ}) = FlatMixture(w, c)
 
 "Number of components in a mixture"
 @inline num_components(m::AbstractMixture)::Int = length(components(m))
-@inline num_components(m::AbstractMixture)::Int = length(components(m))
 
 "Convert a given flat mixture into one with cached flows"
 ensure_with_flows(m::FlatMixture, size_hint::Int)::FlatMixtureWithFlow = begin
