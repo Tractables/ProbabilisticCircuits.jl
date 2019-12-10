@@ -1,14 +1,14 @@
 using Test
 using Random
-using .Juice
+using Juice
 
 @testset "Expectation Maximization algorithm test" begin
     Random.seed!(1337)
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)
     train_x = train(data)
 
-    file1 = "./test/circuits/nltcs.clt.psdd"
-    file2 = "./test/circuits/nltcs.10split.psdd"
+    file1 = "circuits/nltcs.clt.psdd"
+    file2 = "circuits/nltcs.10split.psdd"
  
     pc1 = load_prob_circuit(file1)
     pc2 = load_prob_circuit(file2)

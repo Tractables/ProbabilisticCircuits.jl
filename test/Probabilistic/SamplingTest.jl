@@ -1,9 +1,9 @@
 using Test
-using .Juice
+using Juice
 
 @testset "Sampling Test" begin
     EPS = 1e-2;
-    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
     flow_circuit = FlowΔ(prob_circuit, 16, Bool);
 
     N = 4;
@@ -36,7 +36,7 @@ end
 @testset "Sampling With Evidence" begin
     # TODO (pashak) this test should be improved by adding few more cases
     EPS = 1e-3;
-    prob_circuit = load_prob_circuit("test/circuits/little_4var.psdd");
+    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
 
     opts= (compact⋀=false, compact⋁=false)
     flow_circuit = UpFlowΔ(prob_circuit, 1, Float64, opts);

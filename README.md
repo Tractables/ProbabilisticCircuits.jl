@@ -19,10 +19,11 @@ To build the documentation locally, run the following to build the documentation
 
 For local developlement, you can use the `Project.toml` to activate a Julia environment with the requirements. See [the documentation](https://julialang.github.io/Pkg.jl/stable/environments/) for more details on how to use environments.
 
-Alternatively, you can run the following to install the dependencies in your default Julia environment (to be deprecated soon).
-
- ``julia install.jl``
-
+Concretely you can run the following commands to ensure Julia will find a local development version of Juice at `/code/Juice.jl` and is able to use it on all processors:
+    
+    $ mkdir  -p .julia/config
+    $ touch .julia/config/startup.jl
+    $ echo 'using Distributed; @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > .julia/config/startup.jl
 
 ## Using Revise
 
@@ -39,16 +40,16 @@ The `sandbox` folder will contain some (old) examples on how to use the library.
 
 We will be adding automated tests under `/test` folder. To run all the test cases, run:
 
-    julia --color=yes -pauto test/run.jl
+    julia --color=yes -pauto runtests.jl
 
 The flag `-pauto` parallelizes the tests across all CPU cores.
 You can also run all the tests for a single (sub-)module, for example:
 
-    julia --color=yes -pauto test/run.jl test/Juice/IO
+    julia --color=yes -pauto runtests.jl IO
 
 Or even any individual test, for example:
 
-    julia --color=yes -pauto test/run.jl test/Juice/IO/VtreeParserTest.jl
+    julia --color=yes -pauto runtests.jl IO/VtreeParserTest.jl
 
 Make sure to run the tests before commiting new code.
 

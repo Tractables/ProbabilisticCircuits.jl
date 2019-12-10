@@ -1,7 +1,7 @@
 using Documenter
 
 include("../src/Juice.jl")
-using .Juice
+using Juice
 
 makedocs(
     sitename = "Juice.jl Documentation",
