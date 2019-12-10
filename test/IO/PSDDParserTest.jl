@@ -6,7 +6,7 @@ import .Juice.IO:
 
 
 @testset "Load a small PSDD and test methods" begin
-   file = "test/circuits/little_4var.psdd"
+   file = "circuits/little_4var.psdd"
    prob_circuit = load_prob_circuit(file);
    @test prob_circuit isa ProbΔ
 
@@ -29,7 +29,7 @@ import .Juice.IO:
    @test abs(prob_circuit[20].log_thetas[1] - (0.0)) < EPS
 end
 
-psdd_files = ["test/circuits/little_4var.psdd", "test/circuits/msnbc-yitao-a.psdd", "test/circuits/msnbc-yitao-b.psdd", "test/circuits/msnbc-yitao-c.psdd", "test/circuits/msnbc-yitao-d.psdd", "test/circuits/msnbc-yitao-e.psdd", "test/circuits/mnist-antonio.psdd"]
+psdd_files = ["circuits/little_4var.psdd", "circuits/msnbc-yitao-a.psdd", "circuits/msnbc-yitao-b.psdd", "circuits/msnbc-yitao-c.psdd", "circuits/msnbc-yitao-d.psdd", "circuits/msnbc-yitao-e.psdd", "circuits/mnist-antonio.psdd"]
 
 @testset "Test parameter integrity of loaded PSDDs" begin
    for psdd_file in psdd_files
@@ -39,10 +39,10 @@ end
 
 @testset "Test parameter integrity of loaded structured PSDDs" begin
    circuit, vtree = load_struct_prob_circuit(
-      "test/circuits/little_4var.psdd", "test/circuits/little_4var.vtree")
+      "circuits/little_4var.psdd", "circuits/little_4var.vtree")
    @test check_parameter_integrity(circuit)
    @test vtree isa PlainVtree
    # no other combinations of vtree and psdd are in this repo?
    # @test check_parameter_integrity(load_struct_prob_circuit(
-   #          "test/circuits/mnist-antonio.psdd", "test/circuits/balanced.vtree"))
+   #          "circuits/mnist-antonio.psdd", "circuits/balanced.vtree"))
 end

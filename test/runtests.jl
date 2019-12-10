@@ -13,5 +13,5 @@ using Jive
 
 runtests(@__DIR__, 
          skip=["run.jl", "helper"], 
-         targets=map(x -> replace(x, "test/" => "", count=1), 
+         targets=map(x -> replace(x, "" => "", count=1), 
          ARGS))

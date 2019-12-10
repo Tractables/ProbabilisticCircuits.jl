@@ -12,11 +12,11 @@ using Juice
     @test abs(pr_constraint(pc[5], pc[3], cache) - 0.2) < 1e-8
     @test abs(pr_constraint(pc[5], pc[4], cache) - 0.8) < 1e-8
 
-    file_circuit = "test/circuits/little_4var.circuit"
-    file_vtree = "test/circuits/little_4var.vtree"
+    file_circuit = "circuits/little_4var.circuit"
+    file_vtree = "circuits/little_4var.vtree"
     logical_circuit, vtree = load_struct_smooth_logical_circuit(file_circuit, file_vtree)
 
-    file = "test/circuits/little_4var.psdd"
+    file = "circuits/little_4var.psdd"
     pc = load_prob_circuit(file)
 
     @test abs(pr_constraint(pc[end], logical_circuit[end - 1], cache) - 1.0) < 1e-8
