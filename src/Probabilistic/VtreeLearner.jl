@@ -37,7 +37,7 @@ struct WeightedGraph
     WeightedGraph(nvtxs, xadj, adjncy, adjwgt) = new(nvtxs, xadj, adjncy, adjwgt)
 end
 
-function graph(G::SparseMatrixCSC; check_hermitian=true)
+function my_graph(G::SparseMatrixCSC; check_hermitian=true)
     if check_hermitian
         ishermitian(G) || throw(ArgumentError("matrix must be Hermitian"))
     end
@@ -80,7 +80,7 @@ function partition(G::WeightedGraph, nparts::Integer; alg = :KWAY)
     return part
 end
 
-partition(G, nparts; alg = :KWAY) = partition(graph(G), nparts, alg = alg)
+partition(G, nparts; alg = :KWAY) = partition(my_graph(G), nparts, alg = alg)
 
 "Metis top down method"
 function metis_top_down(vars::Vector{Var}, context::MetisContext)::Tuple{Vector{Var}, Vector{Var}}
@@ -92,7 +92,7 @@ function metis_top_down(vars::Vector{Var}, context::MetisContext)::Tuple{Vector{
         sub_context[i, i] = 0
     end
     g = convert(SparseMatrixCSC, sub_context)
-    partition = Metis.partition(graph(g), 2, alg = :RECURSIVE)
+    partition = Metis.partition(my_graph(g), 2, alg = :RECURSIVE)
 
     subsets = (Vector{Var}(), Vector{Var}())
     for (index, p) in enumerate(partition)
