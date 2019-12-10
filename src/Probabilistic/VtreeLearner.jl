@@ -22,11 +22,7 @@ MetisContext(mi::Matrix{Float64}) = MetisContext(to_long_mi(mi, MIN_INT, MAX_INT
 
 
 #Add edge weights to Metis.jl
-
-import Metis.idx_t
-import Metis.partition
-import Metis.ishermitian
-import Metis.graph
+using Metis: idx_t, ishermitian
 
 struct WeightedGraph
     nvtxs::idx_t
@@ -91,7 +87,7 @@ function metis_top_down(vars::Vector{Var}, context::MetisContext)::Tuple{Vector{
         sub_context[i, i] = 0
     end
     g = convert(SparseMatrixCSC, sub_context)
-    partition = Metis.partition(my_graph(g), 2, alg = :RECURSIVE)
+    partition = my_partition(my_graph(g), 2, alg = :RECURSIVE)
 
     subsets = (Vector{Var}(), Vector{Var}())
     for (index, p) in enumerate(partition)
