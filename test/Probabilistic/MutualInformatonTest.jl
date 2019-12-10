@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 function conditional_entropy_test()
     N = 10

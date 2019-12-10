@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 import .Juice.IO: 
    parse_comment_line, parse_lc_header_line, parse_lc_literal_line, parse_literal_line, parse_lc_decision_line, parse_bias_line, parse_lc_file, 
    CircuitFormatLine, BiasLine, DecisionLine, WeightedLiteralLine, CircuitHeaderLine, CircuitCommentLine, LCElement, CircuitFormatLines

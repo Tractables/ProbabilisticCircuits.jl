@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 using .Utils
 
 function vtree_test_top_down()

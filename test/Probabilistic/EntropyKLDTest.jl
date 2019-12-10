@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 @testset "Entropy and KLD" begin
     pc1, vtree = load_struct_prob_circuit("./test/circuits/simple2.1.psdd", "./test/circuits/simple2.vtree");

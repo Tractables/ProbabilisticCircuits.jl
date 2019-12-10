@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 @testset "Sampling Test" begin
     EPS = 1e-2;

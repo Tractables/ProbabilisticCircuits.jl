@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 
 @testset "pr_constraint Query" begin

@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 function test_expectation_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, CLASSES::Int)
     EPS = 1e-7;

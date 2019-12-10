@@ -1,5 +1,5 @@
 using Test
-using .Juice
+using Juice
 
 @testset "Circuit saver test" begin
     #@no_error begin

@@ -1,8 +1,10 @@
 # Driver script for all unit tests
 
-using Distributed
+# using Distributed
+
 # Load Juice code on all processes
-@everywhere include("./src/Juice.jl")
+# @everywhere include("./src/Juice.jl")
+# this is now handled by having Juice be a package
 
 using Jive
 # runtests("./test/", 
