@@ -104,12 +104,6 @@ function psdd_kl_divergence(psdd_node1::ProbΔNode, psdd_node2::ProbΔNode,
 end
 function psdd_kl_divergence(psdd_node1::ProbΔNode, psdd_node2::ProbΔNode,
         kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
-        pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})::Float64
-
-    return psdd_kl_divergence(psdd_node1, psdd_node2, kl_divergence_cache, pr_constraint_cache)
-end
-function psdd_kl_divergence(psdd_node1::ProbΔNode, psdd_node2::ProbΔNode,
-        kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
         pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[(psdd_node1, psdd_node2)]
