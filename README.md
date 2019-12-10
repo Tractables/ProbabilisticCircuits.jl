@@ -21,8 +21,8 @@ For local developlement, you can use the `Project.toml` to activate a Julia envi
 
 Concretely you can run the following commands to ensure Julia will find a local development version of Juice at `~/code/Juice.jl` and is able to use it on all processors:
     
-    $ mkdir  -p .julia/config
-    $ echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > .julia/config/startup.jl
+    $ mkdir  -p ~/.julia/config
+    $ echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > ~/.julia/config/startup.jl
 
 ## Using Revise
 
