@@ -108,10 +108,10 @@ copy_with_eltype(input, Eltype::Type) = copyto!(similar(input, Eltype), input)
 import Base.typejoin
 
 "Get the most specific type parameter possible for an array"
-typejoin(array) = mapreduce(e -> typeof(e), typejoin, array)
+Base.typejoin(array::AbstractArray) = mapreduce(e -> typeof(e), typejoin, array)
 
 "Specialize the type parameter of an array to be most specific"
-lower_element_type(array) = copy_with_eltype(array, typejoin(array))
+lower_element_type(array::AbstractArray) = copy_with_eltype(array, typejoin(array))
 
 
 #####################
