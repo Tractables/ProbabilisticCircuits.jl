@@ -19,10 +19,9 @@ To build the documentation locally, run the following to build the documentation
 
 For local developlement, you can use the `Project.toml` to activate a Julia environment with the requirements. See [the documentation](https://julialang.github.io/Pkg.jl/stable/environments/) for more details on how to use environments.
 
-Concretely you can run the following commands to ensure Julia will find a local development version of Juice at `/code/Juice.jl` and is able to use it on all processors:
+Concretely you can run the following commands to ensure Julia will find a local development version of Juice at `~/code/Juice.jl` and is able to use it on all processors:
     
     $ mkdir  -p .julia/config
-    $ touch .julia/config/startup.jl
     $ echo 'using Distributed; @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > .julia/config/startup.jl
 
 ## Using Revise
