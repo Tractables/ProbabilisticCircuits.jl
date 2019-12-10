@@ -7,7 +7,7 @@
 # this is now handled by having Juice be a package
 
 using Jive
-# runtests("./test/", 
+# runtests("", 
 #          skip=["run.jl"],
 #          targets=ARGS)
 

@@ -4,7 +4,7 @@ using Juice
 
 @testset "pr_constraint Query" begin
     # two nodes
-    pc, vtree = load_struct_prob_circuit("./test/circuits/simple2.4.psdd", "./test/circuits/simple2.vtree");
+    pc, vtree = load_struct_prob_circuit("circuits/simple2.4.psdd", "circuits/simple2.vtree");
 
     cache = Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64}()
 
@@ -22,8 +22,8 @@ using Juice
     @test abs(pr_constraint(pc[end], logical_circuit[end - 1], cache) - 1.0) < 1e-8
 
     # Test with two psdds
-    pc1, vtree = load_struct_prob_circuit("./test/circuits/simple2.5.psdd", "./test/circuits/simple2.vtree");
-    pc2, vtree = load_struct_prob_circuit("./test/circuits/simple2.6.psdd", "./test/circuits/simple2.vtree");
+    pc1, vtree = load_struct_prob_circuit("circuits/simple2.5.psdd", "circuits/simple2.vtree");
+    pc2, vtree = load_struct_prob_circuit("circuits/simple2.6.psdd", "circuits/simple2.vtree");
 
     pr_constraint_cache = Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64}()
     pr_constraint(pc1[end], pc2[end], pr_constraint_cache)

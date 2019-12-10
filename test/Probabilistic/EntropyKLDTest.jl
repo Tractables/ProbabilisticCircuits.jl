@@ -2,9 +2,9 @@ using Test
 using Juice
 
 @testset "Entropy and KLD" begin
-    pc1, vtree = load_struct_prob_circuit("./test/circuits/simple2.1.psdd", "./test/circuits/simple2.vtree");
-    pc2, vtree = load_struct_prob_circuit("./test/circuits/simple2.2.psdd", "./test/circuits/simple2.vtree");
-    pc3, vtree = load_struct_prob_circuit("./test/circuits/simple2.3.psdd", "./test/circuits/simple2.vtree");
+    pc1, vtree = load_struct_prob_circuit("circuits/simple2.1.psdd", "circuits/simple2.vtree");
+    pc2, vtree = load_struct_prob_circuit("circuits/simple2.2.psdd", "circuits/simple2.vtree");
+    pc3, vtree = load_struct_prob_circuit("circuits/simple2.3.psdd", "circuits/simple2.vtree");
    
     # Entropy calculation test
     @test abs(psdd_entropy(pc1[end]) - 1.2899219826090118) < 1e-8
