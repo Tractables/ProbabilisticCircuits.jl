@@ -9,7 +9,7 @@ export copy_with_eltype, issomething, flatmap, map_something, ntimes, some_vecto
 assign, accumulate_val, accumulate_prod, accumulate_prod_normalized, assign_prod,
 assign_prod_normalized, prod_fast, count_conjunction, sum_weighted_product, 
 order_asc, to_long_mi, @no_error, disjoint, typejoin, lower_element_type, map_values, groupby, logsumexp,
-unzip, @printlog, uniform, pushrand!,
+unzip, uniform, pushrand!,
 IndirectVector, index_dict,
 collect_exp_paths, path_to_args_dict, filter_exps,
 Node, DagNode, TreeNode, DiGraph, Dag, Tree, 
@@ -133,48 +133,6 @@ macro redirect_to_files(expr, outfile, errfile)
             end
         end
     end
-end
-macro printlog(filename = "./temp.log")
-    @eval begin
-            close(open($filename, "w"))
-
-            macro time(ex)
-                quote
-                    local stats = Base.gc_num()
-                    local elapsedtime = Base.time_ns()
-                    local val = $(esc(ex))
-                    elapsedtime = Base.time_ns() - elapsedtime
-                    local diff = Base.GC_Diff(Base.gc_num(), stats)
-                    local str = @capture_out begin
-                        Base.time_print(elapsedtime, diff.allocd, diff.total_time, Base.gc_alloc_count(diff))
-                        Base.println()
-                    end
-                    local f = open($$(filename), "a+")
-                    write(f, str)
-                    close(f)
-                    val
-                end
-            end
-
-            function print(args...)
-                str = @capture_out begin Base.print(stdout, args...) end
-                f = open($filename, "a+")
-                write(f, str)
-                write(stdout, str)
-                close(f)
-                nothing
-            end
-
-            function println(args...)
-                str = @capture_out begin Base.println(stdout, args...) end
-                f = open($filename, "a+")
-                write(f, str)
-                write(stdout, str)
-                close(f)
-                nothing
-            end
-
-        end
 end
 
 
