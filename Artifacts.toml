@@ -1,0 +1,7 @@
+[twenty_datasets]
+git-tree-sha1 = "1ed0cb58a4ea6d79b60bd38e3db981413b5acc91"
+lazy = true
+
+ [[twenty_datasets.download]]
+    url = "http://github.com/UCLA-StarAI/Density-Estimation-Datasets/archive/v1.0.tar.gz"
+    sha256 = "4310e7f628a05565d0fc14bdfbd88fb647e991cb2f67b875790840aa24d68f93"

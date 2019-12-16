@@ -7,6 +7,7 @@ MyData:
 using MLDatasets
 using CSV
 using DataDeps
+using Pkg.Artifacts
 
 #####################
 # Register data sources with DataDeps
@@ -18,16 +19,6 @@ function __init__()
         "Sampled Binary MNIST data",
         expand_folds(x -> "http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mnist_$x.amat"),
          "56e293409ebbdc08bcc7cbfe5453fbf7a9b86d0bb9b10d38a4919245566b7783"
-    ))
-
-    register(DataDep(
-        "20Datasets",
-        "20 Density Estimation Datasets",
-        flatmap(twenty_dataset_names) do ds
-            expand_folds(x -> "https://raw.githubusercontent.com/UCLA-StarAI/Density-Estimation-Datasets/master/datasets/$ds/$ds.$x.data")
-        end,
-        #"38658a594750b17edcea50d82c0b7bde6c8298095f1d0ad1296a63b871c83377"
-        "96a9fec15b4569aae8a0e5c4d92173b17b9e92ccde41d12cab15f270da851b9c"
     ))
 end
 
@@ -78,9 +69,9 @@ end
 
 function twenty_datasets(name)
     @assert in(name, twenty_dataset_names)
-    data_dir = datadep"20Datasets"
+    data_dir = artifact"twenty_datasets"
     function load(type)
-        dataframe = CSV.read(data_dir*"/$name.$type.data"; header=false, delim=",",
+        dataframe = CSV.read(data_dir*"/Density-Estimation-Datasets-1.0/datasets/$name/$name.$type.data"; header=false, delim=",",
                  truestrings=["1"], falsestrings=["0"], type=Bool, strict=true)
         XData(BitArray(Base.convert(Matrix{Bool}, dataframe)))
     end
