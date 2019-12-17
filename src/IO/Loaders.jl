@@ -77,6 +77,9 @@ zoo_dnf(name) =
 zoo_lc_file(name) = 
     artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/lcs/$name"
 
+zoo_lc(name, num_classes) = 
+    load_logistic_circuit(zoo_lc_file(name), num_classes)
+
 zoo_clt_file(name) = 
     artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/clt/$name"
 
