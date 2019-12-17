@@ -168,7 +168,7 @@ end
 #####################
 
 function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
-    @assert ln[end].origin isa StructLogicalΔNode "PSDD should decorate on StructLogicalCircuit"
+    @assert ln[end].origin isa StructLogicalΔNode "PSDD should decorate on StructLogicalΔ"
     @assert endswith(name, ".psdd")
 
     node2id = get_node2id(ln, ProbΔNode)
@@ -187,7 +187,7 @@ end
 save_sdd_file(name::String, ln::ProbΔ, vtree::PlainVtree) = 
     save_sdd_file(name, origin(ln), vtree)
 
-function save_sdd_file(name::String, ln::StructLogicalCircuit, vtree::PlainVtree)
+function save_sdd_file(name::String, ln::StructLogicalΔ, vtree::PlainVtree)
     @assert endswith(name, ".sdd")
     node2id = get_node2id(ln, StructLogicalΔNode)
     vtree2id = get_vtree2id(vtree)
