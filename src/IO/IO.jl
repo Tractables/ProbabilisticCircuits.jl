@@ -30,7 +30,12 @@ save_as_dot, is_true_node, save_circuit,
 # save_line, to_string
 
 # VtreeParser / Saver
-parse_vtree_file, compile_vtree_format_lines, load_vtree, save
+parse_vtree_file, compile_vtree_format_lines, load_vtree, save,
+
+# Loaders
+mnist, sampled_mnist, twenty_datasets, twenty_dataset_names,
+zoo_vtree_file, zoo_vtree,
+zoo_cnf_file, zoo_cnf
 
 include("VtreeLineCompiler.jl")
 include("VtreeParser.jl")
@@ -41,5 +46,7 @@ include("CircuitLineCompiler.jl")
 include("CircuitParser.jl")
 
 include("CircuitSaver.jl")
+
+include("Loaders.jl")
 
 end

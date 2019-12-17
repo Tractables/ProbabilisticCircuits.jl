@@ -1,3 +1,4 @@
+using ..Data
 using MLDatasets
 using CSV
 using Pkg.Artifacts
@@ -50,3 +51,19 @@ function twenty_datasets(name)
     test = load("test")
     XDataset(train,valid,test)
 end
+
+#####################
+# Circuit loaders
+#####################
+
+zoo_vtree_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/vtrees/$name"
+
+zoo_vtree(name) = 
+    load_vtree(zoo_vtree_file(name))
+
+zoo_cnf_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/cnfs/$name"
+
+zoo_cnf(name) = 
+    load_cnf(zoo_cnf_file(name))

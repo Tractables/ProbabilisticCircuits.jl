@@ -4,4 +4,13 @@ lazy = true
 
  [[density_estimation_datasets.download]]
     url = "https://github.com/UCLA-StarAI/Density-Estimation-Datasets/archive/v1.0.1.tar.gz"
-    sha256 = "5d66a95037e44010502ad28ec8d6dc26f46947dc88e962633b7de54e614b1a47"
+    sha256 = "5d66a95037e44010502ad28ec8d6dc26f46947dc88e962631b7de54e614b1a47"
+
+[circuit_model_zoo]
+git-tree-sha1 = "05d8be7247e53988738de287d3b6d5cdd2f62d55"
+lazy = true
+
+ [[circuit_model_zoo.download]]
+    url = "https://github.com/UCLA-StarAI/Circuit-Model-Zoo/archive/v0.1.1.tar.gz"
+    sha256 = "ec0ee04b706f4856808cd045f18c2f200728a54856f99b552c3113209c685585"
+
