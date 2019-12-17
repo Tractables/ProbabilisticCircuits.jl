@@ -82,3 +82,6 @@ zoo_clt_file(name) =
 
 zoo_psdd_file(name) = 
     artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/psdds/$name"
+
+zoo_sdd_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/sdds/$name"
