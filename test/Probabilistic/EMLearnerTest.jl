@@ -7,11 +7,8 @@ using Juice
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)
     train_x = train(data)
 
-    file1 = "circuits/nltcs.clt.psdd"
-    file2 = "circuits/nltcs.10split.psdd"
- 
-    pc1 = load_prob_circuit(file1)
-    pc2 = load_prob_circuit(file2)
+    pc1 = zoo_psdd("nltcs.clt.psdd")
+    pc2 = zoo_psdd("nltcs.10split.psdd")
     pcs = [pc1, pc2]
     mf = train_mixture(pcs, convert(XBatches, train_x), 1.0, 3)
 

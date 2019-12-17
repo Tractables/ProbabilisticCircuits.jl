@@ -7,7 +7,7 @@ using Juice
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = zoo_psdd("little_4var.psdd");
     @test prob_circuit isa Vector{<:ProbΔNode};
 
     flow_circuit = FlowΔ(prob_circuit, 16, Bool)
@@ -38,7 +38,7 @@ end
 
 @testset "Probability of partial Evidence (marginals)" begin
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = zoo_psdd("little_4var.psdd");
 
     data = XData(
         Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1;
@@ -67,7 +67,7 @@ end
 
 @testset "Marginal Pass Down" begin
     EPS = 1e-7;
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = zoo_psdd("little_4var.psdd");
 
     N = 4
     data_full = XData(Int8.(generate_data_all(N)))
@@ -130,7 +130,7 @@ function test_mpe_brute_force(prob_circuit, evidence)
 end
 
 @testset "MPE Brute Force Test Small (4 var)" begin
-    prob_circuit = load_prob_circuit("circuits/little_4var.psdd");
+    prob_circuit = zoo_psdd("little_4var.psdd");
     evidence = Juice.XData( Int8.( [-1 0 0 0;
                                 0 -1 -1 0;
                                 1 1 1 -1;
@@ -143,11 +143,10 @@ end
 end
 
 @testset "MPE Brute Force Test Big (15 var)" begin
-    psdd_file = "circuits/expectation/exp-D15-N1000-C4.psdd"
     N = 15
     COUNT = 10
 
-    prob_circuit = load_prob_circuit(psdd_file);
+    prob_circuit = zoo_psdd("exp-D15-N1000-C4.psdd");
     evidence = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
 
     test_mpe_brute_force(prob_circuit, evidence)
