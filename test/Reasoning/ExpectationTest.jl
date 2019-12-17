@@ -62,14 +62,13 @@ end
 
 
 @testset "Expectation Brute Force Test Small (4 Var)" begin
-    vtree_file      = "circuits/little_4var.vtree"
-    psdd_file       = "circuits/little_4var.psdd"
-    logistic_file   = "circuits/little_4var.circuit";
+    psdd_file       = "little_4var.psdd"
+    logistic_file   = "little_4var.circuit"
     CLASSES = 2
     N = 4
 
-    pc = load_prob_circuit(psdd_file);
-    lc = load_logistic_circuit(logistic_file, CLASSES);
+    pc = zoo_psdd(psdd_file);
+    lc = zoo_lc(logistic_file, CLASSES);
     data = XData(Int8.([
                         0 0 0 0; 
                         0 1 1 0; 
@@ -89,15 +88,14 @@ end
 
 
 @testset "Expectation Brute Force Test Big (15 Var)" begin
-    vtree_file      = "circuits/expectation/exp-D15-N1000-C4.vtree"
-    psdd_file       = "circuits/expectation/exp-D15-N1000-C4.psdd"
-    logistic_file   = "circuits/expectation/exp-D15-N1000-C4.circuit";
+    psdd_file       = "exp-D15-N1000-C4.psdd"
+    logistic_file   = "exp-D15-N1000-C4.circuit"
     CLASSES = 4
     N = 15
     COUNT = 10
 
-    pc = load_prob_circuit(psdd_file);
-    lc = load_logistic_circuit(logistic_file, CLASSES);
+    pc = zoo_psdd(psdd_file);
+    lc = zoo_lc(logistic_file, CLASSES);
     data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
     
     test_expectation_brute_force(pc, lc, data, CLASSES)
@@ -105,15 +103,14 @@ end
 
 
 @testset "Moment Brute Force Test Small (4 Var)" begin
-    vtree_file      = "circuits/little_4var.vtree"
-    psdd_file       = "circuits/little_4var.psdd"
-    logistic_file   = "circuits/little_4var.circuit";
+    psdd_file       = "little_4var.psdd"
+    logistic_file   = "little_4var.circuit";
     CLASSES = 2
     N = 4
     COUNT = 100
 
-    pc = load_prob_circuit(psdd_file);
-    lc = load_logistic_circuit(logistic_file, CLASSES);
+    pc = zoo_psdd(psdd_file);
+    lc = zoo_lc(logistic_file, CLASSES);
     data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
@@ -125,15 +122,14 @@ end
 end
 
 @testset "Moment Brute Force Test Big (15 Var)" begin
-    vtree_file      = "circuits/expectation/exp-D15-N1000-C4.vtree"
-    psdd_file       = "circuits/expectation/exp-D15-N1000-C4.psdd"
-    logistic_file   = "circuits/expectation/exp-D15-N1000-C4.circuit";
+    psdd_file       = "exp-D15-N1000-C4.psdd"
+    logistic_file   = "exp-D15-N1000-C4.circuit";
     CLASSES = 4
     N = 15
     COUNT = 10
 
-    pc = load_prob_circuit(psdd_file);
-    lc = load_logistic_circuit(logistic_file, CLASSES);
+    pc = zoo_psdd(psdd_file);
+    lc = zoo_lc(logistic_file, CLASSES);
     data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
