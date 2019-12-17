@@ -67,3 +67,18 @@ zoo_cnf_file(name) =
 
 zoo_cnf(name) = 
     load_cnf(zoo_cnf_file(name))
+
+zoo_dnf_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/dnfs/$name"
+
+zoo_dnf(name) = 
+    load_dnf(zoo_dnf_file(name))
+
+zoo_lc_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/lcs/$name"
+
+zoo_clt_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/clt/$name"
+
+zoo_psdd_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/psdds/$name"
