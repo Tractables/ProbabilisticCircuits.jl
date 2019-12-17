@@ -19,6 +19,7 @@ load_psdd_prob_circuit,
 parse_lc_file, 
 parse_psdd_file,
 load_logistic_circuit,
+parse_clt,
 
 # CircuitLineCompiler
 # CircuitLineTypes
@@ -34,7 +35,7 @@ parse_vtree_file, compile_vtree_format_lines, load_vtree, save,
 
 # Loaders
 mnist, sampled_mnist, twenty_datasets, twenty_dataset_names, dataset, 
-zoo_vtree_file, zoo_vtree, zoo_psdd, zoo_lc,
+zoo_vtree_file, zoo_vtree, zoo_psdd, zoo_lc, zoo_clt,
 zoo_cnf_file, zoo_cnf, zoo_dnf_file, zoo_dnf,
 zoo_lc_file, zoo_psdd_file, zoo_clt_file, zoo_sdd_file
 

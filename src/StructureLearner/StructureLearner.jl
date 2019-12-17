@@ -9,7 +9,7 @@ using ..IO
 
 export
 # ChowLiuTree
-learn_chow_liu_tree, parent_vector, print_tree, CLT, parse_clt,
+learn_chow_liu_tree, parent_vector, print_tree, CLT,
 
 # CircuitBuilder
 compile_prob_circuit_from_clt, learn_probabilistic_circuit, BaseCache, ⊤, LitCache,
