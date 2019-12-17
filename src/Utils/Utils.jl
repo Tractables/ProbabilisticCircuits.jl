@@ -176,44 +176,6 @@ function groupby(f::Function, list::Union{Vector{E},Set{E}})::Dict{Any,Vector{E}
 end
 
 #####################
-# indexing vectors by other vector indices
-#####################
-
-function index_dict(x::AbstractVector{E})::Dict{E,Int} where E
-    Dict(x[k] => k for k in eachindex(x))
-end
-
-# warning: this approach is slower than directly constructing a dictionary from K to V... not advised
-struct IndirectVector{K,V} <: AbstractVector{V}
-    i_dict::Dict{K,Int}
-    vec::AbstractVector{V}
-end
-
-function IndirectVector(keys::AbstractVector{K}, vec::AbstractVector{V}) where {K,V}
-    @assert length(keys) == length(vec)
-    @assert allunique(keys)
-    IndirectVector(index_dict(keys),vec)
-end
-
-# implement interface to make IndirectVector behave like a Vector (https://docs.julialang.org/en/v1/manual/interfaces/)
-# but also allow indexing by K-values
-Base.size(iv::IndirectVector) = size(iv.vec)
-Base.setindex!(iv::IndirectVector{K,V}, v::V, i::Int) where {K,V} = 
-    setindex!(iv.vec, v, i)
-Base.setindex!(iv::IndirectVector{K,V}, v::V, k::K) where {K,V} = 
-    setindex!(iv.vec, v, iv.i_dict[k])
-Base.firstindex(iv::IndirectVector) = firstindex(iv.vec)
-Base.lastindex(iv::IndirectVector) = lastindex(iv.vec)
-
-function Base.getindex(iv::IndirectVector{K,V}, i::Int)::V where {V,K} 
-    getindex(iv.vec, i)
-end
-
-function Base.getindex(iv::IndirectVector{K,V}, k::K)::V where {K,V}
-    getindex(iv.vec, iv.i_dict[k])
-end
-
-#####################
 # compute kernels
 #####################
 
