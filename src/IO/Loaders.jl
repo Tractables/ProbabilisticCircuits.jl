@@ -57,40 +57,40 @@ end
 #####################
 
 zoo_vtree_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/vtrees/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/vtrees/$name"
 
 zoo_vtree(name) = 
     load_vtree(zoo_vtree_file(name))
 
 zoo_cnf_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/cnfs/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/cnfs/$name"
 
 zoo_cnf(name) = 
     load_cnf(zoo_cnf_file(name))
 
 zoo_dnf_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/dnfs/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/dnfs/$name"
 
 zoo_dnf(name) = 
     load_dnf(zoo_dnf_file(name))
 
 zoo_lc_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/lcs/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/lcs/$name"
 
 zoo_lc(name, num_classes) = 
     load_logistic_circuit(zoo_lc_file(name), num_classes)
 
 zoo_clt_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/clts/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/clts/$name"
 
 zoo_clt(name) = 
     parse_clt(zoo_clt_file(name))
 
 zoo_psdd_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/psdds/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/psdds/$name"
 
 zoo_psdd(name) = 
     load_prob_circuit(zoo_psdd_file(name))
 
 zoo_sdd_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.1/sdds/$name"
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/sdds/$name"
