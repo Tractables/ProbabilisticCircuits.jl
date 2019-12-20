@@ -15,8 +15,8 @@ matrix:
   allow_failures:
   - julia: nightly
 
-#before_install:
-#- julia install.jl 
+before_install:
+- julia -e 'using Pkg; Pkg.instantiate();'
 
 script:
 - julia --code-coverage --color=yes --project=. -p2 test/runtests.jl
