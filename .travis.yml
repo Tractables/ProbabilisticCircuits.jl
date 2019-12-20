@@ -15,11 +15,11 @@ matrix:
   allow_failures:
   - julia: nightly
 
-before_install:
-- julia install.jl 
+#before_install:
+#- julia install.jl 
 
 script:
-- julia --code-coverage --color=yes --project=. -p2 test/run.jl
+- julia --code-coverage --color=yes --project=. -p2 test/runtests.jl
 
 after_success:
 - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
