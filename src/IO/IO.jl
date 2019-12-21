@@ -1,6 +1,6 @@
 module IO
 
-using LogicalCircuits
+using LogicCircuits
 using ..Utils
 using ..Probabilistic
 using ..Logistic
@@ -22,12 +22,10 @@ save_as_dot, is_true_node, save_circuit,
 
 # Loaders
 zoo_psdd, zoo_lc, zoo_clt,
-zoo_clt_file,
+zoo_clt_file
 
-include("CircuitLineTypes.jl")
 include("CircuitLineCompiler.jl")
 include("CircuitParser.jl")
-
 include("CircuitSaver.jl")
 
 include("Loaders.jl")
