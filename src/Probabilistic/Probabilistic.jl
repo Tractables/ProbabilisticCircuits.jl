@@ -2,10 +2,8 @@ module Probabilistic
 
 using StatsFuns # logsumexp
 
-using ..Data
+using LogicCircuits
 using ..Utils
-
-using ..Logical
 
 export
 

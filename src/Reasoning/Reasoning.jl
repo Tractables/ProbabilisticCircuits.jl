@@ -1,9 +1,8 @@
 module Reasoning
 
-using ..Logical
+using LogicCircuits
 using ..Probabilistic
 using ..Logistic
-using ..Data
 using ..Utils
 
 export 
