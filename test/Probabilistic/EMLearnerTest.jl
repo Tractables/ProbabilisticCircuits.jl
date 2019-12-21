@@ -1,6 +1,6 @@
 using Test
 using Random
-using Juice
+using ProbabilisticCircuits
 
 @testset "Expectation Maximization algorithm test" begin
     Random.seed!(1337)

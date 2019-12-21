@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 @testset "Sampling Test" begin
     EPS = 1e-2;

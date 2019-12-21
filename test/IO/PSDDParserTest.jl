@@ -1,6 +1,6 @@
 using Test
-using Juice
-import .Juice.IO: 
+using ProbabilisticCircuits
+import .ProbabilisticCircuits.IO: 
    parse_comment_line, parse_lc_header_line, parse_lc_literal_line, parse_literal_line, parse_lc_decision_line, parse_bias_line, parse_lc_file, 
    CircuitFormatLine, BiasLine, DecisionLine, WeightedLiteralLine, CircuitHeaderLine, CircuitCommentLine, LCElement, CircuitFormatLines
 

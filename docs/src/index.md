@@ -1,6 +1,6 @@
-# Juice.jl Documentation
+# ProbabilisticCircuits.jl Documentation
 
-Documentation for Juice.jl
+Documentation for ProbabilisticCircuits.jl
 
 See the individual modules' API overviews below.
 
@@ -16,8 +16,8 @@ Modules = [Data]
 Modules = [Utils]
 ```
 
-## Juice Module API
+## ProbabilisticCircuits Module API
 
 ```@autodocs
-Modules = [Juice]
+Modules = [ProbabilisticCircuits]
 ```

@@ -1,7 +1,6 @@
-# JUICE LIBRARY ROOT
+# PROBABILISTIC CIRCUITS LIBRARY ROOT
 
-
-module Juice
+module ProbabilisticCircuits
 
 # USE EXTERNAL MODULES
 

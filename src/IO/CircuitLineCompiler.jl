@@ -1,5 +1,5 @@
 #####################
-# Compilers to Juice data structures starting from already parsed line objects
+# Compilers to ProbabilisticCircuits data structures starting from already parsed line objects
 #####################
 
 """
