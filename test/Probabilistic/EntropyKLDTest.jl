@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 @testset "Entropy and KLD" begin
     pc1, vtree = load_struct_prob_circuit(

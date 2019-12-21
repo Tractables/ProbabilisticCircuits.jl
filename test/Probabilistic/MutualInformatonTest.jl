@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 function conditional_entropy_test()
     N = 10

@@ -1,13 +1,13 @@
 using Documenter
 
-# include("../src/Juice.jl")
-using Juice
+# include("../src/ProbabilisticCircuits.jl")
+using ProbabilisticCircuits
 
 makedocs(
-    sitename = "Juice.jl Documentation",
+    sitename = "ProbabilisticCircuits.jl Documentation",
     format = Documenter.HTML(prettyurls = false),
     doctest = true,
-    modules = [Juice, Data, Utils],
+    modules = [ProbabilisticCircuits, Data, Utils],
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.

@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 @testset "Circuit saver test" begin
     mktempdir() do tmp

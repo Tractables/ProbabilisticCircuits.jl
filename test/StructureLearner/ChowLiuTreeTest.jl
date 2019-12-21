@@ -1,7 +1,7 @@
 using Test: @test, @testset
 using LightGraphs: nv, ne
 using MetaGraphs: get_prop
-using Juice
+using ProbabilisticCircuits
 
 @testset "Chow-Liu Tree learner tests" begin
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)

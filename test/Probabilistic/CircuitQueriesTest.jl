@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 # This tests are supposed to test queries on the circuits
 @testset "Probability of Full Evidence" begin
@@ -78,12 +78,12 @@ end
 
 
     # Comparing with down pass with fully obeserved data
-    Juice.pass_up_down(flow_circuit, data_full)
-    Juice.marginal_pass_up_down(flow_circuit_marg, data_full)
+    ProbabilisticCircuits.pass_up_down(flow_circuit, data_full)
+    ProbabilisticCircuits.marginal_pass_up_down(flow_circuit_marg, data_full)
 
     for (ind, node) in enumerate(flow_circuit)
-        if node isa Juice.HasDownFlow
-            @test all(  isapprox.(Juice.downflow(flow_circuit[ind]), Juice.downflow(flow_circuit_marg[ind]), atol = EPS) );
+        if node isa ProbabilisticCircuits.HasDownFlow
+            @test all(  isapprox.(ProbabilisticCircuits.downflow(flow_circuit[ind]), ProbabilisticCircuits.downflow(flow_circuit_marg[ind]), atol = EPS) );
         end
     end
 
@@ -91,7 +91,7 @@ end
     # Validating one example with missing features done by hand
     data_partial = XData(Int8.([-1 1 -1 1]))
     flow_circuit_part  = FlowΔ(prob_circuit, 16, Float64, opts)
-    Juice.marginal_pass_up_down(flow_circuit_part, data_partial)
+    ProbabilisticCircuits.marginal_pass_up_down(flow_circuit_part, data_partial)
 
     # (node index, correct down_flow_value)
     true_vals = [(9, 0.3333333333333),
@@ -108,7 +108,7 @@ end
                 (20, 1.0)]
 
     for ind_val in true_vals
-        @test Juice.downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
+        @test ProbabilisticCircuits.downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
     end
 
 end
@@ -131,7 +131,7 @@ end
 
 @testset "MPE Brute Force Test Small (4 var)" begin
     prob_circuit = zoo_psdd("little_4var.psdd");
-    evidence = Juice.XData( Int8.( [-1 0 0 0;
+    evidence = ProbabilisticCircuits.XData( Int8.( [-1 0 0 0;
                                 0 -1 -1 0;
                                 1 1 1 -1;
                                 1 0 1 0;

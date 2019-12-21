@@ -1,5 +1,5 @@
 using Test
-using Juice
+using ProbabilisticCircuits
 
 # This tests are supposed to test queries on the circuits
 @testset "Logistic Circuit Class Conditional" begin
