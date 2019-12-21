@@ -1,6 +1,6 @@
 module StructureLearner
 
-using ..Data
+using LogicCircuits
 using ..Utils
 
 using ..Logical

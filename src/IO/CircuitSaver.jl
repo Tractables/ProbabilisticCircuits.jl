@@ -57,20 +57,6 @@ c B bias-parameters
 c"""
 end
 
-function save_sdd_comment_line()
-"""
-c ids of sdd nodes start at 0
-c sdd nodes appear bottom-up, children before parents
-c
-c file syntax:
-c sdd count-of-sdd-nodes
-c F id-of-false-sdd-node
-c T id-of-true-sdd-node
-c L id-of-literal-sdd-node id-of-vtree literal
-c D id-of-decomposition-sdd-node id-of-vtree number-of-elements {id-of-prime id-of-sub}*
-c"""
-end
-
 function save_psdd_comment_line()
 """
 c ids of psdd nodes start at 0
@@ -96,18 +82,6 @@ end
 # decompile for nodes
 #####################
 
-# decompile for sdd circuit
-decompile(n::StructLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
-    UnweightedLiteralLine(node2id[n], vtree2id[n.vtree], literal(n), false)
-
-decompile(n::StructConstantNode, node2id, vtree2id)::AnonymousConstantLine = 
-    AnonymousConstantLine(node2id[n], constant(n), false)
-
-make_element(n::Struct⋀Node, node2id) = 
-    SDDElement(node2id[n.children[1]],  node2id[n.children[2]])
-
-decompile(n::Struct⋁Node, node2id, vtree2id)::DecisionLine{SDDElement} = 
-    DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(c -> make_element(c, node2id), children(n)))
 
 # decompile for psdd
 decompile(n::ProbLiteral, node2id, vtree2id)::UnweightedLiteralLine = 
@@ -127,13 +101,6 @@ function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLi
         DecisionLine(node2id[n], vtree2id[n.origin.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
     end
 end
-
-# TODO: decompile for logical circuit
-# decompile(n::LiteralNode, node2id)::UnweightedLiteralLine = ()
-# decompile(n::TrueNode, node2id) = ()
-# decompile(n::FalseNode, node2id) = ()
-# decompile(n::⋀Node, node2id) = ()
-# decompile(n::⋁Node, node2id) = ()
 
 #####################
 # build maping
@@ -204,6 +171,7 @@ function save_sdd_file(name::String, ln::StructLogicalΔ, vtree::PlainVtree)
     save_lines(name, formatlines)
 end
 
+#TODO replace by dispatch based on second argument type
 function save_circuit(name::String, ln, vtree=nothing)
     if endswith(name, ".sdd")
         save_sdd_file(name, ln, vtree)
