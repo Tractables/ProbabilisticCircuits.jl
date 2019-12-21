@@ -30,7 +30,7 @@ const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
 # traits
 #####################
 
-import ..Logical.GateType # make available for extension
+import LogicCircuits.GateType # make available for extension
 
 @inline GateType(::Type{<:LogisticLiteral}) = LiteralLeaf()
 @inline GateType(::Type{<:Logistic⋀}) = ⋀()
@@ -80,7 +80,7 @@ end
 # methods
 #####################
 
-import ..Logical: literal, children # make available for extension
+import LogicCircuits: literal, children # make available for extension
 
 @inline literal(n::LogisticLiteral)::Lit  = literal(n.origin)
 @inline children(n::LogisticInnerNode) = n.children

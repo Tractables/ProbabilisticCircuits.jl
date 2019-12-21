@@ -29,7 +29,7 @@ Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbΔNode{<:O}
 # traits
 #####################
 
-import ..Logical.GateType # make available for extension
+import LogicCircuits.GateType # make available for extension
 
 @inline GateType(::Type{<:ProbLiteral}) = LiteralLeaf()
 @inline GateType(::Type{<:Prob⋀}) = ⋀()
@@ -76,7 +76,7 @@ end
 # methods
 #####################
 
-import ..Logical: literal, children # make available for extension
+import LogicCircuits: literal, children # make available for extension
 
 @inline literal(n::ProbLiteral)::Lit  = literal(n.origin)
 @inline children(n::ProbInnerNode) = n.children
