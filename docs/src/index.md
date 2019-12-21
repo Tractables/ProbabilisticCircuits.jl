@@ -21,25 +21,3 @@ Modules = [Utils]
 ```@autodocs
 Modules = [Juice]
 ```
-
-
-```@autodocs
-Modules = [Logical]
-```
-
-```@autodocs
-Modules = [Probabilistic]
-```
-
-```@autodocs
-Modules = [IO]
-```
-
-```@autodocs
-Modules = [Logistic]
-```
-
-```@autodocs
-Modules = [PGMs]
-```
-
