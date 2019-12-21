@@ -1,6 +1,6 @@
 using Documenter
 
-include("../src/Juice.jl")
+# include("../src/Juice.jl")
 using Juice
 
 makedocs(
