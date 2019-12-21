@@ -5,7 +5,19 @@ Julia Circuit Empanada
 
 # Requirements
 
-Julia 1.2
+Julia 1.3
+
+# Installation
+
+You can use the `Project.toml` that comes with Juice to activate a Julia environment with all dependencies
+Concretely, the following command will download and install all required packages.
+
+    julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.precompile();'
+
+You can run the following commands to ensure Julia will find a local version of Juice at `~/code/Juice.jl` and is able to use it on all processors (change `/code/Juice.jl` to be the correct path):
+    
+    mkdir  -p ~/.julia/config
+    echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > ~/.julia/config/startup.jl
 
 # Documentation
 
@@ -13,31 +25,17 @@ To build the documentation locally, run the following to build the documentation
 
     julia docs/make.jl
 
-# Developement
+# Troubleshooting
 
-## Dependencies
+## Installation
 
-For local developlement, you can use the `Project.toml` to activate a Julia environment with the requirements. See [the documentation](https://julialang.github.io/Pkg.jl/stable/environments/) for more details on how to use environments.
+If the MLDataSets package fails to build, install the following (Ubuntu):
 
-Concretely you can run the following commands to ensure Julia will find a local development version of Juice at `~/code/Juice.jl` and is able to use it on all processors:
-    
-    $ mkdir  -p ~/.julia/config
-    $ echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > ~/.julia/config/startup.jl
-
-## Using Revise
-
-`Revise.jl` allows you to modify code and use the changes without restarting Julia. For more information refer to [their github repository](https://github.com/timholy/Revise.jl).
- To use the Revise functionality while importing `Juice`, run the following command at the beginning of your REPL session. You may need to add additional files to track in `Debug.jl`.
-
-    using Revise; include("sandbox/Debug.jl");
-
-## Sandbox
-
-The `sandbox` folder will contain some (old) examples on how to use the library.
+  ``sudo apt-get install zlib1g-dev libncurses5-dev``
 
 ## Testing
 
-We will be adding automated tests under `/test` folder. To run all the test cases, run:
+To run all the test cases in the `/test` folder, do:
 
     julia --color=yes -pauto runtests.jl
 
@@ -49,12 +47,3 @@ You can also run all the tests for a single (sub-)module, for example:
 Or even any individual test, for example:
 
     julia --color=yes -pauto runtests.jl IO/VtreeParserTest.jl
-
-Make sure to run the tests before commiting new code.
-
-
-## Troubleshooting
-
-If MLDataSets package fails to build, mostly likely will be fixed by installing following (Ubuntu):
-
-  ``sudo apt-get install zlib1g-dev libncurses5-dev``

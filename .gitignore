@@ -8,10 +8,5 @@
 *.DS_Store
 *.code-workspace
 *.vscode
-/exp/*
-*.sh
-*.txt
-*.pdf
 **checkpoint.ipynb
-temp*
 *Manifest.toml
