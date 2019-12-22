@@ -1,4 +1,5 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 
 # This tests are supposed to test queries on the circuits
@@ -78,12 +79,12 @@ end
 
 
     # Comparing with down pass with fully obeserved data
-    ProbabilisticCircuits.pass_up_down(flow_circuit, data_full)
-    ProbabilisticCircuits.marginal_pass_up_down(flow_circuit_marg, data_full)
+    pass_up_down(flow_circuit, data_full)
+    marginal_pass_up_down(flow_circuit_marg, data_full)
 
     for (ind, node) in enumerate(flow_circuit)
-        if node isa ProbabilisticCircuits.HasDownFlow
-            @test all(  isapprox.(ProbabilisticCircuits.downflow(flow_circuit[ind]), ProbabilisticCircuits.downflow(flow_circuit_marg[ind]), atol = EPS) );
+        if node isa HasDownFlow
+            @test all(  isapprox.(downflow(flow_circuit[ind]), downflow(flow_circuit_marg[ind]), atol = EPS) );
         end
     end
 
@@ -108,7 +109,7 @@ end
                 (20, 1.0)]
 
     for ind_val in true_vals
-        @test ProbabilisticCircuits.downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
+        @test downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
     end
 
 end
@@ -131,7 +132,7 @@ end
 
 @testset "MPE Brute Force Test Small (4 var)" begin
     prob_circuit = zoo_psdd("little_4var.psdd");
-    evidence = ProbabilisticCircuits.XData( Int8.( [-1 0 0 0;
+    evidence = XData( Int8.( [-1 0 0 0;
                                 0 -1 -1 0;
                                 1 1 1 -1;
                                 1 0 1 0;
