@@ -4,18 +4,21 @@
 # ProbabilisticCircuits.jl
 Probabilistic Circuits - part of Juice (Julia Circuit Empanada)
 
-## Requirements
-
-Julia 1.3
 
 ## Installation
 
+### Requirements
+
+Julia 1.3
+
+### Dependencies
+
+Suppose you want Julia to use your local copy of the `ProbabilisticCircuits.jl` code, which you stored under `~/Juice/ProbabilisticCircuits.jl/`. Suppose you also have a copy of `LogicCircuits.jl` installed under `~/Juice/LogicCircuits.jl/`.
 You can use the `Project.toml` that comes with ProbabilisticCircuits to activate a Julia environment with all dependencies
-Concretely, the following command run from the ProbabilisticCircuits directory will download and install all required packages.
+Concretely, the following command run from the ProbabilisticCircuits directory will download and install all required packages, and use your local version of `LogicCircuits.jl`.
 
     julia -e 'using Pkg; Pkg.activate("."); Pkg.develop(PackageSpec(path="$(homedir())/Juice/LogicCircuits.jl/")); Pkg.instantiate(); Pkg.precompile();'
 
-Suppose you want Julia to use your local copy of the `ProbabilisticCircuits.jl` code, which you stored under `~/Juice/ProbabilisticCircuits.jl/`.
 You can run the following commands to ensure Julia will find this code and use it on all processors:
     
     mkdir  -p ~/.julia/config
