@@ -1,5 +1,5 @@
 using Test
-using ProbabilisticCircuits
+using ProbabilisticCircuits: AnonymousConstantLine
 
 @testset "Circuit saver test" begin
     mktempdir() do tmp

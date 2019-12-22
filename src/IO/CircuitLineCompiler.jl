@@ -2,6 +2,9 @@
 # Compilers to ProbabilisticCircuits data structures starting from already parsed line objects
 #####################
 
+# reuse some internal infrastructure of LogicCircuits' IO module
+using LogicCircuits.IO: CircuitFormatLines, CircuitFormatLine, VtreeFormatLines, CircuitHeaderLine, UnweightedLiteralLine, WeightedLiteralLine, DecisionLine, LCElement, BiasLine, WeightedNamedConstantLine, PSDDElement, CircuitCommentLine, ID
+
 """
 Compile lines into a probabilistic circuit.
 """

@@ -3,7 +3,6 @@ module StructureLearner
 using LogicCircuits
 using ..Utils
 
-using ..Logical
 using ..Probabilistic
 using ..IO
 
