@@ -1,6 +1,5 @@
 module Logistic
 
-using StatsFuns # logsumexp
 using LogicCircuits
 using ..Utils
 

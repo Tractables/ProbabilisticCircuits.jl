@@ -1,7 +1,5 @@
 module Probabilistic
 
-using StatsFuns # logsumexp
-
 using LogicCircuits
 using ..Utils
 

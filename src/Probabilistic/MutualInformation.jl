@@ -1,6 +1,5 @@
 using Statistics
-using LinearAlgebra
-using StatsFuns
+using LinearAlgebra #TODO list specific functions used
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
