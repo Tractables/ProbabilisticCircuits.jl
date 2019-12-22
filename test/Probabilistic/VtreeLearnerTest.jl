@@ -64,7 +64,7 @@ using .Utils
 
     mktempdir() do tmp
         save(vtree, "$tmp/test.vtree.dot")        
-        (psdd, _) = compile_psdd_from_clt(clt, vtree);
+        psdd = compile_psdd_from_clt(clt, vtree);
         @test psdd isa ProbΔ
         save_as_dot(psdd, "$tmp/test.psdd.dot")
     end

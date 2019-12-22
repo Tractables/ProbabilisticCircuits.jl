@@ -15,6 +15,7 @@ learn_chow_liu_tree, parent_vector, print_tree, CLT,
 compile_prob_circuit_from_clt, learn_probabilistic_circuit, BaseCache, ⊤, LitCache,
 
 # PSDDInitializer
+learn_struct_prob_circuit,
 learn_vtree_from_clt, compile_psdd_from_clt, set_base, build_clt_structure,
 train_mixture, compile_fully_factorized_psdd_from_vtree,
 

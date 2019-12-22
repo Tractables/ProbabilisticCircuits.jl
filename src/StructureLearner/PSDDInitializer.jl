@@ -27,6 +27,22 @@ import Base.length
 @inline length(psdd::PSDDWrapper) = length(psdd.pc) 
 
 """
+Learning from data a structured-decomposable circuit with several structure learning algorithms
+"""
+function learn_struct_prob_circuit(data::Union{XData, WXData}; 
+        pseudocount = 1.0, algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"), vtree = "chow-liu", vtree_kwargs=(vtree_mode="balanced",))
+    if algo == "chow-liu"
+        clt = learn_chow_liu_tree(data; algo_kwargs...)
+        vtree = learn_vtree_from_clt(clt; vtree_kwargs...);
+        pc = compile_psdd_from_clt(clt, vtree);
+        estimate_parameters(pc, convert(XBatches,data); pseudocount = pseudocount)
+        pc, vtree
+    else
+        error("Cannot learn a structured-decomposable circuit with algorithm $algo")
+    end
+end
+
+"""
 Builds a Chow-Liu tree from complete data
 """
 function build_clt_structure(data::PlainXData; 
@@ -35,7 +51,8 @@ function build_clt_structure(data::PlainXData;
                                         clt_root="graph_center"))::PSDDWrapper
     clt = learn_chow_liu_tree(data; clt_kwargs...);
     vtree = learn_vtree_from_clt(clt; vtree_mode=vtree_mode);
-    pc, bases = compile_psdd_from_clt(clt, vtree);
+    pc = compile_psdd_from_clt(clt, vtree);
+    bases = calculate_all_bases(pc)
     parents = parents_vector(pc)
     return PSDDWrapper(pc, bases, parents, vtree)
 end
@@ -175,8 +192,7 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
     end
 
     foreach(compile_from_vtree_node, vtree)
-    bases = calculate_all_bases(lin)
-    return (lin, bases)
+    return lin
 end
 
 #####################
