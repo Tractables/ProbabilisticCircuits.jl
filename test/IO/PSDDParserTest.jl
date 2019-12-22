@@ -1,4 +1,5 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Load a small PSDD and test methods" begin
