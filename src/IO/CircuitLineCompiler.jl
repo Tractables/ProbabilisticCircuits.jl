@@ -3,7 +3,8 @@
 #####################
 
 # reuse some internal infrastructure of LogicCircuits' IO module
-using LogicCircuits.IO: CircuitFormatLines, CircuitFormatLine, VtreeFormatLines, CircuitHeaderLine, UnweightedLiteralLine, WeightedLiteralLine, DecisionLine, LCElement, BiasLine, WeightedNamedConstantLine, PSDDElement, CircuitCommentLine, ID
+using LogicCircuits.IO: CircuitFormatLines, CircuitFormatLine, VtreeFormatLines, CircuitHeaderLine, UnweightedLiteralLine, WeightedLiteralLine, DecisionLine, LCElement, BiasLine, WeightedNamedConstantLine, PSDDElement, CircuitCommentLine, ID,
+compile_smooth_struct_logical_m, compile_smooth_logical_m
 
 """
 Compile lines into a probabilistic circuit.
