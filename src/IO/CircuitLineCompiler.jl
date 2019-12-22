@@ -1,3 +1,5 @@
+using LogicCircuits.IO: constant
+
 #####################
 # Compilers to ProbabilisticCircuits data structures starting from already parsed line objects
 #####################
