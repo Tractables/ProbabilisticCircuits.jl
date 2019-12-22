@@ -1,5 +1,6 @@
 using Statistics
 using LinearAlgebra #TODO list specific functions used
+using StatsFuns: xlogx, xlogy
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
