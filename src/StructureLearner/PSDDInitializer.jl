@@ -1,5 +1,3 @@
-using Printf
-using HDF5: h5write, h5open, close
 using ..Utils
 
 "Map from literal to LogicalΔNode"
@@ -7,24 +5,6 @@ const LitCache = Dict{Lit, LogicalΔNode}
 
 "Use literal to represent constraint (1 to X, -1 to not X), 0 to represent true"
 const ⊤ = convert(Lit, 0)
-
-"Map logical variable to bases"
-const BaseCache = Dict{LogicalΔNode, Vector{Lit}}
-
-"Cache circuit node parents "
-const ParentsCache = Dict{ProbΔNode,Vector{<:ProbΔNode}}
-
-"Wrapper for PSDD, cache structures used in learning process"
-mutable struct PSDDWrapper
-    pc::ProbΔ
-    bases::BaseCache
-    parents::ParentsCache
-    vtree::PlainVtree
-    PSDDWrapper(pc, bases, parents, vtree) = new(pc, bases, parents, vtree)
-end
-
-import Base.length
-@inline length(psdd::PSDDWrapper) = length(psdd.pc) 
 
 """
 Learning from data a structured-decomposable circuit with several structure learning algorithms
@@ -40,37 +20,6 @@ function learn_struct_prob_circuit(data::Union{XData, WXData};
     else
         error("Cannot learn a structured-decomposable circuit with algorithm $algo")
     end
-end
-
-"""
-Builds a Chow-Liu tree from complete data
-"""
-function build_clt_structure(data::PlainXData; 
-                            vtree_mode="balanced",
-                            clt_kwargs=(α=1.0,
-                                        clt_root="graph_center"))::PSDDWrapper
-    clt = learn_chow_liu_tree(data; clt_kwargs...);
-    vtree = learn_vtree_from_clt(clt; vtree_mode=vtree_mode);
-    pc = compile_psdd_from_clt(clt, vtree);
-    bases = calculate_all_bases(pc)
-    parents = parents_vector(pc)
-    return PSDDWrapper(pc, bases, parents, vtree)
-end
-
-function build_rand_structure(data::PlainXData; vtree_mode="rand")::PSDDWrapper
-    vtree = random_vtree(PlainVtreeNode, num_features(data); vtree_mode="rand") # TODO: add interface later
-    pc = compile_fully_factorized_psdd_from_vtree(vtree)
-    bases = calculate_all_bases(pc)
-    parents = parents_vector(pc)
-    return PSDDWrapper(pc, bases, parents, vtree)
-end
-
-function build_bottom_up_structure(data::PlainXData; α)::PSDDWrapper
-    vtree = learn_vtree_bottom_up(data;α=α)
-    pc = compile_fully_factorized_psdd_from_vtree(vtree)
-    bases = calculate_all_bases(pc)
-    parents = parents_vector(pc)
-    return PSDDWrapper(pc, bases, parents, vtree)
 end
 
 #############

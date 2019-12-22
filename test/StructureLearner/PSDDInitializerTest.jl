@@ -1,5 +1,5 @@
 using Test: @test, @testset
-using Juice
+using ProbabilisticCircuits
 
 @testset "Probabilistic circuits learner tests" begin
     data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)
