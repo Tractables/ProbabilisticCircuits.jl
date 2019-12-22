@@ -13,7 +13,7 @@ Julia 1.3
 You can use the `Project.toml` that comes with ProbabilisticCircuits to activate a Julia environment with all dependencies
 Concretely, the following command run from the ProbabilisticCircuits directory will download and install all required packages.
 
-    julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.precompile();'
+    julia -e 'using Pkg; Pkg.activate("."); Pkg.develop(PackageSpec(path="$(homedir())/Juice/LogicCircuits.jl/")); Pkg.instantiate(); Pkg.precompile();'
 
 Suppose you want Julia to use your local copy of the `ProbabilisticCircuits.jl` code, which you stored under `~/Juice/ProbabilisticCircuits.jl/`.
 You can run the following commands to ensure Julia will find this code and use it on all processors:
@@ -25,7 +25,7 @@ You can run the following commands to ensure Julia will find this code and use i
 
 To build the documentation locally, run the following to build the documentation, and then open `docs/build/index.html`.
 
-    julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.instantiate(); include("docs/make.jl");
+    julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.instantiate(); include("docs/make.jl");'
 
 ## Troubleshooting
 
