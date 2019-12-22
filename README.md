@@ -42,4 +42,4 @@ You can also run all the tests for a single (sub-)module, for example:
 
 Or even any individual test, for example:
 
-    julia --color=yes -pauto test/runtests.jl IO/VtreeParserTest.jl
+    julia --color=yes -pauto test/runtests.jl IO/CircuitSaverTest.jl
