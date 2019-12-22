@@ -130,12 +130,10 @@ end
 import LogicCircuits.save_circuit # make available for extension
 
 function save_circuit(name::String, circuit, vtree=nothing)
-    # note that target representation does not depend on type of circuit, only on extensions
-    # this way for example a ProbΔ can be saved as both an SDD and a PSDD
-    if endswith(name, ".psdd")
+    if endswith(name, ".circuit")
+        save_lc_file(name, circuit, vtree)
+    elseif endswith(name, ".psdd")
         save_psdd_file(name, circuit, vtree)
-    elseif endswith(name, ".circuit")
-        save_circuit(name::String, circuit::LogisticΔ, vtree=nothing) = save_lc_file(name, circuit, vtree)
     elseif endswith(name, ".sdd")
         save_sdd_file(name, circuit, vtree)
     else
