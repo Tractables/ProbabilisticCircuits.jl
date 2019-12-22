@@ -14,10 +14,10 @@ Concretely, the following command will download and install all required package
 
     julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.precompile();'
 
-You can run the following commands to ensure Julia will find a local version of Juice at `~/code/Juice.jl` and is able to use it on all processors (change `/code/Juice.jl` to be the correct path):
+You can run the following commands to ensure Julia will find a local version of Juice at `~/code/proto-Juice.jl` and is able to use it on all processors (change `/code/proto-Juice.jl` to be the correct path):
     
     mkdir  -p ~/.julia/config
-    echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/Juice.jl")' > ~/.julia/config/startup.jl
+    echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/code/proto-Juice.jl")' > ~/.julia/config/startup.jl
 
 # Documentation
 
@@ -37,13 +37,13 @@ If the MLDataSets package fails to build, install the following (Ubuntu):
 
 To run all the test cases in the `/test` folder, do:
 
-    julia --color=yes -pauto runtests.jl
+    julia --color=yes -pauto test/runtests.jl
 
 The flag `-pauto` parallelizes the tests across all CPU cores.
 You can also run all the tests for a single (sub-)module, for example:
 
-    julia --color=yes -pauto runtests.jl IO
+    julia --color=yes -pauto test/runtests.jl IO
 
 Or even any individual test, for example:
 
-    julia --color=yes -pauto runtests.jl IO/VtreeParserTest.jl
+    julia --color=yes -pauto test/runtests.jl test/IO/VtreeParserTest.jl
