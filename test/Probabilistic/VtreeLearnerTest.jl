@@ -1,6 +1,6 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
-using .Utils
 
 # function vtree_test_top_down()
 #     vars = Var.([1,2,3,4,5,6])
