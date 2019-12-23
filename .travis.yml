@@ -16,6 +16,7 @@ matrix:
   - julia: nightly
 
 before_install:
+- julia -e 'using Pkg; Pkg.activate("."); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl"))'
 - julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.precompile();'
 
 script:
