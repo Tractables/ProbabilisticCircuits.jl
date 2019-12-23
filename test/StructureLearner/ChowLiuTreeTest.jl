@@ -1,6 +1,7 @@
 using Test: @test, @testset
 using LightGraphs: nv, ne
 using MetaGraphs: get_prop
+using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Chow-Liu Tree learner tests" begin

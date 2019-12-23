@@ -1,4 +1,5 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 
 function conditional_entropy_test()

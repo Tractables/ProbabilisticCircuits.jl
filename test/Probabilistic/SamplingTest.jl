@@ -1,4 +1,5 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Sampling Test" begin

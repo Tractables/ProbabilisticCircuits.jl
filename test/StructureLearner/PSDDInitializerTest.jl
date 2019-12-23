@@ -1,4 +1,5 @@
 using Test: @test, @testset
+using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Probabilistic circuits learner tests" begin

@@ -1,4 +1,5 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 
 function test_expectation_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, CLASSES::Int)

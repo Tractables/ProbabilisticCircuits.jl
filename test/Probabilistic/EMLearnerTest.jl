@@ -1,5 +1,6 @@
 using Test
 using Random
+using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Expectation Maximization algorithm test" begin
