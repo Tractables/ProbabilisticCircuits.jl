@@ -3,6 +3,9 @@ language: julia
 os:
 - linux
 
+env:
+- DATADEPS_ALWAYS_ACCEPT=1
+
 codecov: true
 
 julia:
