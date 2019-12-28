@@ -29,7 +29,7 @@ Or even any individual test, for example:
 
 ## Troubleshooting
 
-When running tests as above, Julia somehow does not install the Jive package even though it is specified in `Project.toml`. 
-Add it manually:
+When running tests as above, Julia somehow does not install the packages that are specified in `Project.toml`.
+Add them manually when Julia complains, for example:
 
     julia -e 'using Pkg; Pkg.add("Jive")'

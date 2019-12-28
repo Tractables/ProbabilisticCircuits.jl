@@ -1,6 +1,7 @@
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
+using DataStructures
 
 @testset "Sampling Test" begin
     EPS = 1e-2;
@@ -59,7 +60,6 @@ end
 
     calc_prob_all ./= calc_prob[1]
 
-    using DataStructures
     hist = DefaultDict{AbstractString,Float64}(0.0)
 
     Nsamples = 1000 * 1000
