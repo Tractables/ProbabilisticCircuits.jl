@@ -26,10 +26,3 @@ You can also run all the tests for a single (sub-)module, for example:
 Or even any individual test, for example:
 
     julia --color=yes -pauto test/runtests.jl IO/CircuitSaverTest.jl
-
-## Troubleshooting
-
-When running tests as above, Julia somehow does not install the packages that are specified in `Project.toml`.
-Add them manually when Julia complains, for example:
-
-    julia -e 'using Pkg; Pkg.add("Jive")'
