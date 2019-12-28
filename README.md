@@ -4,45 +4,25 @@
 # ProbabilisticCircuits.jl
 Probabilistic Circuits - part of Juice (Julia Circuit Empanada)
 
-
 ## Installation
 
-### Requirements
+Install the Julia package (and its dependency on `LogicCircuits.jl`) by running
 
-Julia 1.3
+    julia -e 'using Pkg; Pkg.add([PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl.git"),PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git")])'
 
-### Dependencies
+This will automatically install all dependencies described in `Project.toml`.
+The first time you run `using ProbabilisticCircuits` in Julia, it will precompile the package and all its dependencies.
 
-Suppose you want Julia to use your local copy of the `ProbabilisticCircuits.jl` code, which you stored under `~/Juice/ProbabilisticCircuits.jl/`. Suppose you also have a copy of `LogicCircuits.jl` installed under `~/Juice/LogicCircuits.jl/`.
-You can use the `Project.toml` that comes with ProbabilisticCircuits to activate a Julia environment with all dependencies
-Concretely, the following command run from the ProbabilisticCircuits directory will download and install all required packages, and use your local version of `LogicCircuits.jl`.
+To make sure everything is working correctly, you can run our test suite as follows. The first time you run the tests will trigger a few slow downloads of various test resources.
 
-    julia -e 'using Pkg; Pkg.activate("."); Pkg.develop(PackageSpec(path="$(homedir())/Juice/LogicCircuits.jl/")); Pkg.instantiate(); Pkg.precompile();'
+    julia --color=yes -e 'using Pkg; Pkg.test("ProbabilisticCircuits")'
 
-You can run the following commands to ensure Julia will find this code and use it on all processors:
-    
-    mkdir  -p ~/.julia/config
-    echo -e 'using Distributed\n @everywhere push!(LOAD_PATH, "$(homedir())/Juice/ProbabilisticCircuits.jl")' >> ~/.julia/config/startup.jl
+## Development
+
+If you are interested in modifying the package please see the [development README](README_DEV.md).
 
 ## Documentation
 
-To build the documentation locally, run the following to build the documentation, and then open `docs/build/index.html`.
+To build the documentation locally, run the following and then open `docs/build/index.html`.
 
-    julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.instantiate(); include("docs/make.jl");'
-
-## Troubleshooting
-
-### Testing
-
-To run all the tests:
-
-    julia --color=yes -pauto test/runtests.jl
-
-The flag `-pauto` parallelizes the tests across all CPU cores.
-You can also run all the tests for a single (sub-)module, for example:
-
-    julia --color=yes -pauto test/runtests.jl IO
-
-Or even any individual test, for example:
-
-    julia --color=yes -pauto test/runtests.jl IO/CircuitSaverTest.jl
+    julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.instantiate(); include("docs/make.jl");
