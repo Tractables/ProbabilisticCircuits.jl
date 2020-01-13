@@ -17,7 +17,7 @@ make_element(n::Prob⋀, w::AbstractFloat, node2id) =
     PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
 
 is_true_node(n)::Bool = 
-    GateType(n) isa ⋁ && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
+    GateType(n) isa ⋁Gate && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     positive(children(n)[1]) && negative(children(n)[2])
 
 function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
@@ -34,7 +34,7 @@ end
 
 function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id = Dict{T, ID}()
-    outnodes = filter(n -> !(GateType(n) isa ⋀), ln)
+    outnodes = filter(n -> !(GateType(n) isa ⋀Gate), ln)
     sizehint!(node2id, length(outnodes))
     index = ID(0) # node id start from 0
     for n in outnodes
@@ -85,7 +85,7 @@ function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_psdd_file(IOBuffer(psdd_header())))
     push!(formatlines, PsddHeaderLine(num_nodes(ln)))
-    for n in filter(n -> !(GateType(n) isa ⋀), ln)
+    for n in filter(n -> !(GateType(n) isa ⋀Gate), ln)
         push!(formatlines, decompile(n, node2id, vtree2id))
     end
     save_lines(name, formatlines)
@@ -121,7 +121,7 @@ function save_lc_file(name::String, ln::LogisticΔ, vtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_lc_file(IOBuffer(lc_header())))
     push!(formatlines, LcHeaderLine())
-    for n in filter(n -> !(GateType(n) isa ⋀), ln)
+    for n in filter(n -> !(GateType(n) isa ⋀Gate), ln)
         push!(formatlines, decompile(n, node2id, vtree2id))
     end
     save_lines(name, formatlines)

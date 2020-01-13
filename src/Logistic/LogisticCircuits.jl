@@ -33,8 +33,8 @@ const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
 import LogicCircuits.GateType # make available for extension
 
 @inline GateType(::Type{<:LogisticLiteral}) = LiteralGate()
-@inline GateType(::Type{<:Logistic⋀}) = ⋀()
-@inline GateType(::Type{<:Logistic⋁}) = ⋁()
+@inline GateType(::Type{<:Logistic⋀}) = ⋀Gate()
+@inline GateType(::Type{<:Logistic⋁}) = ⋁Gate()
 
 
 
@@ -58,12 +58,12 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
     pc_node(::LiteralGate, n::ΔNode) = LogisticLiteral{O}(n)
     pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀, n::ΔNode) = begin
+    pc_node(::⋀Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋀{O}(n, children)
     end
 
-    pc_node(::⋁, n::ΔNode) = begin
+    pc_node(::⋁Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋁(O, n, children, classes)
     end

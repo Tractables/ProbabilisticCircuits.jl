@@ -32,8 +32,8 @@ Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbΔNode{<:O}
 import LogicCircuits.GateType # make available for extension
 
 @inline GateType(::Type{<:ProbLiteral}) = LiteralGate()
-@inline GateType(::Type{<:Prob⋀}) = ⋀()
-@inline GateType(::Type{<:Prob⋁}) = ⋁()
+@inline GateType(::Type{<:Prob⋀}) = ⋀Gate()
+@inline GateType(::Type{<:Prob⋁}) = ⋁Gate()
 
 #####################
 # constructors and conversions
@@ -55,12 +55,12 @@ function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
     pc_node(::LiteralGate, n::ΔNode) = ProbLiteral{O}(n)
     pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀, n::ΔNode) = begin
+    pc_node(::⋀Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋀{O}(n, children)
     end
 
-    pc_node(::⋁, n::ΔNode) = begin
+    pc_node(::⋁Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋁(O, n, children)
     end
