@@ -17,7 +17,7 @@ make_element(n::Prob⋀, w::AbstractFloat, node2id) =
     PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
 
 is_true_node(n)::Bool = 
-    GateType(n) isa ⋁ && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralLeaf && GateType(children(n)[2]) isa LiteralLeaf && 
+    GateType(n) isa ⋁ && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     positive(children(n)[1]) && negative(children(n)[2])
 
 function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
