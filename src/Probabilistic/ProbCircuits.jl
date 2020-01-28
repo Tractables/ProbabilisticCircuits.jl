@@ -6,19 +6,28 @@ abstract type ProbΔNode{O} <: DecoratorΔNode{O} end
 abstract type ProbLeafNode{O} <: ProbΔNode{O} end
 abstract type ProbInnerNode{O} <: ProbΔNode{O} end
 
-struct ProbLiteral{O} <: ProbLeafNode{O}
+mutable struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
+    data
+    bit::Bool
+    ProbLiteral{O}(o::O) where O = new{O}(o, nothing, false)
 end
 
-struct Prob⋀{O} <: ProbInnerNode{O}
+mutable struct Prob⋀{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbΔNode{<:O}}
+    data
+    bit::Bool
+    Prob⋀{O}(o::O,c) where O = new{O}(o,c, nothing, false)
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbΔNode{<:O}}
     log_thetas::Vector{Float64}
+    data
+    bit::Bool
+    Prob⋁{O}(o::O,c,lt) where O = new{O}(o,c,lt, nothing, false)
 end
 
 const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
