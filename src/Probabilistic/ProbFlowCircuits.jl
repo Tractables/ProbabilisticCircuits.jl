@@ -20,18 +20,25 @@ function marginal_pass_up_node(n::UpFlowLiteral{O,F}, data::PlainXData{E}) where
 end
 
 function marginal_pass_up_node(n::UpFlow⋀Cached, ::PlainXData)
-    npr = pr(n)
-    npr .= pr(n.children[1])
+    pr(n) .= pr(n.children[1])
     for c in n.children[2:end]
-        npr .+= pr(c)
+        pr(n) .+= pr(c)
     end
 end
 
 function marginal_pass_up_node(n::UpFlow⋁Cached, ::PlainXData)
-    npr = pr(n)
-    log_thetai_pi = [ pr(n.children[i]) .+ (n.origin.log_thetas[i]) for i=1:length(n.children)]
-    ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...)) 
-    npr .= ll
+    # A simple for loop seems to be way faster than logsumexp because of memory allocations are much lower.
+    pr(n) .= 0.0
+    for i=1:length(n.children)
+        pr(n) .+= exp.( pr(n.children[i]) .+ (n.origin.log_thetas[i])  )
+    end
+    pr(n) .= log.(pr(n))
+
+    ## logsumexp version
+    # npr = pr(n)
+    # log_thetai_pi = [ pr(n.children[i]) .+ (n.origin.log_thetas[i]) for i=1:length(n.children)]
+    # ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...)) 
+    # npr .= ll
 end
 
 
