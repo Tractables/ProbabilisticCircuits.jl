@@ -1,4 +1,3 @@
-using BenchmarkTools
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
