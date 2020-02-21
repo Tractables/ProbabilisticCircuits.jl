@@ -1,8 +1,7 @@
-using BenchmarkTools
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
-
+using BenchmarkTools
 
 function construct_prob_circuit()
     circuit = load_smooth_logical_circuit(zoo_psdd_file("plants.psdd"));
