@@ -149,16 +149,16 @@ end
 #####################
 
 prob_children(n, prob_cache) =  
-    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:StructLogicalΔNode{PlainVtreeNode}})
+    copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:StructLogicalΔNode})
 
 "Add leaf nodes to circuit `lin`"
-function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)::Tuple{ProbLiteral{<:StructLiteralNode{PlainVtreeNode}}, ProbLiteral{<:StructLiteralNode{PlainVtreeNode}}}
+function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)
     pos = StructLiteralNode{PlainVtreeNode}( var2lit(var), vtree)
     neg = StructLiteralNode{PlainVtreeNode}(-var2lit(var), vtree)
     lit_cache[var2lit(var)] = pos
     lit_cache[-var2lit(var)] = neg
-    pos2 = ProbLiteral{StructLiteralNode{PlainVtreeNode}}(pos)
-    neg2 = ProbLiteral{StructLiteralNode{PlainVtreeNode}}(neg)
+    pos2 = ProbLiteral(pos)
+    neg2 = ProbLiteral(neg)
     prob_cache[pos] = pos2
     prob_cache[neg] = neg2
     push!(lin, pos2)
@@ -169,7 +169,7 @@ end
 "Add prob⋀ node to circuit `lin`"
 function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
     logic = Struct⋀Node{PlainVtreeNode}([c.origin for c in children], vtree)
-    prob = Prob⋀{StructLogicalΔNode{PlainVtreeNode}}(logic, prob_children(logic, prob_cache))
+    prob = Prob⋀(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
     push!(lin, prob)
     return prob
@@ -178,7 +178,7 @@ end
 "Add prob⋁ node to circuit `lin`"
 function add_prob⋁_node(children::ProbΔ, vtree::PlainVtreeNode, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
     logic = Struct⋁Node{PlainVtreeNode}([c.origin for c in children], vtree)
-    prob = Prob⋁(StructLogicalΔNode{PlainVtreeNode}, logic, prob_children(logic, prob_cache))
+    prob = Prob⋁(logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
     prob_cache[logic] = prob
     push!(lin, prob)

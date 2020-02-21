@@ -1,7 +1,6 @@
 #####################
 # Probabilistic circuits
 #####################
-
 abstract type ProbΔNode{O} <: DecoratorΔNode{O} end
 abstract type ProbLeafNode{O} <: ProbΔNode{O} end
 abstract type ProbInnerNode{O} <: ProbΔNode{O} end
@@ -10,7 +9,7 @@ mutable struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
     data
     bit::Bool
-    ProbLiteral{O}(o::O) where O = new{O}(o, nothing, false)
+    ProbLiteral(n) = new{node_type(n)}(n, nothing, false)
 end
 
 mutable struct Prob⋀{O} <: ProbInnerNode{O}
@@ -18,7 +17,7 @@ mutable struct Prob⋀{O} <: ProbInnerNode{O}
     children::Vector{<:ProbΔNode{<:O}}
     data
     bit::Bool
-    Prob⋀{O}(o::O,c) where O = new{O}(o,c, nothing, false)
+    Prob⋀(n, children) = new{node_type(n)}(n, children, nothing, false)
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
@@ -27,7 +26,7 @@ mutable struct Prob⋁{O} <: ProbInnerNode{O}
     log_thetas::Vector{Float64}
     data
     bit::Bool
-    Prob⋁{O}(o::O,c,lt) where O = new{O}(o,c,lt, nothing, false)
+    Prob⋁(n, children) = new{node_type(n)}(n, children, some_vector(Float64, length(children)), nothing, false)
 end
 
 const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
@@ -39,39 +38,47 @@ Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbΔNode{<:O}
 #####################
 
 import LogicCircuits.GateType # make available for extension
+import LogicCircuits.node_type
 
 @inline GateType(::Type{<:ProbLiteral}) = LiteralGate()
 @inline GateType(::Type{<:Prob⋀}) = ⋀Gate()
 @inline GateType(::Type{<:Prob⋁}) = ⋁Gate()
 
+@inline node_type(::ProbΔNode) = ProbΔNode
+
 #####################
 # constructors and conversions
 #####################
 
-# for some unknown reason, making the type parameter O be part of this outer constructer as `Prob⋁{O}` does not work. It gives `UndefVarError: O not defined`. Hence pass it as an argument...
-function Prob⋁(::Type{O}, origin::O, children::Vector{<:ProbΔNode{<:O}}) where {O}
-    Prob⋁{O}(origin, children, some_vector(Float64, length(children)))
+const ProbCache = Dict{ΔNode, ProbΔNode}
+
+function ProbΔ2(circuit::Δ)::ProbΔ
+    node2dag(ProbΔ2(circuit[end]))
 end
 
-
-const ProbCache = Dict{ΔNode, ProbΔNode}
+function ProbΔ2(circuit::ΔNode)::ProbΔNode
+    f_con(n) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    f_lit(n) = ProbLiteral(n)
+    f_a(n, cn) = Prob⋀(n, cn)
+    f_o(n, cn) = Prob⋁(n, cn)
+    foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, ProbΔNode{node_type(circuit)})
+end
 
 function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
-    O = grapheltype(circuit) # type of node in the origin
     sizehint!(cache, length(circuit)*4÷3)
     
-    pc_node(::LiteralGate, n::ΔNode) = ProbLiteral{O}(n)
+    pc_node(::LiteralGate, n::ΔNode) = ProbLiteral(n)
     pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
     pc_node(::⋀Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋀{O}(n, children)
+        Prob⋀(n, children)
     end
 
     pc_node(::⋁Gate, n::ΔNode) = begin
         children = map(c -> cache[c], n.children)
-        Prob⋁(O, n, children)
+        Prob⋁(n, children)
     end
         
     map(circuit) do node
@@ -98,6 +105,59 @@ prob_origin(n::DecoratorΔNode)::ProbΔNode = origin(n, ProbΔNode)
 
 "Return the first origin that is a probabilistic circuit"
 prob_origin(c::DecoratorΔ)::ProbΔ = origin(c, ProbΔNode)
+
+function estimate_parameters2(pc::ProbΔ, data::XData{Bool}; pseudocount::Float64)
+    Logical.pass_up_down2(pc, data)
+    w = (data isa PlainXData) ? nothing : weights(data)
+    estimate_parameters_cached2(pc, w; pseudocount=pseudocount)
+end
+
+function estimate_parameters_cached2(pc::ProbΔ, w; pseudocount::Float64)
+    flow(n) = Float64(sum(sum(n.data)))
+    children_flows(n) = sum.(map(c -> c.data[1] .& n.data[1], children(n)))
+   
+    if issomething(w)
+        flow_w(n) = sum(Float64.(n.data[1]) .* w)
+        children_flows_w(n) = sum.(map(c -> Float64.(c.data[1] .& n.data[1]) .* w, children(n)))
+        flow = flow_w
+        children_flows = children_flows_w
+    end 
+     
+    estimate_parameters_node2(n::ProbΔNode) = ()
+    function estimate_parameters_node2(n::Prob⋁)
+        if num_children(n) == 1
+            n.log_thetas .= 0.0
+        else
+            smoothed_flow = flow(n) + pseudocount
+            uniform_pseudocount = pseudocount / num_children(n)
+            n.log_thetas .= log.((children_flows(n) .+ uniform_pseudocount) ./ smoothed_flow)
+            @assert isapprox(sum(exp.(n.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally"
+            # normalize away any leftover error
+            n.log_thetas .- logsumexp(n.log_thetas)
+        end
+    end
+
+    foreach(estimate_parameters_node2, pc)
+end
+
+function log_likelihood_per_instance2(pc::ProbΔ, data::XData{Bool})
+    Logical.pass_up_down2(pc, data)
+    log_likelihood_per_instance_cached(pc, data)
+end
+
+function log_likelihood_per_instance_cached(pc::ProbΔ, data::XData{Bool})
+    log_likelihoods = zeros(num_examples(data))
+    indices = some_vector(Bool, num_examples(data))::BitVector
+    for n in pc
+         if n isa Prob⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
+            foreach(n.children, n.log_thetas) do c, log_theta
+                indices = n.data[1] .& c.data[1]
+                view(log_likelihoods, indices::BitVector) .+=  log_theta # see MixedProductKernelBenchmark.jl
+            end
+         end
+    end
+    log_likelihoods
+end
 
 function estimate_parameters(pc::ProbΔ, data::XBatches{Bool}; pseudocount::Float64)
     estimate_parameters(AggregateFlowΔ(pc, aggr_weight_type(data)), data; pseudocount=pseudocount)

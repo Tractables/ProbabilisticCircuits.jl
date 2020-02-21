@@ -14,7 +14,7 @@ initial_mixture_model, estimate_parameters_from_aggregates, compute_ensemble_log
 expectation_step, maximization_step, expectation_step_batch, train_mixture_with_structure, check_parameter_integrity,
 ll_per_instance_per_component, ll_per_instance_for_ensemble,estimate_parameters_cached,
 sample,
-MPE, MAP,
+MPE, MAP,prob_origin, 
 
 # ProbFlowCircuits
 marginal_pass_up, marginal_pass_down, marginal_pass_up_down,
