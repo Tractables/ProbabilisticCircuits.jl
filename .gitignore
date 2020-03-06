@@ -10,3 +10,4 @@
 *.vscode
 **checkpoint.ipynb
 *Manifest.toml
+docs/build/

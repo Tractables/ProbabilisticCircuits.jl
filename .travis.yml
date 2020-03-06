@@ -8,28 +8,36 @@ env:
 
 codecov: true
 
-julia:
-- 1.3
+jobs:
+  include:
+    - stage: "Unit Tests"
+      julia: 
+        - nightly
+        - 1.3
 
-matrix:
-  allow_failures:
-  - julia: nightly
+      install:
+      - julia -e 'using Pkg; Pkg.activate("."); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile()'
+      - julia -e 'using Pkg; Pkg.activate("./test"); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.develop(PackageSpec(path = pwd())); Pkg.instantiate(); Pkg.precompile();'
 
-install:
-- julia -e 'using Pkg; Pkg.activate("."); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile()'
-- julia -e 'using Pkg; Pkg.activate("./test"); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.develop(PackageSpec(path = pwd())); Pkg.instantiate(); Pkg.precompile();'
+      script:
+      - julia --code-coverage --color=yes -p2 test/runtests.jl
 
-script:
-- julia --code-coverage --color=yes -p2 test/runtests.jl
+      after_success:
+      - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
 
-after_success:
-- julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
-
-notifications:
-  slack:
-    on_success: always
-    on_failure: always
-    on_start: always
-    on_error: always
-    rooms:
-      - secure: VMXOgM9g758gZiU06/Gaahns6CFpoSuDYMnl9g0LMv165HEe7tZPlF1IFbTEXk6svr+tAuSEd3oxs/kAyK7onI3hIpP0PSc+Y7/+rnOMk8zU+z7R6JEzQKHHb1M6pQ6MjzOia9BM7SfcfVqedPREVXZx+XJPmVuR4BgTOxUnnyfltZzW0ldSbyeJ37FdDSd9SDRRf7Q4UzbEMN33GfVsTKMZoRqASrZXhvqAVp7deXMdGp1kNlvIbbwVkeICLYTIYrm5zd0HkH2yEhk0AtgeTpyx/kkR1T0Fs2+PCDsLRPhP1EEJs7FdsdQJuP0SueJ92GpPd7yLYZVVWWQkGWudNb6H3iYp2xtbZCoeCBLEUgusrawwdxp0OlNOgP/aeJDc+zNy59ikraluI0sNCV1Pl8dIXu8Ihu6e7W6hoiTQ8K9PjwcXSmBgUsR+kXD8NcCx73RTxynokv+24Xk0M1pkJhu6mjNjZBDIegXVM/CnNew1LSMoMjdi43asuDiDbkZg2uCxfHwaMxlgWuM/M38r662FbOjEfgr13fhCyuUQZRFOKvvqU17HbA+ewC/J40C2g0sBDGPu/uOJsDJaQGPXDpXsh4G+8R7uZRNunhwNPK4OnVdY+uVnYlD+9TG9T1IothaDSRJvYU8HwAcUOJhMNYDDQosWOy+01NQtX0IYRgk=
+      notifications:
+        slack:
+          on_success: always
+          on_failure: always
+          on_start: always
+          on_error: always
+          rooms:
+            - secure: VMXOgM9g758gZiU06/Gaahns6CFpoSuDYMnl9g0LMv165HEe7tZPlF1IFbTEXk6svr+tAuSEd3oxs/kAyK7onI3hIpP0PSc+Y7/+rnOMk8zU+z7R6JEzQKHHb1M6pQ6MjzOia9BM7SfcfVqedPREVXZx+XJPmVuR4BgTOxUnnyfltZzW0ldSbyeJ37FdDSd9SDRRf7Q4UzbEMN33GfVsTKMZoRqASrZXhvqAVp7deXMdGp1kNlvIbbwVkeICLYTIYrm5zd0HkH2yEhk0AtgeTpyx/kkR1T0Fs2+PCDsLRPhP1EEJs7FdsdQJuP0SueJ92GpPd7yLYZVVWWQkGWudNb6H3iYp2xtbZCoeCBLEUgusrawwdxp0OlNOgP/aeJDc+zNy59ikraluI0sNCV1Pl8dIXu8Ihu6e7W6hoiTQ8K9PjwcXSmBgUsR+kXD8NcCx73RTxynokv+24Xk0M1pkJhu6mjNjZBDIegXVM/CnNew1LSMoMjdi43asuDiDbkZg2uCxfHwaMxlgWuM/M38r662FbOjEfgr13fhCyuUQZRFOKvvqU17HbA+ewC/J40C2g0sBDGPu/uOJsDJaQGPXDpXsh4G+8R7uZRNunhwNPK4OnVdY+uVnYlD+9TG9T1IothaDSRJvYU8HwAcUOJhMNYDDQosWOy+01NQtX0IYRgk=
+    - stage: "Documentation"
+        julia: 1.3
+        os: linux
+        script:
+          - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+          - julia --project=docs/ docs/make.jl
+        after_success: skip  
+    
