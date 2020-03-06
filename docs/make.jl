@@ -7,7 +7,7 @@ makedocs(
     sitename = "ProbabilisticCircuits.jl Documentation",
     format = Documenter.HTML(prettyurls = false),
     doctest = true,
-    modules = [ProbabilisticCircuits, Data, Utils],
+    modules = [ProbabilisticCircuits],
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
