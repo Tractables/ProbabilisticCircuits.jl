@@ -18,6 +18,8 @@ To install from the latest commits of the package (recommented to also use lates
 This will automatically install all dependencies described in `Project.toml`.
 The first time you run `using ProbabilisticCircuits` in Julia, it will precompile the package and all its dependencies.
 
+**Note**: Currently `ProbabilisticCircuits` installation and build fails on Windows due to one of our dependencies (see [Issue 3](https://github.com/Juice-jl/ProbabilisticCircuits.jl/issues/3) for more details). Additionally, on Linux you need to have a C++ compiler installed due to the same dependency (See [BlossomV.jl](https://github.com/mlewe/BlossomV.jl)).
+
 ## Testing
 
 To make sure everything is working correctly, you can run our test suite as follows. The first time you run the tests will trigger a few slow downloads of various test resources.
