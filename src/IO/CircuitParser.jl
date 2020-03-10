@@ -12,7 +12,7 @@ using MetaGraphs: MetaDiGraph, set_prop!, props
 Load a probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
- """
+"""
 function load_prob_circuit(file::String)::ProbΔ
     @assert endswith(file,".psdd")
     compile_prob(parse_psdd_file(file))

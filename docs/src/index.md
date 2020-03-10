@@ -1,23 +1,7 @@
-# ProbabilisticCircuits.jl Documentation
+# ProbabilisticCircuits.jl
 
-Documentation for ProbabilisticCircuits.jl
+Documentation for `ProbabilisticCircuits.jl`.
 
-See the individual modules' API overviews below.
+!!! note
 
-## Data Module API
-
-```@autodocs
-Modules = [Data]
-```
-
-## Utils Module API
-
-```@autodocs
-Modules = [Utils]
-```
-
-## ProbabilisticCircuits Module API
-
-```@autodocs
-Modules = [ProbabilisticCircuits]
-```
+    The documentation is still under construction and not complete yet. For more information or documentation requests please refer to the github repo for now.

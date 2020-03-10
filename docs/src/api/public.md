@@ -1,0 +1,24 @@
+# Public Documentation
+
+Documentation for `ProbabilisticCircuits.jl`'s public interface.
+
+See the Internals section of the manual for internal package docs covering all submodules.
+
+## Contents
+
+```@contents
+Pages = ["public.md"]
+```
+
+## Index
+
+```@index
+Pages = ["public.md"]
+```
+
+## Public Interface
+
+```@docs
+load_prob_circuit
+load_struct_prob_circuit
+```

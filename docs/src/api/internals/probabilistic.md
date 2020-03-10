@@ -1,0 +1,5 @@
+# Probabilistic
+
+```@autodocs
+Modules = [Probabilistic]
+```

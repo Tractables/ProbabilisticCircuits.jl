@@ -1,0 +1,5 @@
+# StructureLearner
+
+```@autodocs
+Modules = [StructureLearner]
+```
