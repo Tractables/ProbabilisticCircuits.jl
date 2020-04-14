@@ -84,7 +84,7 @@ end
 
     for (ind, node) in enumerate(flow_circuit)
         if node isa HasDownFlow
-            @test all(  isapprox.(downflow(flow_circuit[ind]), downflow(flow_circuit_marg[ind]), atol = EPS) );
+            @test all(  isapprox.(downflow(flow_circuit[ind]), downflow(flow_circuit_marg[ind]), atol = EPS) )
         end
     end
 
@@ -95,7 +95,15 @@ end
     ProbabilisticCircuits.marginal_pass_up_down(flow_circuit_part, data_partial)
 
     # (node index, correct down_flow_value)
-    true_vals = [(9, 0.3333333333333),
+    true_vals = [(1, 0.5),
+                (2, 1.0),
+                (3, 1/3),
+                (4, 1.0),
+                (5, 0.5),
+                (6, 0.0),
+                (7, 2/3),
+                (8, 0.0),
+                (9, 0.3333333333333),
                 (10, 0.0),
                 (11, 0.6666666666666),
                 (12, 0.0),
@@ -136,7 +144,7 @@ end
                                 0 -1 -1 0;
                                 1 1 1 -1;
                                 1 0 1 0;
-                                -1 -1 -1 1; 
+                                -1 -1 -1 1;
                                 -1 -1 -1 -1] ))
 
     test_mpe_brute_force(prob_circuit, evidence)

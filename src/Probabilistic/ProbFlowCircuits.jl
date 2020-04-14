@@ -28,7 +28,7 @@ end
 
 function marginal_pass_up_node(n::UpFlow⋁Cached, ::PlainXData)
     # A simple for loop seems to be way faster than logsumexp because of memory allocations are much lower.
-    pr(n) .= 0.0
+    pr(n) .= 1e-300
     for i=1:length(n.children)
         pr(n) .+= exp.( pr(n.children[i]) .+ (prob_origin(n).log_thetas[i])  )
     end
@@ -37,7 +37,7 @@ function marginal_pass_up_node(n::UpFlow⋁Cached, ::PlainXData)
     ## logsumexp version
     # npr = pr(n)
     # log_thetai_pi = [ pr(n.children[i]) .+ (n.origin.log_thetas[i]) for i=1:length(n.children)]
-    # ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...)) 
+    # ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...))
     # npr .= ll
 end
 
@@ -55,7 +55,7 @@ function marginal_pass_down(circuit::DownFlowΔ{O,F}) where {O,F}
     end
     for n in Iterators.reverse(circuit)
         marginal_pass_down_node(n)
-    end 
+    end
 end
 
 marginal_pass_down_node(n::DownFlowΔNode) = () # do nothing
@@ -85,7 +85,7 @@ function marginal_pass_down_node(n::DownFlow⋁Cached)
                 sink.downflow .= downflow(n) .* exp.(prob_origin(n).log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n)) )
                 sink.in_progress = true
             else
-                sink.downflow .+= downflow(n) .* exp.(prob_origin(n).log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n))) 
+                sink.downflow .+= downflow(n) .* exp.(prob_origin(n).log_thetas[ind] .+ pr(origin(c)) .- pr(origin(n)))
             end
         end
     end
