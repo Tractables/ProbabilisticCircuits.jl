@@ -18,9 +18,9 @@ function marginal_pass_up(circuit::UpFlowΔ{O,F}, data::XData{E}) where {E <: el
     end
 
     function marginal_pass_up_node(n::UpFlow⋀Cached, cache::Array{Float64}, ::PlainXData)
-        pr(n) .= pr(n.children[1])
-        for c in n.children[2:end]
-            pr(n) .+= pr(c)
+        pr(n) .= 0
+        for i=1:length(n.children)
+            pr(n) .+= pr(n.children[i])
         end
         return nothing
     end
@@ -28,25 +28,14 @@ function marginal_pass_up(circuit::UpFlowΔ{O,F}, data::XData{E}) where {E <: el
     function marginal_pass_up_node(n::UpFlow⋁Cached, cache::Array{Float64}, ::PlainXData)
         # A simple for loop seems to be way faster than logsumexp because of memory allocations are much lower.
         pr(n) .= 1e-300
-        for i=1:length(n.children)
-            
-            # This was allocating so much extra memory
-            #pr(n) .+= exp.( pr(n.children[i]) .+ (prob_origin(n).log_thetas[i])  )
-            
+        for i=1:length(n.children)        
             cache .= (pr(n.children[i]))
             cache .+= (prob_origin(n).log_thetas[i])
             cache .= exp.(cache)
-
             pr(n) .+= cache
         end
         pr(n) .= log.(pr(n))
         return nothing
-
-        ## logsumexp version
-        # npr = pr(n)
-        # log_thetai_pi = [ pr(n.children[i]) .+ (n.origin.log_thetas[i]) for i=1:length(n.children)]
-        # ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...)) 
-        # npr .= ll
     end
 
     ## Pass Up on every node in order
