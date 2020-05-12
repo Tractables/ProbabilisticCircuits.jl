@@ -446,39 +446,3 @@ function mpe_simulate(node::UpFlow⋀, active_samples::Vector{Bool}, result::Mat
         mpe_simulate(child, active_samples, result)
     end    
 end
-
-
-#################
-# MPE without evidence
-# (might want to keep it since its faster than MPE with evidence)
-# has no unit tests
-#################
-# @inline function MAP(circuit::ProbΔ)::AbstractVector{Bool}
-#     MPE(circuit)
-# end
-# function MPE(circuit::ProbΔ)::AbstractVector{Bool}
-#     inst = Dict{Var,Int64}()
-#     mpe_simulate(circuit[end], inst)
-#     len = length(keys(inst))
-#     ans = Vector{Bool}()
-#     for i = 1:len
-#         push!(ans, inst[i])
-#     end
-#     ans
-# end
-# function mpe_simulate(node::ProbLiteral, inst::Dict{Var,Int64})
-#     if positive(node)
-#         inst[variable(node.origin)] = 1
-#     else
-#         inst[variable(node.origin)] = 0
-#     end
-# end
-# function mpe_simulate(node::Prob⋁, inst::Dict{Var,Int64})
-#     idx = findmax(node.log_thetas)[2] # findmax outputs pair (value, index)
-#     mpe_simulate(node.children[idx], inst)
-# end
-# function mpe_simulate(node::Prob⋀, inst::Dict{Var,Int64})
-#     for child in node.children
-#         mpe_simulate(child, inst)
-#     end    
-# end
