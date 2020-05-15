@@ -18,6 +18,17 @@ function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
     return @. round(Int64, m * δint / δmi + min_int)
 end
 
+###################
+# One-Hot Encoding
+####################
+
+function one_hot_encode(X::Array{T, 2}, categories::Array{T,1}) where {T<:Any}
+    X_dash = zeros(Bool, size(X)[1], length(categories)*size(X)[2])
+    for i = 1:size(X)[1], j = 1:size(X)[2]
+            X_dash[i, (j-1)*length(categories) + findfirst(==(X[i,j]), categories)] = 1
+    end  
+    X_dash
+end
 
 ###################
 # Testing Utils
