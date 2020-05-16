@@ -105,6 +105,11 @@ end
 function psdd_kl_divergence(psdd_node1::ProbΔNode, psdd_node2::ProbΔNode,
         kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
         pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})
+    @assert !(psdd_node1 isa Prob⋀ || psdd_node2 isa Prob⋀) "Prob⋀ not a valid PSDD node for KL-Divergence"
+
+    # Check if both nodes are normalized for same vtree node
+    @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
+
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[(psdd_node1, psdd_node2)]
     elseif psdd_node1.children[1] isa ProbLiteral
@@ -171,6 +176,9 @@ end
 function psdd_kl_divergence(psdd_node1::ProbLiteral, psdd_node2::ProbLiteral,
         kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
         pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})
+    # Check if literals are over same variables in vtree
+   @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
+
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[psdd_node1, psdd_node2]
     else
@@ -181,6 +189,8 @@ end
 function psdd_kl_divergence(psdd_node1::Prob⋁, psdd_node2::ProbLiteral,
         kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
         pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})
+    @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
+
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[psdd_node1, psdd_node2]
     else
@@ -200,6 +210,8 @@ end
 function psdd_kl_divergence(psdd_node1::ProbLiteral, psdd_node2::Prob⋁,
         kl_divergence_cache::Dict{Tuple{ProbΔNode, ProbΔNode}, Float64},
         pr_constraint_cache::Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64})
+    @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
+
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[psdd_node1, psdd_node2]
     else

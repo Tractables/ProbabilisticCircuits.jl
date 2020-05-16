@@ -14,11 +14,24 @@ using ProbabilisticCircuits
     @test abs(psdd_entropy(pc1[end]) - 1.2899219826090118) < 1e-8
     @test abs(psdd_entropy(pc2[end]) - 0.9359472745536583) < 1e-8
 
-    # KLD calculation test
+    # KLD Tests #
+    # KLD base tests
     pr_constraint_cache = Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64}()
-
     kl_divergence_cache = Dict{Tuple{ProbΔNode, ProbΔNode}, Float64}()
+
+    @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[1], pc1[3], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[2], pc1[3], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[1], pc1[4], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[1], pc1[5], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[2], pc1[5], kl_divergence_cache, pr_constraint_cache)
+
+    @test_throws AssertionError("Prob⋀ not a valid PSDD node for KL-Divergence") psdd_kl_divergence(pc1[1], pc1[6], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Prob⋀ not a valid PSDD node for KL-Divergence") psdd_kl_divergence(pc1[7], pc1[2], kl_divergence_cache, pr_constraint_cache)
+    @test_throws AssertionError("Prob⋀ not a valid PSDD node for KL-Divergence") psdd_kl_divergence(pc1[6], pc2[7], kl_divergence_cache, pr_constraint_cache)
+
+    # KLD calculation test
     @test abs(psdd_kl_divergence(pc1[1], pc2[1], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
+    @test abs(psdd_kl_divergence(pc1[1], pc1[2], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
     @test abs(psdd_kl_divergence(pc1[1], pc2[3], kl_divergence_cache, pr_constraint_cache) + log(0.9)) < 1e-8
     @test abs(psdd_kl_divergence(pc1[2], pc2[3], kl_divergence_cache, pr_constraint_cache) + log(0.1)) < 1e-8
     @test abs(psdd_kl_divergence(pc1[5], pc2[4], kl_divergence_cache, pr_constraint_cache) - 0.2 * log(0.2)) < 1e-8

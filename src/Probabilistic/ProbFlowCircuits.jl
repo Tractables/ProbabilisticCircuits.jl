@@ -3,43 +3,48 @@
 #TODO This code seems to assume logspace flows as floating point numbers. if so, enforca that on type F
 function marginal_pass_up(circuit::UpFlowΔ{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
     resize_flows(circuit, num_examples(data))
+    cache = zeros(Float64, num_examples(data)) #TODO: fix type later
+    marginal_pass_up_node(n::UpFlowΔNode, ::PlainXData) = ()
+
+    function marginal_pass_up_node(n::UpFlowLiteral{O,F}, cache::Array{Float64}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
+        pass_up_node(n, data)
+        # now override missing values by 1
+        npr = pr(n)
+        npr[feature_matrix(data)[:,variable(n)] .< zero(eltype(F))] .= 1
+        npr .= log.( npr .+ 1e-300 )
+        return nothing
+    end
+
+    function marginal_pass_up_node(n::UpFlow⋀Cached, cache::Array{Float64}, ::PlainXData)
+        pr(n) .= 0
+        for i=1:length(n.children)
+            # pr(n) .+= pr(n.children[i])
+            broadcast!(+, pr(n), pr(n), pr(n.children[i]))
+        end
+        return nothing
+    end
+
+    function marginal_pass_up_node(n::UpFlow⋁Cached, cache::Array{Float64}, ::PlainXData)
+        pr(n) .= 1e-300
+        for i=1:length(n.children)    
+            cache .= 0
+            # broadcast reduced memory allocation, though accessing prob_origin(n).log_thetas[i] still allocates lots of extra memory, 
+            # it is proabably due to derefrencing the pointer
+            broadcast!(+, cache, pr(n.children[i]), prob_origin(n).log_thetas[i])
+            broadcast!(exp, cache, cache)
+            broadcast!(+, pr(n), pr(n), cache)
+        end
+        broadcast!(log, pr(n), pr(n));
+        return nothing
+    end
+
+    ## Pass Up on every node in order
     for n in circuit
-        marginal_pass_up_node(n, data)
+        marginal_pass_up_node(n, cache, data)
     end
+    return nothing
 end
 
-marginal_pass_up_node(n::UpFlowΔNode, ::PlainXData) = ()
-
-function marginal_pass_up_node(n::UpFlowLiteral{O,F}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
-    pass_up_node(n, data)
-    # now override missing values by 1
-    npr = pr(n)
-    missing_features = feature_matrix(data)[:,variable(n)] .< zero(eltype(F))
-    npr[missing_features] .= 1
-    npr .= log.( npr .+ 1e-300 )
-end
-
-function marginal_pass_up_node(n::UpFlow⋀Cached, ::PlainXData)
-    pr(n) .= pr(n.children[1])
-    for c in n.children[2:end]
-        pr(n) .+= pr(c)
-    end
-end
-
-function marginal_pass_up_node(n::UpFlow⋁Cached, ::PlainXData)
-    # A simple for loop seems to be way faster than logsumexp because of memory allocations are much lower.
-    pr(n) .= 1e-300
-    for i=1:length(n.children)
-        pr(n) .+= exp.( pr(n.children[i]) .+ (prob_origin(n).log_thetas[i])  )
-    end
-    pr(n) .= log.(pr(n))
-
-    ## logsumexp version
-    # npr = pr(n)
-    # log_thetai_pi = [ pr(n.children[i]) .+ (n.origin.log_thetas[i]) for i=1:length(n.children)]
-    # ll = sum.(map((lls...) -> logsumexp([lls...]), log_thetai_pi...))
-    # npr .= ll
-end
 
 
 ##### marginal_pass_down

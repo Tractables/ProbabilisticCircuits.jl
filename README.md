@@ -1,6 +1,8 @@
-[![Build Status](https://travis-ci.org/Juice-jl/ProbabilisticCircuits.jl.svg?branch=master)](https://travis-ci.org/Juice-jl/ProbabilisticCircuits.jl)	
-[![codecov](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl)	
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/dev)
+| Build Status                                                                                                                                                                                                                                                                       	|                                              Documentation                                             	|
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	|:------------------------------------------------------------------------------------------------------:	|
+| [![Build Status](https://travis-ci.org/Juice-jl/ProbabilisticCircuits.jl.svg?branch=master)](https://travis-ci.org/Juice-jl/ProbabilisticCircuits.jl)	 [![codecov](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl) 	| [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/dev) 	|
+
+
 
 # ProbabilisticCircuits.jl
 Probabilistic Circuits - part of Juice (Julia Circuit Empanada)
@@ -24,7 +26,9 @@ The first time you run `using ProbabilisticCircuits` in Julia, it will precompil
 
 To make sure everything is working correctly, you can run our test suite as follows. The first time you run the tests will trigger a few slow downloads of various test resources.
 
+```bash
     julia --color=yes -e 'using Pkg; Pkg.test("ProbabilisticCircuits")'
+```
 
 ## Development
 
@@ -32,6 +36,4 @@ If you are interested in modifying the package please see the [development READM
 
 ## Documentation
 
-To build the documentation locally, run the following and then open `docs/build/index.html`.
-
-    julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.instantiate(); include("docs/make.jl");
+To build the documentation locally, follow the instructions in the [docs Readme](docs/Readme.md).
