@@ -17,7 +17,9 @@ mutable struct Prob⋀{O} <: ProbInnerNode{O}
     children::Vector{<:ProbΔNode{<:O}}
     data
     bit::Bool
-    Prob⋀(n, children) = new{node_type(n)}(n, children, nothing, false)
+    Prob⋀(n, children) = begin
+        new{node_type(n)}(n, convert(Vector{ProbΔNode{node_type(n)}},children), nothing, false)
+    end
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
@@ -26,7 +28,7 @@ mutable struct Prob⋁{O} <: ProbInnerNode{O}
     log_thetas::Vector{Float64}
     data
     bit::Bool
-    Prob⋁(n, children) = new{node_type(n)}(n, children, some_vector(Float64, length(children)), nothing, false)
+    Prob⋁(n, children) = new{node_type(n)}(n, convert(Vector{ProbΔNode{node_type(n)}},children), some_vector(Float64, length(children)), nothing, false)
 end
 
 const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
@@ -67,7 +69,7 @@ end
 function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
     sizehint!(cache, length(circuit)*4÷3)
-    
+
     pc_node(::LiteralGate, n::ΔNode) = ProbLiteral(n)
     pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
@@ -80,7 +82,7 @@ function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
         children = map(c -> cache[c], n.children)
         Prob⋁(n, children)
     end
-        
+
     map(circuit) do node
         pcn = pc_node(GateType(node), node)
         cache[node] = pcn
@@ -115,14 +117,14 @@ end
 function estimate_parameters_cached2(pc::ProbΔ, w; pseudocount::Float64)
     flow(n) = Float64(sum(sum(n.data)))
     children_flows(n) = sum.(map(c -> c.data[1] .& n.data[1], children(n)))
-   
+
     if issomething(w)
         flow_w(n) = sum(Float64.(n.data[1]) .* w)
         children_flows_w(n) = sum.(map(c -> Float64.(c.data[1] .& n.data[1]) .* w, children(n)))
         flow = flow_w
         children_flows = children_flows_w
-    end 
-     
+    end
+
     estimate_parameters_node2(n::ProbΔNode) = ()
     function estimate_parameters_node2(n::Prob⋁)
         if num_children(n) == 1
@@ -157,6 +159,71 @@ function log_likelihood_per_instance_cached(pc::ProbΔ, data::XData{Bool})
          end
     end
     log_likelihoods
+end
+
+import LogicCircuits: conjoin_like, disjoin_like, literal_like, copy_node, normalize, replace_node # make available for extension
+
+"Conjoin nodes in the same way as the example"
+@inline function conjoin_like(example::ProbΔNode, arguments::Vector)
+    if isempty(arguments)
+        # @assert false "Probabilistic circuit does not have anonymous true node"
+        nothing
+    elseif example isa Prob⋀ && children(example) == arguments
+        example
+    else
+        n = conjoin_like(origin(example), origin.(arguments))
+        Prob⋀(n, arguments)
+    end
+end
+
+"Disjoin nodes in the same way as the example"
+@inline function disjoin_like(example::ProbΔNode, arguments::Vector)
+    if isempty(arguments)
+        # @assert false "Probabilistic circuit does not have false node"
+        nothing
+    elseif example isa Prob⋁ && children(example) == arguments
+        example
+    else
+        n = disjoin_like(origin(example), origin.(arguments))
+        # normalize parameters
+        thetas = zeros(Float64, length(arguments))
+        flag = falses(length(arguments))
+        for (i, c) in enumerate(arguments)
+            ind = findfirst(x -> x == c, children(example))
+            if issomething(ind)
+                thetas[i] = exp(example.log_thetas[ind])
+                flag[i] = true
+            end
+        end
+        if all(flag)
+            thetas = thetas / sum(thetas)
+        end
+        p = Prob⋁(n, arguments)
+        p.log_thetas .= log.(thetas)
+        p
+    end
+end
+
+"Construct a new literal node like the given node's type"
+@inline literal_like(::ProbΔNode, lit::Lit) = ProbLiteral(lit)
+
+@inline copy_node(n::Prob⋁, cns) = begin
+    orig = copy_node(origin(n), origin.(cns))
+    p = Prob⋁(orig, cns)
+    p.log_thetas .= copy(n.log_thetas)
+    p
+end
+
+@inline copy_node(n::Prob⋀, cns) = begin
+    orig = copy_node(origin(n), origin.(cns))
+    Prob⋀(orig, cns)
+end
+
+import LogicCircuits.normalize
+
+@inline normalize(n::Prob⋁, old_n::Prob⋁, kept::Union{Vector{Bool}, BitArray}) = begin
+     thetas = exp.(old_n.log_thetas[kept])
+     n.log_thetas .= log.(thetas / sum(thetas))
 end
 
 function estimate_parameters(pc::ProbΔ, data::XBatches{Bool}; pseudocount::Float64)
@@ -223,16 +290,16 @@ log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_chi
 Calculates log likelihood for a batch of fully observed samples.
 (Also retures the generated FlowΔ)
 """
-function log_likelihood_per_instance(pc::ProbΔ, batch::PlainXData{Bool})    
+function log_likelihood_per_instance(pc::ProbΔ, batch::PlainXData{Bool})
     fc = FlowΔ(pc, num_examples(batch), Bool)
     (fc, log_likelihood_per_instance(fc, batch))
 end
 
-function log_proba(pc::ProbΔ, batch::PlainXData{Bool})    
+function log_proba(pc::ProbΔ, batch::PlainXData{Bool})
     log_likelihood_per_instance(pc, batch)[2]
 end
 
-function log_proba(pc::ProbΔ, batch::PlainXData{Int8})    
+function log_proba(pc::ProbΔ, batch::PlainXData{Int8})
     marginal_log_likelihood_per_instance(pc, batch)[2]
 end
 
@@ -338,7 +405,7 @@ function simulate(node::ProbLiteral, inst::Dict{Var,Int64})
         inst[variable(node.origin)] = 0
     end
 end
-    
+
 function simulate(node::Prob⋁, inst::Dict{Var,Int64})
     idx = sample(exp.(node.log_thetas))
     simulate(node.children[idx], inst)
@@ -346,7 +413,7 @@ end
 function simulate(node::Prob⋀, inst::Dict{Var,Int64})
     for child in node.children
         simulate(child, inst)
-    end    
+    end
 end
 
 """
@@ -393,7 +460,7 @@ end
 function simulate2(node::UpFlow⋀, inst::Dict{Var,Int64})
     for child in children(node)
         simulate2(child, inst)
-    end    
+    end
 end
 
 
@@ -410,7 +477,7 @@ end
 function MPE(circuit::ProbΔ, evidence::PlainXData{Int8})::Matrix{Bool}
     # Computing Marginal Likelihood for each node
     fc, lls = marginal_log_likelihood_per_instance(circuit, evidence)
-    
+
     ans = Matrix{Bool}(zeros(size(evidence.x)))
     active_samples = Array{Bool}(ones( num_examples(evidence) ))
 
@@ -434,7 +501,7 @@ function mpe_simulate(node::UpFlow⋁, active_samples::Vector{Bool}, result::Mat
     @simd  for i=1:length(node.children)
         prs[i,:] .= pr(node.children[i]) .+ (node.origin.log_thetas[i])
     end
-    
+
     max_child_ids = [a[1] for a in argmax(prs, dims = 1) ]
     @simd for i=1:length(node.children)
         ids = Vector{Bool}( active_samples .* (max_child_ids .== i)[1,:] )  # Only active for this child if it was the max for that sample
@@ -444,7 +511,7 @@ end
 function mpe_simulate(node::UpFlow⋀, active_samples::Vector{Bool}, result::Matrix{Bool})
     for child in node.children
         mpe_simulate(child, active_samples, result)
-    end    
+    end
 end
 
 
@@ -480,5 +547,5 @@ end
 # function mpe_simulate(node::Prob⋀, inst::Dict{Var,Int64})
 #     for child in node.children
 #         mpe_simulate(child, inst)
-#     end    
+#     end
 # end
