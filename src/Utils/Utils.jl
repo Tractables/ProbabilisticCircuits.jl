@@ -21,7 +21,11 @@ end
 ###################
 # One-Hot Encoding
 ####################
-
+"""
+One-hot encode data (2-D Array) based on categories (1-D Array)
+Each row of the return value is a concatenation of one-hot encoding of elements of the same row in data
+Assumption: both input arrays have elements of same type
+"""
 function one_hot_encode(X::Array{T, 2}, categories::Array{T,1}) where {T<:Any}
     X_dash = zeros(Bool, size(X)[1], length(categories)*size(X)[2])
     for i = 1:size(X)[1], j = 1:size(X)[2]
