@@ -1,7 +1,7 @@
 using BlossomV
 using Metis
 using SparseArrays
-using LightGraphs: add_edge! 
+using LightGraphs: add_edge!
 using SimpleWeightedGraphs
 using MetaGraphs
 using ..Utils
@@ -224,7 +224,7 @@ function learn_vtree_bottom_up(train_x::PlainXData; α)
     (_, mi) = mutual_information(feature_matrix(train_x), Data.weights(train_x); α = α)
     vars = Var.(collect(1:num_features(train_x)))
     context = BlossomContext(vars, mi)
-    vtree = bottom_up_vtree(vars, blossom_bottom_up_curry(context))
+    vtree = bottom_up_vtree(PlainVtreeNode, vars, blossom_bottom_up_curry(context))
 end
 
 #############

@@ -15,7 +15,7 @@ compile_prob_circuit_from_clt, learn_probabilistic_circuit, BaseCache, ⊤, LitC
 
 # PSDDInitializer
 learn_struct_prob_circuit,
-learn_vtree_from_clt, compile_psdd_from_clt
+learn_vtree_from_clt, compile_psdd_from_clt,compile_fully_factorized_psdd_from_vtree
 
 include("ChowLiuTree.jl")
 include("CircuitBuilder.jl")
