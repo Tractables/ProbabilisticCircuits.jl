@@ -27,7 +27,7 @@ The first time you run `using ProbabilisticCircuits` in Julia, it will precompil
 To make sure everything is working correctly, you can run our test suite as follows. The first time you run the tests will trigger a few slow downloads of various test resources.
 
 ```bash
-    julia --color=yes -e 'using Pkg; Pkg.test("ProbabilisticCircuits")'
+julia --color=yes -e 'using Pkg; Pkg.test("ProbabilisticCircuits")'
 ```
 
 ## Development
@@ -36,4 +36,4 @@ If you are interested in modifying the package please see the [development READM
 
 ## Documentation
 
-To build the documentation locally, follow the instructions in the [docs Readme](docs/Readme.md).
+To build the documentation locally, follow the instructions in the [docs README](docs/Readme.md).
