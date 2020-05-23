@@ -166,6 +166,13 @@ function get_nodes_level(circuit::ProbΔ)
     return levels
 end
 
+"Save prob circuit to .dot file"
+function save_as_dot(root::ProbΔNode, file::String)
+    circuit = Vector{ProbΔNode}()
+    foreach(x -> pushfirst!(circuit, x), root)
+    return save_as_dot(circuit, file)
+end
+
 "Save prob circuits to .dot file"
 function save_as_dot(circuit::ProbΔ, file::String)
 
