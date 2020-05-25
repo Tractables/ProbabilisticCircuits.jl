@@ -1,7 +1,15 @@
 using Printf: @sprintf
 
 import Base.copy
-import LogicCircuits.IO: SDDElement, PSDDElement, save_lines, parse_psdd_file, PsddHeaderLine, LcHeaderLine, save_sdd_file
+import LogicCircuits.IO: SDDElement, 
+    PSDDElement, 
+    save_lines, 
+    parse_psdd_file, 
+    PsddHeaderLine, 
+    LcHeaderLine, 
+    save_sdd_file, 
+    save_as_dot,
+    get_nodes_level
 
 # Saving psdd
 
@@ -141,34 +149,14 @@ function save_circuit(name::String, circuit, vtree=nothing)
     end
 end
 
-# Save as .dot
-"Rank nodes in the same layer left to right"
-function get_nodes_level(circuit::ProbΔ)
-    levels = Vector{Vector{ProbΔNode}}()
-    current = Vector{ProbΔNode}()
-    next = Vector{ProbΔNode}()
-
-    push!(next, circuit[end])
-    push!(levels, Base.copy(next))
-    while !isempty(next)
-        current, next = next, current
-        while !isempty(current)
-            n = popfirst!(current)
-            if n isa ProbInnerNode
-                for c in children(n)
-                    if !(c in next) push!(next, c); end
-                end
-            end
-        end
-        push!(levels, Base.copy(next))
-    end
-
-    return levels
+"Save prob circuit to .dot file"
+function save_as_dot(root::ProbΔNode, file::String)
+    return save_as_dot(node2dag(root), file)
 end
 
 "Save prob circuits to .dot file"
 function save_as_dot(circuit::ProbΔ, file::String)
-
+    # TODO (https://github.com/Juice-jl/LogicCircuits.jl/issues/7)
     node_cache = Dict{ProbΔNode, Int64}()
     for (i, n) in enumerate(circuit)
         node_cache[n] = i
