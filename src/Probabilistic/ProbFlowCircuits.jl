@@ -4,7 +4,7 @@
 function marginal_pass_up(circuit::UpFlowΔ{O,F}, data::XData{E}) where {E <: eltype(F)} where {O,F}
     resize_flows(circuit, num_examples(data))
     cache = zeros(Float64, num_examples(data)) #TODO: fix type later
-    marginal_pass_up_node(n::UpFlowΔNode, ::PlainXData) = ()
+    marginal_pass_up_node(n::UpFlowNode, ::PlainXData) = ()
 
     function marginal_pass_up_node(n::UpFlowLiteral{O,F}, cache::Array{Float64}, data::PlainXData{E}) where {E <: eltype(F)} where {O,F}
         pass_up_node(n, data)
@@ -63,7 +63,7 @@ function marginal_pass_down(circuit::DownFlowΔ{O,F}) where {O,F}
     end
 end
 
-marginal_pass_down_node(n::DownFlowΔNode) = () # do nothing
+marginal_pass_down_node(n::DownFlowNode) = () # do nothing
 marginal_pass_down_node(n::DownFlowLeaf) = ()
 
 function marginal_pass_down_node(n::DownFlow⋀Cached)

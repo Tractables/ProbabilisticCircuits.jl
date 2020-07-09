@@ -1,84 +1,84 @@
 #####################
 # Probabilistic circuits
 #####################
-abstract type ProbΔNode{O} <: DecoratorΔNode{O} end
-abstract type ProbLeafNode{O} <: ProbΔNode{O} end
-abstract type ProbInnerNode{O} <: ProbΔNode{O} end
+abstract type ProbNode{O} <: DecoratorNode{O} end
+abstract type ProbLeafNode{O} <: ProbNode{O} end
+abstract type ProbInnerNode{O} <: ProbNode{O} end
 
 mutable struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
     data
     bit::Bool
-    ProbLiteral(n) = new{node_type(n)}(n, nothing, false)
+    ProbLiteral(n) = new{node_type_deprecated(n)}(n, nothing, false)
 end
 
 mutable struct Prob⋀{O} <: ProbInnerNode{O}
     origin::O
-    children::Vector{<:ProbΔNode{<:O}}
+    children::Vector{<:ProbNode{<:O}}
     data
     bit::Bool
     Prob⋀(n, children) = begin
-        new{node_type(n)}(n, convert(Vector{ProbΔNode{node_type(n)}},children), nothing, false)
+        new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), nothing, false)
     end
 end
 
 mutable struct Prob⋁{O} <: ProbInnerNode{O}
     origin::O
-    children::Vector{<:ProbΔNode{<:O}}
+    children::Vector{<:ProbNode{<:O}}
     log_thetas::Vector{Float64}
     data
     bit::Bool
-    Prob⋁(n, children) = new{node_type(n)}(n, convert(Vector{ProbΔNode{node_type(n)}},children), some_vector(Float64, length(children)), nothing, false)
+    Prob⋁(n, children) = new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), init_array(Float64, length(children)), nothing, false)
 end
 
-const ProbΔ{O} = AbstractVector{<:ProbΔNode{<:O}}
+const ProbΔ{O} = AbstractVector{<:ProbNode{<:O}}
 
-Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbΔNode{<:O}
+Base.eltype(::Type{ProbΔ{O}}) where {O} = ProbNode{<:O}
 
 #####################
 # traits
 #####################
 
 import LogicCircuits.GateType # make available for extension
-import LogicCircuits.node_type
+import LogicCircuits.node_type_deprecated
 
 @inline GateType(::Type{<:ProbLiteral}) = LiteralGate()
 @inline GateType(::Type{<:Prob⋀}) = ⋀Gate()
 @inline GateType(::Type{<:Prob⋁}) = ⋁Gate()
 
-@inline node_type(::ProbΔNode) = ProbΔNode
+@inline node_type_deprecated(::ProbNode) = ProbNode
 
 #####################
 # constructors and conversions
 #####################
 
-const ProbCache = Dict{ΔNode, ProbΔNode}
+const ProbCache = Dict{Node, ProbNode}
 
 function ProbΔ2(circuit::Δ)::ProbΔ
-    node2dag(ProbΔ2(circuit[end]))
+    linearize(ProbΔ2(circuit[end]))
 end
 
-function ProbΔ2(circuit::ΔNode)::ProbΔNode
+function ProbΔ2(circuit::LogicNode)::ProbNode
     f_con(n) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
     f_lit(n) = ProbLiteral(n)
     f_a(n, cn) = Prob⋀(n, cn)
     f_o(n, cn) = Prob⋁(n, cn)
-    foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, ProbΔNode{node_type(circuit)})
+    foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, ProbNode{node_type_deprecated(circuit)})
 end
 
 function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
     sizehint!(cache, length(circuit)*4÷3)
 
-    pc_node(::LiteralGate, n::ΔNode) = ProbLiteral(n)
-    pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralGate, n::LogicNode) = ProbLiteral(n)
+    pc_node(::ConstantGate, n::LogicNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀Gate, n::ΔNode) = begin
+    pc_node(::⋀Gate, n::LogicNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋀(n, children)
     end
 
-    pc_node(::⋁Gate, n::ΔNode) = begin
+    pc_node(::⋁Gate, n::LogicNode) = begin
         children = map(c -> cache[c], n.children)
         Prob⋁(n, children)
     end
@@ -103,13 +103,13 @@ num_parameters(n::Prob⋁) = num_children(n)
 num_parameters(c::ProbΔ) = sum(n -> num_parameters(n), ⋁_nodes(c))
 
 "Return the first origin that is a probabilistic circuit node"
-prob_origin(n::DecoratorΔNode)::ProbΔNode = origin(n, ProbΔNode)
+prob_origin(n::DecoratorNode)::ProbNode = origin(n, ProbNode)
 
 "Return the first origin that is a probabilistic circuit"
-prob_origin(c::DecoratorΔ)::ProbΔ = origin(c, ProbΔNode)
+prob_origin(c::DecoratorΔ)::ProbΔ = origin(c, ProbNode)
 
 function estimate_parameters2(pc::ProbΔ, data::XData{Bool}; pseudocount::Float64)
-    Logical.pass_up_down2(pc, data)
+    Logic.pass_up_down2(pc, data)
     w = (data isa PlainXData) ? nothing : weights(data)
     estimate_parameters_cached2(pc, w; pseudocount=pseudocount)
 end
@@ -125,7 +125,7 @@ function estimate_parameters_cached2(pc::ProbΔ, w; pseudocount::Float64)
         children_flows = children_flows_w
     end
 
-    estimate_parameters_node2(n::ProbΔNode) = ()
+    estimate_parameters_node2(n::ProbNode) = ()
     function estimate_parameters_node2(n::Prob⋁)
         if num_children(n) == 1
             n.log_thetas .= 0.0
@@ -143,13 +143,13 @@ function estimate_parameters_cached2(pc::ProbΔ, w; pseudocount::Float64)
 end
 
 function log_likelihood_per_instance2(pc::ProbΔ, data::XData{Bool})
-    Logical.pass_up_down2(pc, data)
+    Logic.pass_up_down2(pc, data)
     log_likelihood_per_instance_cached(pc, data)
 end
 
 function log_likelihood_per_instance_cached(pc::ProbΔ, data::XData{Bool})
     log_likelihoods = zeros(num_examples(data))
-    indices = some_vector(Bool, num_examples(data))::BitVector
+    indices = init_array(Bool, num_examples(data))::BitVector
     for n in pc
          if n isa Prob⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
             foreach(n.children, n.log_thetas) do c, log_theta
@@ -164,7 +164,7 @@ end
 import LogicCircuits: conjoin_like, disjoin_like, literal_like, copy_node, normalize, replace_node # make available for extension
 
 "Conjoin nodes in the same way as the example"
-@inline function conjoin_like(example::ProbΔNode, arguments::Vector)
+@inline function conjoin_like(example::ProbNode, arguments::Vector)
     if isempty(arguments)
         # @assert false "Probabilistic circuit does not have anonymous true node"
         nothing
@@ -177,7 +177,7 @@ import LogicCircuits: conjoin_like, disjoin_like, literal_like, copy_node, norma
 end
 
 "Disjoin nodes in the same way as the example"
-@inline function disjoin_like(example::ProbΔNode, arguments::Vector)
+@inline function disjoin_like(example::ProbNode, arguments::Vector)
     if isempty(arguments)
         # @assert false "Probabilistic circuit does not have false node"
         nothing
@@ -205,7 +205,7 @@ end
 end
 
 "Construct a new literal node like the given node's type"
-@inline literal_like(::ProbΔNode, lit::Lit) = ProbLiteral(lit)
+@inline literal_like(::ProbNode, lit::Lit) = ProbLiteral(lit)
 
 @inline copy_node(n::Prob⋁, cns) = begin
     orig = copy_node(origin(n), origin.(cns))
@@ -232,7 +232,7 @@ end
 
 function estimate_parameters(afc::AggregateFlowΔ, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (afc[end].origin isa ProbΔNode) "AggregateFlowΔ must originate in a ProbΔ"
+    @assert (afc[end].origin isa ProbNode) "AggregateFlowΔ must originate in a ProbΔ"
     collect_aggr_flows(afc, data)
     estimate_parameters_cached(afc; pseudocount=pseudocount)
     afc
@@ -240,7 +240,7 @@ end
 
 function estimate_parameters(fc::FlowΔ, data::XBatches{Bool}; pseudocount::Float64)
     @assert feature_type(data) == Bool "Can only learn probabilistic circuits on Bool data"
-    @assert (prob_origin(afc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbΔ"
+    @assert (prob_origin(afc[end]) isa ProbNode) "FlowΔ must originate in a ProbΔ"
     collect_aggr_flows(fc, data)
     estimate_parameters_cached(origin(fc); pseudocount=pseudocount)
 end
@@ -250,7 +250,7 @@ function estimate_parameters_cached(afc::AggregateFlowΔ; pseudocount::Float64)
     foreach(n -> estimate_parameters_node(n; pseudocount=pseudocount), afc)
 end
 
-estimate_parameters_node(::AggregateFlowΔNode; pseudocount::Float64) = () # do nothing
+estimate_parameters_node(::AggregateFlowNode; pseudocount::Float64) = () # do nothing
 function estimate_parameters_node(n::AggregateFlow⋁; pseudocount)
     origin = n.origin::Prob⋁
     if num_children(n) == 1
@@ -283,7 +283,7 @@ function log_likelihood(afc::AggregateFlowΔ)
     sum(n -> log_likelihood(n), afc)
 end
 
-log_likelihood(::AggregateFlowΔNode) = 0.0
+log_likelihood(::AggregateFlowNode) = 0.0
 log_likelihood(n::AggregateFlow⋁) = sum(n.origin.log_thetas .* n.aggr_flow_children)
 
 """
@@ -315,10 +315,10 @@ Calculate log likelihood for a batch of fully observed samples.
 (This is for when you already have a FlowΔ)
 """
 function log_likelihood_per_instance(fc::FlowΔ, batch::PlainXData{Bool})
-    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbΔ"
+    @assert (prob_origin(fc[end]) isa ProbNode) "FlowΔ must originate in a ProbΔ"
     pass_up_down(fc, batch)
     log_likelihoods = zeros(num_examples(batch))
-    indices = some_vector(Bool, flow_length(fc))::BitVector
+    indices = init_array(Bool, flow_length(fc))::BitVector
     for n in fc
          if n isa DownFlow⋁ && num_children(n) != 1 # other nodes have no effect on likelihood
             origin = prob_origin(n)::Prob⋁
@@ -353,7 +353,7 @@ Calculate log likelihood for a batch of samples with partial evidence P(e).
 To indicate a variable is not observed, pass -1 for that variable.
 """
 function marginal_log_likelihood_per_instance(fc::UpFlowΔ, batch::PlainXData{Int8})
-    @assert (prob_origin(fc[end]) isa ProbΔNode) "FlowΔ must originate in a ProbΔ"
+    @assert (prob_origin(fc[end]) isa ProbNode) "FlowΔ must originate in a ProbΔ"
     marginal_pass_up(fc, batch)
     pr(fc[end])
 end
@@ -399,7 +399,7 @@ function sample(probs::AbstractVector{<:Number})::Int32
 end
 
 function simulate(node::ProbLiteral, inst::Dict{Var,Int64})
-    if positive(node)
+    if ispositive(node)
         inst[variable(node.origin)] = 1
     else
         inst[variable(node.origin)] = 0
@@ -443,7 +443,7 @@ function sample(circuit::UpFlowΔ)::AbstractVector{Bool}
 end
 
 function simulate2(node::UpFlowLiteral, inst::Dict{Var,Int64})
-    if positive(node)
+    if ispositive(node)
         #TODO I don't think we need these 'grand_origin' parts below
         inst[variable(grand_origin(node))] = 1
     else
@@ -490,7 +490,7 @@ active_samples: bool vector indicating which samples are active for this node du
 result: Matrix (num_samples, num_variables) indicating the final result of mpe
 """
 function mpe_simulate(node::UpFlowLiteral, active_samples::Vector{Bool}, result::Matrix{Bool})
-    if positive(node)
+    if ispositive(node)
         result[active_samples, variable(node)] .= 1
     else
         result[active_samples, variable(node)] .= 0

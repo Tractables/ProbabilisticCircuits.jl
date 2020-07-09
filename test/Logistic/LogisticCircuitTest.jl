@@ -13,10 +13,10 @@ using ProbabilisticCircuits
             compact⋁=false)
         
     logistic_circuit = zoo_lc("little_4var.circuit", 2);
-    @test logistic_circuit isa Vector{<:LogisticΔNode};
+    @test logistic_circuit isa Vector{<:LogisticNode};
 
     flow_circuit = FlowΔ(logistic_circuit, 16, Float64, my_opts)
-    @test flow_circuit isa Vector{<:FlowΔNode};
+    @test flow_circuit isa Vector{<:FlowNode};
 
     # Step 1. Check Probabilities for 3 samples
     data = XData(Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]));

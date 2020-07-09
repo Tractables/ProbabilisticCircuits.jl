@@ -1,5 +1,5 @@
-ExpCacheDict = Dict{Pair{ProbΔNode, LogisticΔNode}, Array{Float64, 2}}
-MomentCacheDict = Dict{Tuple{ProbΔNode, LogisticΔNode, Int64}, Array{Float64, 2}}
+ExpCacheDict = Dict{Pair{ProbNode, LogisticNode}, Array{Float64, 2}}
+MomentCacheDict = Dict{Tuple{ProbNode, LogisticNode, Int64}, Array{Float64, 2}}
 
 struct ExpectationCache 
     f::ExpCacheDict
@@ -122,11 +122,11 @@ end
         value = zeros(1 , num_examples(data) )
         var = lit2var(literal(m))
         X = feature_matrix(data)
-        if positive(n) && positive(m) 
+        if ispositive(n) && ispositive(m) 
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 1 ] .= 1.0 # positive observations
             value[1, X[:, var] .!= 0 ] .= 1.0 # positive or missing observations
-        elseif negative(n) && negative(m)
+        elseif isnegative(n) && isnegative(m)
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 0 ] .= 1.0 # negative observations
             value[1, X[:, var] .!= 1 ] .= 1.0 # negative or missing observations

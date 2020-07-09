@@ -3,9 +3,9 @@
 #######################
 
 
-abstract type LogisticΔNode{O} <: DecoratorΔNode{O} end
-abstract type LogisticLeafNode{O} <: LogisticΔNode{O} end
-abstract type LogisticInnerNode{O} <: LogisticΔNode{O} end
+abstract type LogisticNode{O} <: DecoratorNode{O} end
+abstract type LogisticLeafNode{O} <: LogisticNode{O} end
+abstract type LogisticInnerNode{O} <: LogisticNode{O} end
 
 struct LogisticLiteral{O} <: LogisticLeafNode{O}
     origin::O
@@ -13,18 +13,18 @@ end
 
 struct Logistic⋀{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticΔNode{<:O}}
+    children::Vector{<:LogisticNode{<:O}}
 end
 
 mutable struct Logistic⋁{O} <: LogisticInnerNode{O}
     origin::O
-    children::Vector{<:LogisticΔNode{<:O}}
+    children::Vector{<:LogisticNode{<:O}}
     thetas::Array{Float64, 2}
 end
 
 
 
-const LogisticΔ{O} = AbstractVector{<:LogisticΔNode{O}}
+const LogisticΔ{O} = AbstractVector{<:LogisticNode{O}}
 
 #####################
 # traits
@@ -47,7 +47,7 @@ function Logistic⋁(::Type{O}, origin, children, classes::Int) where {O}
 end
 
 
-const LogisticCache = Dict{ΔNode, LogisticΔNode}
+const LogisticCache = Dict{Node, LogisticNode}
 
 function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCache())
 
@@ -55,15 +55,15 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
     
     O = grapheltype(circuit) # type of node in the origin
 
-    pc_node(::LiteralGate, n::ΔNode) = LogisticLiteral{O}(n)
-    pc_node(::ConstantGate, n::ΔNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralGate, n::LogicNode) = LogisticLiteral{O}(n)
+    pc_node(::ConstantGate, n::LogicNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀Gate, n::ΔNode) = begin
+    pc_node(::⋀Gate, n::LogicNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋀{O}(n, children)
     end
 
-    pc_node(::⋁Gate, n::ΔNode) = begin
+    pc_node(::⋁Gate, n::LogicNode) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋁(O, n, children, classes)
     end
@@ -93,10 +93,10 @@ num_parameters_perclass(n::Logistic⋁) = num_children(n)
 num_parameters_perclass(c::LogisticΔ) = sum(n -> num_parameters_perclass(n), ⋁_nodes(c))
 
 "Return the first origin that is a Logistic circuit node"
-logistic_origin(n::DecoratorΔNode)::LogisticΔNode = origin(n,LogisticΔNode)
+logistic_origin(n::DecoratorNode)::LogisticNode = origin(n,LogisticNode)
 
 "Return the first origin that is a Logistic circuit"
-logistic_origin(c::DecoratorΔ)::LogisticΔ = origin(c, LogisticΔNode)
+logistic_origin(c::DecoratorΔ)::LogisticΔ = origin(c, LogisticNode)
 
 
 # TODO Learning

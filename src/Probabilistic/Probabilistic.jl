@@ -6,7 +6,7 @@ using ..Utils
 export
 
 # ProbCircuits
-ProbΔNode, ProbΔ, ProbΔ, ProbLeafNode, ProbInnerNode,
+ProbNode, ProbΔ, ProbΔ, ProbLeafNode, ProbInnerNode,
 ProbLiteral, Prob⋀, Prob⋁, ProbCache, variable, num_parameters, compute_log_likelihood,
 log_proba,
 log_likelihood, estimate_parameters, log_likelihood_per_instance, marginal_log_likelihood_per_instance,

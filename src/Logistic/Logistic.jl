@@ -4,7 +4,7 @@ using LogicCircuits
 using ..Utils
 
 export 
-    LogisticΔNode, 
+    LogisticNode, 
     LogisticLeafNode, 
     LogisticInnerNode, 
     LogisticLiteral,

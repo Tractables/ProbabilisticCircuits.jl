@@ -9,10 +9,10 @@ using ProbabilisticCircuits
 
     EPS = 1e-7;
     prob_circuit = zoo_psdd("little_4var.psdd");
-    @test prob_circuit isa Vector{<:ProbΔNode};
+    @test prob_circuit isa Vector{<:ProbNode};
 
     flow_circuit = FlowΔ(prob_circuit, 16, Bool)
-    @test flow_circuit isa Vector{<:FlowΔNode};
+    @test flow_circuit isa Vector{<:FlowNode};
 
 
     # Step 1. Check Probabilities for 3 samples

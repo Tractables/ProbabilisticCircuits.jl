@@ -7,16 +7,16 @@
 #####################
 
 "A expectation circuit node that has pair of origins of type PC and type LC"
-abstract type DecoratorΔNodePair{PC<:ΔNode, LC<:ΔNode} <: ΔNode end
+abstract type DecoratorNodePair{PC<:Node, LC<:Node} <: Node end
 
-abstract type ExpFlowΔNode{PC, LC, F} <: DecoratorΔNodePair{PC, LC} end
+abstract type ExpFlowNode{PC, LC, F} <: DecoratorNodePair{PC, LC} end
 
-const ExpFlowΔ{O} = AbstractVector{<:ExpFlowΔNode{<:O}}
+const ExpFlowΔ{O} = AbstractVector{<:ExpFlowNode{<:O}}
 
-struct UpExpFlow{PC, LC, F} <: ExpFlowΔNode{PC, LC, F}
+struct UpExpFlow{PC, LC, F} <: ExpFlowNode{PC, LC, F}
     p_origin::PC
     f_origin::LC
-    children::Vector{<:ExpFlowΔNode{<:PC, <:LC, <:F}}
+    children::Vector{<:ExpFlowNode{<:PC, <:LC, <:F}}
     f::F
     fg::F
 end
@@ -31,15 +31,15 @@ function ExpFlowΔ(pc::ProbΔ, lc::LogisticΔ, batch_size::Int, ::Type{El}) wher
     lc_type = grapheltype(lc)
 
     F = Array{El, 2}
-    fmem = () -> zeros(1, batch_size) #Vector{El}(undef, batch_size)  #some_vector(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)
+    fmem = () -> zeros(1, batch_size) #Vector{El}(undef, batch_size)  #init_array(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)
     fgmem = () -> zeros(classes(lc[end]), batch_size)
 
     root_pc = pc[end]
     root_lc = lc[end- 1]
     
-    cache = Dict{Pair{ΔNode, ΔNode}, ExpFlowΔNode}()
+    cache = Dict{Pair{Node, Node}, ExpFlowNode}()
     sizehint!(cache, (length(pc) + length(lc))*4÷3)
-    expFlowCircuit = Vector{ExpFlowΔNode}()
+    expFlowCircuit = Vector{ExpFlowNode}()
 
     function ExpflowTraverse(n::Prob⋁, m::Logistic⋁) 
         get!(cache, Pair(n, m)) do
@@ -59,7 +59,7 @@ function ExpFlowΔ(pc::ProbΔ, lc::LogisticΔ, batch_size::Int, ::Type{El}) wher
     end
     function ExpflowTraverse(n::ProbLiteral, m::Logistic⋁) 
         get!(cache, Pair(n, m)) do
-            children = Vector{ExpFlowΔNode{pc_type,lc_type, F}}() # TODO
+            children = Vector{ExpFlowNode{pc_type,lc_type, F}}() # TODO
             node = UpExpFlow{pc_type,lc_type, F}(n, m, children, fmem(), fgmem())
             push!(expFlowCircuit, node)
             return node
@@ -67,7 +67,7 @@ function ExpFlowΔ(pc::ProbΔ, lc::LogisticΔ, batch_size::Int, ::Type{El}) wher
     end
     function ExpflowTraverse(n::ProbLiteral, m::LogisticLiteral) 
         get!(cache, Pair(n, m)) do
-            children = Vector{ExpFlowΔNode{pc_type,lc_type, F}}() # TODO
+            children = Vector{ExpFlowNode{pc_type,lc_type, F}}() # TODO
             node = UpExpFlow{pc_type,lc_type, F}(n, m, children, fmem(), fgmem())
             push!(expFlowCircuit, node)
             return node
@@ -95,12 +95,12 @@ function exp_pass_up(fc::ExpFlowΔ, data::XData{E}) where{E <: eltype(F)} where{
     end
 end
 
-function exp_pass_up_node(node::ExpFlowΔNode{PC,LC,F}, data::XData{E}) where{E <: eltype(F)} where{PC, LC, F}
+function exp_pass_up_node(node::ExpFlowNode{PC,LC,F}, data::XData{E}) where{E <: eltype(F)} where{PC, LC, F}
     pType = typeof(node.p_origin)
     fType = typeof(node.f_origin)
 
     if node.p_origin isa Prob⋁ && node.f_origin isa Logistic⋁
-        #todo this ordering might be different than the ExpFlowΔNode children
+        #todo this ordering might be different than the ExpFlowNode children
         pthetas = [exp(node.p_origin.log_thetas[i])
                     for i in 1:length(node.p_origin.children) for j in 1:length(node.f_origin.children)]
         fthetas = [node.f_origin.thetas[j,:] # only taking the first class for now
@@ -129,10 +129,10 @@ function exp_pass_up_node(node::ExpFlowΔNode{PC,LC,F}, data::XData{E}) where{E 
 
         var = lit2var(literal(m))
         X = feature_matrix(data)
-        if positive(node.p_origin) && positive(m)
+        if ispositive(node.p_origin) && ispositive(m)
             node.f[:, X[:, var] .!= 0 ] .= 1.0 # positive and missing observations
             node.f[:, X[:, var] .== 0 ] .= 0.0
-        elseif negative(node.p_origin) && negative(m)
+        elseif isnegative(node.p_origin) && isnegative(m)
             node.f[:, X[:, var] .!= 1 ] .= 1.0 # negative and missing observations
             node.f[:, X[:, var] .== 1 ] .= 0.0
         else

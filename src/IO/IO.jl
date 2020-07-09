@@ -15,7 +15,7 @@ load_logistic_circuit,
 parse_clt,
 
 # CircuitSaver
-save_as_dot, is_true_node, save_circuit,
+save_as_dot, istrue_node, save_circuit,
 # get_node2id,get_vtree2id,vtree_node, decompile, make_element, save_lines, save_psdd_comment_line, save_sdd_comment_line, 
 # save_line, to_string
 

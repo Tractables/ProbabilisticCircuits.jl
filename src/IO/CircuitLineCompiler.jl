@@ -35,7 +35,7 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalΔ, id2lognode::Dict{ID,<:LogicalΔNode})::ProbΔ
+function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicΔ, id2lognode::Dict{ID,<:LogicNode})::ProbΔ
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
@@ -68,8 +68,8 @@ function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicalΔ, id
 end
 
 
-function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicalΔ, 
-                            classes::Int, id2lognode::Dict{ID,<:LogicalΔNode})::LogisticΔ
+function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicΔ, 
+                            classes::Int, id2lognode::Dict{ID,<:LogicNode})::LogisticΔ
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
     log2logistic = LogisticCache()

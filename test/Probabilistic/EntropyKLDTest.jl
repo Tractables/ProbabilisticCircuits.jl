@@ -16,8 +16,8 @@ using ProbabilisticCircuits
 
     # KLD Tests #
     # KLD base tests
-    pr_constraint_cache = Dict{Tuple{ProbΔNode, Union{ProbΔNode, StructLogicalΔNode}}, Float64}()
-    kl_divergence_cache = Dict{Tuple{ProbΔNode, ProbΔNode}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64}()
+    kl_divergence_cache = Dict{Tuple{ProbNode, ProbNode}, Float64}()
 
     @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[1], pc1[3], kl_divergence_cache, pr_constraint_cache)
     @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[2], pc1[3], kl_divergence_cache, pr_constraint_cache)
@@ -39,7 +39,7 @@ using ProbabilisticCircuits
     @test abs(psdd_kl_divergence(pc1[5], pc2[5], kl_divergence_cache, pr_constraint_cache) - 0.8 * log(0.8)) < 1e-8
     @test abs(psdd_kl_divergence(pc1[end], pc2[end]) - 0.5672800167911778) < 1e-8
 
-    kl_divergence_cache = Dict{Tuple{ProbΔNode, ProbΔNode}, Float64}()
+    kl_divergence_cache = Dict{Tuple{ProbNode, ProbNode}, Float64}()
     @test abs(psdd_kl_divergence(pc2[4], pc3[5], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
     @test abs(psdd_kl_divergence(pc2[4], pc3[4], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
     @test abs(psdd_kl_divergence(pc2[3], pc3[3], kl_divergence_cache, pr_constraint_cache) - 0.9 * log(0.9 / 0.5) - 0.1 * log(0.1 / 0.5)) < 1e-8

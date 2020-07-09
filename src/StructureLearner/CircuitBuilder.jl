@@ -23,13 +23,13 @@ end
 "Build decomposable probability circuits from Chow-Liu tree"
 function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
-    lin = Vector{ProbΔNode}()
-    node_cache = Dict{Lit, LogicalΔNode}()
+    lin = Vector{ProbNode}()
+    node_cache = Dict{Lit, LogicNode}()
     prob_cache = ProbCache()
     parent = parent_vector(clt)
 
-    prob_children(n)::Vector{<:ProbΔNode{<:node_type(n)}} =  
-        copy_with_eltype(map(c -> prob_cache[c], n.children), ProbΔNode{<:node_type(n)})
+    prob_children(n)::Vector{<:ProbNode{<:node_type_deprecated(n)}} =  
+        collect(ProbNode{<:node_type_deprecated(n)}, map(c -> prob_cache[c], n.children))
 
     "default order of circuit node, from left to right: +/1 -/0"
 
@@ -100,19 +100,19 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
         return n
     end
 
-    function compile_independent_roots(roots::Vector{ProbΔNode})
+    function compile_independent_roots(roots::Vector{ProbNode})
         temp = ⋀Node([c.origin for c in roots])
         n = Prob⋀(temp, prob_children(temp))
         prob_cache[temp] = n
         push!(lin, n)
         temp = ⋁Node([temp])
-        n = Prob⋁{LogicalΔNode}(temp, prob_children(temp))
+        n = Prob⋁{LogicNode}(temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = [0.0]
         push!(lin, n)
     end
 
-    roots = Vector{ProbΔNode}()
+    roots = Vector{ProbNode}()
     for id in topo_order
         children = Var.(outneighbors(clt, id))
         if isequal(children, [])

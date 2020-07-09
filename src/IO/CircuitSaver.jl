@@ -24,12 +24,12 @@ decompile(n::ProbLiteral, node2id, vtree2id)::UnweightedLiteralLine =
 make_element(n::Prob⋀, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
 
-is_true_node(n)::Bool = 
+istrue_node(n)::Bool = 
     GateType(n) isa ⋁Gate && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
-    positive(children(n)[1]) && negative(children(n)[2])
+    ispositive(children(n)[1]) && isnegative(children(n)[2])
 
 function decompile(n::Prob⋁, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
-    if is_true_node(n)
+    if istrue_node(n)
         WeightedNamedConstantLine(node2id[n], vtree2id[n.origin.vtree], lit2var(n.children[1].origin.literal), n.log_thetas[1]) # TODO
     else
         DecisionLine(node2id[n], vtree2id[n.origin.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
@@ -52,8 +52,8 @@ function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id
 end
 
-function get_vtree2id(ln::PlainVtree):: Dict{PlainVtreeNode, ID}
-    vtree2id = Dict{PlainVtreeNode, ID}()
+function get_vtree2id(ln::PlainVtree):: Dict{PlainVTree, ID}
+    vtree2id = Dict{PlainVTree, ID}()
     sizehint!(vtree2id, length(ln))
     index = ID(0) # vtree id start from 0
 
@@ -86,9 +86,9 @@ end
 
 function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
     # TODO add method isstructured
-    @assert ln[end].origin isa StructLogicalΔNode "PSDD should decorate on StructLogicalΔ"
+    @assert ln[end].origin isa StructLogicNode "PSDD should decorate on StructLogicΔ"
     @assert endswith(name, ".psdd")
-    node2id = get_node2id(ln, ProbΔNode)
+    node2id = get_node2id(ln, ProbNode)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_psdd_file(IOBuffer(psdd_header())))
@@ -122,9 +122,9 @@ function lc_header()
 end
     
 function save_lc_file(name::String, ln::LogisticΔ, vtree)
-    @assert ln[end].origin isa StructLogicalΔNode "LC should decorate on StructLogicalΔ"
+    @assert ln[end].origin isa StructLogicNode "LC should decorate on StructLogicΔ"
     @assert endswith(name, ".circuit")
-    node2id = get_node2id(ln, ProbΔNode)
+    node2id = get_node2id(ln, ProbNode)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_lc_file(IOBuffer(lc_header())))
@@ -150,14 +150,14 @@ function save_circuit(name::String, circuit, vtree=nothing)
 end
 
 "Save prob circuit to .dot file"
-function save_as_dot(root::ProbΔNode, file::String)
-    return save_as_dot(node2dag(root), file)
+function save_as_dot(root::ProbNode, file::String)
+    return save_as_dot(linearize(root), file)
 end
 
 "Save prob circuits to .dot file"
 function save_as_dot(circuit::ProbΔ, file::String)
     # TODO (https://github.com/Juice-jl/LogicCircuits.jl/issues/7)
-    node_cache = Dict{ProbΔNode, Int64}()
+    node_cache = Dict{ProbNode, Int64}()
     for (i, n) in enumerate(circuit)
         node_cache[n] = i
     end
@@ -183,9 +183,9 @@ function save_as_dot(circuit::ProbΔ, file::String)
             write(f, "$(node_cache[n]) [label=\"*$(node_cache[n])\"]\n")
         elseif n isa Prob⋁
             write(f, "$(node_cache[n]) [label=\"+$(node_cache[n])\"]\n")
-        elseif n isa ProbLiteral && positive(n)
+        elseif n isa ProbLiteral && ispositive(n)
             write(f, "$(node_cache[n]) [label=\"+$(variable(n.origin))\"]\n")
-        elseif n isa ProbLiteral && negative(n)
+        elseif n isa ProbLiteral && isnegative(n)
             write(f, "$(node_cache[n]) [label=\"-$(variable(n.origin))\"]\n")
         else
             throw("unknown ProbNode type")
