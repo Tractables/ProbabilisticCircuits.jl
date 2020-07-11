@@ -55,15 +55,15 @@ function LogisticΔ(circuit::Δ, classes::Int, cache::LogisticCache = LogisticCa
     
     O = grapheltype(circuit) # type of node in the origin
 
-    pc_node(::LiteralGate, n::LogicNode) = LogisticLiteral{O}(n)
-    pc_node(::ConstantGate, n::LogicNode) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralGate, n::LogicCircuit) = LogisticLiteral{O}(n)
+    pc_node(::ConstantGate, n::LogicCircuit) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀Gate, n::LogicNode) = begin
+    pc_node(::⋀Gate, n::LogicCircuit) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋀{O}(n, children)
     end
 
-    pc_node(::⋁Gate, n::LogicNode) = begin
+    pc_node(::⋁Gate, n::LogicCircuit) = begin
         children = map(c -> cache[c], n.children)
         Logistic⋁(O, n, children, classes)
     end

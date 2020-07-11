@@ -16,7 +16,7 @@ using ProbabilisticCircuits
 
     # KLD Tests #
     # KLD base tests
-    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64}()
     kl_divergence_cache = Dict{Tuple{ProbNode, ProbNode}, Float64}()
 
     @test_throws AssertionError("Both nodes not normalized for same vtree node") psdd_kl_divergence(pc1[1], pc1[3], kl_divergence_cache, pr_constraint_cache)

@@ -19,7 +19,7 @@ using ProbabilisticCircuits
     # @test pc[28].log_thetas[1] ≈ -1.1870882896239272 atol=1.0e-7
 
     # is structured decomposable 
-    for (n, vars) in variable_scopes(pc)
+    for (n, vars) in variables_by_node(pc)
         @test vars == BitSet(variables(origin(n).vtree))
     end
 

@@ -52,8 +52,8 @@ function get_node2id(ln::AbstractVector{X}, T::Type)where X #<: T#::Dict{T, ID}
     node2id
 end
 
-function get_vtree2id(ln::PlainVtree):: Dict{PlainVTree, ID}
-    vtree2id = Dict{PlainVTree, ID}()
+function get_vtree2id(ln::PlainVtree):: Dict{PlainVtree, ID}
+    vtree2id = Dict{PlainVtree, ID}()
     sizehint!(vtree2id, length(ln))
     index = ID(0) # vtree id start from 0
 
@@ -86,7 +86,7 @@ end
 
 function save_psdd_file(name::String, ln::ProbΔ, vtree::PlainVtree)
     # TODO add method isstructured
-    @assert ln[end].origin isa StructLogicNode "PSDD should decorate on StructLogicΔ"
+    @assert ln[end].origin isa StructLogicCircuit "PSDD should decorate on StructLogicΔ"
     @assert endswith(name, ".psdd")
     node2id = get_node2id(ln, ProbNode)
     vtree2id = get_vtree2id(vtree)
@@ -122,7 +122,7 @@ function lc_header()
 end
     
 function save_lc_file(name::String, ln::LogisticΔ, vtree)
-    @assert ln[end].origin isa StructLogicNode "LC should decorate on StructLogicΔ"
+    @assert ln[end].origin isa StructLogicCircuit "LC should decorate on StructLogicΔ"
     @assert endswith(name, ".circuit")
     node2id = get_node2id(ln, ProbNode)
     vtree2id = get_vtree2id(vtree)

@@ -23,7 +23,7 @@ Load a structured probabilistic circuit from file.
 Support circuit file formats:
  * ".psdd" for PSDD files
 Supported vtree file formats:
- * ".vtree" for VTree files
+ * ".vtree" for Vtree files
 """
 function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,PlainVtree}
     @assert endswith(circuit_file,".psdd")

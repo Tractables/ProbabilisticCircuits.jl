@@ -3,13 +3,13 @@ using DataStructures
 # Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
 # spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
 "Calculate the probability of the logic formula given by sdd for the psdd"
-function pr_constraint(psdd_node::ProbNode, sdd_node::Union{ProbNode, StructLogicNode})
-    cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64}()
+function pr_constraint(psdd_node::ProbNode, sdd_node::Union{ProbNode, StructLogicCircuit})
+    cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64}()
 
     return pr_constraint(psdd_node, sdd_node, cache)
 end
-function pr_constraint(psdd_node::ProbNode, sdd_node::Union{ProbNode, StructLogicNode},
-                       cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64})::Float64
+function pr_constraint(psdd_node::ProbNode, sdd_node::Union{ProbNode, StructLogicCircuit},
+                       cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64})::Float64
     if (psdd_node, sdd_node) in keys(cache) # Cache hit
         return cache[psdd_node, sdd_node]
     elseif psdd_node isa ProbLiteral # Boundary cases
@@ -92,19 +92,19 @@ end
 "KL divergence calculation for psdds that are not necessarily identical"
 function psdd_kl_divergence(psdd_node1::ProbNode, psdd_node2::ProbNode)::Float64
     kl_divergence_cache = Dict{Tuple{ProbNode, ProbNode}, Float64}()
-    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64}()
 
     return psdd_kl_divergence(psdd_node1, psdd_node2, kl_divergence_cache, pr_constraint_cache)
 end
 function psdd_kl_divergence(psdd_node1::ProbNode, psdd_node2::ProbNode,
         kl_divergence_cache::Dict{Tuple{ProbNode, ProbNode}, Float64})::Float64
-    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64}()
 
     return psdd_kl_divergence(psdd_node1, psdd_node2, kl_divergence_cache, pr_constraint_cache)
 end
 function psdd_kl_divergence(psdd_node1::ProbNode, psdd_node2::ProbNode,
         kl_divergence_cache::Dict{Tuple{ProbNode, ProbNode}, Float64},
-        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64})
+        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64})
     @assert !(psdd_node1 isa Prob⋀ || psdd_node2 isa Prob⋀) "Prob⋀ not a valid PSDD node for KL-Divergence"
 
     # Check if both nodes are normalized for same vtree node
@@ -175,7 +175,7 @@ function psdd_kl_divergence(psdd_node1::ProbNode, psdd_node2::ProbNode,
 end
 function psdd_kl_divergence(psdd_node1::ProbLiteral, psdd_node2::ProbLiteral,
         kl_divergence_cache::Dict{Tuple{ProbNode, ProbNode}, Float64},
-        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64})
+        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64})
     # Check if literals are over same variables in vtree
    @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
 
@@ -188,7 +188,7 @@ function psdd_kl_divergence(psdd_node1::ProbLiteral, psdd_node2::ProbLiteral,
 end
 function psdd_kl_divergence(psdd_node1::Prob⋁, psdd_node2::ProbLiteral,
         kl_divergence_cache::Dict{Tuple{ProbNode, ProbNode}, Float64},
-        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64})
+        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64})
     @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
 
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
@@ -209,7 +209,7 @@ function psdd_kl_divergence(psdd_node1::Prob⋁, psdd_node2::ProbLiteral,
 end
 function psdd_kl_divergence(psdd_node1::ProbLiteral, psdd_node2::Prob⋁,
         kl_divergence_cache::Dict{Tuple{ProbNode, ProbNode}, Float64},
-        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicNode}}, Float64})
+        pr_constraint_cache::Dict{Tuple{ProbNode, Union{ProbNode, StructLogicCircuit}}, Float64})
     @assert variables(psdd_node1.origin.vtree) == variables(psdd_node2.origin.vtree) "Both nodes not normalized for same vtree node"
 
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit

@@ -1,7 +1,7 @@
 using ..Utils
 
-"Map from literal to LogicNode"
-const LitCache = Dict{Lit, LogicNode}
+"Map from literal to LogicCircuit"
+const LitCache = Dict{Lit, LogicCircuit}
 
 "Use literal to represent constraint (1 to X, -1 to not X), 0 to represent true"
 const ⊤ = convert(Lit, 0)
@@ -37,7 +37,7 @@ function learn_vtree_from_clt(clt::CLT; vtree_mode::String)::PlainVtree
     return linearize(rootnode)
 end
 
-function construct_node(v::Var, clt::CLT, strategy::String)::PlainVTree
+function construct_node(v::Var, clt::CLT, strategy::String)::PlainVtree
     children = Var.(outneighbors(clt, v))
     if isempty(children) # leaf node
         return PlainVtreeLeafNode(v)
@@ -47,9 +47,9 @@ function construct_node(v::Var, clt::CLT, strategy::String)::PlainVTree
     end
 end
 
-function construct_children(children::Vector{Var}, clt::CLT, strategy::String)::PlainVTree
+function construct_children(children::Vector{Var}, clt::CLT, strategy::String)::PlainVtree
     sorted_vars = sort(collect(children))
-    children_nodes = Vector{PlainVTree}()
+    children_nodes = Vector{PlainVtree}()
     foreach(x -> push!(children_nodes, construct_node(x, clt, strategy)), sorted_vars)
 
     if strategy == "linear"
@@ -61,7 +61,7 @@ function construct_children(children::Vector{Var}, clt::CLT, strategy::String)::
     end
 end
 
-function construct_children_linear(children_nodes::Vector{PlainVTree}, clt::CLT)::PlainVTree
+function construct_children_linear(children_nodes::Vector{PlainVtree}, clt::CLT)::PlainVtree
     children_nodes = Iterators.Stateful(reverse(children_nodes))
 
     right = popfirst!(children_nodes)
@@ -71,7 +71,7 @@ function construct_children_linear(children_nodes::Vector{PlainVTree}, clt::CLT)
     return right
 end
 
-function construct_children_balanced(children_nodes::Vector{PlainVTree}, clt::CLT)::PlainVTree
+function construct_children_balanced(children_nodes::Vector{PlainVtree}, clt::CLT)::PlainVtree
     if length(children_nodes) == 1
         return children_nodes[1]
     elseif length(children_nodes) == 2
@@ -84,7 +84,7 @@ function construct_children_balanced(children_nodes::Vector{PlainVTree}, clt::CL
     end
 end
 
-function add_parent(parent::Var, children::PlainVTree)
+function add_parent(parent::Var, children::PlainVtree)
     return PlainVtreeInnerNode(PlainVtreeLeafNode(parent), children)
 end
 
@@ -100,10 +100,10 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
     lin = Vector{ProbNode}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2p = Dict{PlainVTree, ProbΔ}()
+    v2p = Dict{PlainVtree, ProbΔ}()
 
     get_params(cpt::Dict) = length(cpt) == 2 ? [cpt[1], cpt[0]] : [cpt[(1,1)], cpt[(0,1)], cpt[(1,0)], cpt[(0,0)]]
-    function add_mapping!(v::PlainVTree, circuits::ProbΔ)
+    function add_mapping!(v::PlainVtree, circuits::ProbΔ)
         if !haskey(v2p, v); v2p[v] = Vector{ProbNode}(); end
         foreach(c -> if !(c in v2p[v]) push!(v2p[v], c);end, circuits)
     end
@@ -117,7 +117,7 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
         if isequal(children, [])
             circuit = compile_true_nodes(var, v, get_params(cpt), lit_cache, prob_cache, lin)
         else
-            circuit = compile_literal_nodes(var, v, get_params(cpt), lit_cache, prob_cache, lin)
+            circuit = compile_canonical_literals(var, v, get_params(cpt), lit_cache, prob_cache, lin)
         end
         add_mapping!(v, circuit)
     end
@@ -149,12 +149,12 @@ end
 #####################
 
 prob_children(n, prob_cache) =  
-    collect(ProbNode{<:StructLogicNode}, map(c -> prob_cache[c], n.children))
+    collect(ProbNode{<:StructLogicCircuit}, map(c -> prob_cache[c], n.children))
 
 "Add leaf nodes to circuit `lin`"
 function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)
-    pos = StructLiteralNode{PlainVTree}( var2lit(var), vtree)
-    neg = StructLiteralNode{PlainVTree}(-var2lit(var), vtree)
+    pos = StructLiteralNode{PlainVtree}( var2lit(var), vtree)
+    neg = StructLiteralNode{PlainVtree}(-var2lit(var), vtree)
     lit_cache[var2lit(var)] = pos
     lit_cache[-var2lit(var)] = neg
     pos2 = ProbLiteral(pos)
@@ -168,7 +168,7 @@ end
 
 "Add prob⋀ node to circuit `lin`"
 function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
-    logic = Struct⋀Node{PlainVTree}([c.origin for c in children], vtree)
+    logic = Struct⋀Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋀(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
     push!(lin, prob)
@@ -176,8 +176,8 @@ function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cac
 end
 
 "Add prob⋁ node to circuit `lin`"
-function add_prob⋁_node(children::ProbΔ, vtree::PlainVTree, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
-    logic = Struct⋁Node{PlainVTree}([c.origin for c in children], vtree)
+function add_prob⋁_node(children::ProbΔ, vtree::PlainVtree, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
+    logic = Struct⋁Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋁(logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
     prob_cache[logic] = prob
@@ -192,7 +192,7 @@ function compile_decision_node(primes::ProbΔ, subs::ProbΔ, vtree::PlainVtreeIn
 end
 
 "Construct literal nodes given variable `var`"
-function compile_literal_nodes(var::Var, vtree::PlainVtreeLeafNode, probs::Vector{Float64}, lit_cache::LitCache, prob_cache::ProbCache, lin)
+function compile_canonical_literals(var::Var, vtree::PlainVtreeLeafNode, probs::Vector{Float64}, lit_cache::LitCache, prob_cache::ProbCache, lin)
     (pos, neg) = add_prob_leaf_node(var, vtree, lit_cache, prob_cache, lin)
     return [pos, neg]
 end
@@ -265,7 +265,7 @@ function compile_fully_factorized_psdd_from_vtree(vtree::PlainVtree)::ProbΔ
     lin = Vector{ProbNode}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2n = Dict{PlainVTree, ProbNode}()
+    v2n = Dict{PlainVtree, ProbNode}()
 
     for v in vtree
         ful_factor_node(v, lit_cache, prob_cache, v2n, lin)

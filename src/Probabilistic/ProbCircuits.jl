@@ -58,7 +58,7 @@ function ProbΔ2(circuit::Δ)::ProbΔ
     linearize(ProbΔ2(circuit[end]))
 end
 
-function ProbΔ2(circuit::LogicNode)::ProbNode
+function ProbΔ2(circuit::LogicCircuit)::ProbNode
     f_con(n) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
     f_lit(n) = ProbLiteral(n)
     f_a(n, cn) = Prob⋀(n, cn)
@@ -70,15 +70,15 @@ function ProbΔ(circuit::Δ, cache::ProbCache = ProbCache())
 
     sizehint!(cache, length(circuit)*4÷3)
 
-    pc_node(::LiteralGate, n::LogicNode) = ProbLiteral(n)
-    pc_node(::ConstantGate, n::LogicNode) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
+    pc_node(::LiteralGate, n::LogicCircuit) = ProbLiteral(n)
+    pc_node(::ConstantGate, n::LogicCircuit) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
 
-    pc_node(::⋀Gate, n::LogicNode) = begin
+    pc_node(::⋀Gate, n::LogicCircuit) = begin
         children = map(c -> cache[c], n.children)
         Prob⋀(n, children)
     end
 
-    pc_node(::⋁Gate, n::LogicNode) = begin
+    pc_node(::⋁Gate, n::LogicCircuit) = begin
         children = map(c -> cache[c], n.children)
         Prob⋁(n, children)
     end

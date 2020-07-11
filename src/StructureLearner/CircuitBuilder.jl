@@ -24,7 +24,7 @@ end
 function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
     lin = Vector{ProbNode}()
-    node_cache = Dict{Lit, LogicNode}()
+    node_cache = Dict{Lit, LogicCircuit}()
     prob_cache = ProbCache()
     parent = parent_vector(clt)
 
@@ -106,7 +106,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
         prob_cache[temp] = n
         push!(lin, n)
         temp = ⋁Node([temp])
-        n = Prob⋁{LogicNode}(temp, prob_children(temp))
+        n = Prob⋁{LogicCircuit}(temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = [0.0]
         push!(lin, n)
