@@ -13,8 +13,8 @@ Compile lines into a probabilistic circuit.
 """
 function compile_prob(lines::CircuitFormatLines)::ProbΔ
     # first compile a logical circuit
-    logical_circuit, id2lognode = compile_smooth_logical_m(lines)
-    decorate_prob(lines, logical_circuit, id2lognode)
+    logic_circuit, id2lognode = compile_smooth_logical_m(lines)
+    decorate_prob(lines, logic_circuit, id2lognode)
 end
 
 """
@@ -22,24 +22,24 @@ Compile lines into a logistic circuit.
 """
 function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticΔ
     # first compile a logical circuit
-    logical_circuit, id2lognode = compile_smooth_logical_m(lines)
-    decorate_logistic(lines, logical_circuit, classes, id2lognode)
+    logic_circuit, id2lognode = compile_smooth_logical_m(lines)
+    decorate_logistic(lines, logic_circuit, classes, id2lognode)
 end
 
 """
 Compile circuit and vtree lines into a structured probabilistic circuit (one whose logical circuit origin is structured).
 """
 function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::VtreeFormatLines)
-    logical_circuit, vtree, id2vtree, id2lognode = compile_smooth_struct_logical_m(circuit_lines, vtree_lines)
-    prob_circuit = decorate_prob(circuit_lines, logical_circuit, id2lognode)
+    logic_circuit, vtree, id2vtree, id2lognode = compile_smooth_struct_logical_m(circuit_lines, vtree_lines)
+    prob_circuit = decorate_prob(circuit_lines, logic_circuit, id2lognode)
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicΔ, id2lognode::Dict{ID,<:LogicCircuit})::ProbΔ
+function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicΔ, id2lognode::Dict{ID,<:LogicCircuit})::ProbΔ
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     lognode2probnode = ProbCache()
     # build a corresponding probabilistic circuit
-    prob_circuit = ProbΔ(logical_circuit,lognode2probnode)
+    prob_circuit = ProbΔ(logic_circuit,lognode2probnode)
     # map from line node ids to probabilistic circuit nodes
     id2probnode(id) = lognode2probnode[id2lognode[id]]
 
@@ -68,13 +68,13 @@ function decorate_prob(lines::CircuitFormatLines, logical_circuit::LogicΔ, id2l
 end
 
 
-function decorate_logistic(lines::CircuitFormatLines, logical_circuit::LogicΔ, 
+function decorate_logistic(lines::CircuitFormatLines, logic_circuit::LogicΔ, 
                             classes::Int, id2lognode::Dict{ID,<:LogicCircuit})::LogisticΔ
                         
     # set up cache mapping logical circuit nodes to their logistic decorator
     log2logistic = LogisticCache()
     # build a corresponding probabilistic circuit
-    logistic_circuit = LogisticΔ(logical_circuit, classes, log2logistic)
+    logistic_circuit = LogisticΔ(logic_circuit, classes, log2logistic)
     # map from line node ids to probabilistic circuit nodes
     id2logisticnode(id) = log2logistic[id2lognode[id]]
 

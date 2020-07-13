@@ -48,13 +48,13 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     end
 
     "compile inner disjunction node"
-    function compile_⋁inner(ln::Lit, children::Vector{Var})::Vector{⋁Node}
-        logical_nodes = Vector{⋁Node}()
+    function compile_⋁inner(ln::Lit, children::Vector{Var})::Vector{Plain⋁Node}
+        logical_nodes = Vector{Plain⋁Node}()
         v = lit2value(ln)
 
         for c in children
             #build logical ciruits
-            temp = ⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
+            temp = Plain⋁Node([node_cache[lit] for lit in [var2lit(c), - var2lit(c)]])
             push!(logical_nodes, temp)
             n = Prob⋁(temp, prob_children(temp))
             prob_cache[temp] = n
@@ -69,9 +69,9 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     end
 
     "compile inner conjunction node into circuits, left node is indicator, rest nodes are disjunction children nodes"
-    function compile_⋀inner(indicator::Lit, children::Vector{⋁Node})
+    function compile_⋀inner(indicator::Lit, children::Vector{Plain⋁Node})
         leaf = node_cache[indicator]
-        temp = ⋀Node(vcat([leaf], children))
+        temp = Plain⋀Node(vcat([leaf], children))
         node_cache[indicator] = temp
         n = Prob⋀(temp, prob_children(temp))
         prob_cache[temp] = n
@@ -89,7 +89,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
 
     "compile root, add another disjunction node"
     function compile_root(root::Var)
-        temp = ⋁Node([node_cache[s] for s in [var2lit(root), -var2lit(root)]])
+        temp = Plain⋁Node([node_cache[s] for s in [var2lit(root), -var2lit(root)]])
         n = Prob⋁(temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = zeros(Float64, 2)
@@ -101,11 +101,11 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
     end
 
     function compile_independent_roots(roots::Vector{ProbNode})
-        temp = ⋀Node([c.origin for c in roots])
+        temp = Plain⋀Node([c.origin for c in roots])
         n = Prob⋀(temp, prob_children(temp))
         prob_cache[temp] = n
         push!(lin, n)
-        temp = ⋁Node([temp])
+        temp = Plain⋁Node([temp])
         n = Prob⋁{LogicCircuit}(temp, prob_children(temp))
         prob_cache[temp] = n
         n.log_thetas = [0.0]

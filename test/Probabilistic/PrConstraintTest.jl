@@ -17,12 +17,12 @@ using ProbabilisticCircuits
 
     file_circuit = "little_4var.circuit"
     file_vtree = "little_4var.vtree"
-    logical_circuit, vtree = load_struct_smooth_logical_circuit(
+    logic_circuit, vtree = load_struct_smooth_logic_circuit(
                                 zoo_lc_file(file_circuit), zoo_vtree_file(file_vtree))
 
     pc = zoo_psdd("little_4var.psdd")
 
-    @test abs(pr_constraint(pc[end], logical_circuit[end - 1], cache) - 1.0) < 1e-8
+    @test abs(pr_constraint(pc[end], logic_circuit[end - 1], cache) - 1.0) < 1e-8
 
     # Test with two psdds
     pc1, vtree = load_struct_prob_circuit(zoo_psdd_file("simple2.5.psdd"), simplevtree)
