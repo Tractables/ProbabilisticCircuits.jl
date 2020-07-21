@@ -153,8 +153,8 @@ prob_children(n, prob_cache) =
 
 "Add leaf nodes to circuit `lin`"
 function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)
-    pos = StructLiteralNode{PlainVtree}( var2lit(var), vtree)
-    neg = StructLiteralNode{PlainVtree}(-var2lit(var), vtree)
+    pos = PlainStructLiteralNode{PlainVtree}( var2lit(var), vtree)
+    neg = PlainStructLiteralNode{PlainVtree}(-var2lit(var), vtree)
     lit_cache[var2lit(var)] = pos
     lit_cache[-var2lit(var)] = neg
     pos2 = ProbLiteral(pos)
@@ -168,7 +168,7 @@ end
 
 "Add prob⋀ node to circuit `lin`"
 function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
-    logic = Struct⋀Node{PlainVtree}([c.origin for c in children], vtree)
+    logic = PlainStruct⋀Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋀(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
     push!(lin, prob)
@@ -177,7 +177,7 @@ end
 
 "Add prob⋁ node to circuit `lin`"
 function add_prob⋁_node(children::ProbΔ, vtree::PlainVtree, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
-    logic = Struct⋁Node{PlainVtree}([c.origin for c in children], vtree)
+    logic = PlainStruct⋁Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋁(logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
     prob_cache[logic] = prob
@@ -212,7 +212,7 @@ end
 # Map and cache constraints
 #####################
 
-function set_base(index, n::StructLiteralNode, bases)
+function set_base(index, n::PlainStructLiteralNode, bases)
     if ispositive(n)
         bases[n][variable(n)] = 1
     else
@@ -220,13 +220,13 @@ function set_base(index, n::StructLiteralNode, bases)
     end
 end
 
-function set_base(index, n::Struct⋁Node, bases)
+function set_base(index, n::PlainStruct⋁Node, bases)
     len = num_children(n)
     temp = sum([bases[c] for c in n.children])
     bases[n] = map(x-> if x == len 1; elseif -x == len; -1; else 0; end, temp)
 end
 
-function set_base(index, n::Struct⋀Node, bases)
+function set_base(index, n::PlainStruct⋀Node, bases)
     bases[n] = sum([bases[c] for c in n.children])
 end
 

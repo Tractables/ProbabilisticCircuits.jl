@@ -13,7 +13,7 @@ function pr_constraint(psdd_node::ProbNode, sdd_node::Union{ProbNode, StructLogi
     if (psdd_node, sdd_node) in keys(cache) # Cache hit
         return cache[psdd_node, sdd_node]
     elseif psdd_node isa ProbLiteral # Boundary cases
-        if sdd_node isa Union{ProbLiteral, StructLiteralNode} # Both are literals, just check whether they agrees with each other
+        if sdd_node isa Union{ProbLiteral, PlainStructLiteralNode} # Both are literals, just check whether they agrees with each other
             if literal(psdd_node) == literal(sdd_node)
                 return get!(cache, (psdd_node, sdd_node), 1.0)
             else
