@@ -1,5 +1,29 @@
+export zoo_clt, zoo_clt_file, zoo_psdd, zoo_lc, zoo_lc_file,
+    load_prob_circuit, load_struct_prob_circuit
 
-using MetaGraphs: MetaDiGraph, set_prop!, props
+using LogicCircuits
+using Pkg.Artifacts
+using LogicCircuits.LoadSave: parse_psdd_file, parse_circuit_file, parse_vtree_file
+
+#####################
+# circuit loaders from module zoo
+#####################
+
+# TODO
+# zoo_lc(name, num_classes) = 
+#     load_logistic_circuit(zoo_lc_file(name), num_classes)
+
+zoo_clt_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/clts/$name"
+
+zoo_clt(name) = 
+    parse_clt(zoo_clt_file(name))
+
+zoo_psdd_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/psdds/$name"
+
+zoo_psdd(name) = 
+    load_prob_circuit(zoo_psdd_file(name))
 
 #####################
 # general parser infrastructure for circuits
@@ -11,9 +35,9 @@ using MetaGraphs: MetaDiGraph, set_prop!, props
 """
 Load a probabilistic circuit from file.
 Support circuit file formats:
- * ".psdd" for PSDD files
+    * ".psdd" for PSDD files
 """
-function load_prob_circuit(file::String)::ProbΔ
+function load_prob_circuit(file::String)::ProbCircuit
     @assert endswith(file,".psdd")
     compile_prob(parse_psdd_file(file))
 end
@@ -21,40 +45,30 @@ end
 """
 Load a structured probabilistic circuit from file.
 Support circuit file formats:
- * ".psdd" for PSDD files
+    * ".psdd" for PSDD files
 Supported vtree file formats:
- * ".vtree" for Vtree files
+    * ".vtree" for Vtree files
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbΔ,PlainVtree}
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit,PlainVtree}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)
     compile_struct_prob(circuit_lines, vtree_lines)
 end
 
-
-function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticΔ
-    @assert endswith(circuit_file,".circuit")
-    circuit_lines = parse_circuit_file(circuit_file)
-    compile_logistic(circuit_lines, classes)
-end
+# TODO
+# function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticΔ
+#     @assert endswith(circuit_file,".circuit")
+#     circuit_lines = parse_circuit_file(circuit_file)
+#     compile_logistic(circuit_lines, classes)
+# end
 
 
 #####################
 # parse based on file extension
 #####################
 
-function parse_circuit_file(file::String)::CircuitFormatLines
-    if endswith(file,".circuit")
-        parse_lc_file(file)
-    elseif endswith(file,".psdd")
-        parse_psdd_file(file)
-    elseif endswith(file,".sdd")
-        parse_sdd_file(file)
-    else
-        throw("Cannot parse this file type as a circuit: $file")
-    end
-end
+using MetaGraphs: MetaDiGraph, set_prop!, props, add_edge!
 
 "Parse a clt from given file"
 function parse_clt(filename::String)::MetaDiGraph
@@ -78,3 +92,4 @@ function parse_clt(filename::String)::MetaDiGraph
     end
     return clt
 end
+

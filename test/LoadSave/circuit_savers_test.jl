@@ -10,12 +10,12 @@ using ProbabilisticCircuits
 
         # load, save, and load as .psdd
         save_circuit("$tmp/temp.psdd", circuit, vtree)
-        save(vtree, "$tmp/temp.vtree");
+        save_vtree(vtree, "$tmp/temp.vtree");
         load_struct_prob_circuit("$tmp/temp.psdd", "$tmp/temp.vtree")
         
         # save and load as .sdd
-        save_circuit("$tmp/temp.sdd", circuit, vtree)
-        save(vtree, "$tmp/temp.vtree")
+        save_circuit("$tmp/temp.sdd", origin(circuit), vtree)
+        save_vtree(vtree, "$tmp/temp.vtree")
 
     end
     

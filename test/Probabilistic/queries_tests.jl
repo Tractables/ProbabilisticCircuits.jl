@@ -8,7 +8,8 @@ using ProbabilisticCircuits
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
-    prob_circuit = zoo_psdd("little_4var.psdd");
+    # prob_circuit = zoo_psdd("little_4var.psdd");
+    prob_circuit = load_logic_circuit(zoo_lc_file("little_4var.circuit"))
     @test prob_circuit isa Vector{<:ProbNode};
 
     flow_circuit = FlowΔ(prob_circuit, 16, Bool)
@@ -16,7 +17,7 @@ using ProbabilisticCircuits
 
 
     # Step 1. Check Probabilities for 3 samples
-    data = XData(Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]));
+    data = Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]);
     true_prob = [0.07; 0.03; 0.13999999999999999]
 
     calc_prob = log_likelihood_per_instance(flow_circuit, data)

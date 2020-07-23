@@ -5,25 +5,27 @@ using ProbabilisticCircuits
 @testset "Load a small PSDD and test methods" begin
    file = zoo_psdd_file("little_4var.psdd")
    prob_circuit = load_prob_circuit(file);
-   @test prob_circuit isa ProbΔ
+   @test prob_circuit isa ProbCircuit
 
    # Testing number of nodes and parameters
    @test  9 == num_parameters(prob_circuit)
-   @test 20 == size(prob_circuit)[1]
+   @test 20 == num_nodes(prob_circuit)
    
    # Testing Read Parameters
    EPS = 1e-7
-   @test abs(prob_circuit[13].log_thetas[1] - (-1.6094379124341003)) < EPS
-   @test abs(prob_circuit[13].log_thetas[2] - (-1.2039728043259361)) < EPS
-   @test abs(prob_circuit[13].log_thetas[3] - (-0.916290731874155)) < EPS
-   @test abs(prob_circuit[13].log_thetas[4] - (-2.3025850929940455)) < EPS
+   or1 = prob_circuit.children[1].children[2]
+   @test abs(or1.log_thetas[1] - (-1.6094379124341003)) < EPS
+   @test abs(or1.log_thetas[2] - (-1.2039728043259361)) < EPS
+   @test abs(or1.log_thetas[3] - (-0.916290731874155)) < EPS
+   @test abs(or1.log_thetas[4] - (-2.3025850929940455)) < EPS
 
-   @test abs(prob_circuit[18].log_thetas[1] - (-2.3025850929940455)) < EPS
-   @test abs(prob_circuit[18].log_thetas[2] - (-2.3025850929940455)) < EPS
-   @test abs(prob_circuit[18].log_thetas[3] - (-2.3025850929940455)) < EPS
-   @test abs(prob_circuit[18].log_thetas[4] - (-0.35667494393873245)) < EPS
+   or2 = prob_circuit.children[1].children[1]
+   @test abs(or2.log_thetas[1] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_thetas[2] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_thetas[3] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_thetas[4] - (-0.35667494393873245)) < EPS
 
-   @test abs(prob_circuit[20].log_thetas[1] - (0.0)) < EPS
+   @test abs(prob_circuit.log_thetas[1] - (0.0)) < EPS
 end
 
 psdd_files = ["little_4var.psdd", "msnbc-yitao-a.psdd", "msnbc-yitao-b.psdd", "msnbc-yitao-c.psdd", "msnbc-yitao-d.psdd", "msnbc-yitao-e.psdd", "mnist-antonio.psdd"]
