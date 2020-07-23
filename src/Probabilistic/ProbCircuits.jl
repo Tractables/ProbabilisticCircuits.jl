@@ -8,17 +8,17 @@ abstract type ProbInnerNode{O} <: ProbNode{O} end
 mutable struct ProbLiteral{O} <: ProbLeafNode{O}
     origin::O
     data
-    bit::Bool
-    ProbLiteral(n) = new{node_type_deprecated(n)}(n, nothing, false)
+    counter::UInt32
+    ProbLiteral(n) = new{node_type_deprecated(n)}(n, nothing, 0)
 end
 
 mutable struct Prob⋀{O} <: ProbInnerNode{O}
     origin::O
     children::Vector{<:ProbNode{<:O}}
     data
-    bit::Bool
+    counter::UInt32
     Prob⋀(n, children) = begin
-        new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), nothing, false)
+        new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), nothing, 0)
     end
 end
 
@@ -27,8 +27,8 @@ mutable struct Prob⋁{O} <: ProbInnerNode{O}
     children::Vector{<:ProbNode{<:O}}
     log_thetas::Vector{Float64}
     data
-    bit::Bool
-    Prob⋁(n, children) = new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), init_array(Float64, length(children)), nothing, false)
+    counter::UInt32
+    Prob⋁(n, children) = new{node_type_deprecated(n)}(n, convert(Vector{ProbNode{node_type_deprecated(n)}},children), init_array(Float64, length(children)), nothing, 0)
 end
 
 const ProbΔ{O} = AbstractVector{<:ProbNode{<:O}}
