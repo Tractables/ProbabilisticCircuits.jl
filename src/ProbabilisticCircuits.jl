@@ -13,7 +13,7 @@ include("Utils/Utils.jl")
 
 # INCLUDE CHILD MODULES
 include("Probabilistic/Probabilistic.jl")
-# include("Logistic/Logistic.jl")
+include("Logistic/Logistic.jl")
 include("LoadSave/LoadSave.jl")
 # include("StructureLearner/StructureLearner.jl")
 # include("Reasoning/Reasoning.jl")
@@ -21,7 +21,7 @@ include("LoadSave/LoadSave.jl")
 
 # USE CHILD MODULES (in order to re-export some functions)
 @reexport using .Probabilistic
-# @reexport using .Logistic
+@reexport using .Logistic
 @reexport using .LoadSave
 # @reexport using .StructureLearner
 # @reexport using .Reasoning

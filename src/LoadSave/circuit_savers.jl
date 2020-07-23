@@ -1,4 +1,4 @@
-export save_circuit, save_as_dot, save_as_psdd
+export save_circuit, save_as_dot, save_as_psdd, save_as_logistic
 
 using LogicCircuits.LoadSave: SDDElement, 
     PSDDElement, 
@@ -40,7 +40,7 @@ end
 
 import LogicCircuits.LoadSave: get_node2id
 
-function get_node2id(circuit::ProbCircuit, T::Type) 
+function get_node2id(circuit::DecoratorCircuit, T::Type) 
     node2id = Dict{T, ID}()
     outnodes = filter(n -> !is⋀gate(n), circuit)
     sizehint!(node2id, length(outnodes))
@@ -109,19 +109,21 @@ function lc_header()
     c"""
 end
     
-# function save_lc_file(name::String, ln::LogisticΔ, vtree)
-#     @assert ln[end].origin isa StructLogicCircuit "LC should decorate on StructLogicΔ"
-#     @assert endswith(name, ".circuit")
-#     node2id = get_node2id(ln, ProbNode)
-#     vtree2id = get_vtree2id(vtree)
-#     formatlines = Vector{CircuitFormatLine}()
-#     append!(formatlines, parse_lc_file(IOBuffer(lc_header())))
-#     push!(formatlines, LcHeaderLine())
-#     for n in filter(n -> !(GateType(n) isa ⋀Gate), ln)
-#         push!(formatlines, decompile(n, node2id, vtree2id))
-#     end
-#     save_lines(name, formatlines)
-# end
+function save_as_logistic(name::String, circuit::LogisticCircuit, vtree)
+    @assert circuit.origin isa StructLogicCircuit "LC should decorate on StructLogicΔ"
+    @assert endswith(name, ".circuit")
+    node2id = get_node2id(circuit, LogisticCircuit)
+    vtree2id = get_vtree2id(vtree)
+    formatlines = Vector{CircuitFormatLine}()
+    append!(formatlines, parse_lc_file(IOBuffer(lc_header())))
+    push!(formatlines, LcHeaderLine())
+    for n in filter(n -> !is⋀gate(n), circuit)
+        push!(formatlines, decompile(n, node2id, vtree2id))
+    end
+    save_lines(name, formatlines)
+end
+
+# TODO add Decompile for logistic circuit
 
 import LogicCircuits.LoadSave: save_circuit, save_as_dot # make available for extension
 
@@ -129,9 +131,8 @@ import LogicCircuits.LoadSave: save_circuit, save_as_dot # make available for ex
 save_circuit(name::String, circuit::ProbCircuit, vtree::PlainVtree) =
     save_as_psdd(name, circuit, vtree)
 
-# TODO
-# save_circuit(name::String, circuit::LogicCircuit) =
-#     save_as_psdd(name, circuit, vtree)
+save_circuit(name::String, circuit::LogicCircuit, vtree::PlainVtree) =
+    save_as_logistic(name, circuit, vtree)
 
 using Printf: @sprintf
 "Save prob circuits to .dot file"

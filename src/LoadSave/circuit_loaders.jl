@@ -1,5 +1,5 @@
 export zoo_clt, zoo_clt_file, zoo_psdd, zoo_lc, zoo_lc_file,
-    load_prob_circuit, load_struct_prob_circuit
+    load_prob_circuit, load_struct_prob_circuit, load_logistic_circuit
 
 using LogicCircuits
 using Pkg.Artifacts
@@ -9,9 +9,11 @@ using LogicCircuits.LoadSave: parse_psdd_file, parse_circuit_file, parse_vtree_f
 # circuit loaders from module zoo
 #####################
 
-# TODO
-# zoo_lc(name, num_classes) = 
-#     load_logistic_circuit(zoo_lc_file(name), num_classes)
+zoo_lc_file(name) = 
+    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/lcs/$name"
+
+zoo_lc(name, num_classes) = 
+    load_logistic_circuit(zoo_lc_file(name), num_classes)
 
 zoo_clt_file(name) = 
     artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/clts/$name"
@@ -56,13 +58,18 @@ function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tup
     compile_struct_prob(circuit_lines, vtree_lines)
 end
 
-# TODO
-# function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticΔ
-#     @assert endswith(circuit_file,".circuit")
-#     circuit_lines = parse_circuit_file(circuit_file)
-#     compile_logistic(circuit_lines, classes)
-# end
-
+"""
+Load a logistic circuit from file.
+Support circuit file formats:
+    * ".circuit" for logistic files
+Supported vtree file formats:
+    * ".vtree" for Vtree files
+"""
+function load_logistic_circuit(circuit_file::String, classes::Int)::LogisticCircuit
+    @assert endswith(circuit_file,".circuit")
+    circuit_lines = parse_circuit_file(circuit_file)
+    compile_logistic(circuit_lines, classes)
+end
 
 #####################
 # parse based on file extension

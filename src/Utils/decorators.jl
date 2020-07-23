@@ -1,5 +1,5 @@
 export DecoratorCircuit, literal, origin, and_nodes, or_nodes, ⋀_nodes, ⋁_nodes,
-GateType, NodeType, variable, ispositive, isnegative, origin
+GateType, NodeType, variable, ispositive, isnegative, origin, num_parameters
 
 using LogicCircuits
 
@@ -13,6 +13,11 @@ abstract type DecoratorCircuit <: Dag end
 Get the origin node/circuit in a given decorator node/circuit
 """
 function origin end
+
+"""
+Get the number of parameters of a given decorator node/circuit
+"""
+function num_parameters end
 
 #####################
 # Abstract infrastructure for decorator circuit nodes

@@ -92,7 +92,7 @@ end
 # exp_f (pr-constraint) is originally from:
 #   Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
 
-function exp_f(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
+function exp_f(n::Prob⋁, m::Logistic⋀Node, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
         pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
@@ -105,7 +105,7 @@ function exp_f(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::Union{Expec
     end
 end
 
-function exp_f(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
+function exp_f(n::Prob⋀, m::Logistic⋀Node, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = ones(1 , num_examples(data) )
         @fastmath for (i,j) in zip(n.children, m.children)
@@ -136,9 +136,9 @@ end
 end
 
 """
-Has to be a Logistic⋁ with only one child, which is a leaf node 
+Has to be a Logistic⋀Node with only one child, which is a leaf node 
 """
-@inline function exp_f(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
+@inline function exp_f(n::ProbLiteral, m::Logistic⋀Node, data::XData{Int8}, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         exp_f(n, m.children[1], data, cache)
     end
@@ -148,11 +148,11 @@ end
 ######## exp_g, exp_fg
 ########################################################################
 
-@inline function exp_g(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+@inline function exp_g(n::Prob⋁, m::Logistic⋀Node, data::XData{Int8}, cache::ExpectationCache)
     exp_fg(n, m, data, cache) # exp_fg and exp_g are the same for OR nodes
 end
 
-# function exp_g(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
+# function exp_g(n::Prob⋀, m::Logistic⋀Node, data::XData{Int8}, cache::ExpectationCache)
 #     value = zeros(classes(m) , num_examples(data))
 #     @fastmath for (i,j) in zip(n.children, m.children)
 #         value .+= exp_fg(i, j, data, cache)
@@ -162,7 +162,7 @@ end
 # end
 
 
-function exp_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+function exp_fg(n::Prob⋁, m::Logistic⋀Node, data::XData{Int8}, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         value = zeros(classes(m) , num_examples(data) )
         pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
@@ -176,7 +176,7 @@ function exp_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, cache::Expectatio
     end
 end
 
-function exp_fg(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, cache::ExpectationCache)
+function exp_fg(n::Prob⋀, m::Logistic⋀Node, data::XData{Int8}, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         # Assuming 2 children
         value = exp_f(n.children[1], m.children[1], data, cache) .* exp_fg(n.children[2], m.children[2], data, cache)
@@ -187,9 +187,9 @@ end
 
 
 """
-Has to be a Logistic⋁ with only one child, which is a leaf node 
+Has to be a Logistic⋀Node with only one child, which is a leaf node 
 """
-@inline function exp_fg(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, cache::ExpectationCache)
+@inline function exp_fg(n::ProbLiteral, m::Logistic⋀Node, data::XData{Int8}, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         m.thetas[1,:] .* exp_f(n, m, data, cache)
     end
@@ -204,7 +204,7 @@ end
 ######## moment_g, moment_fg
 ########################################################################
 
-@inline function moment_g(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, moment::Int, cache::MomentCache)
+@inline function moment_g(n::Prob⋁, m::Logistic⋀Node, data::XData{Int8}, moment::Int, cache::MomentCache)
     get!(cache.fg, (n, m, moment)) do
         moment_fg(n, m, data, moment, cache)
     end
@@ -213,7 +213,7 @@ end
 """
 Calculating  E[g^k * f]
 """
-function moment_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, moment::Int, cache::MomentCache)
+function moment_fg(n::Prob⋁, m::Logistic⋀Node, data::XData{Int8}, moment::Int, cache::MomentCache)
     if moment == 0
         return exp_f(n, m, data, cache)
     end
@@ -232,7 +232,7 @@ function moment_fg(n::Prob⋁, m::Logistic⋁, data::XData{Int8}, moment::Int, c
     end
 end
 
-@inline function moment_fg(n::ProbLiteral, m::Logistic⋁, data::XData{Int8}, moment::Int, cache::MomentCache)
+@inline function moment_fg(n::ProbLiteral, m::Logistic⋀Node, data::XData{Int8}, moment::Int, cache::MomentCache)
     get!(cache.fg, (n, m, moment)) do
         m.thetas[1,:].^(moment) .* exp_f(n, m, data, cache)
     end
@@ -247,7 +247,7 @@ end
     end
 end
 
-function moment_fg(n::Prob⋀, m::Logistic⋀, data::XData{Int8}, moment::Int, cache::MomentCache)
+function moment_fg(n::Prob⋀, m::Logistic⋀Node, data::XData{Int8}, moment::Int, cache::MomentCache)
     if moment == 0
         return exp_f(n, m, data, cache)
     end

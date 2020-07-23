@@ -1,5 +1,5 @@
 export ProbCircuit, ProbLeafNode, ProbInnerNode, ProbLiteralNode, Prob⋀Node, 
-Prob⋁Node, num_parameters, check_parameter_integrity
+Prob⋁Node, check_parameter_integrity
 
 #####################
 # Infrastructure for probabilistic circuit nodes
@@ -74,7 +74,7 @@ import LogicCircuits.GateType # make available for extension
 # methods
 #####################
 
-import ..Utils.origin
+import ..Utils: origin, num_parameters
 @inline origin(c::ProbCircuit) = c.origin
 
 import LogicCircuits: children # make available for extension

@@ -20,12 +20,11 @@ end
 """
 Compile lines into a logistic circuit.
 """
-# TODO
-# function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticΔ
-#     # first compile a logical circuit
-#     logic_circuit, id2lognode = compile_smooth_logical_m(lines)
-#     decorate_logistic(lines, logic_circuit, classes, id2lognode)
-# end
+function compile_logistic(lines::CircuitFormatLines, classes::Int)::LogisticCircuit
+    # first compile a logical circuit
+    logic_circuit, id2lognode = compile_smooth_logical_m(lines)
+    decorate_logistic(lines, logic_circuit, classes, id2lognode)
+end
 
 """
 Compile circuit and vtree lines into a structured probabilistic circuit (one whose logical circuit origin is structured).
@@ -37,7 +36,6 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
 end
 
 function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, id2lognode::Dict{ID,<:LogicCircuit})::ProbCircuit
-    
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     prob_circuit = ProbCircuit(logic_circuit)
     lognode2probnode = Dict{LogicCircuit, ProbCircuit}()
@@ -71,51 +69,45 @@ function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, i
     root
 end
 
-# TODO
-# function decorate_logistic(lines::CircuitFormatLines, logic_circuit::LogicΔ, 
-#                             classes::Int, id2lognode::Dict{ID,<:LogicCircuit})::LogisticΔ
+function decorate_logistic(lines::CircuitFormatLines, logic_circuit::LogicCircuit,
+                            classes::Int, id2lognode::Dict{ID,<:LogicCircuit})::LogisticCircuit
                         
-#     # set up cache mapping logical circuit nodes to their logistic decorator
-#     log2logistic = LogisticCache()
-#     # build a corresponding probabilistic circuit
-#     logistic_circuit = LogisticΔ(logic_circuit, classes, log2logistic)
-#     # map from line node ids to probabilistic circuit nodes
-#     id2logisticnode(id) = log2logistic[id2lognode[id]]
+    # set up cache mapping logical circuit nodes to their logistic decorator
+    logistic_circuit = LogisticCircuit(logic_circuit, classes)
+    log2logistic = Dict{LogicCircuit, LogisticCircuit}()
+    foreach(ln -> (log2logistic[origin(ln)] = ln), logistic_circuit) 
+    id2logisticnode(id) = log2logistic[id2lognode[id]]
 
-#     # go through lines again and update the probabilistic circuit node parameters
+    root = nothing
+    # go through lines again and update the probabilistic circuit node parameters
 
-#     function compile(ln::CircuitFormatLine)
-#         error("Compilation of line $ln into logistic circuit is not supported")
-#     end
-#     function compile(::Union{CircuitHeaderLine,CircuitCommentLine,UnweightedLiteralLine})
-#         # do nothing
-#     end
+    function compile(ln::CircuitFormatLine)
+        error("Compilation of line $ln into logistic circuit is not supported")
+    end
 
-#     function compile(ln::CircuitHeaderLine)
-#         # do nothing
-#     end
+    function compile(::Union{CircuitHeaderLine,CircuitCommentLine,UnweightedLiteralLine})
+        # do nothing
+    end
 
-#     function compile(ln::WeightedLiteralLine)
-#         node = id2logisticnode(ln.node_id)::Logistic⋁
-#         node.thetas[1, :] .= ln.weights
-#     end
+    function compile(ln::WeightedLiteralLine)
+        root = id2logisticnode(ln.node_id)::Logistic⋁Node
+        root.thetas[1, :] .= ln.weights
+    end
 
-#     function compile(ln::DecisionLine{<:LCElement})
-#         node = id2logisticnode(ln.node_id)::Logistic⋁
-#         for (ind, elem) in enumerate(ln.elements)
-#             node.thetas[ind, :] .= elem.weights
-#         end
-#     end
+    function compile(ln::DecisionLine{<:LCElement})
+        root = id2logisticnode(ln.node_id)::Logistic⋁Node
+        for (ind, elem) in enumerate(ln.elements)
+            root.thetas[ind, :] .= elem.weights
+        end
+    end
 
-#     function compile(ln::BiasLine)
-#         node = id2logisticnode(ln.node_id)::Logistic⋁
-#         # @assert length(node.thetas) == 1
-#         node.thetas[1,:] .= ln.weights
-#     end
+    function compile(ln::BiasLine)
+        root = id2logisticnode(ln.node_id)::Logistic⋁Node
+        # @assert length(node.thetas) == 1
+        root.thetas[1,:] .= ln.weights
+    end
 
-#     for ln in lines
-#         compile(ln)
-#     end
+    foreach(compile, lines)
 
-#     logistic_circuit
-# end
+    root
+end
