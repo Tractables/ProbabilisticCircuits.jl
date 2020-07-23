@@ -10,7 +10,7 @@ using LogicCircuits.LoadSave: SDDElement,
     get_nodes_level
 
 #####################
-# decompile for nodes
+# decompile for probabilistic nodes
 #####################
 
 "Decompile for psdd circuit, used during saving of circuits to file" 
