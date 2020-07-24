@@ -1,3 +1,4 @@
+export psdd_kl_divergence
 using DataStructures
 
 # Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
