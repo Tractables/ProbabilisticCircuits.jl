@@ -81,32 +81,6 @@ function estimate_parameters_node(n::AggregateFlow⋁; pseudocount)
     end
 end
 
-
-
-"""
-Calculate log likelihood for a batch of samples with partial evidence P(e).
-(Also returns the generated FlowΔ)
-
-To indicate a variable is not observed, pass -1 for that variable.
-"""
-function marginal_log_likelihood_per_instance(pc::ProbΔ, batch::PlainXData{Int8})
-    opts = (flow_opts★..., el_type=Float64, compact⋀=false, compact⋁=false)
-    fc = UpFlowΔ(pc, num_examples(batch), Float64, opts)
-    (fc, marginal_log_likelihood_per_instance(fc, batch))
-end
-
-"""
-Calculate log likelihood for a batch of samples with partial evidence P(e).
-(If you already have a FlowΔ)
-
-To indicate a variable is not observed, pass -1 for that variable.
-"""
-function marginal_log_likelihood_per_instance(fc::UpFlowΔ, batch::PlainXData{Int8})
-    @assert (prob_origin(fc[end]) isa ProbNode) "FlowΔ must originate in a ProbΔ"
-    marginal_pass_up(fc, batch)
-    pr(fc[end])
-end
-
 ##################
 # Sampling from a psdd
 ##################
@@ -203,55 +177,4 @@ function simulate2(node::UpFlow⋀, inst::Dict{Var,Int64})
     for child in children(node)
         simulate2(child, inst)
     end
-end
-
-
-
-##################
-# Most Probable Explanation MPE of a psdd
-#   aka MAP
-##################
-
-@inline function MAP(circuit::ProbΔ, evidence::PlainXData{Int8})::Matrix{Bool}
-    MPE(circuit, evidence)
-end
-
-function MPE(circuit::ProbΔ, evidence::PlainXData{Int8})::Matrix{Bool}
-    # Computing Marginal Likelihood for each node
-    fc, lls = marginal_log_likelihood_per_instance(circuit, evidence)
-
-    ans = Matrix{Bool}(zeros(size(evidence.x)))
-    active_samples = Array{Bool}(ones( num_examples(evidence) ))
-
-    mpe_simulate(fc[end], active_samples, ans)
-    ans
-end
-
-"""
-active_samples: bool vector indicating which samples are active for this node during mpe
-result: Matrix (num_samples, num_variables) indicating the final result of mpe
-"""
-function mpe_simulate(node::UpFlowLiteral, active_samples::Vector{Bool}, result::Matrix{Bool})
-    if ispositive(node)
-        result[active_samples, variable(node)] .= 1
-    else
-        result[active_samples, variable(node)] .= 0
-    end
-end
-function mpe_simulate(node::UpFlow⋁, active_samples::Vector{Bool}, result::Matrix{Bool})
-    prs = zeros( length(node.children), size(active_samples)[1] )
-    @simd  for i=1:length(node.children)
-        prs[i,:] .= pr(node.children[i]) .+ (node.origin.log_thetas[i])
-    end
-
-    max_child_ids = [a[1] for a in argmax(prs, dims = 1) ]
-    @simd for i=1:length(node.children)
-        ids = Vector{Bool}( active_samples .* (max_child_ids .== i)[1,:] )  # Only active for this child if it was the max for that sample
-        mpe_simulate(node.children[i], ids, result)
-    end
-end
-function mpe_simulate(node::UpFlow⋀, active_samples::Vector{Bool}, result::Matrix{Bool})
-    for child in node.children
-        mpe_simulate(child, active_samples, result)
-    end    
 end

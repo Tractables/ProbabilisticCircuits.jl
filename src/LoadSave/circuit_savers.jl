@@ -40,8 +40,8 @@ end
 
 import LogicCircuits.LoadSave: get_node2id
 
-function get_node2id(circuit::DecoratorCircuit, T::Type) 
-    node2id = Dict{T, ID}()
+function get_node2id(circuit::DecoratorCircuit) 
+    node2id = Dict{DecoratorCircuit, ID}()
     outnodes = filter(n -> !is⋀gate(n), circuit)
     sizehint!(node2id, length(outnodes))
     index = ID(0) # node id start from 0
@@ -76,7 +76,7 @@ function save_as_psdd(name::String, circuit::ProbCircuit, vtree::PlainVtree)
     # TODO add method isstructured
     @assert circuit.origin isa StructLogicCircuit "PSDD should decorate on StructLogicΔ"
     @assert endswith(name, ".psdd")
-    node2id = get_node2id(circuit, ProbCircuit)
+    node2id = get_node2id(circuit)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_psdd_file(IOBuffer(psdd_header())))
@@ -112,7 +112,7 @@ end
 function save_as_logistic(name::String, circuit::LogisticCircuit, vtree)
     @assert circuit.origin isa StructLogicCircuit "LC should decorate on StructLogicΔ"
     @assert endswith(name, ".circuit")
-    node2id = get_node2id(circuit, LogisticCircuit)
+    node2id = get_node2id(circuit)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_lc_file(IOBuffer(lc_header())))

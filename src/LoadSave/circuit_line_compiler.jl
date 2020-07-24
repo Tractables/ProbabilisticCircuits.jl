@@ -3,7 +3,7 @@
 #####################
 
 # reuse some internal infrastructure of LogicCircuits' LoadSave module
-using LogicCircuits.LoadSave: CircuitFormatLines, CircuitFormatLine, constant,
+using LogicCircuits.LoadSave: CircuitFormatLines, CircuitFormatLine, lnconstant,
 VtreeFormatLines, CircuitHeaderLine, UnweightedLiteralLine, WeightedLiteralLine, 
 DecisionLine, LCElement, BiasLine, WeightedNamedConstantLine, PSDDElement, 
 CircuitCommentLine, ID, compile_smooth_struct_logical_m, compile_smooth_logical_m
@@ -55,7 +55,7 @@ function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, i
         # do nothing
     end
     function compile(ln::WeightedNamedConstantLine)
-        @assert constant(ln) == true
+        @assert lnconstant(ln) == true
         root = id2probnode(ln.node_id)::Prob⋁Node
         root.log_thetas .= [ln.weight, log1p(-exp(ln.weight))]
     end

@@ -4,16 +4,15 @@ import LogicCircuits: evaluate, compute_flows
 using StatsFuns: logsumexp
 
 # TODO move to LogicCircuits
-# TODO clean up and better API
+# TODO downflow struct
 using LogicCircuits: UpFlow, UpFlow1, UpDownFlow, UpDownFlow1, UpDownFlow2
 
 """
 Get upflow from logic circuit
 """
-@inline get_upflow(elems::UpDownFlow1) = elems.upflow
-@inline get_upflow(elems::UpDownFlow2) = UpFlow1(elems)
-@inline get_upflow(elems::UpFlow) = UpFlow1(elems)
 @inline get_upflow(n::LogicCircuit) = get_upflow(n.data)
+@inline get_upflow(elems::UpDownFlow1) = elems.upflow
+@inline get_upflow(elems::UpFlow) = UpFlow1(elems)
 
 """
 Get the node/edge flow from logic circuit
@@ -29,26 +28,9 @@ function get_downflow(n::LogicCircuit; root=nothing)::BitVector
     downflow(n.data)
 end
 
-function get_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
-    downflow(x::ExpUpDownFlow1) = x.downflow
-    downflow(x::ExpUpDownFlow2) = begin
-        ors = or_nodes(root)
-        p = findall(p -> n in children(p), ors)
-        @assert length(p) == 1
-        get_downflow(ors[p[1]], n)
-    end
-    downflow(n.data)
-end
-
-@inline isfactorized(n::LogicCircuit) = n.data::UpDownFlow isa UpDownFlow2
 function get_downflow(n::LogicCircuit, c::LogicCircuit)::BitVector
     @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
-    df = copy(n.data.downflow)
-    if isfactorized(c)
-        return df .&= c.data.prime_flow .& c.data.sub_flow
-    else
-        return df .&= c.data.downflow
-    end
+    get_downflow(n) .& get_upflow(c)
 end
 
 #####################
@@ -161,8 +143,6 @@ const ExpUpDownFlow2 = ExpUpFlow2
 
 const ExpUpDownFlow = Union{ExpUpDownFlow1, ExpUpDownFlow2}
 
-@inline get_upflow(elems::ExpUpDownFlow1) = elems.upflow
-@inline get_upflow(elems::ExpUpDownFlow2) = ExpUpFlow1(elems)
 
 function compute_flows(circuit::ProbCircuit, data)
 
@@ -198,12 +178,13 @@ function compute_flows(circuit::ProbCircuit, data)
                     # propagate one level further down
                     for i = 1:2
                         downflow_c = downflow(@inbounds children(c)[i])
-                        downflow_c .= logsumexp.(downflow_c, downflow_n .+ log_theta .+ upflow2_c.prime_flow .+ upflow2_c.sub_flow .- upflow_n)
+                        accumulate(downflow_c, downflow_n .+ log_theta .+ upflow2_c.prime_flow 
+                        .+ upflow2_c.sub_flow .- upflow_n, logsumexp)
                     end
                 else
                     upflow1_c = (c.data::ExpUpDownFlow1).upflow
                     downflow_c = downflow(c)
-                    downflow_c .= logsumexp.(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n)
+                    accumulate(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n, logsumexp)
                 end
             end 
         end
@@ -211,6 +192,14 @@ function compute_flows(circuit::ProbCircuit, data)
     end
     nothing
 end
+
+
+"""
+Get upflow of a probabilistic circuit
+"""
+@inline get_upflow(pc::ProbCircuit) = get_upflow(pc.data)
+@inline get_upflow(elems::ExpUpDownFlow1) = elems.upflow
+@inline get_upflow(elems::ExpUpFlow) = ExpUpFlow1(elems)
 
 """
 Get the node/edge downflow from probabilistic circuit
@@ -228,9 +217,6 @@ end
 
 function get_downflow(n::ProbCircuit, c::ProbCircuit)::Vector{Float64}
     @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
-    df = copy(get_downflow(n))
     log_theta = n.log_thetas[findfirst(x -> x == c, children(n))]
-    return df .+ log_theta .+ get_upflow(c.data) .- get_upflow(n.data)
+    return get_downflow(n) .+ log_theta .+ get_upflow(c) .- get_upflow(n)
 end
-
-@inline isfactorized(n::ProbCircuit) = n.data::ExpUpDownFlow isa ExpUpDownFlow2
