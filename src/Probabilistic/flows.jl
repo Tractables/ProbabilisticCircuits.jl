@@ -1,5 +1,59 @@
-import LogicCircuits: evaluate
+export get_downflow, get_upflow
+
+import LogicCircuits: evaluate, compute_flows
 using StatsFuns: logsumexp
+
+# TODO move to LogicCircuits
+# TODO clean up and better API
+using LogicCircuits: UpFlow, UpFlow1, UpDownFlow, UpDownFlow1, UpDownFlow2
+
+"""
+Get upflow from logic circuit
+"""
+@inline get_upflow(elems::UpDownFlow1) = elems.upflow
+@inline get_upflow(elems::UpDownFlow2) = UpFlow1(elems)
+@inline get_upflow(elems::UpFlow) = UpFlow1(elems)
+@inline get_upflow(n::LogicCircuit) = get_upflow(n.data)
+
+"""
+Get the node/edge flow from logic circuit
+"""
+function get_downflow(n::LogicCircuit; root=nothing)::BitVector
+    downflow(x::UpDownFlow1) = x.downflow
+    downflow(x::UpDownFlow2) = begin
+        ors = or_nodes(root)
+        p = findall(p -> n in children(p), ors)
+        @assert length(p) == 1
+        get_downflow(ors[p[1]], n)
+    end
+    downflow(n.data)
+end
+
+function get_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
+    downflow(x::ExpUpDownFlow1) = x.downflow
+    downflow(x::ExpUpDownFlow2) = begin
+        ors = or_nodes(root)
+        p = findall(p -> n in children(p), ors)
+        @assert length(p) == 1
+        get_downflow(ors[p[1]], n)
+    end
+    downflow(n.data)
+end
+
+@inline isfactorized(n::LogicCircuit) = n.data::UpDownFlow isa UpDownFlow2
+function get_downflow(n::LogicCircuit, c::LogicCircuit)::BitVector
+    @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
+    df = copy(n.data.downflow)
+    if isfactorized(c)
+        return df .&= c.data.prime_flow .& c.data.sub_flow
+    else
+        return df .&= c.data.downflow
+    end
+end
+
+#####################
+# performance-critical queries related to circuit flows
+#####################
 
 # evaluate a circuit as a function
 function (root::ProbCircuit)(data)
@@ -7,24 +61,18 @@ function (root::ProbCircuit)(data)
 end
 
 "Container for circuit flows represented as a float vector"
-const UpFlow1 = Vector{Float64}
-
+const ExpUpFlow1 = Vector{Float64}
 
 "Container for circuit flows represented as an implicit conjunction of a prime and sub float vector (saves memory allocations in circuits with many binary conjunctions)"
-struct UpFlow2
+struct ExpUpFlow2
     prime_flow::Vector{Float64}
     sub_flow::Vector{Float64}
 end
 
-const UpFlow = Union{UpFlow1,UpFlow2}
+const ExpUpFlow = Union{ExpUpFlow1,ExpUpFlow2}
 
-@inline UpFlow(elems::UpFlow1) = elems
-
-@inline UpFlow(elems::UpFlow2) =
-    elems.prime_flow .+ elems.sub_flow
-
-import Base.length
-length(elems::UpFlow2) = length(UpFlow(elems))
+@inline ExpUpFlow1(elems::ExpUpFlow1) = elems
+@inline ExpUpFlow1(elems::ExpUpFlow2) = elems.prime_flow .+ elems.sub_flow
 
 function evaluate(root::ProbCircuit, data;
                    nload = nload, nsave = nsave, reset=true)::Vector{Float64}
@@ -50,12 +98,12 @@ function evaluate(root::ProbCircuit, data;
     
     @inline fa(n, call) = begin
         if num_children(n) == 1
-            return UpFlow1(call(@inbounds children(n)[1]))
+            return ExpUpFlow1(call(@inbounds children(n)[1]))
         else
-            c1 = call(@inbounds children(n)[1])::UpFlow
-            c2 = call(@inbounds children(n)[2])::UpFlow
-            if num_children(n) == 2 && c1 isa UpFlow1 && c2 isa UpFlow1 
-                UpFlow2(c1, c2) # no need to allocate a new BitVector
+            c1 = call(@inbounds children(n)[1])::ExpUpFlow
+            c2 = call(@inbounds children(n)[2])::ExpUpFlow
+            if num_children(n) == 2 && c1 isa ExpUpFlow1 && c2 isa ExpUpFlow1 
+                return ExpUpFlow2(c1, c2) # no need to allocate a new BitVector
             end
             x = flowop(c1, c2, +)
             for c in children(n)[3:end]
@@ -67,11 +115,11 @@ function evaluate(root::ProbCircuit, data;
     
     @inline fo(n, call) = begin
         if num_children(n) == 1
-            return UpFlow1(call(@inbounds children(n)[1]))
+            return ExpUpFlow1(call(@inbounds children(n)[1]))
         else
             log_thetas = n.log_thetas
-            c1 = call(@inbounds children(n)[1])::UpFlow
-            c2 = call(@inbounds children(n)[2])::UpFlow
+            c1 = call(@inbounds children(n)[1])::ExpUpFlow
+            c2 = call(@inbounds children(n)[2])::ExpUpFlow
             x = flowop(c1, log_thetas[1], c2, log_thetas[2], logsumexp)
             for (i, c) in enumerate(children(n)[3:end])
                 accumulate(x, call(c), log_thetas[i+2], logsumexp)
@@ -81,19 +129,108 @@ function evaluate(root::ProbCircuit, data;
     end
     
     # ensure flow us Flow1 at the root, even when it's a conjunction
-    root_flow = UpFlow1(foldup(root, f_con, f_lit, fa, fo, UpFlow; nload, nsave, reset))
+    root_flow = ExpUpFlow1(foldup(root, f_con, f_lit, fa, fo, ExpUpFlow; nload, nsave, reset))
     return nsave(root, root_flow)
 end
 
-@inline flowop(x::UpFlow, y::UpFlow, op)::UpFlow1 =
-    op.(UpFlow(x), UpFlow(y))
+@inline flowop(x::ExpUpFlow, y::ExpUpFlow, op)::ExpUpFlow1 =
+    op.(ExpUpFlow1(x), ExpUpFlow1(y))
 
-@inline flowop(x::UpFlow, w1::Float64, y::UpFlow, w2::Float64, op)::UpFlow1 =
-    op.(UpFlow(x) .+ w1, UpFlow(y) .+ w2)
+@inline flowop(x::ExpUpFlow, w1::Float64, y::ExpUpFlow, w2::Float64, op)::ExpUpFlow1 =
+    op.(ExpUpFlow1(x) .+ w1, ExpUpFlow1(y) .+ w2)
 
 import Base.accumulate
-@inline accumulate(x::UpFlow, v::UpFlow, op) = 
-    @inbounds @. x = op($UpFlow(x), $UpFlow(v)); nothing
+@inline accumulate(x::ExpUpFlow1, v::ExpUpFlow, op) = 
+    @inbounds @. x = op($ExpUpFlow1(x), $ExpUpFlow1(v)); nothing
 
-@inline accumulate(x::UpFlow, v::UpFlow, w::Float64, op) = 
-    @inbounds @. x = op($UpFlow(x), $UpFlow(v) + w); nothing
+@inline accumulate(x::ExpUpFlow1, v::ExpUpFlow, w::Float64, op) = 
+    @inbounds @. x = op($ExpUpFlow1(x), $ExpUpFlow1(v) + w); nothing
+
+
+#####################
+# downward pass
+#####################
+
+struct ExpUpDownFlow1
+    upflow::ExpUpFlow1
+    downflow::Vector{Float64}
+    ExpUpDownFlow1(upf::ExpUpFlow1) = new(upf, log.(zeros(Float64, length(upf)) .+ 1e-300))
+end
+
+const ExpUpDownFlow2 = ExpUpFlow2
+
+const ExpUpDownFlow = Union{ExpUpDownFlow1, ExpUpDownFlow2}
+
+@inline get_upflow(elems::ExpUpDownFlow1) = elems.upflow
+@inline get_upflow(elems::ExpUpDownFlow2) = ExpUpFlow1(elems)
+
+function compute_flows(circuit::ProbCircuit, data)
+
+    # upward pass
+    @inline upflow!(n, v) = begin
+        n.data = (v isa ExpUpFlow1) ? ExpUpDownFlow1(v) : v
+        v
+    end
+
+    @inline upflow(n) = begin
+        d = n.data::ExpUpDownFlow
+        (d isa ExpUpDownFlow1) ? d.upflow : d
+    end
+
+    evaluate(circuit, data; nload=upflow, nsave=upflow!, reset=false)
+    
+    # downward pass
+
+    @inline downflow(n) = (n.data::ExpUpDownFlow1).downflow
+    @inline isfactorized(n) = n.data::ExpUpDownFlow isa ExpUpDownFlow2
+
+    downflow(circuit) .= 0.0
+
+    foreach_down(circuit; setcounter=false) do n
+        if isinner(n) && !isfactorized(n)
+            downflow_n = downflow(n)
+            upflow_n = upflow(n)
+            for ite in 1 : num_children(n)
+                c = children(n)[ite]
+                log_theta = is⋀gate(n) ? 0.0 : n.log_thetas[ite]
+                if isfactorized(c)
+                    upflow2_c = c.data::ExpUpDownFlow2
+                    # propagate one level further down
+                    for i = 1:2
+                        downflow_c = downflow(@inbounds children(c)[i])
+                        downflow_c .= logsumexp.(downflow_c, downflow_n .+ log_theta .+ upflow2_c.prime_flow .+ upflow2_c.sub_flow .- upflow_n)
+                    end
+                else
+                    upflow1_c = (c.data::ExpUpDownFlow1).upflow
+                    downflow_c = downflow(c)
+                    downflow_c .= logsumexp.(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n)
+                end
+            end 
+        end
+        nothing
+    end
+    nothing
+end
+
+"""
+Get the node/edge downflow from probabilistic circuit
+"""
+function get_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
+    downflow(x::ExpUpDownFlow1) = x.downflow
+    downflow(x::ExpUpDownFlow2) = begin
+        ors = or_nodes(root)
+        p = findall(p -> n in children(p), ors)
+        @assert length(p) == 1
+        get_downflow(ors[p[1]], n)
+    end
+    downflow(n.data)
+end
+
+function get_downflow(n::ProbCircuit, c::ProbCircuit)::Vector{Float64}
+    @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
+    df = copy(get_downflow(n))
+    log_theta = n.log_thetas[findfirst(x -> x == c, children(n))]
+    return df .+ log_theta .+ get_upflow(c.data) .- get_upflow(n.data)
+end
+
+@inline isfactorized(n::ProbCircuit) = n.data::ExpUpDownFlow isa ExpUpDownFlow2

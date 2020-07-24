@@ -53,57 +53,51 @@ end
 @testset "Marginal Pass Down" begin
     EPS = 1e-7;
     prob_circuit = zoo_psdd("little_4var.psdd");
+    logic_circuit = origin(prob_circuit)
 
     N = 4
-    data_full = XData(Int8.(generate_data_all(N)))
-    opts= (compact⋀=false, compact⋁=false)
-
-    flow_circuit   = FlowΔ(prob_circuit, 16, Float64, opts)
-    flow_circuit_marg = FlowΔ(prob_circuit, 16, Float64, opts)
-
+    data_full = Bool.(generate_data_all(N))
 
     # Comparing with down pass with fully obeserved data
-    pass_up_down(flow_circuit, data_full)
-    marginal_pass_up_down(flow_circuit_marg, data_full)
+    compute_flows(logic_circuit, data_full)
+    compute_flows(prob_circuit, data_full)
 
-    for (ind, node) in enumerate(flow_circuit)
-        if node isa HasDownFlow
-            @test all(  isapprox.(downflow(flow_circuit[ind]), downflow(flow_circuit_marg[ind]), atol = EPS) )
-        end
+    for pn in linearize(prob_circuit)
+        @test all(isapprox.(exp.(get_downflow(pn; root=prob_circuit)), 
+            get_downflow(pn.origin; root=logic_circuit), atol=EPS))
     end
 
-
     # Validating one example with missing features done by hand
-    data_partial = XData(Int8.([-1 1 -1 1]))
-    flow_circuit_part  = FlowΔ(prob_circuit, 16, Float64, opts)
-    ProbabilisticCircuits.marginal_pass_up_down(flow_circuit_part, data_partial)
+    data_partial = Int8.([-1 1 -1 1])
+    prob_circuit = zoo_psdd("little_4var.psdd");
+    compute_flows(prob_circuit, data_partial)
 
     # (node index, correct down_flow_value)
     true_vals = [(1, 0.5),
                 (2, 1.0),
-                (3, 1/3),
-                (4, 1.0),
-                (5, 0.5),
-                (6, 0.0),
-                (7, 2/3),
+                (3, 0.5),
+                (4, 0.0),
+                (5, 0.0),
+                (6, 0.5),
+                (7, 0.5),
                 (8, 0.0),
-                (9, 0.3333333333333),
-                (10, 0.0),
-                (11, 0.6666666666666),
-                (12, 0.0),
-                (13, 1.0),
-                (14, 0.5),
-                (15, 0.0),
-                (16, 0.5),
+                (9, 1.0),
+                (10, 1/3),
+                (11, 1),
+                (12, 1/3),
+                (13, 0.0),
+                (14, 0.0),
+                (15, 2/3),
+                (16, 2/3),
                 (17, 0.0),
                 (18, 1.0),
                 (19, 1.0),
                 (20, 1.0)]
-
+    lin = linearize(prob_circuit)
+    
     for ind_val in true_vals
-        @test downflow(flow_circuit_part[ind_val[1]])[1] ≈ ind_val[2] atol= EPS
+        @test exp(get_downflow(lin[ind_val[1]]; root=prob_circuit)[1]) ≈ ind_val[2] atol= EPS
     end
-
 end
 
 function test_mpe_brute_force(prob_circuit, evidence)
