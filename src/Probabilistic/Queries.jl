@@ -1,6 +1,5 @@
-export EVI, log_likelihood_per_instance,
-MAR, marginal_log_likelihood_per_instance,
-MPE, MAP
+export EVI, log_likelihood_per_instance, MAR, marginal_log_likelihood_per_instance, 
+MPE, MAP, sample
 
 """
 Complete evidence queries
@@ -27,6 +26,7 @@ function log_likelihood_per_instance(pc::ProbCircuit, data)
 end
 
 EVI = log_likelihood_per_instance
+
 
 """
 Marginal queries
@@ -83,4 +83,81 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
 end
 
 
+##################
+# Sampling from a psdd
+##################
 
+"""
+Sample from a PSDD without any evidence
+"""
+function sample(circuit::ProbCircuit)::AbstractVector{Bool}
+
+    simulate(node::ProbLiteralNode) = begin
+        inst[variable(node.origin)] = ispositive(node) ? 1 : 0
+    end
+    
+    simulate(node::Prob⋁Node) = begin
+        idx = sample(exp.(node.log_thetas))
+        simulate(node.children[idx])
+    end
+
+    simulate(node::Prob⋀Node) = foreach(simulate, children(node))
+
+    inst = Dict{Var,Int64}()
+    simulate(circuit)
+    len = length(keys(inst))
+    ans = Vector{Bool}()
+    for i = 1:len
+        push!(ans, inst[i])
+    end
+    ans
+end
+
+
+"""
+Sampling with Evidence from a psdd.
+"""
+function sample(circuit::ProbCircuit, evidence)::AbstractVector{Bool}
+
+    @assert num_examples(evidence) == 1 "evidence have to be one example"
+    
+    simulate(node::ProbLiteralNode) = begin
+        inst[variable(node.origin)] = ispositive(node) ? 1 : 0
+    end
+    
+    function simulate(node::Prob⋁Node)
+        prs = [get_upflow(ch)[1] for ch in children(node)] # #evidence == 1
+        idx = sample(exp.(node.log_thetas .+ prs))
+        simulate(children(node)[idx])
+    end
+    
+    simulate(node::Prob⋀Node) = foreach(simulate, children(node))
+
+    evaluate(circuit, evidence)
+
+    inst = Dict{Var,Int64}()
+    simulate(circuit)
+    len = length(keys(inst))
+    ans = Vector{Bool}()
+    for i = 1:len
+        push!(ans, inst[i])
+    end
+    ans
+end
+
+
+"""
+Uniformly sample based on the probability of the items and return the selected index
+"""
+function sample(probs::AbstractVector{<:Number})::Int32
+    z = sum(probs)
+    q = rand() * z
+    cur = 0.0
+    for i = 1:length(probs)
+        cur += probs[i]
+        if q <= cur
+            return i
+        end
+    end
+    return length(probs)
+end
