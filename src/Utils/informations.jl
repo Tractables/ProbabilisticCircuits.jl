@@ -1,3 +1,4 @@
+export entropy, conditional_entropy, mutual_information
 using Statistics
 using StatsFuns: xlogx, xlogy
 
