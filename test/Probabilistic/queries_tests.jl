@@ -8,19 +8,14 @@ using ProbabilisticCircuits
     # match with python. Also tests all probabilities sum up to 1.
 
     EPS = 1e-7;
-    # prob_circuit = zoo_psdd("little_4var.psdd");
-    prob_circuit = load_logic_circuit(zoo_lc_file("little_4var.circuit"))
-    @test prob_circuit isa Vector{<:ProbNode};
-
-    flow_circuit = FlowΔ(prob_circuit, 16, Bool)
-    @test flow_circuit isa Vector{<:FlowNode};
-
+    prob_circuit = zoo_psdd("little_4var.psdd");
+    @test prob_circuit isa ProbCircuit;
 
     # Step 1. Check Probabilities for 3 samples
     data = Bool.([0 0 0 0; 0 1 1 0; 0 0 1 1]);
     true_prob = [0.07; 0.03; 0.13999999999999999]
 
-    calc_prob = log_likelihood_per_instance(flow_circuit, data)
+    calc_prob = log_likelihood_per_instance(prob_circuit, data)
     calc_prob = exp.(calc_prob)
 
     for i = 1:3
@@ -29,9 +24,9 @@ using ProbabilisticCircuits
 
     # Step 2. Add up all probabilities and see if they add up to one
     N = 4;
-    data_all = XData(generate_data_all(N))
+    data_all = generate_data_all(N)
 
-    calc_prob_all = log_likelihood_per_instance(flow_circuit, data_all)
+    calc_prob_all = log_likelihood_per_instance(prob_circuit, data_all)
     calc_prob_all = exp.(calc_prob_all)
     sum_prob_all = sum(calc_prob_all)
 
@@ -160,4 +155,9 @@ end
     evidence = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
 
     test_mpe_brute_force(prob_circuit, evidence)
+end
+
+
+@testset "EVI" begin
+    pc = zoo_psdd("nltcs.psdd")
 end
