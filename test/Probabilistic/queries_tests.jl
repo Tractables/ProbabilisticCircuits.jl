@@ -37,29 +37,17 @@ end
     EPS = 1e-7;
     prob_circuit = zoo_psdd("little_4var.psdd");
 
-    data = XData(
-        Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1;
+    data = Int8.([0 0 0 0; 0 1 1 0; 0 0 1 1;
                 0 0 0 -1; -1 1 0 -1; -1 -1 -1 -1; 0 -1 -1 -1])
-    );
     true_prob = [0.07; 0.03; 0.13999999999999999;
                     0.3499999999999; 0.1; 1.0; 0.8]
 
-    opts = (compact⋀=false, compact⋁=false)
-    flow_circuit = UpFlowΔ(prob_circuit, 16, Float64, opts)
-    calc_prob = marginal_log_likelihood_per_instance(flow_circuit, data)
+    calc_prob = marginal_log_likelihood_per_instance(prob_circuit, data)
     calc_prob = exp.(calc_prob)
 
     for i = 1:length(true_prob)
         @test true_prob[i] ≈ calc_prob[i] atol= EPS;
     end
-
-    # Now trying the other api without instantiating a flow circuit
-    fc2, calc_prob2 = marginal_log_likelihood_per_instance(prob_circuit, data)
-    calc_prob2 = exp.(calc_prob2)
-    for i = 1:length(true_prob)
-        @test true_prob[i] ≈ calc_prob2[i] atol= EPS;
-    end
-
 end
 
 @testset "Marginal Pass Down" begin

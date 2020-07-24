@@ -47,6 +47,7 @@ pr_constraint, psdd_entropy, psdd_kl_divergence
 
 # include("Clustering.jl")
 include("prob_nodes.jl")
+include("flows.jl")
 include("queries.jl")
 # include("ProbFlowCircuits.jl")
 # include("MutualInformation.jl")

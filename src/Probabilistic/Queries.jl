@@ -1,4 +1,5 @@
-export EVI, log_proba, log_likelihood_per_instance
+export EVI, log_proba, log_likelihood_per_instance,
+MAR, marginal_log_likelihood_per_instance
 
 using DataFrames
 using LogicCircuits: UpDownFlow, UpDownFlow2
@@ -19,9 +20,14 @@ function get_edge_flow(n, c)::BitVector
 end
 
 """
+Data 
+"""
+const Data = Union{DataFrame, AbstractMatrix}
+
+"""
 Complete evidence queries
 """
-function log_likelihood_per_instance(pc::ProbCircuit, data::Union{DataFrame, AbstractMatrix})
+function log_likelihood_per_instance(pc::ProbCircuit, data::Data)
     @assert isbinarydata(data) "Can only calculate EVI on Bool data"
     
     compute_flows(origin(pc), data)
@@ -45,7 +51,12 @@ end
 EVI = log_proba = log_likelihood_per_instance
 
 """
-Complete evidence queries
+marginal queries
 """
+function marginal_log_likelihood_per_instance(pc::ProbCircuit, data)
+    evaluate(pc, data)
+end
+MAR = marginal_log_likelihood_per_instance
+
 
 
