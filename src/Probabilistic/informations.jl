@@ -27,34 +27,34 @@ function pr_constraint(psdd_node::ProbCircuit, sdd_node::StrutCircuit,
                 return get!(cache, (psdd_node, sdd_node), 0.0)
             end
         else
-            pr_constraint(psdd_node, sdd_node.children[1], cache)
-            if length(sdd_node.children) > 1
-                pr_constraint(psdd_node, sdd_node.children[2], cache)
+            pr_constraint(psdd_node, children(sdd_node)[1], cache)
+            if length(children(sdd_node)) > 1
+                pr_constraint(psdd_node, children(sdd_node)[2], cache)
                 return get!(cache, (psdd_node, sdd_node), 1.0)
             else
                 return get!(cache, (psdd_node, sdd_node),
-                    literal(sdd_node.children[1]) == literal(psdd_node) ? 1.0 : 0.0)
+                    literal(children(sdd_node)[1]) == literal(psdd_node) ? 1.0 : 0.0)
             end
         end
     
     # The psdd is true
-    elseif psdd_node.children[1] isa ProbLiteralNode 
+    elseif children(psdd_node)[1] isa ProbLiteralNode 
         theta = exp(psdd_node.log_thetas[1])
         return get!(cache, (psdd_node, sdd_node),
-            theta * pr_constraint(psdd_node.children[1], sdd_node, cache) +
-            (1.0 - theta) * pr_constraint(psdd_node.children[2], sdd_node, cache))
+            theta * pr_constraint(children(psdd_node)[1], sdd_node, cache) +
+            (1.0 - theta) * pr_constraint(children(psdd_node)[2], sdd_node, cache))
     
     # Both psdds are not trivial
     else 
         prob = 0.0
-        for (prob⋀_node, log_theta) in zip(psdd_node.children, psdd_node.log_thetas)
-            p = prob⋀_node.children[1]
-            s = prob⋀_node.children[2]
+        for (prob⋀_node, log_theta) in zip(children(psdd_node), psdd_node.log_thetas)
+            p = children(prob⋀_node)[1]
+            s = children(prob⋀_node)[2]
 
             theta = exp(log_theta)
-            for sdd⋀_node in sdd_node.children
-                r = sdd⋀_node.children[1]
-                t = sdd⋀_node.children[2]
+            for sdd⋀_node in children(sdd_node)
+                r = children(sdd⋀_node)[1]
+                t = children(sdd⋀_node)[2]
                 prob += theta * pr_constraint(p, r, cache) * pr_constraint(s, t, cache)
             end
         end
@@ -69,15 +69,15 @@ Calculate entropy of the distribution of the input psdd."
 function entropy(psdd_node::Prob⋁Node, psdd_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
     if psdd_node in keys(psdd_entropy_cache)
         return psdd_entropy_cache[psdd_node]
-    elseif psdd_node.children[1] isa ProbLiteralNode
+    elseif children(psdd_node)[1] isa ProbLiteralNode
         return get!(psdd_entropy_cache, psdd_node,
             - exp(psdd_node.log_thetas[1]) * psdd_node.log_thetas[1] -
             exp(psdd_node.log_thetas[2]) * psdd_node.log_thetas[2])
     else
         local_entropy = 0.0
-        for (prob⋀_node, log_prob) in zip(psdd_node.children, psdd_node.log_thetas)
-            p = prob⋀_node.children[1]
-            s = prob⋀_node.children[2]
+        for (prob⋀_node, log_prob) in zip(children(psdd_node), psdd_node.log_thetas)
+            p = children(prob⋀_node)[1]
+            s = children(prob⋀_node)[2]
 
             local_entropy += exp(log_prob) * (entropy(p, psdd_entropy_cache) +
                 entropy(s, psdd_entropy_cache) - log_prob)
@@ -87,8 +87,8 @@ function entropy(psdd_node::Prob⋁Node, psdd_entropy_cache::Dict{ProbCircuit, F
 end
 
 function entropy(psdd_node::Prob⋀Node, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
-    return get!(psdd_entropy_cache, psdd_node.children[1], entropy(psdd_node.children[1], psdd_entropy_cache)) +
-        get!(psdd_entropy_cache, psdd_node.children[2], entropy(psdd_node.children[2], psdd_entropy_cache))
+    return get!(psdd_entropy_cache, children(psdd_node)[1], entropy(children(psdd_node)[1], psdd_entropy_cache)) +
+        get!(psdd_entropy_cache, children(psdd_node)[2], entropy(children(psdd_node)[2], psdd_entropy_cache))
 end
 
 function entropy(psdd_node::ProbLiteralNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
@@ -105,11 +105,11 @@ function kl_divergence(psdd_node1::Prob⋁Node, psdd_node2::Prob⋁Node,
 
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[(psdd_node1, psdd_node2)]
-    elseif psdd_node1.children[1] isa ProbLiteralNode
+    elseif children(psdd_node1)[1] isa ProbLiteralNode
         if psdd_node2 isa ProbLiteralNode
-            kl_divergence(psdd_node1.children[1], psdd_node2, kl_divergence_cache, pr_constraint_cache)
-            kl_divergence(psdd_node1.children[2], psdd_node2, kl_divergence_cache, pr_constraint_cache)
-            if literal(psdd_node1.children[1]) == literal(psdd_node2)
+            kl_divergence(children(psdd_node1)[1], psdd_node2, kl_divergence_cache, pr_constraint_cache)
+            kl_divergence(children(psdd_node1)[2], psdd_node2, kl_divergence_cache, pr_constraint_cache)
+            if literal(children(psdd_node1)[1]) == literal(psdd_node2)
                 return get!(kl_divergence_cache, (psdd_node1, psdd_node2),
                     psdd_node1.log_thetas[1] * exp(psdd_node1.log_thetas[1])
                 )
@@ -121,12 +121,12 @@ function kl_divergence(psdd_node1::Prob⋁Node, psdd_node2::Prob⋁Node,
         else
             # The below four lines actually assign zero, but still we need to
             # call it.
-            kl_divergence(psdd_node1.children[1], psdd_node2.children[1], kl_divergence_cache, pr_constraint_cache)
-            kl_divergence(psdd_node1.children[1], psdd_node2.children[2], kl_divergence_cache, pr_constraint_cache)
-            kl_divergence(psdd_node1.children[2], psdd_node2.children[1], kl_divergence_cache, pr_constraint_cache)
-            kl_divergence(psdd_node1.children[2], psdd_node2.children[2], kl_divergence_cache, pr_constraint_cache)
+            kl_divergence(children(psdd_node1)[1], children(psdd_node2)[1], kl_divergence_cache, pr_constraint_cache)
+            kl_divergence(children(psdd_node1)[1], children(psdd_node2)[2], kl_divergence_cache, pr_constraint_cache)
+            kl_divergence(children(psdd_node1)[2], children(psdd_node2)[1], kl_divergence_cache, pr_constraint_cache)
+            kl_divergence(children(psdd_node1)[2], children(psdd_node2)[2], kl_divergence_cache, pr_constraint_cache)
             # There are two possible matches
-            if literal(psdd_node1.children[1]) == literal(psdd_node2.children[1])
+            if literal(children(psdd_node1)[1]) == literal(children(psdd_node2)[1])
                 return get!(kl_divergence_cache, (psdd_node1, psdd_node2),
                     exp(psdd_node1.log_thetas[1]) * (psdd_node1.log_thetas[1] - psdd_node2.log_thetas[1]) +
                     exp(psdd_node1.log_thetas[2]) * (psdd_node1.log_thetas[2] - psdd_node2.log_thetas[2])
@@ -142,13 +142,13 @@ function kl_divergence(psdd_node1::Prob⋁Node, psdd_node2::Prob⋁Node,
         kld = 0.0
 
         # loop through every combination of prim and sub
-        for (prob⋀_node1, log_theta1) in zip(psdd_node1.children, psdd_node1.log_thetas)
-            for (prob⋀_node2, log_theta2) in zip(psdd_node2.children, psdd_node2.log_thetas)
-                p = prob⋀_node1.children[1]
-                s = prob⋀_node1.children[2]
+        for (prob⋀_node1, log_theta1) in zip(children(psdd_node1), psdd_node1.log_thetas)
+            for (prob⋀_node2, log_theta2) in zip(children(psdd_node2), psdd_node2.log_thetas)
+                p = children(prob⋀_node1)[1]
+                s = children(prob⋀_node1)[2]
 
-                r = prob⋀_node2.children[1]
-                t = prob⋀_node2.children[2]
+                r = children(prob⋀_node2)[1]
+                t = children(prob⋀_node2)[2]
 
                 theta1 = exp(log_theta1)
 
@@ -187,9 +187,9 @@ function kl_divergence(psdd_node1::Prob⋁Node, psdd_node2::ProbLiteralNode,
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[psdd_node1, psdd_node2]
     else
-        kl_divergence(psdd_node1.children[1], psdd_node2, kl_divergence_cache, pr_constraint_cache)
-        kl_divergence(psdd_node1.children[2], psdd_node2, kl_divergence_cache, pr_constraint_cache)
-        if literal(psdd_node1.children[1]) == literal(psdd_node2)
+        kl_divergence(children(psdd_node1)[1], psdd_node2, kl_divergence_cache, pr_constraint_cache)
+        kl_divergence(children(psdd_node1)[2], psdd_node2, kl_divergence_cache, pr_constraint_cache)
+        if literal(children(psdd_node1)[1]) == literal(psdd_node2)
             return get!(kl_divergence_cache, (psdd_node1, psdd_node2),
                 psdd_node1.log_thetas[1] * exp(psdd_node1.log_thetas[1])
             )
@@ -208,9 +208,9 @@ function kl_divergence(psdd_node1::ProbLiteralNode, psdd_node2::Prob⋁Node,
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[psdd_node1, psdd_node2]
     else
-        kl_divergence(psdd_node1, psdd_node2.children[1], kl_divergence_cache, pr_constraint_cache)
-        kl_divergence(psdd_node1, psdd_node2.children[2], kl_divergence_cache, pr_constraint_cache)
-        if literal(psdd_node1) == literal(psdd_node2.children[1])
+        kl_divergence(psdd_node1, children(psdd_node2)[1], kl_divergence_cache, pr_constraint_cache)
+        kl_divergence(psdd_node1, children(psdd_node2)[2], kl_divergence_cache, pr_constraint_cache)
+        if literal(psdd_node1) == literal(children(psdd_node2)[1])
             return get!(kl_divergence_cache, (psdd_node1, psdd_node2),
                 -psdd_node2.log_thetas[1]
             )

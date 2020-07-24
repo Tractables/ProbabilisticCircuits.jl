@@ -131,7 +131,7 @@ import LogicCircuits.LoadSave: save_circuit, save_as_dot # make available for ex
 save_circuit(name::String, circuit::ProbCircuit, vtree::PlainVtree) =
     save_as_psdd(name, circuit, vtree)
 
-save_circuit(name::String, circuit::LogicCircuit, vtree::PlainVtree) =
+save_circuit(name::String, circuit::LogisticCircuit, vtree::PlainVtree) =
     save_as_logistic(name, circuit, vtree)
 
 using Printf: @sprintf
