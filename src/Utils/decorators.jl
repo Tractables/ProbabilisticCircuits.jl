@@ -4,7 +4,8 @@ GateType, NodeType, variable, ispositive, isnegative, origin, num_parameters
 using LogicCircuits
 
 "Root of the decorator circuit node hierarchy"
-abstract type DecoratorCircuit <: Dag end
+# TODO rm DecoratorCircuit Type 
+abstract type DecoratorCircuit <: LogicCircuit end
 
 #####################
 # functions that need to be implemented for each type of decorator circuit

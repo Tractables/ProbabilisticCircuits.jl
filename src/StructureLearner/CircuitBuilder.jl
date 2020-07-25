@@ -9,7 +9,7 @@ using MetaGraphs: get_prop
 Learning from data a circuit with several structure learning algorithms
 """
 function learn_probabilistic_circuit(data::Union{XData, WXData}; 
-        pseudocount = 1.0, algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"))::ProbΔ
+        pseudocount = 1.0, algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"))::ProbCircuit
     if algo == "chow-liu"
         clt = learn_chow_liu_tree(data; algo_kwargs...)
         pc = compile_prob_circuit_from_clt(clt)
@@ -21,15 +21,15 @@ function learn_probabilistic_circuit(data::Union{XData, WXData};
 end
 
 "Build decomposable probability circuits from Chow-Liu tree"
-function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
+function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
     topo_order = Var.(reverse(topological_sort_by_dfs(clt::CLT))) #order to parse the node
-    lin = Vector{ProbNode}()
+    lin = Vector{ProbCircuit}()
     node_cache = Dict{Lit, LogicCircuit}()
     prob_cache = ProbCache()
     parent = parent_vector(clt)
 
-    prob_children(n)::Vector{<:ProbNode{<:node_type_deprecated(n)}} =  
-        collect(ProbNode{<:node_type_deprecated(n)}, map(c -> prob_cache[c], n.children))
+    prob_children(n)::Vector{<:ProbCircuit{<:node_type_deprecated(n)}} =  
+        collect(ProbCircuit{<:node_type_deprecated(n)}, map(c -> prob_cache[c], n.children))
 
     "default order of circuit node, from left to right: +/1 -/0"
 
@@ -100,7 +100,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
         return n
     end
 
-    function compile_independent_roots(roots::Vector{ProbNode})
+    function compile_independent_roots(roots::Vector{ProbCircuit})
         temp = Plain⋀Node([c.origin for c in roots])
         n = Prob⋀(temp, prob_children(temp))
         prob_cache[temp] = n
@@ -112,7 +112,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbΔ
         push!(lin, n)
     end
 
-    roots = Vector{ProbNode}()
+    roots = Vector{ProbCircuit}()
     for id in topo_order
         children = Var.(outneighbors(clt, id))
         if isequal(children, [])

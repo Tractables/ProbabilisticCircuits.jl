@@ -169,7 +169,7 @@ function save_as_dot(circuit::ProbCircuit, file::String)
         elseif n isa ProbLiteralNode && isnegative(n)
             write(f, "$(node_cache[n]) [label=\"-$(variable(n.origin))\"]\n")
         else
-            throw("unknown ProbNode type")
+            throw("unknown ProbCircuit type")
         end
     end
 

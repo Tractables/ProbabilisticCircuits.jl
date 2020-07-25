@@ -9,7 +9,7 @@ using ProbabilisticCircuits
             vtree = "chow-liu", vtree_kwargs=(vtree_mode="balanced",))
     
     # simple test
-    @test pc isa ProbΔ
+    @test pc isa ProbCircuit
     @test vtree isa PlainVtree
     @test num_variables(vtree) == num_features(data)
     @test check_parameter_integrity(pc)

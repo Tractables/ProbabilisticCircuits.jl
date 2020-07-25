@@ -97,14 +97,14 @@ function compile_psdd_from_clt(clt::MetaDiGraph, vtree::PlainVtree)
     order = linearize(vtree[end])
     parent_clt = Var.(parent_vector(clt))
 
-    lin = Vector{ProbNode}()
+    lin = Vector{ProbCircuit}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2p = Dict{PlainVtree, ProbΔ}()
+    v2p = Dict{PlainVtree, ProbCircuit}()
 
     get_params(cpt::Dict) = length(cpt) == 2 ? [cpt[1], cpt[0]] : [cpt[(1,1)], cpt[(0,1)], cpt[(1,0)], cpt[(0,0)]]
-    function add_mapping!(v::PlainVtree, circuits::ProbΔ)
-        if !haskey(v2p, v); v2p[v] = Vector{ProbNode}(); end
+    function add_mapping!(v::PlainVtree, circuits::ProbCircuit)
+        if !haskey(v2p, v); v2p[v] = Vector{ProbCircuit}(); end
         foreach(c -> if !(c in v2p[v]) push!(v2p[v], c);end, circuits)
     end
 
@@ -149,7 +149,7 @@ end
 #####################
 
 prob_children(n, prob_cache) =  
-    collect(ProbNode{<:StructLogicCircuit}, map(c -> prob_cache[c], n.children))
+    collect(ProbCircuit{<:StructLogicCircuit}, map(c -> prob_cache[c], n.children))
 
 "Add leaf nodes to circuit `lin`"
 function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, lin)
@@ -167,7 +167,7 @@ function add_prob_leaf_node(var::Var, vtree::PlainVtreeLeafNode, lit_cache::LitC
 end
 
 "Add prob⋀ node to circuit `lin`"
-function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
+function add_prob⋀_node(children::ProbCircuit, vtree::PlainVtreeInnerNode, prob_cache::ProbCache, lin)::Prob⋀
     logic = PlainStruct⋀Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋀(logic, prob_children(logic, prob_cache))
     prob_cache[logic] = prob
@@ -176,7 +176,7 @@ function add_prob⋀_node(children::ProbΔ, vtree::PlainVtreeInnerNode, prob_cac
 end
 
 "Add prob⋁ node to circuit `lin`"
-function add_prob⋁_node(children::ProbΔ, vtree::PlainVtree, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
+function add_prob⋁_node(children::ProbCircuit, vtree::PlainVtree, thetas::Vector{Float64}, prob_cache::ProbCache, lin)::Prob⋁
     logic = PlainStruct⋁Node{PlainVtree}([c.origin for c in children], vtree)
     prob = Prob⋁(logic, prob_children(logic, prob_cache))
     prob.log_thetas = log.(thetas)
@@ -186,7 +186,7 @@ function add_prob⋁_node(children::ProbΔ, vtree::PlainVtree, thetas::Vector{Fl
 end
 
 "Construct decision nodes given `primes` and `subs`"
-function compile_decision_node(primes::ProbΔ, subs::ProbΔ, vtree::PlainVtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
+function compile_decision_node(primes::ProbCircuit, subs::ProbCircuit, vtree::PlainVtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
     elements = [add_prob⋀_node([prime, sub], vtree, prob_cache, lin) for (prime, sub) in zip(primes, subs)]
     return add_prob⋁_node(elements, vtree, params, prob_cache, lin)
 end
@@ -204,7 +204,7 @@ function compile_true_nodes(var::Var, vtree::PlainVtreeLeafNode, probs::Vector{F
 end
 
 "Construct decision nodes conditiond on different distribution"
-function compile_decision_nodes(primes::ProbΔ, subs::ProbΔ, vtree::PlainVtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
+function compile_decision_nodes(primes::ProbCircuit, subs::ProbCircuit, vtree::PlainVtreeInnerNode, params::Vector{Float64}, prob_cache::ProbCache, lin)
     return [compile_decision_node(primes, subs, vtree, params[i:i+1], prob_cache, lin) for i in 1:2:length(params)]
 end
 
@@ -230,7 +230,7 @@ function set_base(index, n::PlainStruct⋀Node, bases)
     bases[n] = sum([bases[c] for c in n.children])
 end
 
-function calculate_all_bases(circuit::ProbΔ)::BaseCache
+function calculate_all_bases(circuit::ProbCircuit)::BaseCache
     num_var = num_variables(circuit[end].origin.vtree)
     bases = BaseCache()
     foreach(n -> bases[n.origin] = fill(⊤, num_var), circuit)
@@ -243,7 +243,7 @@ end
 # Compile fully factorized PSDD from vtree, all variables are independent initially
 #####################
 
-function compile_fully_factorized_psdd_from_vtree(vtree::PlainVtree)::ProbΔ
+function compile_fully_factorized_psdd_from_vtree(vtree::PlainVtree)::ProbCircuit
 
     function ful_factor_node(v::PlainVtreeLeafNode, lit_cache::LitCache, prob_cache::ProbCache, v2n, lin)
         var = variables(v)[1]
@@ -262,10 +262,10 @@ function compile_fully_factorized_psdd_from_vtree(vtree::PlainVtree)::ProbΔ
         nothing
     end
 
-    lin = Vector{ProbNode}()
+    lin = Vector{ProbCircuit}()
     prob_cache = ProbCache()
     lit_cache = LitCache()
-    v2n = Dict{PlainVtree, ProbNode}()
+    v2n = Dict{PlainVtree, ProbCircuit}()
 
     for v in vtree
         ful_factor_node(v, lit_cache, prob_cache, v2n, lin)

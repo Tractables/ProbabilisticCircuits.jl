@@ -169,9 +169,10 @@ end
 
 end
 
+using DataStructures
 @testset "Sampling With Evidence" begin
     # TODO (pashak) this test should be improved by adding few more cases
-    EPS = 1e-3;
+    EPS = 1e-2;
     prob_circuit = zoo_psdd("little_4var.psdd");
 
     N = 4;

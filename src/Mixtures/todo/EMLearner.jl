@@ -1,7 +1,7 @@
 """
 Train a mixture of probabilistic circuits from data, starting with random example weights.
 """
-function train_mixture( pcs::Vector{<:ProbΔ},
+function train_mixture( pcs::Vector{<:ProbCircuit},
                         train_x::XBatches{Bool},
                         pseudocount, num_iters;
                         structure_learner=nothing, learnstruct_step = num_iters + 1, # structure learning

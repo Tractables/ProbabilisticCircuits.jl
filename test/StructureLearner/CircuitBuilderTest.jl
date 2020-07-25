@@ -8,7 +8,7 @@ using ProbabilisticCircuits
     pc = learn_probabilistic_circuit(train_x; pseudocount = 1.0, algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"))
     
     # simple test
-    @test pc isa ProbΔ
+    @test pc isa ProbCircuit
     @test check_parameter_integrity(pc)
     @test num_parameters(pc) == 62 
     @test pc[26].log_thetas[1] ≈ -0.023528423773273476 atol=1.0e-7

@@ -2,19 +2,19 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 
-function test_expectation_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, CLASSES::Int)
+function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
     EPS = 1e-7;
-    COUNT = size(data.x)[1]
+    COUNT = size(data)[1]
     # Compute True expectation brute force
     true_exp = zeros(COUNT, CLASSES)
     for i in 1:COUNT
-        row = data.x[i, :]
-        cur_data_all = XData(generate_all(row))
+        row = data[i, :]
+        cur_data_all = generate_all(row)
 
-        fc1, calc_p = log_likelihood_per_instance(pc, cur_data_all)
+        calc_p = log_likelihood_per_instance(pc, cur_data_all)
         calc_p = exp.(calc_p)
 
-        fc2, calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
+        calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
         true_exp[i, :] = sum(calc_p .* calc_f, dims=1)
         true_exp[i, :] ./= sum(calc_p) #p_observed
     end
@@ -35,19 +35,19 @@ function test_expectation_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, C
     end
 end
 
-function test_moment_brute_force(pc::ProbΔ, lc::LogisticΔ, data::XData, CLASSES::Int, moment::Int)
+function test_moment_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int, moment::Int)
     EPS = 1e-7;
-    COUNT = size(data.x)[1]
+    COUNT = size(data)[1]
     # Compute True moment brute force
     true_mom = zeros(COUNT, CLASSES)
     for i in 1:COUNT
-        row = data.x[i, :]
-        cur_data_all = XData(generate_all(row))
+        row = data[i, :]
+        cur_data_all = generate_all(row)
 
-        fc1, calc_p = log_likelihood_per_instance(pc, cur_data_all)
+        calc_p = log_likelihood_per_instance(pc, cur_data_all)
         calc_p = exp.(calc_p)
 
-        fc2, calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
+        calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
         true_mom[i, :] = sum(calc_p .* (calc_f .^ moment), dims=1)
         true_mom[i, :] ./= sum(calc_p) #p_observed
     end
@@ -70,7 +70,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = XData(Int8.([
+    data = Int8.([
                         0 0 0 0; 
                         0 1 1 0; 
                         0 0 1 1;
@@ -82,7 +82,7 @@ end
                         -1 -1 0 1;
                         -1 -1 -1 1;
                         -1 -1 -1 0;
-                        ]));
+                        ]);
 
     test_expectation_brute_force(pc, lc, data, CLASSES)
 end
@@ -97,7 +97,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
+    data = Int8.(rand( (-1,0,1), (COUNT, N) ))
     
     test_expectation_brute_force(pc, lc, data, CLASSES)
 end
@@ -112,7 +112,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
+    data = Int8.(rand( (-1,0,1), (COUNT, N) ))
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
     test_moment_brute_force(pc, lc, data, CLASSES, 2)
@@ -131,7 +131,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = XData(Int8.(rand( (-1,0,1), (COUNT, N) )))
+    data = Int8.(rand( (-1,0,1), (COUNT, N) ))
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
     test_moment_brute_force(pc, lc, data, CLASSES, 2)

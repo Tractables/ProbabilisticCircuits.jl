@@ -13,7 +13,7 @@ using ProbabilisticCircuits
     mktempdir() do tmp
         save(vtree, "$tmp/test.vtree.dot")        
         psdd = compile_psdd_from_clt(clt, vtree);
-        @test psdd isa ProbΔ
+        @test psdd isa ProbCircuit
         save_as_dot(psdd, "$tmp/test.psdd.dot")
     end
     
