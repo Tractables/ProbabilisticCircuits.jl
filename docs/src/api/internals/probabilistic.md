@@ -1,5 +1,5 @@
 # Probabilistic
 
 ```@autodocs
-Modules = [Probabilistic]
+Modules = [ProbabilisticCircuits.Probabilistic]
 ```

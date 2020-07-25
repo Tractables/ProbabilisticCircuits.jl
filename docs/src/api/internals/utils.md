@@ -1,5 +1,5 @@
 # Utils
 
 ```@autodocs
-Modules = [Utils]
+Modules = [ProbabilisticCircuits.Utils]
 ```
