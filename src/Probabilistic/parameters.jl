@@ -23,3 +23,5 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     end
 end
 
+
+# TODO add em paramaters learning 
