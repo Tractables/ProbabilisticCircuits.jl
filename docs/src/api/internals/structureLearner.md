@@ -1,5 +1,5 @@
 # StructureLearner
 
 ```@autodocs
-Modules = [StructureLearner]
+Modules = [ProbabilisticCircuits.StructureLearner]
 ```

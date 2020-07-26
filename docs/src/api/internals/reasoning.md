@@ -1,5 +1,5 @@
 # Reasoning
 
 ```@autodocs
-Modules = [Reasoning]
+Modules = [ProbabilisticCircuits.Reasoning]
 ```
