@@ -45,7 +45,7 @@ Support circuit file formats:
 Supported vtree file formats:
     * ".vtree" for Vtree files
 """
-function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{ProbCircuit,PlainVtree}
+function load_struct_prob_circuit(circuit_file::String, vtree_file::String)::Tuple{StructProbCircuit,PlainVtree}
     @assert endswith(circuit_file,".psdd")
     circuit_lines = parse_circuit_file(circuit_file)
     vtree_lines = parse_vtree_file(vtree_file)

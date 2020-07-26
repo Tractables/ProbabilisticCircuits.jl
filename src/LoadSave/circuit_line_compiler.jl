@@ -35,10 +35,17 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, id2lognode::Dict{ID,<:LogicCircuit})::ProbCircuit
+function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, id2lognode::Dict{ID,<:LogicCircuit})::Union{ProbCircuit, StructProbCircuit}
     # set up cache mapping logic circuit nodes to their probabilistic decorator
-    prob_circuit = ProbCircuit(logic_circuit)
-    lognode2probnode = Dict{LogicCircuit, ProbCircuit}()
+
+    prob_circuit = nothing
+    # TODO better implementation & type
+    if logic_circuit isa PlainLogicCircuit
+        prob_circuit = ProbCircuit(logic_circuit)
+    elseif logic_circuit isa PlainStructLogicCircuit
+        prob_circuit = StructProbCircuit(logic_circuit)
+    end
+    lognode2probnode = Dict()
 
     prob_lin = linearize(prob_circuit) # TODO better implementation
     logic_lin = linearize(logic_circuit)
@@ -60,11 +67,11 @@ function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, i
     end
     function compile(ln::WeightedNamedConstantLine)
         @assert lnconstant(ln) == true
-        root = id2probnode(ln.node_id)::Prob⋁Node
+        root = id2probnode(ln.node_id)
         root.log_thetas .= [ln.weight, log1p(-exp(ln.weight))]
     end
     function compile(ln::DecisionLine{<:PSDDElement})
-        root = id2probnode(ln.node_id)::Prob⋁Node
+        root = id2probnode(ln.node_id)
         root.log_thetas .= [x.weight for x in ln.elements]
     end
 
