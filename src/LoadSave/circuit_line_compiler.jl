@@ -39,7 +39,11 @@ function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, i
     # set up cache mapping logical circuit nodes to their probabilistic decorator
     prob_circuit = ProbCircuit(logic_circuit)
     lognode2probnode = Dict{LogicCircuit, ProbCircuit}()
-    foreach(pn -> (lognode2probnode[origin(pn)] = pn), prob_circuit) 
+
+    prob_lin = linearize(prob_circuit) # TODO better implementation
+    logic_lin = linearize(logic_circuit)
+
+    foreach(i -> lognode2probnode[logic_lin[i]] = prob_lin[i], 1 : num_nodes(logic_circuit)) 
 
     # map from line node ids to probabilistic circuit nodes
     id2probnode(id) = lognode2probnode[id2lognode[id]]
@@ -75,7 +79,10 @@ function decorate_logistic(lines::CircuitFormatLines, logic_circuit::LogicCircui
     # set up cache mapping logical circuit nodes to their logistic decorator
     logistic_circuit = LogisticCircuit(logic_circuit, classes)
     log2logistic = Dict{LogicCircuit, LogisticCircuit}()
-    foreach(ln -> (log2logistic[origin(ln)] = ln), logistic_circuit) 
+    logistic_lin = linearize(logistic_circuit)
+    logic_lin = linearize(logic_circuit)
+
+    foreach(i -> log2logistic[logic_lin[i]] = logistic_lin[i], 1 : length(logic_lin)) 
     id2logisticnode(id) = log2logistic[id2lognode[id]]
 
     root = nothing

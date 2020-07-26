@@ -29,7 +29,7 @@ function compile_prob_circuit_from_clt(clt::CLT)::ProbCircuit
     parent = parent_vector(clt)
 
     prob_children(n)::Vector{<:ProbCircuit{<:node_type_deprecated(n)}} =  
-        collect(ProbCircuit{<:node_type_deprecated(n)}, map(c -> prob_cache[c], n.children))
+        collect(ProbCircuit{<:node_type_deprecated(n)}, map(c -> prob_cache[c], children(n)))
 
     "default order of circuit node, from left to right: +/1 -/0"
 

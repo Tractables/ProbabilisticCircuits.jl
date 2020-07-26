@@ -52,24 +52,28 @@ end
 @testset "Marginal Pass Down" begin
     EPS = 1e-7;
     prob_circuit = zoo_psdd("little_4var.psdd");
-    logic_circuit = origin(prob_circuit)
+    logic_circuit = PlainLogicCircuit(prob_circuit)
 
     N = 4
     data_full = Bool.(generate_data_all(N))
 
     # Comparing with down pass with fully obeserved data
     compute_flows(logic_circuit, data_full)
-    compute_flows(prob_circuit, data_full)
+    compute_exp_flows(prob_circuit, data_full)
 
-    for pn in linearize(prob_circuit)
-        @test all(isapprox.(exp.(get_downflow(pn; root=prob_circuit)), 
-            get_downflow(pn.origin; root=logic_circuit), atol=EPS))
+    lin_prob = linearize(prob_circuit)
+    lin_logic = linearize(logic_circuit)
+    for i in 1 : length(lin_prob)
+        pn = lin_prob[i]
+        ln = lin_logic[i]
+        @test all(isapprox.(exp.(get_exp_downflow(pn; root=prob_circuit)), 
+            get_downflow(ln; root=logic_circuit), atol=EPS))
     end
 
     # Validating one example with missing features done by hand
     data_partial = Int8.([-1 1 -1 1])
     prob_circuit = zoo_psdd("little_4var.psdd");
-    compute_flows(prob_circuit, data_partial)
+    compute_exp_flows(prob_circuit, data_partial)
 
     # (node index, correct down_flow_value)
     true_vals = [(1, 0.5),
@@ -95,7 +99,7 @@ end
     lin = linearize(prob_circuit)
     
     for ind_val in true_vals
-        @test exp(get_downflow(lin[ind_val[1]]; root=prob_circuit)[1]) ≈ ind_val[2] atol= EPS
+        @test exp(get_exp_downflow(lin[ind_val[1]]; root=prob_circuit)[1]) ≈ ind_val[2] atol= EPS
     end
 end
 

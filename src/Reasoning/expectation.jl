@@ -36,7 +36,7 @@ function Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
     
     # 2. Expectation w.r.t. P(x_m, x_o)
     cache = ExpectationCache()
-    results_unnormalized = exp_g(pc, lc.children[1], data, cache) # skipping the bias node of lc
+    results_unnormalized = exp_g(pc, children(lc)[1], data, cache) # skipping the bias node of lc
 
     # 3. Expectation w.r.t P(x_m | x_o)
     results = transpose(results_unnormalized) ./ p_observed
@@ -59,7 +59,7 @@ function Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
     results_unnormalized = zeros(num_examples(data), classes(lc))
     
     for z = 0:moment-1  
-        results_unnormalized .+= choose(moment, z) .* (biases .^ (z)) .* transpose(moment_g(pc, lc.children[1], data, moment - z, cache))
+        results_unnormalized .+= choose(moment, z) .* (biases .^ (z)) .* transpose(moment_g(pc, children(lc)[1], data, moment - z, cache))
     end
     
     # 3. Moment w.r.t P(x_m | x_o)
@@ -98,10 +98,10 @@ end
 function exp_f(n::Prob⋁Node, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
-        pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
-        @fastmath @simd for i in 1:length(n.children)
-            @simd for j in 1:length(m.children)
-                value .+= (pthetas[i] .* exp_f(n.children[i], m.children[j], data, cache))
+        pthetas = [exp(n.log_thetas[i]) for i in 1:num_children(n)]
+        @fastmath @simd for i in 1:num_children(n)
+            @simd for j in 1:num_children(m)
+                value .+= (pthetas[i] .* exp_f(children(n)[i], children(m)[j], data, cache))
             end
         end
         return value
@@ -111,11 +111,11 @@ end
 function exp_f(n::Prob⋀Node, m::Logistic⋀Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = ones(1 , num_examples(data) )
-        @fastmath for (i,j) in zip(n.children, m.children)
+        @fastmath for (i,j) in zip(children(n), children(m))
             value .*= exp_f(i, j, data, cache)
         end
         return value
-        # exp_f(n.children[1], m.children[1], data, cache) .* exp_f(n.children[2], m.children[2], data, cache)
+        # exp_f(children(n)[1], children(m)[1], data, cache) .* exp_f(children(n)[2], children(m)[2], data, cache)
     end
 end
 
@@ -143,7 +143,7 @@ Has to be a Logistic⋁Node with only one child, which is a leaf node
 """
 @inline function exp_f(n::ProbLiteralNode, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
-        exp_f(n, m.children[1], data, cache)
+        exp_f(n, children(m)[1], data, cache)
     end
 end
 
@@ -157,22 +157,22 @@ end
 
 # function exp_g(n::Prob⋀, m::Logistic⋀Node, data, cache::ExpectationCache)
 #     value = zeros(classes(m) , num_examples(data))
-#     @fastmath for (i,j) in zip(n.children, m.children)
+#     @fastmath for (i,j) in zip(children(n), children(m))
 #         value .+= exp_fg(i, j, data, cache)
 #     end
 #     return value
-#     # exp_fg(n.children[1], m.children[1], data, cache) .+ exp_fg(n.children[2], m.children[2], data, cache)
+#     # exp_fg(children(n)[1], children(m)[1], data, cache) .+ exp_fg(children(n)[2], children(m)[2], data, cache)
 # end
 
 
 function exp_fg(n::Prob⋁Node, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         value = zeros(classes(m) , num_examples(data) )
-        pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
-        @fastmath @simd for i in 1:length(n.children)
-            for j in 1:length(m.children)
-                value .+= (pthetas[i] .* m.thetas[j,:]) .* exp_f(n.children[i], m.children[j], data, cache)
-                value .+= pthetas[i] .* exp_fg(n.children[i], m.children[j], data, cache)
+        pthetas = [exp(n.log_thetas[i]) for i in 1:num_children(n)]
+        @fastmath @simd for i in 1:num_children(n)
+            for j in 1:num_children(m)
+                value .+= (pthetas[i] .* m.thetas[j,:]) .* exp_f(children(n)[i], children(m)[j], data, cache)
+                value .+= pthetas[i] .* exp_fg(children(n)[i], children(m)[j], data, cache)
             end
         end
         return value
@@ -182,8 +182,8 @@ end
 function exp_fg(n::Prob⋀Node, m::Logistic⋀Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         # Assuming 2 children
-        value = exp_f(n.children[1], m.children[1], data, cache) .* exp_fg(n.children[2], m.children[2], data, cache)
-        value .+= exp_f(n.children[2], m.children[2], data, cache) .* exp_fg(n.children[1], m.children[1], data, cache)
+        value = exp_f(children(n)[1], children(m)[1], data, cache) .* exp_fg(children(n)[2], children(m)[2], data, cache)
+        value .+= exp_f(children(n)[2], children(m)[2], data, cache) .* exp_fg(children(n)[1], children(m)[1], data, cache)
         return value
     end
 end
@@ -223,11 +223,11 @@ function moment_fg(n::Prob⋁Node, m::Logistic⋁Node, data, moment::Int, cache:
 
     get!(cache.fg, (n, m, moment)) do
         value = zeros(classes(m) , num_examples(data) )
-        pthetas = [exp(n.log_thetas[i]) for i in 1:length(n.children)]
-        @fastmath @simd for i in 1:length(n.children)
-            for j in 1:length(m.children)
+        pthetas = [exp(n.log_thetas[i]) for i in 1:num_children(n)]
+        @fastmath @simd for i in 1:num_children(n)
+            for j in 1:num_children(m)
                 for z in 0:moment
-                    value .+= pthetas[i] .* choose(moment, z) .* m.thetas[j,:].^(moment - z) .* moment_fg(n.children[i], m.children[j], data, z, cache)
+                    value .+= pthetas[i] .* choose(moment, z) .* m.thetas[j,:].^(moment - z) .* moment_fg(children(n)[i], children(m)[j], data, z, cache)
                 end
             end
         end
@@ -255,10 +255,10 @@ function moment_fg(n::Prob⋀Node, m::Logistic⋀Node, data, moment::Int, cache:
         return exp_f(n, m, data, cache)
     end
     get!(cache.fg, (n, m, moment)) do
-        value = moment_fg(n.children[1], m.children[1], data, 0, cache) .* moment_fg(n.children[2], m.children[2], data, moment, cache)
+        value = moment_fg(children(n)[1], children(m)[1], data, 0, cache) .* moment_fg(children(n)[2], children(m)[2], data, moment, cache)
 
         for z in 1:moment
-            value .+= choose(moment, z) .* moment_fg(n.children[1], m.children[1], data, z, cache) .* moment_fg(n.children[2], m.children[2], data, moment - z, cache)
+            value .+= choose(moment, z) .* moment_fg(children(n)[1], children(m)[1], data, z, cache) .* moment_fg(children(n)[2], children(m)[2], data, moment - z, cache)
         end
         return value
     end

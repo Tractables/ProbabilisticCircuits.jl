@@ -7,15 +7,15 @@ Complete evidence queries
 function log_likelihood_per_instance(pc::ProbCircuit, data)
     @assert isbinarydata(data) "Can only calculate EVI on Bool data"
     
-    compute_flows(origin(pc), data)
+    compute_flows(pc, data)
     log_likelihoods = zeros(Float64, num_examples(data))
     indices = init_array(Bool, num_examples(data))::BitVector
     
     ll(n::ProbCircuit) = ()
     ll(n::Prob⋁Node) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
-            foreach(children(origin(n)), n.log_thetas) do c, log_theta
-                indices = get_downflow(origin(n), c)
+            foreach(children(n), n.log_thetas) do c, log_theta
+                indices = get_downflow(n, c)
                 view(log_likelihoods, indices::BitVector) .+=  log_theta # see MixedProductKernelBenchmark.jl
             end
          end
@@ -32,7 +32,7 @@ EVI = log_likelihood_per_instance
 Marginal queries
 """
 function marginal_log_likelihood_per_instance(pc::ProbCircuit, data)
-    evaluate(pc, data)
+    evaluate_exp(pc, data)
 end
 MAR = marginal_log_likelihood_per_instance
 
@@ -59,16 +59,16 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
     end
     
     function mpe_simulate(node::Prob⋁Node, active_samples::BitVector, result::BitMatrix)
-        prs = zeros(length(node.children), size(active_samples)[1] )
-        @simd  for i=1:length(node.children)
-            prs[i,:] .= get_upflow(node.children[i]) .+ (node.log_thetas[i])
+        prs = zeros(length(children(node)), size(active_samples)[1] )
+        @simd  for i=1:length(children(node))
+            prs[i,:] .= get_exp_upflow(children(node)[i]) .+ (node.log_thetas[i])
         end
     
         max_child_ids = [a[1] for a in argmax(prs, dims = 1) ]
-        @simd for i=1:length(node.children)
+        @simd for i=1:length(children(node))
             # Only active for this child if it was the max for that sample
             ids = convert(BitVector, active_samples .* (max_child_ids .== i)[1,:])
-            mpe_simulate(node.children[i], ids, result)
+            mpe_simulate(children(node)[i], ids, result)
         end
     end
     
@@ -93,12 +93,12 @@ Sample from a PSDD without any evidence
 function sample(circuit::ProbCircuit)::AbstractVector{Bool}
 
     simulate(node::ProbLiteralNode) = begin
-        inst[variable(node.origin)] = ispositive(node) ? 1 : 0
+        inst[variable(node)] = ispositive(node) ? 1 : 0
     end
     
     simulate(node::Prob⋁Node) = begin
         idx = sample(exp.(node.log_thetas))
-        simulate(node.children[idx])
+        simulate(children(node)[idx])
     end
 
     simulate(node::Prob⋀Node) = foreach(simulate, children(node))
@@ -122,18 +122,18 @@ function sample(circuit::ProbCircuit, evidence)::AbstractVector{Bool}
     @assert num_examples(evidence) == 1 "evidence have to be one example"
     
     simulate(node::ProbLiteralNode) = begin
-        inst[variable(node.origin)] = ispositive(node) ? 1 : 0
+        inst[variable(node)] = ispositive(node) ? 1 : 0
     end
     
     function simulate(node::Prob⋁Node)
-        prs = [get_upflow(ch)[1] for ch in children(node)] # #evidence == 1
+        prs = [get_exp_upflow(ch)[1] for ch in children(node)] # #evidence == 1
         idx = sample(exp.(node.log_thetas .+ prs))
         simulate(children(node)[idx])
     end
     
     simulate(node::Prob⋀Node) = foreach(simulate, children(node))
 
-    evaluate(circuit, evidence)
+    evaluate_exp(circuit, evidence)
 
     inst = Dict{Var,Int64}()
     simulate(circuit)

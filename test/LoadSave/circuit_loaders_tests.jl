@@ -13,13 +13,13 @@ using ProbabilisticCircuits
    
    # Testing Read Parameters
    EPS = 1e-7
-   or1 = prob_circuit.children[1].children[2]
+   or1 = children(children(prob_circuit)[1])[2]
    @test abs(or1.log_thetas[1] - (-1.6094379124341003)) < EPS
    @test abs(or1.log_thetas[2] - (-1.2039728043259361)) < EPS
    @test abs(or1.log_thetas[3] - (-0.916290731874155)) < EPS
    @test abs(or1.log_thetas[4] - (-2.3025850929940455)) < EPS
 
-   or2 = prob_circuit.children[1].children[1]
+   or2 = children(children(prob_circuit)[1])[1]
    @test abs(or2.log_thetas[1] - (-2.3025850929940455)) < EPS
    @test abs(or2.log_thetas[2] - (-2.3025850929940455)) < EPS
    @test abs(or2.log_thetas[3] - (-2.3025850929940455)) < EPS

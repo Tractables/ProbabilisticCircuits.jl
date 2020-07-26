@@ -1,6 +1,6 @@
-export get_downflow, get_upflow
+export evaluate_exp, compute_exp_flows, get_downflow, get_upflow, get_exp_downflow, get_exp_upflow
 
-import LogicCircuits: evaluate, compute_flows
+
 using StatsFuns: logsumexp
 
 # TODO move to LogicCircuits
@@ -37,11 +37,6 @@ end
 # performance-critical queries related to circuit flows
 #####################
 
-# evaluate a circuit as a function
-function (root::ProbCircuit)(data)
-    evaluate(root, data)
-end
-
 "Container for circuit flows represented as a float vector"
 const ExpUpFlow1 = Vector{Float64}
 
@@ -56,14 +51,14 @@ const ExpUpFlow = Union{ExpUpFlow1,ExpUpFlow2}
 @inline ExpUpFlow1(elems::ExpUpFlow1) = elems
 @inline ExpUpFlow1(elems::ExpUpFlow2) = elems.prime_flow .+ elems.sub_flow
 
-function evaluate(root::ProbCircuit, data;
+function evaluate_exp(root::ProbCircuit, data;
                    nload = nload, nsave = nsave, reset=true)::Vector{Float64}
     n_ex::Int = num_examples(data)
     ϵ = 1e-300
 
     @inline f_lit(n) = begin
         uf = convert(Vector{Int8}, feature_values(data, variable(n)))
-        if ispositive(origin(n))
+        if ispositive(n)
             uf[uf.==-1] .= 1
         else
             uf .= 1 .- uf
@@ -74,7 +69,7 @@ function evaluate(root::ProbCircuit, data;
     end
     
     @inline f_con(n) = begin
-        uf = istrue(origin(n)) ? ones(Float64, n_ex) : zeros(Float64, n_ex)
+        uf = istrue(n) ? ones(Float64, n_ex) : zeros(Float64, n_ex)
         uf .= log.(uf .+ ϵ)
     end
     
@@ -144,7 +139,7 @@ const ExpUpDownFlow2 = ExpUpFlow2
 const ExpUpDownFlow = Union{ExpUpDownFlow1, ExpUpDownFlow2}
 
 
-function compute_flows(circuit::ProbCircuit, data)
+function compute_exp_flows(circuit::ProbCircuit, data)
 
     # upward pass
     @inline upflow!(n, v) = begin
@@ -157,7 +152,7 @@ function compute_flows(circuit::ProbCircuit, data)
         (d isa ExpUpDownFlow1) ? d.upflow : d
     end
 
-    evaluate(circuit, data; nload=upflow, nsave=upflow!, reset=false)
+    evaluate_exp(circuit, data; nload=upflow, nsave=upflow!, reset=false)
     
     # downward pass
 
@@ -197,26 +192,26 @@ end
 """
 Get upflow of a probabilistic circuit
 """
-@inline get_upflow(pc::ProbCircuit) = get_upflow(pc.data)
-@inline get_upflow(elems::ExpUpDownFlow1) = elems.upflow
-@inline get_upflow(elems::ExpUpFlow) = ExpUpFlow1(elems)
+@inline get_exp_upflow(pc::ProbCircuit) = get_exp_upflow(pc.data)
+@inline get_exp_upflow(elems::ExpUpDownFlow1) = elems.upflow
+@inline get_exp_upflow(elems::ExpUpFlow) = ExpUpFlow1(elems)
 
 """
 Get the node/edge downflow from probabilistic circuit
 """
-function get_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
+function get_exp_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
     downflow(x::ExpUpDownFlow1) = x.downflow
     downflow(x::ExpUpDownFlow2) = begin
         ors = or_nodes(root)
         p = findall(p -> n in children(p), ors)
         @assert length(p) == 1
-        get_downflow(ors[p[1]], n)
+        get_exp_downflow(ors[p[1]], n)
     end
     downflow(n.data)
 end
 
-function get_downflow(n::ProbCircuit, c::ProbCircuit)::Vector{Float64}
+function get_exp_downflow(n::ProbCircuit, c::ProbCircuit)::Vector{Float64}
     @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
     log_theta = n.log_thetas[findfirst(x -> x == c, children(n))]
-    return get_downflow(n) .+ log_theta .+ get_upflow(c) .- get_upflow(n)
+    return get_exp_downflow(n) .+ log_theta .+ get_exp_upflow(c) .- get_exp_upflow(n)
 end

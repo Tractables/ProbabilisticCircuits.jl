@@ -4,6 +4,7 @@ using LogicCircuits.LoadSave: SDDElement,
     PSDDElement, 
     save_lines,
     get_vtree2id,
+    get_node2id,
     parse_psdd_file, 
     PsddHeaderLine, 
     LcHeaderLine, 
@@ -18,38 +19,18 @@ decompile(n::ProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine =
     UnweightedLiteralLine(node2id[n], vtree2id[n.origin.vtree], literal(n), true)
 
 make_element(n::Prob⋀Node, w::AbstractFloat, node2id) = 
-    PSDDElement(node2id[n.children[1]],  node2id[n.children[2]], w)
+    PSDDElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
 
 istrue_node(n)::Bool = 
-    GateType(n) isa ⋁Gate && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
+    is⋁gate(n) && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     ispositive(children(n)[1]) && isnegative(children(n)[2])
 
 function decompile(n::Prob⋁Node, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
-        WeightedNamedConstantLine(node2id[n], vtree2id[n.origin.vtree], lit2var(n.children[1].origin.literal), n.log_thetas[1]) # TODO
+        WeightedNamedConstantLine(node2id[n], vtree2id[n.origin.vtree], lit2var(children(n)[1].origin.literal), n.log_thetas[1]) # TODO
     else
         DecisionLine(node2id[n], vtree2id[n.origin.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
     end
-end
-
-#####################
-# build maping
-#####################
-
-# TODO same implementation, merge ?
-
-import LogicCircuits.LoadSave: get_node2id
-
-function get_node2id(circuit::DecoratorCircuit) 
-    node2id = Dict{DecoratorCircuit, ID}()
-    outnodes = filter(n -> !is⋀gate(n), circuit)
-    sizehint!(node2id, length(outnodes))
-    index = ID(0) # node id start from 0
-    for n in outnodes
-        node2id[n] = index
-        index += ID(1)
-    end
-    node2id
 end
 
 #####################
@@ -74,7 +55,6 @@ end
 
 function save_as_psdd(name::String, circuit::ProbCircuit, vtree::PlainVtree)
     # TODO add method isstructured
-    @assert circuit.origin isa StructLogicCircuit "PSDD should decorate on StructLogicΔ"
     @assert endswith(name, ".psdd")
     node2id = get_node2id(circuit)
     vtree2id = get_vtree2id(vtree)
@@ -110,7 +90,6 @@ function lc_header()
 end
     
 function save_as_logistic(name::String, circuit::LogisticCircuit, vtree)
-    @assert circuit.origin isa StructLogicCircuit "LC should decorate on StructLogicΔ"
     @assert endswith(name, ".circuit")
     node2id = get_node2id(circuit)
     vtree2id = get_vtree2id(vtree)
@@ -175,11 +154,11 @@ function save_as_dot(circuit::ProbCircuit, file::String)
 
     for n in reverse(circuit)
         if n isa Prob⋀
-            for c in n.children
+            for c in children(n)
                 write(f, "$(node_cache[n]) -> $(node_cache[c])\n")
             end
         elseif n isa Prob⋁
-            for (c, p) in zip(n.children, exp.(n.log_thetas))
+            for (c, p) in zip(children(n), exp.(n.log_thetas))
                 prob = @sprintf "%0.1f" p
                 write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\"]\n")
             end
