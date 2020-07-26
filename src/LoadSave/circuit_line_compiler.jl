@@ -35,17 +35,11 @@ function compile_struct_prob(circuit_lines::CircuitFormatLines, vtree_lines::Vtr
     return prob_circuit, vtree
 end
 
-function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, id2lognode::Dict{ID,<:LogicCircuit})::Union{ProbCircuit, StructProbCircuit}
+function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, id2lognode::Dict{ID,<:LogicCircuit})::ProbCircuit
     # set up cache mapping logic circuit nodes to their probabilistic decorator
 
-    prob_circuit = nothing
-    # TODO better implementation & type
-    if logic_circuit isa PlainLogicCircuit
-        prob_circuit = ProbCircuit(logic_circuit)
-    elseif logic_circuit isa PlainStructLogicCircuit
-        prob_circuit = StructProbCircuit(logic_circuit)
-    end
-    lognode2probnode = Dict()
+    prob_circuit = ProbCircuit(logic_circuit)
+    lognode2probnode = Dict{LogicCircuit, ProbCircuit}()
 
     prob_lin = linearize(prob_circuit) # TODO better implementation
     logic_lin = linearize(logic_circuit)

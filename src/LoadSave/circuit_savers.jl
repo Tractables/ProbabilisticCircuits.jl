@@ -15,21 +15,21 @@ using LogicCircuits.LoadSave: SDDElement,
 #####################
 
 "Decompile for psdd circuit, used during saving of circuits to file" 
-decompile(n::ProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
-    UnweightedLiteralLine(node2id[n], vtree2id[n.origin.vtree], literal(n), true)
+decompile(n::StructProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
+    UnweightedLiteralLine(node2id[n], vtree2id[n.vtree], literal(n), true)
 
-make_element(n::Prob⋀Node, w::AbstractFloat, node2id) = 
+make_element(n::StructProb⋀Node, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
 
 istrue_node(n)::Bool = 
     is⋁gate(n) && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     ispositive(children(n)[1]) && isnegative(children(n)[2])
 
-function decompile(n::Prob⋁Node, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
+function decompile(n::StructProb⋁Node, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
-        WeightedNamedConstantLine(node2id[n], vtree2id[n.origin.vtree], lit2var(children(n)[1].origin.literal), n.log_thetas[1]) # TODO
+        WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_thetas[1]) # TODO
     else
-        DecisionLine(node2id[n], vtree2id[n.origin.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
+        DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
     end
 end
 
@@ -107,7 +107,7 @@ end
 import LogicCircuits.LoadSave: save_circuit, save_as_dot # make available for extension
 
 "Save a circuit to file"
-save_circuit(name::String, circuit::ProbCircuit, vtree::PlainVtree) =
+save_circuit(name::String, circuit::StructProbCircuit, vtree::PlainVtree) =
     save_as_psdd(name, circuit, vtree)
 
 save_circuit(name::String, circuit::LogisticCircuit, vtree::PlainVtree) =

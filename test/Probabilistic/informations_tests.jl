@@ -18,8 +18,8 @@ using ProbabilisticCircuits
 
     # KLD Tests #
     # KLD base tests
-    pr_constraint_cache = Dict{Tuple{StructProbCircuit, Union{StructProbCircuit, StructLogicCircuit}}, Float64}()
-    kl_divergence_cache = Dict{Tuple{StructProbCircuit, StructProbCircuit}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbCircuit, Union{ProbCircuit, StructLogicCircuit}}, Float64}()
+    kl_divergence_cache = Dict{Tuple{ProbCircuit, ProbCircuit}, Float64}()
 
     # @test_throws AssertionError("Both nodes not normalized for same vtree node") kl_divergence(pc1[1], pc1[3], kl_divergence_cache, pr_constraint_cache)
     # @test_throws AssertionError("Both nodes not normalized for same vtree node") kl_divergence(pc1[2], pc1[3], kl_divergence_cache, pr_constraint_cache)
@@ -41,7 +41,7 @@ using ProbabilisticCircuits
     # @test abs(kl_divergence(pc1[5], pc2[5], kl_divergence_cache, pr_constraint_cache) - 0.8 * log(0.8)) < 1e-8
     @test abs(kl_divergence(pc1, pc2) - 0.5672800167911778) < 1e-8
 
-    kl_divergence_cache = Dict{Tuple{StructProbCircuit, StructProbCircuit}, Float64}()
+    kl_divergence_cache = Dict{Tuple{ProbCircuit, ProbCircuit}, Float64}()
     # @test abs(kl_divergence(pc2[4], pc3[5], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
     # @test abs(kl_divergence(pc2[4], pc3[4], kl_divergence_cache, pr_constraint_cache) - 0.0) < 1e-8
     # @test abs(kl_divergence(pc2[3], pc3[3], kl_divergence_cache, pr_constraint_cache) - 0.9 * log(0.9 / 0.5) - 0.1 * log(0.1 / 0.5)) < 1e-8
@@ -55,7 +55,7 @@ end
     pc, vtree = load_struct_prob_circuit(
                     zoo_psdd_file("simple2.4.psdd"), simplevtree)
 
-    cache = Dict{Tuple{StructProbCircuit, Union{StructProbCircuit, StructLogicCircuit}}, Float64}()
+    cache = Dict{Tuple{ProbCircuit, Union{ProbCircuit, StructLogicCircuit}}, Float64}()
 
     @test abs(pr_constraint(pc, pc, cache) - 1.0) < 1e-8
     # @test abs(pr_constraint(pc[5], pc[3], cache) - 0.2) < 1e-8
@@ -74,7 +74,7 @@ end
     pc1, vtree = load_struct_prob_circuit(zoo_psdd_file("simple2.5.psdd"), simplevtree)
     pc2, vtree = load_struct_prob_circuit(zoo_psdd_file("simple2.6.psdd"), simplevtree)
 
-    pr_constraint_cache = Dict{Tuple{StructProbCircuit, Union{StructProbCircuit, StructLogicCircuit}}, Float64}()
+    pr_constraint_cache = Dict{Tuple{ProbCircuit, Union{ProbCircuit, StructLogicCircuit}}, Float64}()
     @test abs(pr_constraint(pc1, pc2, pr_constraint_cache) - 1.0) < 1e-8
     # @test abs(pr_constraint_cache[pc1[1], pc2[1]] - 1.0) < 1e-8
     # @test abs(pr_constraint_cache[pc1[1], pc2[2]] - 0.0) < 1e-8

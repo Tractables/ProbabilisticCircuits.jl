@@ -1,8 +1,8 @@
 export pr_constraint, kl_divergence, entropy
 
-const StrutCircuit = Union{StructProbCircuit, StructLogicCircuit}
-const KLDCache = Dict{Tuple{StructProbCircuit, StructProbCircuit}, Float64}
-const PRCache = Dict{Tuple{StructProbCircuit, StrutCircuit}, Float64}
+const StrutCircuit = Union{ProbCircuit, StructLogicCircuit}
+const KLDCache = Dict{Tuple{ProbCircuit, ProbCircuit}, Float64}
+const PRCache = Dict{Tuple{ProbCircuit, StrutCircuit}, Float64}
 
 # Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
 # spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
@@ -10,7 +10,7 @@ const PRCache = Dict{Tuple{StructProbCircuit, StrutCircuit}, Float64}
 """
 Calculate the probability of the logic formula given by sdd for the psdd
 """
-function pr_constraint(psdd_node::StructProbCircuit, sdd_node::StrutCircuit,
+function pr_constraint(psdd_node::ProbCircuit, sdd_node::StrutCircuit,
     cache::PRCache=PRCache())::Float64
     
     # Cache hit
@@ -66,7 +66,7 @@ end
 """"
 Calculate entropy of the distribution of the input psdd."
 """
-function entropy(psdd_node::StructProb⋁Node, psdd_entropy_cache::Dict{StructProbCircuit, Float64}=Dict{StructProbCircuit, Float64}())::Float64
+function entropy(psdd_node::StructProb⋁Node, psdd_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
     if psdd_node in keys(psdd_entropy_cache)
         return psdd_entropy_cache[psdd_node]
     elseif children(psdd_node)[1] isa StructProbLiteralNode
@@ -86,12 +86,12 @@ function entropy(psdd_node::StructProb⋁Node, psdd_entropy_cache::Dict{StructPr
     end
 end
 
-function entropy(psdd_node::StructProb⋀Node, psdd_entropy_cache::Dict{StructProbCircuit, Float64})::Float64
+function entropy(psdd_node::StructProb⋀Node, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
     return get!(psdd_entropy_cache, children(psdd_node)[1], entropy(children(psdd_node)[1], psdd_entropy_cache)) +
         get!(psdd_entropy_cache, children(psdd_node)[2], entropy(children(psdd_node)[2], psdd_entropy_cache))
 end
 
-function entropy(psdd_node::StructProbLiteralNode, psdd_entropy_cache::Dict{StructProbCircuit, Float64})::Float64
+function entropy(psdd_node::StructProbLiteralNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
     return get!(psdd_entropy_cache, psdd_node, 0.0)
 end
 
