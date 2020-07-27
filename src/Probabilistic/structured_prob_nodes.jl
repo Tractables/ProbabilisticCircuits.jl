@@ -25,7 +25,7 @@ mutable struct StructProbLiteralNode <: StructProbLeafNode
     data
     counter::UInt32
     StructProbLiteralNode(l,v) = begin
-        @assert lit2var(l) ∈ variables(v) 
+        @assert lit2var(l) ∈ v 
         new(l, v, nothing, 0)
     end
 end
