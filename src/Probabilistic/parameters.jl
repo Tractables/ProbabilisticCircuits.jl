@@ -17,7 +17,7 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
                 @. pn.log_thetas = log((children_flows + uniform_pseudocount) / smoothed_flow)
                 @assert isapprox(sum(exp.(pn.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally"
                 # normalize away any leftover error
-                pn.log_thetas .-= logsumexp(pn.log_thetas)
+                pn.log_thetas .-= logaddexp(pn.log_thetas)
             end
         end
     end
