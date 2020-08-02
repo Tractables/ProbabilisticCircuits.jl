@@ -1,4 +1,5 @@
 using Documenter
+using DocumenterLaTeX
 using ProbabilisticCircuits
 
 # The DOCSARGS environment variable can be used to pass additional arguments to make.jl.
@@ -10,38 +11,46 @@ if haskey(ENV, "DOCSARGS")
     end
 end
 
+const  pages = [
+    "Home" => "index.md",
+    "Installation" => "installation.md",
+    "Manual" => Any[
+        "Queries" => "manual/queries.md"
+    ],
+    "API" => Any[
+        "Public" => "api/public.md",
+        "Internals" => map(
+            s -> "api/internals/$(s)",
+            sort(readdir(joinpath(@__DIR__, "src/api/internals")))
+        ),
+    ],
+];
 
-makedocs(
-    sitename = "ProbabilisticCircuits.jl",
-    format = Documenter.HTML(
+const format = if ("pdf" in ARGS)
+    LaTeX(platform  = "native")
+else
+   Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = !("local" in ARGS),
         canonical = "https://juice-jl.github.io/ProbabilisticCircuits.jl/stable/",
         assets = ["assets/favicon.ico"],
         analytics = "UA-136089579-2",
         highlights = ["yaml"],
-    ),
+        collapselevel = 1,
+    )
+end
+
+makedocs(
+    sitename = "ProbabilisticCircuits.jl",
+    format = format,
     doctest = true,
-    modules = [ProbabilisticCircuits],
+    modules = [ProbabilisticCircuits],    
+    pages = pages,
     linkcheck_ignore = [
         # We'll ignore links that point to GitHub's edit pages, as they redirect to the
         # login screen and cause a warning:
         r"https://github.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/edit(.*)"
-    ], 
-    pages = [
-        "Home" => "index.md",
-        "Manual" => Any[
-            "Installation" => "manual/installation.md",
-            "Examples" => "manual/examples.md"
-        ],
-        "API" => Any[
-            "Public" => "api/public.md",
-            "Internals" => map(
-                s -> "api/internals/$(s)",
-                sort(readdir(joinpath(@__DIR__, "src/api/internals")))
-            ),
-        ],
-    ],
+    ]
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
