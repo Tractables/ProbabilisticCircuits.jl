@@ -1,7 +1,7 @@
 export evaluate_exp, compute_exp_flows, get_downflow, get_upflow, get_exp_downflow, get_exp_upflow
 
 
-using StatsFuns: logsumexp
+using StatsFuns: logaddexp
 
 # TODO move to LogicCircuits
 # TODO downflow struct
@@ -97,9 +97,9 @@ function evaluate_exp(root::ProbCircuit, data;
             log_thetas = n.log_thetas
             c1 = call(@inbounds children(n)[1])::ExpUpFlow
             c2 = call(@inbounds children(n)[2])::ExpUpFlow
-            x = flowop(c1, log_thetas[1], c2, log_thetas[2], logsumexp)
+            x = flowop(c1, log_thetas[1], c2, log_thetas[2], logaddexp)
             for (i, c) in enumerate(children(n)[3:end])
-                accumulate(x, call(c), log_thetas[i+2], logsumexp)
+                accumulate(x, call(c), log_thetas[i+2], logaddexp)
             end
             return x
         end
@@ -174,12 +174,12 @@ function compute_exp_flows(circuit::ProbCircuit, data)
                     for i = 1:2
                         downflow_c = downflow(@inbounds children(c)[i])
                         accumulate(downflow_c, downflow_n .+ log_theta .+ upflow2_c.prime_flow 
-                        .+ upflow2_c.sub_flow .- upflow_n, logsumexp)
+                        .+ upflow2_c.sub_flow .- upflow_n, logaddexp)
                     end
                 else
                     upflow1_c = (c.data::ExpUpDownFlow1).upflow
                     downflow_c = downflow(c)
-                    accumulate(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n, logsumexp)
+                    accumulate(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n, logaddexp)
                 end
             end 
         end

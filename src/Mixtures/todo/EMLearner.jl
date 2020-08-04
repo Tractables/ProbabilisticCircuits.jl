@@ -117,7 +117,7 @@ end
 
 "Compute the component weights for each example from likelihoods"
 function component_weights_per_example(log_p_of_x_and_c)
-    log_p_of_x = logsumexp(log_p_of_x_and_c, 2) # marginalize out components
+    log_p_of_x = logaddexp(log_p_of_x_and_c, 2) # marginalize out components
     log_p_of_given_x_query_c = mapslices(col -> col .- log_p_of_x, log_p_of_x_and_c, dims=[1])
     p_of_given_x_query_c = exp.(log_p_of_given_x_query_c) # no more risk of underflow, so go to linear space
     @assert sum(p_of_given_x_query_c) ≈ size(log_p_of_x_and_c, 1) # each row has proability 1

@@ -119,7 +119,7 @@ end
 
 function log_likelihood_per_instance(mixture::FlatMixtureWithFlow, batch::PlainXData{Bool})::Vector{Float64}
     log_p_of_x_and_c = log_likelihood_per_instance_component(mixture, batch)
-    logsumexp(log_p_of_x_and_c, 2)
+    logaddexp(log_p_of_x_and_c, 2)
 end
 
 function log_likelihood_per_instance(mixture::MetaMixture, batches::XBatches{Bool})::Vector{Float64}
@@ -128,7 +128,7 @@ end
 
 function log_likelihood_per_instance(mixture::MetaMixture, batches::PlainXData{Bool})::Vector{Float64}
     log_p_of_x_and_c = log_likelihood_per_instance_component(mixture, batch)
-    logsumexp(log_p_of_x_and_c, 2)
+    logaddexp(log_p_of_x_and_c, 2)
 end
 
 # Log likelihoods per instance and component (including mixture weight likelihood)
