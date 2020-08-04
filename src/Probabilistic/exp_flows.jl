@@ -5,14 +5,14 @@ using StatsFuns: logaddexp
 
 # TODO move to LogicCircuits
 # TODO downflow struct
-using LogicCircuits: UpFlow, UpFlow1, UpDownFlow, UpDownFlow1, UpDownFlow2
+using LogicCircuits: materialize, UpFlow, UpDownFlow, UpDownFlow1, UpDownFlow2
 
 """
 Get upflow from logic circuit
 """
 @inline get_upflow(n::LogicCircuit) = get_upflow(n.data)
 @inline get_upflow(elems::UpDownFlow1) = elems.upflow
-@inline get_upflow(elems::UpFlow) = UpFlow1(elems)
+@inline get_upflow(elems::UpFlow) = materialize(elems)
 
 """
 Get the node/edge flow from logic circuit
