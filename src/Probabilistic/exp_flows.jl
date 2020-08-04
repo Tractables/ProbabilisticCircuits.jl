@@ -54,7 +54,7 @@ const ExpUpFlow = Union{ExpUpFlow1,ExpUpFlow2}
 function evaluate_exp(root::ProbCircuit, data;
                    nload = nload, nsave = nsave, reset=true)::Vector{Float64}
     n_ex::Int = num_examples(data)
-    ϵ = 1e-300
+    ϵ = 0.0
 
     @inline f_lit(n) = begin
         uf = convert(Vector{Int8}, feature_values(data, variable(n)))
