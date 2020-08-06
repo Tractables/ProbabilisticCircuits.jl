@@ -14,7 +14,7 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
         calc_p = log_likelihood_per_instance(pc, cur_data_all)
         calc_p = exp.(calc_p)
 
-        calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
+        calc_f = class_conditional_weights_per_instance(lc, CLASSES, cur_data_all)
         true_exp[i, :] = sum(calc_p .* calc_f, dims=1)
         true_exp[i, :] ./= sum(calc_p) #p_observed
     end
@@ -47,7 +47,7 @@ function test_moment_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLA
         calc_p = log_likelihood_per_instance(pc, cur_data_all)
         calc_p = exp.(calc_p)
 
-        calc_f = class_conditional_likelihood_per_instance(lc, CLASSES, cur_data_all)
+        calc_f = class_conditional_weights_per_instance(lc, CLASSES, cur_data_all)
         true_mom[i, :] = sum(calc_p .* (calc_f .^ moment), dims=1)
         true_mom[i, :] ./= sum(calc_p) #p_observed
     end
