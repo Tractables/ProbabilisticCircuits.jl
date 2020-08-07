@@ -1,6 +1,6 @@
 export class_conditional_weights_per_instance, 
        class_conditional_likelihood_per_instance, 
-       accuracy, predict_class
+       downflow, accuracy, predict_class
 
 using LogicCircuits: UpDownFlow1, flow_and
 using ..Probabilistic: get_downflow, get_upflow
@@ -15,9 +15,9 @@ function class_conditional_weights_per_instance(lc::LogisticCircuit,  classes::I
     foreach(lc) do ln
         if ln isa Logistic⋁Node
             # For each class. orig.thetas is 2D so used eachcol
-            for (idx, thetaC) in enumerate(eachcol(ln.thetas))
+            for (class, thetaC) in enumerate(eachcol(ln.thetas))
                 foreach(children(ln), thetaC) do c, theta
-                    likelihoods[:, idx] .+= Float64.(get_downflow(ln) .& get_upflow(c)) .* theta
+                    likelihoods[:, class] .+= Float64.(get_downflow(ln) .& get_upflow(c)) .* theta
                 end
             end
         end
@@ -28,20 +28,20 @@ end
 """
 Class Conditional Probability
 """
-@inline function class_conditional_likelihood_per_instance(lc::LogisticCircuit,  classes::Int, data)
+@inline function class_conditional_likelihood_per_instance(lc::LogisticCircuit,  classes::Int, data; flows_computed=false)
+    if !flows_computed
+        compute_flows(lc, data)
+    end
     
-    @inline downflow(or_parent::Logistic⋁Node, c) = 
-        (c.data isa UpDownFlow1) ? c.data.downflow : flow_and(or_parent.data.downflow, c.data)
-    
-    compute_flows(lc, data)
     likelihoods = zeros(num_examples(data), classes)
+    #TODO; check whether einsum would speed up calculations here
     foreach(lc) do ln
         if ln isa Logistic⋁Node
             # For each class. orig.thetas is 2D so used eachcol
-            for (idx, thetaC) in enumerate(eachcol(ln.thetas))
+            for (class, thetaC) in enumerate(eachcol(ln.thetas))
                 foreach(children(ln), thetaC) do c, theta
                     down_flow = Float64.(downflow(ln, c))
-                    @. likelihoods[:, idx] += down_flow * theta
+                    @. likelihoods[:, class] += down_flow * theta
                 end
             end
         end
@@ -50,6 +50,9 @@ Class Conditional Probability
     @. likelihoods = 1.0 / (1.0 + exp(-likelihoods))
     likelihoods
 end
+
+@inline downflow(or_parent::Logistic⋁Node, c) = 
+    (c.data isa UpDownFlow1) ? c.data.downflow : flow_and(or_parent.data.downflow, c.data)
 
 """
 Class Predictions

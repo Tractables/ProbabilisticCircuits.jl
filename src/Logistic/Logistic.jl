@@ -5,6 +5,7 @@ using ..Utils
 
 include("logistic_nodes.jl")
 include("queries.jl")
+include("parameters.jl")
 
 # TODO learning
 
