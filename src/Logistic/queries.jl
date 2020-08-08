@@ -17,13 +17,12 @@ function class_conditional_weights_per_instance(lc::LogisticCircuit,  classes::I
 
     likelihoods = zeros(num_examples(data), classes)
     foreach(or_nodes(lc)) do ln
-        # For each class. orig.thetas is 2D so used eachcol
-        for (class, thetaC) in enumerate(eachcol(ln.thetas))
-            foreach(children(ln), thetaC) do c, theta
-                likelihoods[:, class] .+= Float64.(get_downflow(ln) .& get_upflow(c)) .* theta
-            end
+        foreach(eachrow(ln.thetas), children(ln)) do theta, c
+            flow = Float64.(get_downflow(ln) .& get_upflow(c))
+            @avx @. likelihoods += flow * theta'
         end
     end
+    
     likelihoods
 end
 
