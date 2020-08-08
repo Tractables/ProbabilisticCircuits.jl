@@ -1,6 +1,8 @@
 export learn_parameters
 
-using LogicCircuits: compute_flows
+using LogicCircuits: compute_flows, or_nodes
+using LoopVectorization: @avx
+
 """
 Maximum likilihood estimation of parameters given data through gradient descent
 """
@@ -29,18 +31,15 @@ end
 
 
 @inline function update_parameters(lc::LogisticCircuit, class_probs, one_hot_labels; step_size=0.1)
+    num_samples = Float64(size(one_hot_labels)[1])
     error = class_probs .- one_hot_labels
-
-    foreach(lc) do ln
-        if ln isa Logistic⋁Node
-            #TODO; check whether einsum would speed up calculations here
-            # For each class. orig.thetas is 2D so used eachcol
-            for (class, thetaC) in enumerate(eachcol(ln.thetas))
-                for (idx, c) in enumerate(children(ln))
-                    down_flow = Float64.(downflow(ln, c))
-                    thetaC[idx] -= step_size * sum(error[:, class] .* down_flow) / length(down_flow)
-                end
-            end
+    
+    foreach(or_nodes(lc)) do ln
+        foreach(eachrow(ln.thetas), children(ln)) do theta, c
+            flow = Float64.(downflow(ln, c))
+            @avx update_amount = flow' * error / num_samples * step_size
+            update_amount = dropdims(update_amount; dims=1)
+            @avx @. theta -= update_amount
         end
     end
     
