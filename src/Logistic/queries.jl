@@ -2,23 +2,25 @@ export class_conditional_weights_per_instance,
        class_conditional_likelihood_per_instance, 
        downflow, accuracy, predict_class
 
-using LogicCircuits: UpDownFlow1, flow_and
+using LogicCircuits: UpDownFlow1, flow_and, or_nodes
 using ..Probabilistic: get_downflow, get_upflow
+using LoopVectorization: @avx
 
 """
 Class Conditional Weights
 """
 # This is the old implementation. It is retained to pass the exptation tests.
-function class_conditional_weights_per_instance(lc::LogisticCircuit,  classes::Int, data)
-    compute_flows(lc, data)
+function class_conditional_weights_per_instance(lc::LogisticCircuit,  classes::Int, data; flows_computed=false)
+    if !flows_computed
+        compute_flows(lc, data)
+    end
+
     likelihoods = zeros(num_examples(data), classes)
-    foreach(lc) do ln
-        if ln isa Logistic⋁Node
-            # For each class. orig.thetas is 2D so used eachcol
-            for (class, thetaC) in enumerate(eachcol(ln.thetas))
-                foreach(children(ln), thetaC) do c, theta
-                    likelihoods[:, class] .+= Float64.(get_downflow(ln) .& get_upflow(c)) .* theta
-                end
+    foreach(or_nodes(lc)) do ln
+        # For each class. orig.thetas is 2D so used eachcol
+        for (class, thetaC) in enumerate(eachcol(ln.thetas))
+            foreach(children(ln), thetaC) do c, theta
+                likelihoods[:, class] .+= Float64.(get_downflow(ln) .& get_upflow(c)) .* theta
             end
         end
     end
@@ -34,20 +36,14 @@ Class Conditional Probability
     end
     
     likelihoods = zeros(num_examples(data), classes)
-    #TODO; check whether einsum would speed up calculations here
-    foreach(lc) do ln
-        if ln isa Logistic⋁Node
-            # For each class. orig.thetas is 2D so used eachcol
-            for (class, thetaC) in enumerate(eachcol(ln.thetas))
-                foreach(children(ln), thetaC) do c, theta
-                    down_flow = Float64.(downflow(ln, c))
-                    @. likelihoods[:, class] += down_flow * theta
-                end
-            end
-        end
+    foreach(or_nodes(lc)) do ln
+        foreach(eachrow(ln.thetas), children(ln)) do theta, c
+            flow = Float64.(downflow(ln, c))
+            @avx @. likelihoods +=  flow * theta'
+        end        
     end
     
-    @. likelihoods = 1.0 / (1.0 + exp(-likelihoods))
+    @avx @. likelihoods = 1.0 / (1.0 + exp(-likelihoods))
     likelihoods
 end
 
