@@ -54,11 +54,11 @@ A logistic disjunction node (Or node)
 """
 mutable struct Logistic⋁Node <: LogisticInnerNode
     children::Vector{<:LogisticCircuit}
-    thetas::Array{Float64, 2}
+    thetas::Array{Float32, 2}
     data
     counter::UInt32
     Logistic⋁Node(children, class::Int) = begin
-        new(convert(Vector{LogisticCircuit}, children), init_array(Float64, length(children), class), nothing, 0)
+        new(convert(Vector{LogisticCircuit}, children), init_array(Float32, length(children), class), nothing, 0)
     end
 end
 

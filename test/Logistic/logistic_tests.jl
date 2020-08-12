@@ -17,11 +17,11 @@ using ProbabilisticCircuits
     # true_weight_func = [3.43147972 4.66740416; 
     #                     4.27595352 2.83503504;
     #                     3.67415087 4.93793472]
-    true_prob = [0.9686740004857587 0.9906908446064048;
-                 0.9862917386522077 0.9445399501015433;
-                 0.9752568180725943 0.9928816444023877]
+    true_prob = [0.9686740008311808 0.9906908445371728;
+                 0.9862917392724188 0.9445399509069984; 
+                 0.9752568185086389 0.9928816444223209]
             
-    class_prob = class_conditional_likelihood_per_instance(logistic_circuit, CLASSES, data)
+    class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
     for i = 1:size(true_prob)[1]
         for j = 1:CLASSES
             @test true_prob[i,j] ≈ class_prob[i,j]
@@ -29,8 +29,8 @@ using ProbabilisticCircuits
     end
 
     # check probabilities for float samples
-    data = Float64.(data)
-    class_prob = class_conditional_likelihood_per_instance(logistic_circuit, CLASSES, data)
+    data = Float32.(data)
+    class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
     for i = 1:size(true_prob)[1]
         for j = 1:CLASSES
             @test true_prob[i,j] ≈ class_prob[i,j]
@@ -60,6 +60,7 @@ using ProbabilisticCircuits
     one_hot_labels = [0.0 1.0;
                       1.0 0.0;
                       0.0 1.0]
+    one_hot_labels = Float32.(one_hot_labels)
     true_error = true_prob .- one_hot_labels
     step_size = 0.1
     learn_parameters(logistic_circuit, CLASSES, data, true_labels; num_epochs=1, step_size=step_size, flows_computed=true)
@@ -71,7 +72,7 @@ using ProbabilisticCircuits
                     for class = 1:CLASSES
                         true_update_amount = -step_size * sum(c.data.upflow .* true_error[:, class]) / size(true_error)[1]
                         updated_amount = theta[class] - original_literal_parameters[c.literal][class]
-                        @test updated_amount ≈ true_update_amount
+                        @test updated_amount ≈ true_update_amount atol=1e-7
                     end
                 end
             end

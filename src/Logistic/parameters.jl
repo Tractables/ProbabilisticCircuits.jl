@@ -22,7 +22,7 @@ function learn_parameters(lc::LogisticCircuit, classes::Int, data, labels; num_e
     end
 
     for _ = 1:num_epochs
-        class_probs = class_conditional_likelihood_per_instance(lc, classes, data; flows_computed=true)
+        class_probs = class_likelihood_per_instance(lc, classes, data; flows_computed=true)
         update_parameters(lc, class_probs, one_hot_labels)
     end
 
