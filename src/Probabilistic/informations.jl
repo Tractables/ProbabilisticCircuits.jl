@@ -1,4 +1,4 @@
-export pr_constraint, kl_divergence, entropy
+export pr_constraint, kl_divergence
 
 const StrutCircuit = Union{ProbCircuit, StructLogicCircuit}
 const KLDCache = Dict{Tuple{ProbCircuit, ProbCircuit}, Float64}
@@ -66,6 +66,8 @@ end
 """"
 Calculate entropy of the distribution of the input psdd."
 """
+
+import ..Utils: entropy
 function entropy(psdd_node::StructProb⋁Node, psdd_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
     if psdd_node in keys(psdd_entropy_cache)
         return psdd_entropy_cache[psdd_node]

@@ -5,8 +5,7 @@ using LogicCircuits
 using ProbabilisticCircuits
 
 @testset "Chow-Liu Tree learner tests" begin
-    data = dataset(twenty_datasets("nltcs"); do_shuffle=false, batch_size=-1)
-    train_x = train(data)
+    train_x, _, _ = twenty_datasets("nltcs")
     clt = learn_chow_liu_tree(train_x; α=1.0, clt_root="graph_center")
     pv = parent_vector(clt)
 

@@ -1,5 +1,6 @@
-using LightGraphs: SimpleGraph, SimpleDiGraph, complete_graph, add_edge!, kruskal_mst, bfs_tree, center, 
-    connected_components, induced_subgraph, nv, ne, edges, vertices, src, dst
+export CLT, learn_chow_liu_tree, parent_vector
+using LightGraphs: SimpleGraph, SimpleDiGraph, complete_graph, add_edge!, kruskal_mst, 
+    bfs_tree, center, connected_components, induced_subgraph, nv, ne, edges, vertices, src, dst
 using SimpleWeightedGraphs: SimpleWeightedGraph
 using MetaGraphs: MetaDiGraph, set_prop!, props
 
@@ -16,15 +17,12 @@ const CLT = MetaDiGraph
 learn a Chow-Liu tree from training set `train_x`, with Laplace smoothing factor `α`, specifying the tree root by `clt_root`
 return a `CLT`
 """
-function learn_chow_liu_tree(train_x::XData; α = 1.0, clt_root="graph_center")::CLT
-    learn_chow_liu_tree(WXData(train_x);α=α, clt_root=clt_root)
-end
-
-function learn_chow_liu_tree(train_x::WXData; α = 1.0, clt_root="graph_center")::CLT
+function learn_chow_liu_tree(train_x; α = 1.0, clt_root="graph_center",
+        weight=ones(Float64, num_examples(train_x)))::CLT
     features_num = num_features(train_x)
 
     # calculate mutual information
-    (dis_cache, MI) = mutual_information(feature_matrix(train_x), Data.weights(train_x); α = α)
+    (dis_cache, MI) = mutual_information(train_x, weight; α = α)
 
     # maximum spanning tree/ forest
     g = SimpleWeightedGraph(complete_graph(features_num))
@@ -91,9 +89,7 @@ function parent_vector(tree::CLT)::Vector{Int64}
     return v
 end
 
-#####################
-# Methods for test
-#####################
+import LogicCircuits: print_tree
 "Print edges and vertices of a ChowLiu tree"
 function print_tree(clt::CLT)
     for e in edges(clt) print(e); print(" ");end

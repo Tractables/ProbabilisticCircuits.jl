@@ -1,6 +1,7 @@
 export entropy, conditional_entropy, mutual_information
 using Statistics
 using StatsFuns: xlogx, xlogy
+using LogicCircuits: issomething
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
@@ -14,11 +15,11 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 #####################
 # Methods for pairwise and marginal distribution
 #####################
-@inline get_parameters(bm::AbstractMatrix{<:Bool}, α, w=nothing) = size(bm)[2], issomething(w) ? sum(w) : size(bm)[1], @. Float64(bm), @. Float64(!bm)
+@inline get_parameters(bm, α, w=nothing) = size(bm)[2], issomething(w) ? sum(w) : size(bm)[1], convert(Matrix{Float64}, bm), convert(Matrix{Float64}, .!bm)
 
-function cache_distributions(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α, flag=(pairwise=true, marginal=true))
+function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pairwise=true, marginal=true))
     # parameters
-    D, N, (m, notm) = get_parameters(bm, α, w)
+    D, N, m, notm = get_parameters(bm, α, w)
     dis_cache = DisCache(D)
     base = N + 4 * α
     w = isnothing(w) ? ones(Float64, N) : w
@@ -58,18 +59,14 @@ function mutual_information(dis_cache::DisCache)
 end
 
 "Calculate mutual information of given bit matrix `bm`, example weights `w`, and smoothing pseudocount `α`"
-function mutual_information(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
+function mutual_information(bm, w::Union{Nothing, Vector}=nothing; α)
     dis_cache = cache_distributions(bm, w; α=α)
     mi = mutual_information(dis_cache)
     return (dis_cache, mi)
 end
 
-function mutual_information(train_x::PlainXData, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
-    mutual_information(feature_matrix(train_x), w; α=α)
-end
-
 "Calculate set mutual information"
-function set_mutual_information(mi::Matrix, sets::Vector{Vector{Var}})::Matrix
+function set_mutual_information(mi::Matrix, sets::Vector{Vector})::Matrix
     len = length(sets)
     if len == size(mi)[1]
         return mi
@@ -96,7 +93,7 @@ function entropy(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:
     return (dis_cache, entropy(dis_cache))
 end
 
-function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x::Var, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)::Float64
+function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)::Float64
     @assert x <= size(bm)[2]
     vars = [1 : x-1; x+1 : size(bm)[2]]
     indexes_left = bm[:,x].== 0

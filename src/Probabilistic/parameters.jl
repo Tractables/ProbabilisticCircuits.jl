@@ -1,4 +1,5 @@
-export estimate_parameters
+export estimate_parameters, uniform_parameters
+using StatsFuns: logsumexp
 
 """
 Maximum likilihood estimation of parameters given data
@@ -7,7 +8,7 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data)
     compute_flows(pc, data)
     foreach(pc) do pn
-        if pn isa Prob⋁Node
+        if is⋁gate(pn)
             if num_children(pn) == 1
                 pn.log_thetas .= 0.0
             else
@@ -17,11 +18,26 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
                 @. pn.log_thetas = log((children_flows + uniform_pseudocount) / smoothed_flow)
                 @assert isapprox(sum(exp.(pn.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally"
                 # normalize away any leftover error
-                pn.log_thetas .-= logaddexp(pn.log_thetas)
+                pn.log_thetas .-= logsumexp(pn.log_thetas)
             end
         end
     end
 end
 
+
+"""
+Uniform distribution
+"""
+function uniform_parameters(pc::ProbCircuit)
+    foreach(pc) do pn
+        if is⋁gate(pn)
+            if num_children(pn) == 1
+                pn.log_thetas .= 0.0
+            else
+                pn.log_thetas .= log.(ones(Float64, num_children(pn)) ./ num_children(pn))
+            end
+        end
+    end
+end
 
 # TODO add em paramaters learning 
