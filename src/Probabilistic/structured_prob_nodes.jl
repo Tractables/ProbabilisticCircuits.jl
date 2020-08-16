@@ -105,7 +105,83 @@ end
 
 @inline ProbCircuit(circuit::PlainLogicCircuit) = PlainProbCircuit(circuit)
 
-# TODO: import LogicCircuits: conjoin, disjoin, compile # make available for extension 
+import LogicCircuits: conjoin, disjoin, compile, vtree, vtree_safe # make available for extension
+
+"Get the vtree corresponding to the argument, or nothing if the node has no vtree"
+@inline vtree(n::StructProbCircuit) = n.vtree
+@inline vtree_safe(n::StructProbInnerNode) = vtree(n)
+@inline vtree_safe(n::StructProbLiteralNode) = vtree(n)
+
+conjoin(arguments::Vector{<:StructProbCircuit};
+        reuse=nothing, use_vtree=nothing) =
+        conjoin(arguments...; reuse, use_vtree)
+
+function conjoin(a1::StructProbCircuit,  
+                 a2::StructProbCircuit;
+                 reuse=nothing, use_vtree=nothing) 
+    reuse isa StructProb⋀Node && reuse.prime == a1 && reuse.sub == a2 && return reuse
+    !(use_vtree isa Vtree) && (reuse isa StructProbCircuit) &&  (use_vtree = reuse.vtree)
+    # if isconstantgate(a1) && isconstantgate(a2) && !(use_vtree isa Vtree)
+    #     # constant nodes don't have a vtree: resolve to a constant
+    #     return StructProbCircuit(istrue(a1) && istrue(a2))
+    # end
+    !(use_vtree isa Vtree) && (use_vtree = find_inode(vtree_safe(a1), vtree_safe(a2)))
+    return StructProb⋀Node(a1, a2, use_vtree)
+end
+
+# ProbCircuit has a default argument for respects: its root's vtree
+respects_vtree(circuit::ProbCircuit) = 
+    respects_vtree(circuit, vtree(circuit))
+
+@inline disjoin(xs::StructProbCircuit...) = disjoin(collect(xs))
+
+function disjoin(arguments::Vector{<:StructProbCircuit};
+                 reuse=nothing, use_vtree=nothing)
+    @assert length(arguments) > 0
+    reuse isa StructProb⋁Node && reuse.children == arguments && return reuse
+    !(use_vtree isa Vtree) && (reuse isa StructProbCircuit) &&  (use_vtree = reuse.vtree)
+    # if all(isconstantgate, arguments) && !(use_vtree isa Vtree)
+    #     # constant nodes don't have a vtree: resolve to a constant
+    #     return StructProbCircuit(any(constant, arguments))
+    # end
+    !(use_vtree isa Vtree) && (use_vtree = mapreduce(vtree_safe, lca, arguments))
+    return StructProb⋁Node(arguments, use_vtree)
+end
+
+# Syntactic sugar for compile with a vtree
+(t::Tuple{<:Type,<:Vtree})(arg) = compile(t[1], t[2], arg)
+(t::Tuple{<:Vtree,<:Type})(arg) = compile(t[2], t[1], arg)
+
+# claim `StructProbCircuit` as the default `ProbCircuit` implementation that has a vtree
+compile(::Type{ProbCircuit}, args...) =
+    compile(StructProbCircuit, args...)
+
+compile(vtree::Vtree, arg) = 
+    compile(ProbCircuit,vtree,arg)
+
+compile(::Type{<:StructProbCircuit}, ::Vtree, b::Bool) =
+    compile(StructProbCircuit, b)
+
+"The unique splain tructured logical false constant" # act as a place holder in `condition`
+const structfalse = PlainStructFalseNode(nothing, 0)
+
+compile(::Type{<:StructProbCircuit}, b::Bool) =
+    b ? structtrue : structfalse
+
+
+
+compile(::Type{<:StructProbCircuit}, vtree::Vtree, l::Lit) =
+    PlainStructLiteralNode(l,find_leaf(lit2var(l),vtree))
+
+
+function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::StructProbCircuit)
+    f_con(n) = error("ProbCircuit does not have a constant node")
+    f_lit(n) = compile(StructProbCircuit, vtree, literal(n))
+    f_a(n, cns) = conjoin(cns...) # note: this will use the LCA as vtree node
+    f_o(n, cns) = disjoin(cns) # note: this will use the LCA as vtree node
+    foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, StructProbCircuit)
+end
+
 
 function check_parameter_integrity(circuit::ProbCircuit)
     for node in or_nodes(circuit)
