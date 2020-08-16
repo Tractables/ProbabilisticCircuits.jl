@@ -1,6 +1,8 @@
 export PlainProbCircuit, ProbLeafNode, ProbInnerNode, ProbLiteralNode, Prob⋀Node, 
 Prob⋁Node
 
+using LogicCircuits: LogicCircuit
+
 #####################
 # Infrastructure for probabilistic circuit nodes
 #####################

@@ -17,6 +17,7 @@ include("Logistic/Logistic.jl")
 include("LoadSave/LoadSave.jl")
 include("Reasoning/Reasoning.jl")
 include("StructureLearner/StructureLearner.jl")
+include("Mixtures/Mixtures.jl")
 
 
 # USE CHILD MODULES (in order to re-export some functions)
@@ -25,5 +26,6 @@ include("StructureLearner/StructureLearner.jl")
 @reexport using .LoadSave
 @reexport using .Reasoning
 @reexport using .StructureLearner
+@reexport using .Mixtures
 
 end

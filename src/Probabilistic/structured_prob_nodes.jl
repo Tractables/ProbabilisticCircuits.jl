@@ -68,9 +68,14 @@ import LogicCircuits.GateType # make available for extension
 # methods
 #####################
 
-import LogicCircuits: children # make available for extension
+import LogicCircuits: children, vtree, vtree_safe # make available for extension
 @inline children(n::StructProb⋁Node) = n.children
 @inline children(n::StructProb⋀Node) = [n.prime,n.sub]
+
+"Get the vtree corresponding to the argument, or nothing if the node has no vtree"
+@inline vtree(n::StructProbCircuit) = n.vtree
+@inline vtree_safe(n::StructProbInnerNode) = vtree(n)
+@inline vtree_safe(n::StructProbLiteralNode) = vtree(n)
 
 import ..Utils: num_parameters
 @inline num_parameters(c::StructProbCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
@@ -105,12 +110,7 @@ end
 
 @inline ProbCircuit(circuit::PlainLogicCircuit) = PlainProbCircuit(circuit)
 
-import LogicCircuits: conjoin, disjoin, compile, vtree, vtree_safe # make available for extension
-
-"Get the vtree corresponding to the argument, or nothing if the node has no vtree"
-@inline vtree(n::StructProbCircuit) = n.vtree
-@inline vtree_safe(n::StructProbInnerNode) = vtree(n)
-@inline vtree_safe(n::StructProbLiteralNode) = vtree(n)
+import LogicCircuits: conjoin, disjoin, compile # make available for extension
 
 conjoin(arguments::Vector{<:StructProbCircuit};
         reuse=nothing, use_vtree=nothing) =
@@ -121,10 +121,6 @@ function conjoin(a1::StructProbCircuit,
                  reuse=nothing, use_vtree=nothing) 
     reuse isa StructProb⋀Node && reuse.prime == a1 && reuse.sub == a2 && return reuse
     !(use_vtree isa Vtree) && (reuse isa StructProbCircuit) &&  (use_vtree = reuse.vtree)
-    # if isconstantgate(a1) && isconstantgate(a2) && !(use_vtree isa Vtree)
-    #     # constant nodes don't have a vtree: resolve to a constant
-    #     return StructProbCircuit(istrue(a1) && istrue(a2))
-    # end
     !(use_vtree isa Vtree) && (use_vtree = find_inode(vtree_safe(a1), vtree_safe(a2)))
     return StructProb⋀Node(a1, a2, use_vtree)
 end
@@ -140,35 +136,22 @@ function disjoin(arguments::Vector{<:StructProbCircuit};
     @assert length(arguments) > 0
     reuse isa StructProb⋁Node && reuse.children == arguments && return reuse
     !(use_vtree isa Vtree) && (reuse isa StructProbCircuit) &&  (use_vtree = reuse.vtree)
-    # if all(isconstantgate, arguments) && !(use_vtree isa Vtree)
-    #     # constant nodes don't have a vtree: resolve to a constant
-    #     return StructProbCircuit(any(constant, arguments))
-    # end
     !(use_vtree isa Vtree) && (use_vtree = mapreduce(vtree_safe, lca, arguments))
     return StructProb⋁Node(arguments, use_vtree)
 end
-
-# Syntactic sugar for compile with a vtree
-(t::Tuple{<:Type,<:Vtree})(arg) = compile(t[1], t[2], arg)
-(t::Tuple{<:Vtree,<:Type})(arg) = compile(t[2], t[1], arg)
 
 # claim `StructProbCircuit` as the default `ProbCircuit` implementation that has a vtree
 compile(::Type{ProbCircuit}, args...) =
     compile(StructProbCircuit, args...)
 
-compile(vtree::Vtree, arg) = 
-    compile(ProbCircuit,vtree,arg)
-
 compile(::Type{<:StructProbCircuit}, ::Vtree, b::Bool) =
     compile(StructProbCircuit, b)
 
-"The unique splain tructured logical false constant" # act as a place holder in `condition`
-const structfalse = PlainStructFalseNode(nothing, 0)
+# act as a place holder in `condition`
+using LogicCircuits: structfalse
 
 compile(::Type{<:StructProbCircuit}, b::Bool) =
     b ? structtrue : structfalse
-
-
 
 compile(::Type{<:StructProbCircuit}, vtree::Vtree, l::Lit) =
     PlainStructLiteralNode(l,find_leaf(lit2var(l),vtree))
