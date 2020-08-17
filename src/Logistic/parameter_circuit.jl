@@ -138,9 +138,9 @@ function calculate_class_weights_layer_kernel_cuda(cw, flow, decisions, paramete
             first_elem = @inbounds decisions[2, i]
             last_elem = @inbounds decisions[3, i]
             for e = first_elem:last_elem
-                # following are memory safe
+                # following needs to be memory safe
                 for class=1:nc
-                    @inbounds cw[j, class] += @inbounds flow[j, e] * parameters[class, e] 
+                    @CUDA.atomic cw[j, class] += flow[j, e] * parameters[class, e] # atomic is automatically inbounds
                 end
             end
         end
