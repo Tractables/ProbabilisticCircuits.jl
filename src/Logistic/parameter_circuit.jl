@@ -3,6 +3,7 @@ using LogicCircuits
 
 export LayeredParameterCircuit, CuLayeredParameterCircuit
 export class_likelihood, class_weights
+export one_hot, learn_parameters, update_parameters
 
 # in a parameter circuit
 # 1 is true, 2 is false
@@ -91,7 +92,8 @@ end
 
 function class_likelihood(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cp=nothing)
     cw, node_flow, edge_flow, v = class_weights(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
-    return @. 1.0 / (1.0 + exp(-cw)), node_flow, edge_flow, v
+    one = Float32(1.0)
+    return @. one / (one + exp(-cw)), node_flow, edge_flow, v
 end
 
 function class_weights(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cw=nothing)
@@ -109,14 +111,14 @@ function calculate_class_weights(circuit::CuLayeredParameterCircuit, nc::Integer
         CUDA.zeros(Float32, ne, nc)
     end
 
-    dec_per_thread = 8
+    dec_per_thread = 4
     CUDA.@sync for i = 1:length(circuit.layered_circuit.layers)
         circuit_layer = circuit.layered_circuit.layers[i]
         flow_layer = flow[i]
         parameter_layer = circuit.layered_parameters[i]
         ndl = num_decisions(circuit_layer)
         num_threads = balance_threads(ne, ndl / dec_per_thread, 8)
-        num_blocks = (ceil(Int, ne / num_threads[1]), ceil(Int, ndl / num_threads[2] / dec_per_thread)) 
+        num_blocks = ceil(Int, ne / num_threads[1]), ceil(Int, ndl / num_threads[2] / dec_per_thread)
         @cuda threads=num_threads blocks=num_blocks calculate_class_weights_layer_kernel_cuda(cw, flow_layer, circuit_layer.decisions, parameter_layer)
     end
     
@@ -136,9 +138,9 @@ function calculate_class_weights_layer_kernel_cuda(cw, flow, decisions, paramete
             first_elem = @inbounds decisions[2, i]
             last_elem = @inbounds decisions[3, i]
             for e = first_elem:last_elem
-                # following needs to be memory safe
+                # following are memory safe
                 for class=1:nc
-                    CUDA.@atomic cw[j, class] += flow[j, e] * parameters[class, e] #atomic is automatically inbounds
+                    @inbounds cw[j, class] += @inbounds flow[j, e] * parameters[class, e] 
                 end
             end
         end
@@ -148,5 +150,62 @@ function calculate_class_weights_layer_kernel_cuda(cw, flow, decisions, paramete
 end
 
 
+function one_hot(labels::Vector, nc::Integer)    
+    ne = length(labels) 
+    one_hot_labels = zeros(Float32, ne, nc)
+    for (i, j) in enumerate(labels)
+        one_hot_labels[i, j + 1] = 1.0
+    end
+    one_hot_labels
+end
 
-# TODO; parameter learning
+function learn_parameters(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, labels::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cp=nothing, num_epochs=20, step_size=0.0001)
+    cp, node_flow, edge_flow, v = class_likelihood(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
+    update_parameters(circuit, labels, cp, edge_flow, step_size)
+    for _ = 2:num_epochs
+        cp, node_flow, edge_flow, v = class_likelihood(circuit, nc, data, v, (node_flow, edge_flow), cp)
+        update_parameters(circuit, labels, cp, edge_flow, step_size)
+    end
+    return nothing
+end
+
+function update_parameters(circuit::CuLayeredParameterCircuit, labels, cp, flow, step_size=0.0001)
+    _, nc = size(labels)
+    step_size = Float32(step_size)
+    class_per_thread = 1
+    CUDA.@sync for i = 1:length(circuit.layered_circuit.layers)
+        circuit_layer = circuit.layered_circuit.layers[i]
+        flow_layer = flow[i]
+        parameter_layer = circuit.layered_parameters[i]
+        ndl = num_decisions(circuit_layer)
+        num_threads = balance_threads(ndl, nc / class_per_thread, 8)
+        num_blocks = ceil(Int, ndl / num_threads[1]), ceil(Int, ndl / num_threads[2] / class_per_thread)
+        @cuda threads=num_threads blocks=num_blocks update_parameters_layer_kernel_cuda(labels, cp, flow_layer, circuit_layer.decisions, parameter_layer, step_size)
+    end
+    return nothing
+end
+
+function update_parameters_layer_kernel_cuda(labels, cp, flow, decisions, parameters, step_size)
+    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    stride_x = blockDim().x * gridDim().x
+    stride_y = blockDim().y * gridDim().y
+    ne, nc = size(labels)
+    _, num_decisions = size(decisions)
+    
+    for class = index_y:stride_y:nc
+        for i = index_x:stride_x:num_decisions
+            first_elem = @inbounds decisions[2, i]
+            last_elem = @inbounds decisions[3, i]
+            for e = first_elem:last_elem
+                for j = 1:ne
+                    u = @inbounds flow[j, e] * (cp[j, class] - labels[j, class]) * step_size
+                    # following are memory safe
+                    @inbounds parameters[class, e] -= u 
+                end
+            end
+        end
+    end
+    
+    return nothing
+end
