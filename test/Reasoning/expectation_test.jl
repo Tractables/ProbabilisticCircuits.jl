@@ -3,7 +3,7 @@ using LogicCircuits
 using ProbabilisticCircuits
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
-    EPS = 1e-7;
+    EPS = 1e-5;
     COUNT = size(data)[1]
     # Compute True expectation brute force
     true_exp = zeros(COUNT, CLASSES)
