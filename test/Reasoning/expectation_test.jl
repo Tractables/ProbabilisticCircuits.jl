@@ -36,7 +36,7 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
 end
 
 function test_moment_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int, moment::Int)
-    EPS = 1e-7;
+    EPS = 1e-5;
     COUNT = size(data)[1]
     # Compute True moment brute force
     true_mom = zeros(COUNT, CLASSES)
