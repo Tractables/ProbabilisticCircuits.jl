@@ -2,7 +2,7 @@ using CUDA
 using LogicCircuits
 
 export LayeredParameterCircuit, CuLayeredParameterCircuit
-export class_likelihood_and_flow, class_weights_and_flow
+export class_likelihood, class_weights
 
 # in a parameter circuit
 # 1 is true, 2 is false
@@ -89,15 +89,15 @@ struct CuLayeredParameterCircuit
     CuLayeredParameterCircuit(l::LayeredParameterCircuit) = new(CuLayeredBitCircuit(l.layered_circuit), map(CuMatrix, l.layered_parameters))
 end
 
-function class_likelihood_and_flow(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cw=nothing)
-    cw, flow = class_weights_and_flow(circuit, nc, data, reuse_up, reuse_down, reuse_cw)
-    return @. 1.0 / (1.0 + exp(-cw)), flow
+function class_likelihood(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cp=nothing)
+    cw, node_flow, edge_flow, v = class_weights(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
+    return @. 1.0 / (1.0 + exp(-cw)), node_flow, edge_flow, v
 end
 
-function class_weights_and_flow(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cw=nothing)
-    _, edge_flow, _ = compute_flows2(circuit.layered_circuit, data, reuse_up, reuse_down)
+function class_weights(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cw=nothing)
+    node_flow, edge_flow, v = compute_flows2(circuit.layered_circuit, data, reuse_up, reuse_down)
     cw = calculate_class_weights(circuit, nc, data, edge_flow, reuse_cw)
-    return cw, edge_flow
+    return cw, node_flow, edge_flow, v
 end
 
 function calculate_class_weights(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, flow, reuse_cw=nothing)
@@ -112,11 +112,12 @@ function calculate_class_weights(circuit::CuLayeredParameterCircuit, nc::Integer
     dec_per_thread = 8
     CUDA.@sync for i = 1:length(circuit.layered_circuit.layers)
         circuit_layer = circuit.layered_circuit.layers[i]
+        flow_layer = flow[i]
         parameter_layer = circuit.layered_parameters[i]
         ndl = num_decisions(circuit_layer)
         num_threads = balance_threads(ne, ndl / dec_per_thread, 8)
         num_blocks = (ceil(Int, ne / num_threads[1]), ceil(Int, ndl / num_threads[2] / dec_per_thread)) 
-        @cuda threads=num_threads blocks=num_blocks calculate_class_weights_layer_kernel_cuda(cw, flow, circuit_layer.decisions, parameter_layer)
+        @cuda threads=num_threads blocks=num_blocks calculate_class_weights_layer_kernel_cuda(cw, flow_layer, circuit_layer.decisions, parameter_layer)
     end
     
     return cw
