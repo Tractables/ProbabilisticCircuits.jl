@@ -42,7 +42,7 @@ function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
             if num_children(pn) == 1
                 pn.log_thetas .= 0.0
             else
-                id = (pn.data::NodeId).node_id
+                id = (pn.data::⋁NodeId).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_thetas .= params[els_start:els_end]
@@ -90,7 +90,6 @@ function estimate_parameters2_gpu(bc, pseudocount)
     node_counts::CuVector{Int32} = CUDA.zeros(Int32, num_nodes(bc))
     edge_counts::CuVector{Int32} = CUDA.zeros(Int32, num_elements(bc))
     params::CuVector{Float64} = CuVector{Float64}(undef, num_elements(bc))
-    params .= -100
     # need to manually cudaconvert closure variables
     node_counts_device = CUDA.cudaconvert(node_counts)
     edge_counts_device = CUDA.cudaconvert(edge_counts)
