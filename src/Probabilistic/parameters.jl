@@ -29,7 +29,7 @@ end
 
 function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
-    bc = BitCircuit(pc, data; reset=false) #TODO: avoid resetting bit, do it at the end when collecting results
+    bc = BitCircuit(pc, data; reset=false)
     on_node, on_edge, get_params = if isgpu(data)
         estimate_parameters2_gpu(bc, pseudocount)
     else
@@ -40,7 +40,7 @@ function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
-                pn.log_thetas .= 0.0
+                pn.log_thetas .= zero(Float64)
             else
                 id = (pn.data::⋁NodeId).node_id
                 @inbounds els_start = bc.nodes[1,id]
@@ -118,7 +118,7 @@ function estimate_parameters2_gpu(bc, pseudocount)
 
     function get_params()
         parent_counts = @views node_counts[bc.elements[1,:]]
-        params .= log.((params .+ edge_counts) ./ (parent_counts .+ pseudocount))
+        params .= log.(params .+ edge_counts) .- log.(parent_counts .+ pseudocount)
         to_cpu(params)
     end
 
