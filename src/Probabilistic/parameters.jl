@@ -8,32 +8,12 @@ using LoopVectorization
 Maximum likilihood estimation of parameters given data
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
-    @assert isbinarydata(data)
-    compute_flows(pc, data)
-    foreach(pc) do pn
-        if is⋁gate(pn)
-            if num_children(pn) == 1
-                pn.log_thetas .= 0.0
-            else
-                smoothed_flow = Float64(sum(get_downflow(pn))) + pseudocount
-                uniform_pseudocount = pseudocount / num_children(pn)
-                children_flows = map(c -> sum(get_downflow(pn, c)), children(pn))
-                @. pn.log_thetas = log((children_flows + uniform_pseudocount) / smoothed_flow)
-                @assert isapprox(sum(exp.(pn.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally"
-                # normalize away any leftover error
-                pn.log_thetas .-= logsumexp(pn.log_thetas)
-            end
-        end
-    end
-end
-
-function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
     bc = BitCircuit(pc, data; reset=false, on_gpu = isgpu(data))
     on_node, on_edge, get_params = if isgpu(data)
-        estimate_parameters2_gpu(bc, pseudocount)
+        estimate_parameters_gpu(bc, pseudocount)
     else
-        estimate_parameters2_cpu(bc, pseudocount)
+        estimate_parameters_cpu(bc, pseudocount)
     end
     compute_values_flows(bc, data; on_node, on_edge)
     params::Vector{Float64} = get_params()
@@ -54,7 +34,7 @@ function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
     params
 end
 
-function estimate_parameters2_cpu(bc, pseudocount)
+function estimate_parameters_cpu(bc, pseudocount)
     # no need to synchronize, since each computation is unique to a decision node
     node_counts::Vector{UInt} = Vector{UInt}(undef, num_nodes(bc))
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
@@ -86,7 +66,7 @@ function estimate_parameters2_cpu(bc, pseudocount)
     return (on_node, on_edge, get_params)
 end
 
-function estimate_parameters2_gpu(bc, pseudocount)
+function estimate_parameters_gpu(bc, pseudocount)
     node_counts::CuVector{Int32} = CUDA.zeros(Int32, num_nodes(bc))
     edge_counts::CuVector{Int32} = CUDA.zeros(Int32, num_elements(bc))
     params::CuVector{Float64} = CuVector{Float64}(undef, num_elements(bc))

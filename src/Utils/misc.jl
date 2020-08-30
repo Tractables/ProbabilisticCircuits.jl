@@ -1,6 +1,7 @@
 export to_long_mi,
     generate_all, generate_data_all
 
+using DataFrames
 
 ###################
 # Misc.
@@ -63,5 +64,5 @@ function generate_data_all(N::Int)
             transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
         );
     end
-    data_all
+    DataFrame(data_all)
 end
