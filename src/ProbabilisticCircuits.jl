@@ -12,11 +12,12 @@ include("Utils/Utils.jl")
 
 include("abstract_prob_nodes.jl")
 include("plain_prob_nodes.jl")
+include("parameters.jl")
+
 # include("structured_prob_nodes.jl")
 # include("exp_flows.jl")
 # include("queries.jl")
 # include("informations.jl")
-# include("parameters.jl")
 
 # include("logistic/logistic_nodes.jl")
 # include("logistic/queries.jl")

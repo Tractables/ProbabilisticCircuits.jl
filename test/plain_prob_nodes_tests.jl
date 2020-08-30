@@ -34,5 +34,6 @@ include("helper/plain_logic_circuits.jl")
     @test num_edges(p1) == 18
 
     r1 = fully_factorized_circuit(ProbCircuit,10)
-    
+    @test num_parameters(r1) == 2*10+1
+
 end
