@@ -29,7 +29,7 @@ end
 
 function estimate_parameters2(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
-    bc = BitCircuit(pc, data; reset=false)
+    bc = BitCircuit(pc, data; reset=false, on_gpu = isgpu(data))
     on_node, on_edge, get_params = if isgpu(data)
         estimate_parameters2_gpu(bc, pseudocount)
     else
