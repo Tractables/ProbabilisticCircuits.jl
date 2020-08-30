@@ -7,7 +7,6 @@ using DataFrames
 # Misc.
 ####################
 
-
 function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
     δmi = maximum(m) - minimum(m)
     δint = max_int - min_int
@@ -17,6 +16,7 @@ end
 ###################
 # One-Hot Encoding
 ####################
+
 """
 One-hot encode data (2-D Array) based on categories (1-D Array)
 Each row of the return value is a concatenation of one-hot encoding of elements of the same row in data

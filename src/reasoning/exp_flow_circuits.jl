@@ -37,7 +37,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
     sizehint!(cache, (num_nodes(pc) + num_nodes(lc))*4÷3)
     expFlowCircuit = Vector{ExpFlowNode}()
 
-    function ExpflowTraverse(n::Prob⋁Node, m::Logistic⋁Node) 
+    function ExpflowTraverse(n::PlainSumNode, m::Logistic⋁Node) 
         get!(cache, Pair(n, m)) do
             ch = [ ExpflowTraverse(i, j) for i in children(n) for j in children(m)]
             node = UpExpFlow{F}(n, m, ch, fmem(), fgmem())
@@ -45,7 +45,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
             return node
         end
     end
-    function ExpflowTraverse(n::Prob⋀Node, m::Logistic⋀Node) 
+    function ExpflowTraverse(n::PlainMulNode, m::Logistic⋀Node) 
         get!(cache, Pair(n, m)) do
             ch = [ ExpflowTraverse(z[1], z[2]) for z in zip(children(n), children(m)) ]
             node = UpExpFlow{F}(n, m, ch, fmem(), fgmem())
@@ -53,7 +53,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
             return node
         end
     end
-    function ExpflowTraverse(n::ProbLiteralNode, m::Logistic⋁Node) 
+    function ExpflowTraverse(n::PlainProbLiteralNode, m::Logistic⋁Node) 
         get!(cache, Pair(n, m)) do
             ch = Vector{ExpFlowNode{F}}() # TODO
             node = UpExpFlow{F}(n, m, ch, fmem(), fgmem())
@@ -61,7 +61,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
             return node
         end
     end
-    function ExpflowTraverse(n::ProbLiteralNode, m::LogisticLiteral) 
+    function ExpflowTraverse(n::PlainProbLiteralNode, m::LogisticLiteral) 
         get!(cache, Pair(n, m)) do
             ch = Vector{ExpFlowNode{F}}() # TODO
             node = UpExpFlow{F}(n, m, ch, fmem(), fgmem())
@@ -95,7 +95,7 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
     pType = typeof(node.p_origin)
     fType = typeof(node.f_origin)
 
-    if node.p_origin isa Prob⋁Node && node.f_origin isa Logistic⋁Node
+    if node.p_origin isa PlainSumNode && node.f_origin isa Logistic⋁Node
         #todo this ordering might be different than the ExpFlowNode children
         pthetas = [exp(node.p_origin.log_thetas[i])
                     for i in 1:length(children(node.p_origin)) for j in 1:length(children(node.f_origin))]
@@ -109,12 +109,12 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
             node.fg .+= (pthetas[z] .* fthetas[z]) .* children(node)[z].f
             node.fg .+= pthetas[z] .* children(node)[z].fg
         end
-    elseif node.p_origin isa Prob⋀Node && node.f_origin isa Logistic⋀Node
+    elseif node.p_origin isa PlainMulNode && node.f_origin isa Logistic⋀Node
         node.f .= children(node)[1].f .* children(node)[2].f # assume 2 children
         node.fg .= (children(node)[1].f .* children(node)[2].fg) .+
                    (children(node)[2].f .* children(node)[1].fg)
 
-    elseif node.p_origin isa ProbLiteralNode 
+    elseif node.p_origin isa PlainProbLiteralNode 
         if node.f_origin isa Logistic⋁Node
             m = children(node.f_origin)[1]
         elseif node.f_origin isa LogisticLiteral

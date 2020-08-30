@@ -68,7 +68,7 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data)
     
     
     ll(n::SharedProbCircuit) = ()
-    ll(n::SharedProb⋁Node) = begin
+    ll(n::SharedPlainSumNode) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
             for i in 1 : num_children(n)
                 c = children(n)[i]

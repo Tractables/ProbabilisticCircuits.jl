@@ -12,9 +12,9 @@ include("../helper/plain_logic_circuits.jl")
     
     # traits
     @test p1 isa ProbCircuit
-    @test p1 isa Prob⋁Node
-    @test children(p1)[1] isa Prob⋀Node
-    @test lit3 isa ProbLiteralNode
+    @test p1 isa PlainSumNode
+    @test children(p1)[1] isa PlainMulNode
+    @test lit3 isa PlainProbLiteralNode
     @test GateType(p1) isa ⋁Gate
     @test GateType(children(p1)[1]) isa ⋀Gate
     @test GateType(lit3) isa LiteralGate

@@ -15,17 +15,17 @@ using LogicCircuits.LoadSave: SDDElement,
 #####################
 
 "Decompile for psdd circuit, used during saving of circuits to file" 
-decompile(n::StructProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
+decompile(n::StructPlainProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
     UnweightedLiteralLine(node2id[n], vtree2id[n.vtree], literal(n), true)
 
-make_element(n::StructProb⋀Node, w::AbstractFloat, node2id) = 
+make_element(n::StructPlainMulNode, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
 
 istrue_node(n)::Bool = 
     is⋁gate(n) && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     ispositive(children(n)[1]) && isnegative(children(n)[2])
 
-function decompile(n::StructProb⋁Node, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
+function decompile(n::StructPlainSumNode, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
         WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_thetas[1]) # TODO
     else
@@ -139,13 +139,13 @@ function save_as_dot(circuit::ProbCircuit, file::String)
     end
 
     for n in reverse(circuit)
-        if n isa Prob⋀Node
+        if n isa PlainMulNode
             write(f, "$(node_cache[n]) [label=\"*$(node_cache[n])\"]\n")
         elseif n isa Prob⋁
             write(f, "$(node_cache[n]) [label=\"+$(node_cache[n])\"]\n")
-        elseif n isa ProbLiteralNode && ispositive(n)
+        elseif n isa PlainProbLiteralNode && ispositive(n)
             write(f, "$(node_cache[n]) [label=\"+$(variable(n.origin))\"]\n")
-        elseif n isa ProbLiteralNode && isnegative(n)
+        elseif n isa PlainProbLiteralNode && isnegative(n)
             write(f, "$(node_cache[n]) [label=\"-$(variable(n.origin))\"]\n")
         else
             throw("unknown ProbCircuit type")
