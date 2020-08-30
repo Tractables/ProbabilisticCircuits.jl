@@ -1,5 +1,0 @@
-# Logistic
-
-```@autodocs
-Modules = [Logistic]
-```
