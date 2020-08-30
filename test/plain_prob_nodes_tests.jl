@@ -2,14 +2,17 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 
-include("../helper/plain_logic_circuits.jl")
+include("helper/plain_logic_circuits.jl")
 
 @testset "probabilistic circuit nodes" begin
+
     c1 = little_3var()
+
+    @test isdisjoint(linearize(ProbCircuit(c1)), linearize(ProbCircuit(c1)))
+    
     p1 = ProbCircuit(c1)
     lit3 = children(children(p1)[1])[1]
-    @test isempty(intersect(linearize(ProbCircuit(c1)), linearize(ProbCircuit(c1))))
-    
+
     # traits
     @test p1 isa ProbCircuit
     @test p1 isa PlainSumNode
@@ -30,4 +33,6 @@ include("../helper/plain_logic_circuits.jl")
     @test num_nodes(p1) == 15
     @test num_edges(p1) == 18
 
+    r1 = fully_factorized_circuit(ProbCircuit,10)
+    
 end

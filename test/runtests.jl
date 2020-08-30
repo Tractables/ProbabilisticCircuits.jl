@@ -12,4 +12,4 @@ end
 using Jive
 
 # TODO reinstate after refactoring all modules
-runtests(@__DIR__, skip=["runtests.jl", "helper", "Mixtures", "StructureLearner/VtreeLearnerTest.jl"])
+runtests(@__DIR__, skip=["runtests.jl", "helper", "broken"])

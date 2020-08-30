@@ -40,7 +40,7 @@ mutable struct PlainSumNode <: PlainProbInnerNode
     data
     counter::UInt32
     PlainSumNode(c) = begin
-        new(c, init_array(Float64, length(children)), nothing, 0)
+        new(c, init_array(Float64, length(c)), nothing, 0)
     end
 end
 
@@ -61,7 +61,8 @@ import LogicCircuits.GateType # make available for extension
 import LogicCircuits: children # make available for extension
 @inline children(n::PlainProbInnerNode) = n.children
 
-@inline num_parameters(n::PlainSumNode) = num_children(n)
+"Count the number of parameters in the node"
+@inline num_parameters_node(n::PlainSumNode) = num_children(n)
 
 #####################
 # constructors and conversions
@@ -98,6 +99,8 @@ function compile(::Type{<:PlainProbCircuit}, circuit::LogicCircuit)
     f_o(_, cns) = summate(cns)
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, PlainProbCircuit)
 end
+
+import LogicCircuits: fully_factorized_circuit #extend
 
 fully_factorized_circuit(::Type{ProbCircuit}, n::Int) =
     fully_factorized_circuit(PlainProbCircuit, n)

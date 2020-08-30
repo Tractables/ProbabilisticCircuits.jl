@@ -16,8 +16,7 @@ abstract type ProbCircuit <: LogicCircuit end
 # node functions that need to be implemented for each type of circuit
 #####################
 
-import ..Utils.children # make available for extension by concrete types
-import LogicCircuits.compile # make available for extension by concrete types
+import LogicCircuits: children, compile # extend
 
 "Multiply nodes into a single circuit"
 function multiply end
@@ -36,14 +35,14 @@ function summate end
 
 "Count the number of parameters in the circuit"
 @inline num_parameters(c::ProbCircuit) = 
-    sum(n -> num_parameters(n), sum_nodes(c))
+    sum(n -> num_parameters_node(n), sum_nodes(c))
 
 #####################
 # methods to easily construct circuits
 #####################
 
-@inline multiply(xs::PlainProbCircuit...) = multiply(collect(xs))
-@inline summate(xs::PlainProbCircuit...) = summate(collect(xs))
+@inline multiply(xs::ProbCircuit...) = multiply(collect(xs))
+@inline summate(xs::ProbCircuit...) = summate(collect(xs))
 
 import LogicCircuits: conjoin, disjoin # make available for extension
 
