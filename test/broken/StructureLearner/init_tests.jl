@@ -20,7 +20,7 @@
 #     @test num_parameters(pc) == 74 
 
 #     # test below has started to fail -- unclear whether that is a bug or randomness...?
-#     # @test pc[28].log_thetas[1] ≈ -1.1870882896239272 atol=1.0e-7
+#     # @test pc[28].log_probs[1] ≈ -1.1870882896239272 atol=1.0e-7
 
 #     # is structured decomposable 
 #     for (n, vars) in variables_by_node(pc)

@@ -13,8 +13,11 @@ using LogicCircuits: LogicCircuit
 abstract type ProbCircuit <: LogicCircuit end
 
 #####################
-# node functions that need to be implemented for each type of circuit
+# node functions that need to be implemented for each type of probabilistic circuit
 #####################
+
+"Get the parameters associated with a sum node"
+params(n) = n.log_probs
 
 import LogicCircuits: children, compile # extend
 
@@ -70,7 +73,7 @@ sum_nodes(c::ProbCircuit) = ⋁_nodes(c)
 
 function check_parameter_integrity(circuit::ProbCircuit)
     for node in sum_nodes(circuit)
-        @assert all(θ -> !isnan(θ), node.log_thetas) "There is a NaN in one of the log_thetas"
+        @assert all(θ -> !isnan(θ), node.log_probs) "There is a NaN in one of the log_probs"
     end
     true
 end

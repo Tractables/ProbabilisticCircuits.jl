@@ -36,7 +36,7 @@ end
 "A probabilistic disjunction node (summation node)"
 mutable struct PlainSumNode <: PlainProbInnerNode
     children::Vector{PlainProbCircuit}
-    log_thetas::Vector{Float64}
+    log_probs::Vector{Float64}
     data
     counter::UInt32
     PlainSumNode(c) = begin

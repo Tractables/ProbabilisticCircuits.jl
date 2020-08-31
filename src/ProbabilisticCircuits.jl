@@ -13,8 +13,9 @@ include("Utils/Utils.jl")
 include("abstract_prob_nodes.jl")
 include("plain_prob_nodes.jl")
 include("parameters.jl")
-
 include("structured_prob_nodes.jl")
+
+include("queries/likelihood.jl")
 
 # include("exp_flows.jl")
 # include("queries.jl")

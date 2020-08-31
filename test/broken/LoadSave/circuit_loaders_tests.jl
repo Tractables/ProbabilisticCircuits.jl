@@ -14,18 +14,18 @@ using ProbabilisticCircuits
    # Testing Read Parameters
    EPS = 1e-7
    or1 = children(children(prob_circuit)[1])[2]
-   @test abs(or1.log_thetas[1] - (-1.6094379124341003)) < EPS
-   @test abs(or1.log_thetas[2] - (-1.2039728043259361)) < EPS
-   @test abs(or1.log_thetas[3] - (-0.916290731874155)) < EPS
-   @test abs(or1.log_thetas[4] - (-2.3025850929940455)) < EPS
+   @test abs(or1.log_probs[1] - (-1.6094379124341003)) < EPS
+   @test abs(or1.log_probs[2] - (-1.2039728043259361)) < EPS
+   @test abs(or1.log_probs[3] - (-0.916290731874155)) < EPS
+   @test abs(or1.log_probs[4] - (-2.3025850929940455)) < EPS
 
    or2 = children(children(prob_circuit)[1])[1]
-   @test abs(or2.log_thetas[1] - (-2.3025850929940455)) < EPS
-   @test abs(or2.log_thetas[2] - (-2.3025850929940455)) < EPS
-   @test abs(or2.log_thetas[3] - (-2.3025850929940455)) < EPS
-   @test abs(or2.log_thetas[4] - (-0.35667494393873245)) < EPS
+   @test abs(or2.log_probs[1] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_probs[2] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_probs[3] - (-2.3025850929940455)) < EPS
+   @test abs(or2.log_probs[4] - (-0.35667494393873245)) < EPS
 
-   @test abs(prob_circuit.log_thetas[1] - (0.0)) < EPS
+   @test abs(prob_circuit.log_probs[1] - (0.0)) < EPS
 end
 
 psdd_files = ["little_4var.psdd", "msnbc-yitao-a.psdd", "msnbc-yitao-b.psdd", "msnbc-yitao-c.psdd", "msnbc-yitao-d.psdd", "msnbc-yitao-e.psdd", "mnist-antonio.psdd"]

@@ -97,7 +97,7 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
 
     if node.p_origin isa PlainSumNode && node.f_origin isa Logistic⋁Node
         #todo this ordering might be different than the ExpFlowNode children
-        pthetas = [exp(node.p_origin.log_thetas[i])
+        pthetas = [exp(node.p_origin.log_probs[i])
                     for i in 1:length(children(node.p_origin)) for j in 1:length(children(node.f_origin))]
         fthetas = [node.f_origin.thetas[j,:] # only taking the first class for now
             for i in 1:length(node.p_origin.children) for j in 1:length(node.f_origin.children)]

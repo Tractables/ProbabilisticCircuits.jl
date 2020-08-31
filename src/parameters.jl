@@ -9,7 +9,7 @@ Maximum likilihood estimation of parameters given data
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
-    bc = BitCircuit(pc, data; reset=false, on_gpu = isgpu(data))
+    bc = BitCircuit(pc, data; reset=false, gpu = isgpu(data))
     on_node, on_edge, get_params = if isgpu(data)
         estimate_parameters_gpu(bc, pseudocount)
     else
@@ -20,14 +20,14 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
-                pn.log_thetas .= zero(Float64)
+                pn.log_probs .= zero(Float64)
             else
                 id = (pn.data::⋁NodeId).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
-                @inbounds @views pn.log_thetas .= params[els_start:els_end]
-                @assert isapprox(sum(exp.(pn.log_thetas)), 1.0, atol=1e-6) "Parameters do not sum to one locally: $(sum(exp.(pn.log_thetas))); $(pn.log_thetas)"
-                pn.log_thetas .-= logsumexp(pn.log_thetas) # normalize away any leftover error
+                @inbounds @views pn.log_probs .= params[els_start:els_end]
+                @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-6) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
+                pn.log_probs .-= logsumexp(pn.log_probs) # normalize away any leftover error
             end
         end
     end
@@ -112,9 +112,9 @@ function uniform_parameters(pc::ProbCircuit)
     foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
-                pn.log_thetas .= 0.0
+                pn.log_probs .= 0.0
             else
-                pn.log_thetas .= log.(ones(Float64, num_children(pn)) ./ num_children(pn))
+                pn.log_probs .= log.(ones(Float64, num_children(pn)) ./ num_children(pn))
             end
         end
     end

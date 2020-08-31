@@ -27,9 +27,9 @@ istrue_node(n)::Bool =
 
 function decompile(n::StructSumNode, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
-        WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_thetas[1]) # TODO
+        WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_probs[1]) # TODO
     else
-        DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_thetas)))
+        DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_probs)))
     end
 end
 
@@ -158,7 +158,7 @@ function save_as_dot(circuit::ProbCircuit, file::String)
                 write(f, "$(node_cache[n]) -> $(node_cache[c])\n")
             end
         elseif n isa Prob⋁
-            for (c, p) in zip(children(n), exp.(n.log_thetas))
+            for (c, p) in zip(children(n), exp.(n.log_probs))
                 prob = @sprintf "%0.1f" p
                 write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\"]\n")
             end

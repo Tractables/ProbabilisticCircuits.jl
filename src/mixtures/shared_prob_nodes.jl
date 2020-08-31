@@ -45,7 +45,7 @@ A probabilistic disjunction node (Or node)
 """
 mutable struct SharedPlainSumNode <: SharedPlainProbInnerNode
     children::Vector{<:SharedProbCircuit}
-    log_thetas::Matrix{Float64}
+    log_probs::Matrix{Float64}
     data
     counter::UInt32
     SharedPlainSumNode(children, n_mixture) = begin
@@ -78,4 +78,4 @@ end
 import LogicCircuits: children # make available for extension
 
 @inline children(n::SharedPlainProbInnerNode) = n.children
-@inline num_components(n::SharedProbCircuit) = size(n.log_thetas)[2]
+@inline num_components(n::SharedProbCircuit) = size(n.log_probs)[2]

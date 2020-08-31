@@ -1,32 +1,5 @@
-export EVI, log_likelihood_per_instance, MAR, marginal_log_likelihood_per_instance, 
+export MAR, marginal_log_likelihood_per_instance, 
 MPE, MAP, sample
-
-"""
-Complete evidence queries
-"""
-function log_likelihood_per_instance(pc::ProbCircuit, data)
-    @assert isbinarydata(data) "Can only calculate EVI on Bool data"
-    
-    compute_flows(pc, data)
-    log_likelihoods = zeros(Float64, num_examples(data))
-    indices = init_array(Bool, num_examples(data))::BitVector
-    
-    ll(n::ProbCircuit) = ()
-    ll(n::Union{PlainSumNode, StructSumNode}) = begin
-        if num_children(n) != 1 # other nodes have no effect on likelihood
-            foreach(children(n), n.log_thetas) do c, log_theta
-                indices = get_downflow(n, c)
-                view(log_likelihoods, indices::BitVector) .+=  log_theta # see MixedProductKernelBenchmark.jl
-            end
-         end
-    end
-
-    foreach(ll, pc)
-    log_likelihoods
-end
-
-EVI = log_likelihood_per_instance
-
 
 """
 Marginal queries
@@ -61,7 +34,7 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
     function mpe_simulate(node::Union{PlainSumNode, StructSumNode}, active_samples::BitVector, result::BitMatrix)
         prs = zeros(length(children(node)), size(active_samples)[1] )
         @simd  for i=1:length(children(node))
-            prs[i,:] .= get_exp_upflow(children(node)[i]) .+ (node.log_thetas[i])
+            prs[i,:] .= get_exp_upflow(children(node)[i]) .+ (node.log_probs[i])
         end
     
         max_child_ids = [a[1] for a in argmax(prs, dims = 1) ]
@@ -97,7 +70,7 @@ function sample(circuit::ProbCircuit)::AbstractVector{Bool}
     end
     
     simulate(node::Union{PlainSumNode, StructSumNode}) = begin
-        idx = sample(exp.(node.log_thetas))
+        idx = sample(exp.(node.log_probs))
         simulate(children(node)[idx])
     end
 
@@ -127,7 +100,7 @@ function sample(circuit::ProbCircuit, evidence)::AbstractVector{Bool}
     
     function simulate(node::Union{PlainSumNode, StructSumNode})
         prs = [get_exp_upflow(ch)[1] for ch in children(node)] # #evidence == 1
-        idx = sample(exp.(node.log_thetas .+ prs))
+        idx = sample(exp.(node.log_probs .+ prs))
         simulate(children(node)[idx])
     end
     

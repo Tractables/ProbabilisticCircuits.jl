@@ -45,7 +45,7 @@ end
 "A plain structured probabilistic disjunction node"
 mutable struct StructSumNode <: StructProbInnerNode
     children::Vector{StructProbCircuit}
-    log_thetas::Vector{Float64}
+    log_probs::Vector{Float64}
     vtree::Vtree # could be leaf or inner
     data
     counter::UInt32

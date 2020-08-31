@@ -72,7 +72,7 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data)
         if num_children(n) != 1 # other nodes have no effect on likelihood
             for i in 1 : num_children(n)
                 c = children(n)[i]
-                log_theta = reshape(n.log_thetas[i, :], 1, num_mix)
+                log_theta = reshape(n.log_probs[i, :], 1, num_mix)
                 indices = get_downflow(n, c)
                 view(log_likelihoods, indices::BitVector, :) .+=  log_theta # see MixedProductKernelBenchmark.jl
             end
@@ -87,15 +87,15 @@ function estimate_parameters_cached(pc::SharedProbCircuit, example_weights; pseu
     foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
-                pn.log_thetas .= 0.0
+                pn.log_probs .= 0.0
             else
                 smoothed_flow = Float64.(sum(example_weights[get_downflow(pn), :], dims=1)) .+ pseudocount
                 uniform_pseudocount = pseudocount / num_children(pn)
                 children_flows = vcat(map(c -> sum(example_weights[get_downflow(pn, c), :], dims=1), children(pn))...)
-                @. pn.log_thetas = log((children_flows + uniform_pseudocount) / smoothed_flow)
-                @assert all(sum(exp.(pn.log_thetas), dims=1) .≈ 1.0) "Parameters do not sum to one locally"
+                @. pn.log_probs = log((children_flows + uniform_pseudocount) / smoothed_flow)
+                @assert all(sum(exp.(pn.log_probs), dims=1) .≈ 1.0) "Parameters do not sum to one locally"
                 # normalize away any leftover error
-                pn.log_thetas .-= logsumexp(pn.log_thetas, dims=1)
+                pn.log_probs .-= logsumexp(pn.log_probs, dims=1)
             end
         end
     end

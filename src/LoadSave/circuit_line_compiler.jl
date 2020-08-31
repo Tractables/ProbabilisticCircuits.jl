@@ -62,11 +62,11 @@ function decorate_prob(lines::CircuitFormatLines, logic_circuit::LogicCircuit, i
     function compile(ln::WeightedNamedConstantLine)
         @assert lnconstant(ln) == true
         root = id2probnode(ln.node_id)
-        root.log_thetas .= [ln.weight, log1p(-exp(ln.weight))]
+        root.log_probs .= [ln.weight, log1p(-exp(ln.weight))]
     end
     function compile(ln::DecisionLine{<:PSDDElement})
         root = id2probnode(ln.node_id)
-        root.log_thetas .= [x.weight for x in ln.elements]
+        root.log_probs .= [x.weight for x in ln.elements]
     end
 
     foreach(compile, lines)
