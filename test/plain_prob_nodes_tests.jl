@@ -21,7 +21,8 @@ include("helper/plain_logic_circuits.jl")
     @test GateType(p1) isa ⋁Gate
     @test GateType(children(p1)[1]) isa ⋀Gate
     @test GateType(lit3) isa LiteralGate
-
+    @test length(mul_nodes(p1)) == 4
+    
     # methods
     @test num_parameters(p1) == 10
 
@@ -35,5 +36,7 @@ include("helper/plain_logic_circuits.jl")
 
     r1 = fully_factorized_circuit(ProbCircuit,10)
     @test num_parameters(r1) == 2*10+1
+
+    @test length(mul_nodes(r1)) == 1
 
 end

@@ -15,17 +15,17 @@ using LogicCircuits.LoadSave: SDDElement,
 #####################
 
 "Decompile for psdd circuit, used during saving of circuits to file" 
-decompile(n::StructPlainProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
+decompile(n::StructProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine = 
     UnweightedLiteralLine(node2id[n], vtree2id[n.vtree], literal(n), true)
 
-make_element(n::StructPlainMulNode, w::AbstractFloat, node2id) = 
+make_element(n::StructMulNode, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
 
 istrue_node(n)::Bool = 
     is⋁gate(n) && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
     ispositive(children(n)[1]) && isnegative(children(n)[2])
 
-function decompile(n::StructPlainSumNode, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
+function decompile(n::StructSumNode, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
         WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_thetas[1]) # TODO
     else

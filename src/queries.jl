@@ -12,7 +12,7 @@ function log_likelihood_per_instance(pc::ProbCircuit, data)
     indices = init_array(Bool, num_examples(data))::BitVector
     
     ll(n::ProbCircuit) = ()
-    ll(n::Union{PlainSumNode, StructPlainSumNode}) = begin
+    ll(n::Union{PlainSumNode, StructSumNode}) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
             foreach(children(n), n.log_thetas) do c, log_theta
                 indices = get_downflow(n, c)
@@ -50,7 +50,7 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
     ans = falses(num_examples(evidence), num_features(evidence))
     active_samples = trues(num_examples(evidence))
 
-    function mpe_simulate(node::Union{PlainProbLiteralNode, StructPlainProbLiteralNode}, active_samples::BitVector, result::BitMatrix)
+    function mpe_simulate(node::Union{PlainProbLiteralNode, StructProbLiteralNode}, active_samples::BitVector, result::BitMatrix)
         if ispositive(node)
             result[active_samples, variable(node)] .= 1
         else
@@ -58,7 +58,7 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
         end
     end
     
-    function mpe_simulate(node::Union{PlainSumNode, StructPlainSumNode}, active_samples::BitVector, result::BitMatrix)
+    function mpe_simulate(node::Union{PlainSumNode, StructSumNode}, active_samples::BitVector, result::BitMatrix)
         prs = zeros(length(children(node)), size(active_samples)[1] )
         @simd  for i=1:length(children(node))
             prs[i,:] .= get_exp_upflow(children(node)[i]) .+ (node.log_thetas[i])
@@ -72,7 +72,7 @@ function MPE(pc::ProbCircuit, evidence)::BitMatrix
         end
     end
     
-    function mpe_simulate(node::Union{PlainMulNode, StructPlainMulNode}, active_samples::BitVector, result::BitMatrix)
+    function mpe_simulate(node::Union{PlainMulNode, StructMulNode}, active_samples::BitVector, result::BitMatrix)
         for child in children(node)
             mpe_simulate(child, active_samples, result)
         end
@@ -92,16 +92,16 @@ Sample from a PSDD without any evidence
 """
 function sample(circuit::ProbCircuit)::AbstractVector{Bool}
 
-    simulate(node::Union{PlainProbLiteralNode, StructPlainProbLiteralNode}) = begin
+    simulate(node::Union{PlainProbLiteralNode, StructProbLiteralNode}) = begin
         inst[variable(node)] = ispositive(node) ? 1 : 0
     end
     
-    simulate(node::Union{PlainSumNode, StructPlainSumNode}) = begin
+    simulate(node::Union{PlainSumNode, StructSumNode}) = begin
         idx = sample(exp.(node.log_thetas))
         simulate(children(node)[idx])
     end
 
-    simulate(node::Union{PlainMulNode, StructPlainMulNode}) = foreach(simulate, children(node))
+    simulate(node::Union{PlainMulNode, StructMulNode}) = foreach(simulate, children(node))
 
     inst = Dict{Var,Int64}()
     simulate(circuit)
@@ -121,17 +121,17 @@ function sample(circuit::ProbCircuit, evidence)::AbstractVector{Bool}
 
     @assert num_examples(evidence) == 1 "evidence have to be one example"
     
-    simulate(node::Union{PlainProbLiteralNode, StructPlainProbLiteralNode}) = begin
+    simulate(node::Union{PlainProbLiteralNode, StructProbLiteralNode}) = begin
         inst[variable(node)] = ispositive(node) ? 1 : 0
     end
     
-    function simulate(node::Union{PlainSumNode, StructPlainSumNode})
+    function simulate(node::Union{PlainSumNode, StructSumNode})
         prs = [get_exp_upflow(ch)[1] for ch in children(node)] # #evidence == 1
         idx = sample(exp.(node.log_thetas .+ prs))
         simulate(children(node)[idx])
     end
     
-    simulate(node::Union{PlainMulNode, StructPlainMulNode}) = foreach(simulate, children(node))
+    simulate(node::Union{PlainMulNode, StructMulNode}) = foreach(simulate, children(node))
 
     evaluate_exp(circuit, evidence)
 

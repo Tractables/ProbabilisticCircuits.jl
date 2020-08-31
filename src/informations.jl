@@ -18,7 +18,7 @@ function pr_constraint(psdd_node::ProbCircuit, sdd_node::StrutCircuit,
         return cache[psdd_node, sdd_node]
     
     # Boundary cases
-    elseif psdd_node isa StructPlainProbLiteralNode
+    elseif psdd_node isa StructProbLiteralNode
         # Both are literals, just check whether they agrees with each other 
         if isliteralgate(sdd_node)
             if literal(psdd_node) == literal(sdd_node)
@@ -38,7 +38,7 @@ function pr_constraint(psdd_node::ProbCircuit, sdd_node::StrutCircuit,
         end
     
     # The psdd is true
-    elseif children(psdd_node)[1] isa StructPlainProbLiteralNode 
+    elseif children(psdd_node)[1] isa StructProbLiteralNode 
         theta = exp(psdd_node.log_thetas[1])
         return get!(cache, (psdd_node, sdd_node),
             theta * pr_constraint(children(psdd_node)[1], sdd_node, cache) +
@@ -68,10 +68,10 @@ Calculate entropy of the distribution of the input psdd."
 """
 
 import ..Utils: entropy
-function entropy(psdd_node::StructPlainSumNode, psdd_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
+function entropy(psdd_node::StructSumNode, psdd_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
     if psdd_node in keys(psdd_entropy_cache)
         return psdd_entropy_cache[psdd_node]
-    elseif children(psdd_node)[1] isa StructPlainProbLiteralNode
+    elseif children(psdd_node)[1] isa StructProbLiteralNode
         return get!(psdd_entropy_cache, psdd_node,
             - exp(psdd_node.log_thetas[1]) * psdd_node.log_thetas[1] -
             exp(psdd_node.log_thetas[2]) * psdd_node.log_thetas[2])
@@ -88,27 +88,27 @@ function entropy(psdd_node::StructPlainSumNode, psdd_entropy_cache::Dict{ProbCir
     end
 end
 
-function entropy(psdd_node::StructPlainMulNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
+function entropy(psdd_node::StructMulNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
     return get!(psdd_entropy_cache, children(psdd_node)[1], entropy(children(psdd_node)[1], psdd_entropy_cache)) +
         get!(psdd_entropy_cache, children(psdd_node)[2], entropy(children(psdd_node)[2], psdd_entropy_cache))
 end
 
-function entropy(psdd_node::StructPlainProbLiteralNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
+function entropy(psdd_node::StructProbLiteralNode, psdd_entropy_cache::Dict{ProbCircuit, Float64})::Float64
     return get!(psdd_entropy_cache, psdd_node, 0.0)
 end
 
 "Calculate KL divergence calculation for psdds that are not necessarily identical"
-function kl_divergence(psdd_node1::StructPlainSumNode, psdd_node2::StructPlainSumNode,
+function kl_divergence(psdd_node1::StructSumNode, psdd_node2::StructSumNode,
         kl_divergence_cache::KLDCache=KLDCache(), pr_constraint_cache::PRCache=PRCache())
-    @assert !(psdd_node1 isa StructPlainMulNode || psdd_node2 isa StructPlainMulNode) "Prob⋀ not a valid PSDD node for KL-Divergence"
+    @assert !(psdd_node1 isa StructMulNode || psdd_node2 isa StructMulNode) "Prob⋀ not a valid PSDD node for KL-Divergence"
 
     # Check if both nodes are normalized for same vtree node
     @assert variables(psdd_node1) == variables(psdd_node2) "Both nodes not normalized for same vtree node"
 
     if (psdd_node1, psdd_node2) in keys(kl_divergence_cache) # Cache hit
         return kl_divergence_cache[(psdd_node1, psdd_node2)]
-    elseif children(psdd_node1)[1] isa StructPlainProbLiteralNode
-        if psdd_node2 isa StructPlainProbLiteralNode
+    elseif children(psdd_node1)[1] isa StructProbLiteralNode
+        if psdd_node2 isa StructProbLiteralNode
             kl_divergence(children(psdd_node1)[1], psdd_node2, kl_divergence_cache, pr_constraint_cache)
             kl_divergence(children(psdd_node1)[2], psdd_node2, kl_divergence_cache, pr_constraint_cache)
             if literal(children(psdd_node1)[1]) == literal(psdd_node2)
@@ -169,7 +169,7 @@ function kl_divergence(psdd_node1::StructPlainSumNode, psdd_node2::StructPlainSu
     end
 end
 
-function kl_divergence(psdd_node1::StructPlainProbLiteralNode, psdd_node2::StructPlainProbLiteralNode,
+function kl_divergence(psdd_node1::StructProbLiteralNode, psdd_node2::StructProbLiteralNode,
         kl_divergence_cache::KLDCache, pr_constraint_cache::PRCache)
     # Check if literals are over same variables in vtree
    @assert variables(psdd_node1) == variables(psdd_node2) "Both nodes not normalized for same vtree node"
@@ -182,7 +182,7 @@ function kl_divergence(psdd_node1::StructPlainProbLiteralNode, psdd_node2::Struc
     end
 end
 
-function kl_divergence(psdd_node1::StructPlainSumNode, psdd_node2::StructPlainProbLiteralNode,
+function kl_divergence(psdd_node1::StructSumNode, psdd_node2::StructProbLiteralNode,
         kl_divergence_cache::KLDCache, pr_constraint_cache::PRCache)
     @assert variables(psdd_node1) == variables(psdd_node2) "Both nodes not normalized for same vtree node"
 
@@ -203,7 +203,7 @@ function kl_divergence(psdd_node1::StructPlainSumNode, psdd_node2::StructPlainPr
     end
 end
 
-function kl_divergence(psdd_node1::StructPlainProbLiteralNode, psdd_node2::StructPlainSumNode,
+function kl_divergence(psdd_node1::StructProbLiteralNode, psdd_node2::StructSumNode,
         kl_divergence_cache::KLDCache, pr_constraint_cache::PRCache)
     @assert variables(psdd_node1) == variables(psdd_node2) "Both nodes not normalized for same vtree node"
 

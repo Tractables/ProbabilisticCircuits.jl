@@ -55,6 +55,9 @@ import LogicCircuits: conjoin, disjoin # make available for extension
 @inline Base.:*(x::ProbCircuit, y::ProbCircuit) = multiply(x,y)
 @inline Base.:+(x::ProbCircuit, y::ProbCircuit) = summate(x,y)
 
+compile(::Type{<:ProbCircuit}, ::Bool) =
+    error("Probabilistic circuits do not have constant leafs.")
+
 #####################
 # circuit inspection
 #####################
@@ -64,3 +67,10 @@ mul_nodes(c::ProbCircuit) = ⋀_nodes(c)
 
 "Get the list of summation nodes in a given circuit"
 sum_nodes(c::ProbCircuit) = ⋁_nodes(c)
+
+function check_parameter_integrity(circuit::ProbCircuit)
+    for node in sum_nodes(circuit)
+        @assert all(θ -> !isnan(θ), node.log_thetas) "There is a NaN in one of the log_thetas"
+    end
+    true
+end

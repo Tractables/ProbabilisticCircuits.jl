@@ -86,9 +86,6 @@ end
 compile(::Type{ProbCircuit}, args...) =
     compile(PlainProbCircuit, args...)
 
-compile(::Type{<:PlainProbCircuit}, ::Bool) =
-    error("Probabilistic circuits do not have constant leafs.")
-
 compile(::Type{<:PlainProbCircuit}, l::Lit) =
     PlainProbLiteralNode(l)
 
