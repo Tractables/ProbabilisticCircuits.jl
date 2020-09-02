@@ -59,22 +59,25 @@ function log_likelihood_per_instance_cpu(bc, data, params)
 end
 
 function log_likelihood_per_instance_gpu(bc, data, params)
-    ll::CuVector{Int32} = CUDA.zeros(Float64, num_examples(data))
+    params_device = CUDA.cudaconvert(params)
+    ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
     ll_device = CUDA.cudaconvert(ll)
         
-    @inline function on_edge(flows, values, dec_id, el_id, p, s, els_start, els_end, ex_id, edge_flow)
+    @inline function on_edge(flows, values, dec_id, el_id, p, s, els_start, els_end, chunk_id, edge_flow)
         if els_start != els_end
-            first_true_bit = trailing_zeros(edge_flow)+1
+            first_true_bit = 1+trailing_zeros(edge_flow)
             last_true_bit = 64-leading_zeros(edge_flow)
             for j = first_true_bit:last_true_bit
-                ex_id = ((i-1) << 6) + j
+                ex_id = ((chunk_id-1) << 6) + j
                 if get_bit(edge_flow, j)
-                    CUDA.@atomic ll_device[ex_id] += params[el_id]
+                    CUDA.@atomic ll_device[ex_id] += params_device[el_id]
                 end
             end
         end
         nothing
     end
+    
+    compute_values_flows(bc, data; on_edge)
 
     return ll
 end
