@@ -1,5 +1,7 @@
-export PlainProbCircuit, ProbLeafNode, ProbInnerNode, ProbLiteralNode, Prob⋀Node, 
-Prob⋁Node
+export 
+    PlainProbCircuit,
+    ProbLeafNode, ProbInnerNode, 
+    ProbLiteralNode, Prob⋀Node, Prob⋁Node
 
 #####################
 # Infrastructure for probabilistic circuit nodes

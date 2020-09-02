@@ -90,6 +90,8 @@ struct CuLayeredParameterCircuit
     CuLayeredParameterCircuit(l::LayeredParameterCircuit) = new(CuLayeredBitCircuit(l.layered_circuit), map(CuMatrix, l.layered_parameters))
 end
 
+
+
 function class_likelihood(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cp=nothing)
     cw, flow, v = class_weights(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
     one = Float32(1.0)
@@ -141,8 +143,8 @@ function calculate_class_weights_layer_kernel_cuda(cw, v, flow, decisions, eleme
                 last_elem = @inbounds decisions[3, i]
                 n_down = @inbounds flow[j, decision_id]
                 for e = first_elem:last_elem
-                    e1 = @inbounds elements[1,first_elem]
-                    e2 = @inbounds elements[2,first_elem]
+                    e1 = @inbounds elements[1, first_elem]
+                    e2 = @inbounds elements[2, first_elem]
                     e_up = @inbounds (v[j, e1] * v[j, e2])
                     edge_flow = e_up / n_up * n_down
                     # following needs to be memory safe
@@ -157,6 +159,8 @@ function calculate_class_weights_layer_kernel_cuda(cw, v, flow, decisions, eleme
     return nothing
 end
 
+
+
 function one_hot(labels::Vector, nc::Integer)    
     ne = length(labels) 
     one_hot_labels = zeros(Float32, ne, nc)
@@ -167,26 +171,26 @@ function one_hot(labels::Vector, nc::Integer)
 end
 
 function learn_parameters(circuit::CuLayeredParameterCircuit, nc::Integer, data::CuMatrix{Float32}, labels::CuMatrix{Float32}, reuse_up=nothing, reuse_down=nothing, reuse_cp=nothing, num_epochs=20, step_size=0.0001)
-    cp, node_flow, edge_flow, v = class_likelihood(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
-    update_parameters(circuit, labels, cp, edge_flow, step_size)
+    cp, flow, v = class_likelihood(circuit, nc, data, reuse_up, reuse_down, reuse_cp)
+    update_parameters(circuit, labels, cp, flow, step_size)
     for _ = 2:num_epochs
-        cp, node_flow, edge_flow, v = class_likelihood(circuit, nc, data, v, (node_flow, edge_flow), cp)
-        update_parameters(circuit, labels, cp, edge_flow, step_size)
+        cp, flow, v = class_likelihood(circuit, nc, data, v, flow, cp)
+        update_parameters(circuit, labels, cp, v, flow, step_size)
     end
     return nothing
 end
 
-function update_parameters(circuit::CuLayeredParameterCircuit, labels, cp, flow, step_size=0.0001)
+function update_parameters(circuit::CuLayeredParameterCircuit, labels, cp, v, flow, step_size=0.0001)
     _, nc = size(labels)
     step_size = Float32(step_size)
-    class_per_thread = 1
     CUDA.@sync for i = 1:length(circuit.layered_circuit.layers)
         circuit_layer = circuit.layered_circuit.layers[i]
         flow_layer = flow[i]
         parameter_layer = circuit.layered_parameters[i]
         ndl = num_decisions(circuit_layer)
-        num_threads = balance_threads(ndl, nc / class_per_thread, 8)
-        num_blocks = ceil(Int, ndl / num_threads[1]), ceil(Int, ndl / num_threads[2] / class_per_thread)
+        num_threads = balance_threads(ndl, nc, 6)
+        num_threads = num_threads[1], num_threads[2], 
+        num_blocks = ceil(Int, ndl / num_threads[1]), ceil(Int, nc / num_threads[2]), 4
         @cuda threads=num_threads blocks=num_blocks update_parameters_layer_kernel_cuda(labels, cp, flow_layer, circuit_layer.decisions, parameter_layer, step_size)
     end
     return nothing
@@ -195,8 +199,10 @@ end
 function update_parameters_layer_kernel_cuda(labels, cp, flow, decisions, parameters, step_size)
     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    index_z = (blockIdx().z - 1) * blockDim().z + threadIdx().z
     stride_x = blockDim().x * gridDim().x
     stride_y = blockDim().y * gridDim().y
+    stride_z = blockDim().z * gridDim().z
     ne, nc = size(labels)
     _, num_decisions = size(decisions)
     
@@ -205,9 +211,10 @@ function update_parameters_layer_kernel_cuda(labels, cp, flow, decisions, parame
             first_elem = @inbounds decisions[2, i]
             last_elem = @inbounds decisions[3, i]
             for e = first_elem:last_elem
-                for j = 1:ne
-                    u = @inbounds flow[j, e] * (cp[j, class] - labels[j, class]) * step_size
-                    # following are memory safe
+                for j = index_z:stride_z:ne
+                    edge_flow = e_up / n_up * n_down
+                    u = @inbounds edge_flow * (cp[j, class] - labels[j, class]) * step_size
+                    # following needs to be memory safe
                     @inbounds parameters[class, e] -= u 
                 end
             end

@@ -1,12 +1,8 @@
 export 
     LogisticCircuit, 
-    LogisticLeafNode, 
-    LogisticInnerNode, 
-    LogisticLiteral,
-    Logistic⋀Node,
-    Logistic⋁Node,
-    classes,
-    num_parameters_perclass
+    LogisticLeafNode, LogisticInnerNode, 
+    LogisticLiteral, Logistic⋀Node, Logistic⋁Node,
+    num_classes, num_parameters_per_class
     
 #####################
 # Infrastructure for logistic circuit nodes
@@ -54,7 +50,7 @@ A logistic disjunction node (Or node)
 """
 mutable struct Logistic⋁Node <: LogisticInnerNode
     children::Vector{<:LogisticCircuit}
-    thetas::Array{Float32, 2}
+    thetas::Matrix{Float32}
     data
     counter::UInt32
     Logistic⋁Node(children, class::Int) = begin
@@ -77,11 +73,11 @@ import LogicCircuits.GateType # make available for extension
 
 import LogicCircuits: children # make available for extension
 @inline children(n::LogisticInnerNode) = n.children
-@inline classes(n::Logistic⋁Node) = size(n.thetas)[2]
+@inline num_classes(n::Logistic⋁Node) = size(n.thetas)[2]
 
 import ..Utils: num_parameters
 @inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * classes(n), ⋁_nodes(c))
-@inline num_parameters_perclass(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
+@inline num_parameters_per_class(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
 
 #####################
 # constructors and conversions
