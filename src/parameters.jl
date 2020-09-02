@@ -9,14 +9,12 @@ Maximum likilihood estimation of parameters given data
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
-    bc = BitCircuit(pc, data; reset=false, gpu = isgpu(data))
-    on_node, on_edge, get_params = if isgpu(data)
-        estimate_parameters_gpu(bc, pseudocount)
+    bc = BitCircuit(pc, data; reset=false)
+    params::Vector{Float64} = if isgpu(data)
+        estimate_parameters_gpu(to_gpu(bc), data, pseudocount)
     else
-        estimate_parameters_cpu(bc, pseudocount)
+        estimate_parameters_cpu(bc, data, pseudocount)
     end
-    compute_values_flows(bc, data; on_node, on_edge)
-    params::Vector{Float64} = get_params()
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
@@ -34,7 +32,7 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     params
 end
 
-function estimate_parameters_cpu(bc, pseudocount)
+function estimate_parameters_cpu(bc, data, pseudocount)
     # no need to synchronize, since each computation is unique to a decision node
     node_counts::Vector{UInt} = Vector{UInt}(undef, num_nodes(bc))
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
@@ -61,12 +59,11 @@ function estimate_parameters_cpu(bc, pseudocount)
         nothing
     end
 
-    get_params() = log_params
-
-    return (on_node, on_edge, get_params)
+    compute_values_flows(bc, data; on_node, on_edge)
+    return log_params
 end
 
-function estimate_parameters_gpu(bc, pseudocount)
+function estimate_parameters_gpu(bc, data, pseudocount)
     node_counts::CuVector{Int32} = CUDA.zeros(Int32, num_nodes(bc))
     edge_counts::CuVector{Int32} = CUDA.zeros(Int32, num_elements(bc))
     params::CuVector{Float64} = CuVector{Float64}(undef, num_elements(bc))
@@ -82,7 +79,7 @@ function estimate_parameters_gpu(bc, pseudocount)
         end
         if isone(ex_id) # only do this once
             for i=els_start:els_end
-                params_device[i] = pseudocount/(els_end-els_start+1)
+                @inbounds params_device[i] = pseudocount/(els_end-els_start+1)
             end
         end
         nothing
@@ -96,13 +93,15 @@ function estimate_parameters_gpu(bc, pseudocount)
         nothing
     end
 
-    function get_params()
-        parent_counts = @views node_counts[bc.elements[1,:]]
-        params .= log.(params .+ edge_counts) .- log.(parent_counts .+ pseudocount)
-        to_cpu(params)
-    end
+    v, f = compute_values_flows(bc, data; on_node, on_edge)
+    # TODO: manually garbage collect v,f
 
-    return (on_node, on_edge, get_params)
+    # TODO: reinstate following implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+    # parent_counts = @views node_counts[bc.elements[1,:]]
+    @inbounds parents = bc.elements[1,:]
+    @inbounds parent_counts = node_counts[parents]
+    params .= log.(params .+ edge_counts) .- log.(parent_counts .+ pseudocount)
+    return to_cpu(params)
 end
 
 """

@@ -3,7 +3,7 @@ export ProbCircuit,
     num_parameters,
     mul_nodes, sum_nodes
 
-using LogicCircuits: LogicCircuit
+using LogicCircuits
 
 #####################
 # Abstract probabilistic circuit nodes
