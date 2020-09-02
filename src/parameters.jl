@@ -94,7 +94,8 @@ function estimate_parameters_gpu(bc, data, pseudocount)
     end
 
     v, f = compute_values_flows(bc, data; on_node, on_edge)
-    # TODO: manually garbage collect v,f
+    CUDA.unsafe_free!(v) # save the GC some effort
+    CUDA.unsafe_free!(f) # save the GC some effort
 
     # TODO: reinstate following implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
     # parent_counts = @views node_counts[bc.elements[1,:]]

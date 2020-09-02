@@ -77,8 +77,10 @@ function log_likelihood_per_instance_gpu(bc, data, params)
         nothing
     end
     
-    compute_values_flows(bc, data; on_edge)
-
+    v, f = compute_values_flows(bc, data; on_edge)
+    CUDA.unsafe_free!(v) # save the GC some effort
+    CUDA.unsafe_free!(f) # save the GC some effort
+    
     return ll
 end
 
