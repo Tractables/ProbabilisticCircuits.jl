@@ -1,21 +1,35 @@
 export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 
+"A `BitCircuit` with parameters attached to the elements"
+struct ParamBitCircuit{V,M,W}
+    bitcircuit::BitCircuit{V,M}
+    params::W
+end
+
+import LogicCircuits: to_gpu, to_cpu #extend
+
+to_gpu(c::ParamBitCircuit) = 
+    ParamBitCircuit(to_gpu(c.bitcircuit), to_gpu(c.params))
+
+to_cpu(c::ParamBitCircuit) = 
+    ParamBitCircuit(to_cpu(c.bitcircuit), to_cpu(c.params))
+
 """
 Construct a `BitCircuit` while storing edge parameters in a separate array
 """
-function bitcircuit_with_params(pc, data)
-    params::Vector{Float64} = Vector{Float64}()
+function ParamBitCircuit(pc::ProbCircuit, data)
+    logprobs::Vector{Float64} = Vector{Float64}()
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n) # this decision node is not part of the PC
             # @assert first_element == last_element
-            push!(params, 0.0)
+            push!(logprobs, 0.0)
         else
-            # @assert last_element-first_element+1 == length(n.log_probs) "$last_element-$first_element+1 != $(length(n.log_probs))"
-            append!(params, n.log_probs)
+            # @assert last_element-first_element+1 == length(n.log_probs) 
+            append!(logprobs, n.log_probs)
         end
     end
     bc = BitCircuit(pc, data; on_decision)
-    (bc, params)
+    ParamBitCircuit(bc, logprobs)
 end
 
 """
@@ -23,15 +37,15 @@ Compute the likelihood of the PC given each individual instance in the data
 """
 function log_likelihood_per_instance(pc::ProbCircuit, data)
     @assert isbinarydata(data) "Probabilistic circuit likelihoods are for binary data only"
-    bc, params = bitcircuit_with_params(pc, data)
+    bc = ParamBitCircuit(pc, data)
     if isgpu(data)
-        log_likelihood_per_instance_gpu(to_gpu(bc), data, to_gpu(params))
+        log_likelihood_per_instance_gpu(to_gpu(bc), data)
     else
-        log_likelihood_per_instance_cpu(bc, data, params)
+        log_likelihood_per_instance_cpu(bc, data)
     end
 end
 
-function log_likelihood_per_instance_cpu(bc, data, params)
+function log_likelihood_per_instance_cpu(bc, data)
     ll::Vector{Float64} = zeros(Float64, num_examples(data))
     ll_lock::Threads.ReentrantLock = Threads.ReentrantLock()
     
@@ -45,7 +59,7 @@ function log_likelihood_per_instance_cpu(bc, data, params)
                     @simd for j = first_true_bit:last_true_bit
                         ex_id = ((i-1) << 6) + j
                         if get_bit(edge_flow, j)
-                            @inbounds ll[ex_id] += params[el_id]
+                            @inbounds ll[ex_id] += bc.params[el_id]
                         end
                     end
                 end
@@ -54,12 +68,12 @@ function log_likelihood_per_instance_cpu(bc, data, params)
         nothing
     end
 
-    compute_values_flows(bc, data; on_edge)
+    compute_values_flows(bc.bitcircuit, data; on_edge)
     return ll
 end
 
-function log_likelihood_per_instance_gpu(bc, data, params)
-    params_device = CUDA.cudaconvert(params)
+function log_likelihood_per_instance_gpu(bc, data)
+    params_device = CUDA.cudaconvert(bc.params)
     ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
     ll_device = CUDA.cudaconvert(ll)
         
@@ -77,7 +91,7 @@ function log_likelihood_per_instance_gpu(bc, data, params)
         nothing
     end
     
-    v, f = compute_values_flows(bc, data; on_edge)
+    v, f = compute_values_flows(bc.bitcircuit, data; on_edge)
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
     

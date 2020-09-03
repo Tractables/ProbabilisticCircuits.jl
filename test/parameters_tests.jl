@@ -2,6 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames: DataFrame
+using CUDA: CUDA
 
 @testset "MLE tests" begin
     
