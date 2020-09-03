@@ -12,6 +12,7 @@ include("Utils/Utils.jl")
 
 include("abstract_prob_nodes.jl")
 include("plain_prob_nodes.jl")
+include("param_bit_circuit.jl")
 include("parameters.jl")
 include("structured_prob_nodes.jl")
 
@@ -21,8 +22,6 @@ include("queries/likelihood.jl")
 # include("queries.jl")
 # include("informations.jl")
 
-# include("logistic/logistic_nodes.jl")
-# include("logistic/queries.jl")
 
 # include("reasoning/expectation.jl")
 # include("reasoning/exp_flow_circuits.jl")
