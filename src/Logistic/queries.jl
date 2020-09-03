@@ -1,0 +1,165 @@
+export class_likelihood_per_instance, class_weights_per_instance
+
+using CUDA
+using LoopVectorization: @avx, vifelse
+
+
+
+"""
+Class Conditional Probability
+"""
+
+function bitcircuit_with_params(lc, nc, data)
+    params::Vector{Vector{Float64}} = Vector{Vector{Float64}}()
+    on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
+        if isnothing(n)
+            # @assert first_element == last_element
+            push!(params, zeros(Float64, nc))
+        else
+            # @assert last_element-first_element+1 == length(n.log_probs) "$last_element-$first_element+1 != $(length(n.log_probs))"
+            for theta in eachrow(n.thetas)
+                push!(params, theta)
+            end
+        end
+    end
+    bc = BitCircuit(lc, data; on_decision)
+    (bc, permutedims(hcat(params...), (2, 1)))
+end
+
+function class_likelihood_per_instance(lc::LogicCircuit, nc::Int, data)    
+    cw = class_weights_per_instance(lc, nc, data)
+    isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
+end
+
+function class_weights_per_instance(lc::LogisticCircuit, nc::Int, data)
+    bc, params = bitcircuit_with_params(lc, nc, data)
+    if isgpu(data)
+        class_weights_per_instance_gpu(to_gpu(bc), data, to_gpu(params))
+    else
+        class_weights_per_instance_cpu(bc, data, params)
+    end
+end
+
+function class_weights_per_instance_cpu(bc, data, params)
+    ne::Int = num_examples(data)
+    nc::Int = size(params, 2)
+    cw::Matrix{Float64} = zeros(Float64, ne, nc)
+    cw_lock::Threads.ReentrantLock = Threads.ReentrantLock()
+ 
+    @inline function on_edge_binary(flows, values, dec_id, el_id, p, s, els_start, els_end, locks)
+        if els_start != els_end
+            lock(cw_lock) do # TODO: move lock to inner loop?
+                for i = 1:size(flows, 1)
+                    @inbounds edge_flow = values[i, p] & values[i, s] & flows[i, dec_id]
+                    first_true_bit = trailing_zeros(edge_flow) + 1
+                    last_true_bit = 64 - leading_zeros(edge_flow)
+                    @simd for j = first_true_bit:last_true_bit
+                        if get_bit(edge_flow, j)
+                            ex_id = ((i-1) << 6) + j
+                            for class = 1:size(cw, 2)
+                                @inbounds cw[ex_id, class] += params[el_id, class]
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        nothing
+    end
+
+    @inline function on_edge_float(flows, values, dec_id, el_id, p, s, els_start, els_end, locks)
+        if els_start != els_end
+            lock(cw_lock) do # TODO: move lock to inner loop?
+                @avx for i = 1:size(flows, 1)
+                    @inbounds edge_flow = values[i, p] * values[i, s] / values[i, dec_id] * flows[i, dec_id]
+                    edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(Float32))
+                    for class = 1:size(cw, 2)
+                        @inbounds cw[i, class] += edge_flow * params[el_id, class]
+                    end
+                end
+            end
+        end
+        nothing
+    end
+
+    if isbinarydata(data)
+        compute_values_flows(bc, data; on_edge = on_edge_binary)
+    else
+        compute_values_flows(bc, data; on_edge = on_edge_float)
+    end
+
+    return cw
+end
+
+function class_weights_per_instance_gpu(bc, data, params)
+    ne::Int = num_examples(data)
+    nc::Int = size(params, 2)
+    cw::CuMatrix{Float64} = CUDA.zeros(Float64, num_examples(data), nc)
+    cw_device = CUDA.cudaconvert(cw)
+    params_device = CUDA.cudaconvert(params)
+
+    @inline function on_edge_binary(flows, values, dec_id, el_id, p, s, els_start, els_end, chunk_id, edge_flow)
+        if els_start != els_end
+            first_true_bit = 1+trailing_zeros(edge_flow)
+            last_true_bit = 64-leading_zeros(edge_flow)
+            for j = first_true_bit:last_true_bit
+                if get_bit(edge_flow, j)
+                    ex_id = ((chunk_id-1) << 6) + j
+                    for class = 1:size(cw_device, 2)
+                        CUDA.@atomic cw_device[ex_id, class] += params_device[el_id, class]
+                    end
+                end
+            end
+        end
+        nothing
+    end
+
+    @inline function on_edge_float(flows, values, dec_id, el_id, p, s, els_start, els_end, ex_id, edge_flow)
+        if els_start != els_end
+            for class = 1:size(cw_device, 2)
+                CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[el_id, class]
+            end
+        end
+        nothing
+    end
+    
+    if isbinarydata(data)
+        v,f = compute_values_flows(bc, data; on_edge = on_edge_binary)
+    else
+        @assert isfpdata(data) "Only floating point and binary data are supported"
+        v,f = compute_values_flows(bc, data; on_edge = on_edge_float)
+    end
+    CUDA.unsafe_free!(v) # save the GC some effort
+    CUDA.unsafe_free!(f) # save the GC some effort
+
+    return cw
+end
+
+
+
+"""
+Class Predictions
+"""
+function predict_class(lc::LogisticCircuit, nc::Int, data)
+    class_likelihoods = class_likelihood_per_instance(lc, nc, data)
+    predict_class(class_likelihoods)
+end
+
+function predict_class(class_likelihoods)
+    _, mxindex = findmax(class_likelihoods; dims=2)
+    dropdims(getindex.(mxindex, 2); dims=2)
+end
+
+
+
+"""
+Prediction accuracy
+"""
+accuracy(lc::LogisticCircuit, nc::Int, data, labels) = 
+    accuracy(predict_class(lc, nc, data), labels)
+
+accuracy(predicted_class, labels) = 
+    Float64(sum(@. predicted_class == labels)) / length(labels)
+
+accuracy(class_likelihoods, labels) = 
+    accuracy(predict_class(class_likelihoods), labels)
