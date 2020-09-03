@@ -50,7 +50,7 @@ A logistic disjunction node (Or node)
 """
 mutable struct Logistic⋁Node <: LogisticInnerNode
     children::Vector{<:LogisticCircuit}
-    thetas::Matrix{Float32}
+    thetas::Matrix{Float64}
     data
     counter::UInt32
     Logistic⋁Node(children, class::Int) = begin

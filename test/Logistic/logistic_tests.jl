@@ -45,38 +45,38 @@ using ProbabilisticCircuits
     # check accuracy
     @test accuracy(logistic_circuit, CLASSES, data, true_labels) == 1.0
 
-    # check parameter updates
-    original_literal_parameters = Dict{Int, Vector{Float64}}()
-    foreach(logistic_circuit) do ln
-        if ln isa Logistic⋁Node
-            foreach(ln.children, eachrow(ln.thetas)) do c, theta
-                if c isa LogisticLiteral
-                    original_literal_parameters[c.literal] = copy(theta)
-                end
-            end
-        end
-    end
+    # # check parameter updates
+    # original_literal_parameters = Dict{Int, Vector{Float64}}()
+    # foreach(logistic_circuit) do ln
+    #     if ln isa Logistic⋁Node
+    #         foreach(ln.children, eachrow(ln.thetas)) do c, theta
+    #             if c isa LogisticLiteral
+    #                 original_literal_parameters[c.literal] = copy(theta)
+    #             end
+    #         end
+    #     end
+    # end
     
-    one_hot_labels = [0.0 1.0;
-                      1.0 0.0;
-                      0.0 1.0]
-    one_hot_labels = Float32.(one_hot_labels)
-    true_error = true_prob .- one_hot_labels
-    step_size = 0.1
-    learn_parameters(logistic_circuit, CLASSES, data, true_labels; num_epochs=1, step_size=step_size, flows_computed=true)
+    # one_hot_labels = [0.0 1.0;
+    #                   1.0 0.0;
+    #                   0.0 1.0]
+    # one_hot_labels = Float32.(one_hot_labels)
+    # true_error = true_prob .- one_hot_labels
+    # step_size = 0.1
+    # learn_parameters(logistic_circuit, CLASSES, data, true_labels; num_epochs=1, step_size=step_size, flows_computed=true)
     
-    foreach(logistic_circuit) do ln
-        if ln isa Logistic⋁Node
-            foreach(ln.children, eachrow(ln.thetas)) do c, theta
-                if c isa LogisticLiteral
-                    for class = 1:CLASSES
-                        true_update_amount = -step_size * sum(c.data.upflow .* true_error[:, class]) / size(true_error)[1]
-                        updated_amount = theta[class] - original_literal_parameters[c.literal][class]
-                        @test updated_amount ≈ true_update_amount atol=1e-7
-                    end
-                end
-            end
-        end
-    end
+    # foreach(logistic_circuit) do ln
+    #     if ln isa Logistic⋁Node
+    #         foreach(ln.children, eachrow(ln.thetas)) do c, theta
+    #             if c isa LogisticLiteral
+    #                 for class = 1:CLASSES
+    #                     true_update_amount = -step_size * sum(c.data.upflow .* true_error[:, class]) / size(true_error)[1]
+    #                     updated_amount = theta[class] - original_literal_parameters[c.literal][class]
+    #                     @test updated_amount ≈ true_update_amount atol=1e-7
+    #                 end
+    #             end
+    #         end
+    #     end
+    # end
 
 end
