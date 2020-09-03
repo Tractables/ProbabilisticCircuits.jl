@@ -7,43 +7,43 @@ using ProbabilisticCircuits
     # Uses a Logistic Circuit with 4 variables, and tests 3 of the configurations to 
     # match with python version.
     
-    CLASSES = 2
+    # CLASSES = 2
 
-    logistic_circuit = zoo_lc("little_4var.circuit", CLASSES)
-    @test logistic_circuit isa LogisticCircuit
+    # logistic_circuit = zoo_lc("little_4var.circuit", CLASSES)
+    # @test logistic_circuit isa LogisticCircuit
 
-    # check probabilities for binary samples
-    data = @. Bool([0 0 0 0; 0 1 1 0; 0 0 1 1])
-    # true_weight_func = [3.43147972 4.66740416; 
-    #                     4.27595352 2.83503504;
-    #                     3.67415087 4.93793472]
-    true_prob = [0.9686740008311808 0.9906908445371728;
-                 0.9862917392724188 0.9445399509069984; 
-                 0.9752568185086389 0.9928816444223209]
+    # # check probabilities for binary samples
+    # data = @. Bool([0 0 0 0; 0 1 1 0; 0 0 1 1])
+    # # true_weight_func = [3.43147972 4.66740416; 
+    # #                     4.27595352 2.83503504;
+    # #                     3.67415087 4.93793472]
+    # true_prob = [0.9686740008311808 0.9906908445371728;
+    #              0.9862917392724188 0.9445399509069984; 
+    #              0.9752568185086389 0.9928816444223209]
             
-    class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
-    for i = 1:size(true_prob)[1]
-        for j = 1:CLASSES
-            @test true_prob[i,j] ≈ class_prob[i,j]
-        end
-    end
+    # class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
+    # for i = 1:size(true_prob)[1]
+    #     for j = 1:CLASSES
+    #         @test true_prob[i,j] ≈ class_prob[i,j]
+    #     end
+    # end
 
-    # check probabilities for float samples
-    data = Float32.(data)
-    class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
-    for i = 1:size(true_prob)[1]
-        for j = 1:CLASSES
-            @test true_prob[i,j] ≈ class_prob[i,j]
-        end
-    end
+    # # check probabilities for float samples
+    # data = Float32.(data)
+    # class_prob = class_likelihood_per_instance(logistic_circuit, CLASSES, data)
+    # for i = 1:size(true_prob)[1]
+    #     for j = 1:CLASSES
+    #         @test true_prob[i,j] ≈ class_prob[i,j]
+    #     end
+    # end
 
-    # check predicted_classes
-    true_labels = [2, 1, 2]
-    predicted_classes = predict_class(logistic_circuit, CLASSES, data)
-    @test all(predicted_classes .== true_labels)
+    # # check predicted_classes
+    # true_labels = [2, 1, 2]
+    # predicted_classes = predict_class(logistic_circuit, CLASSES, data)
+    # @test all(predicted_classes .== true_labels)
     
-    # check accuracy
-    @test accuracy(logistic_circuit, CLASSES, data, true_labels) == 1.0
+    # # check accuracy
+    # @test accuracy(logistic_circuit, CLASSES, data, true_labels) == 1.0
 
     # # check parameter updates
     # original_literal_parameters = Dict{Int, Vector{Float64}}()
