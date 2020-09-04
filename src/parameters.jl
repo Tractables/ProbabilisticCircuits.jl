@@ -59,7 +59,7 @@ function estimate_parameters_cpu(bc, data, pseudocount)
         nothing
     end
 
-    compute_values_flows(bc, data; on_node, on_edge)
+    satisfies_flows(bc, data; on_node, on_edge)
     return log_params
 end
 
@@ -93,7 +93,7 @@ function estimate_parameters_gpu(bc, data, pseudocount)
         nothing
     end
 
-    v, f = compute_values_flows(bc, data; on_node, on_edge)
+    v, f = satisfies_flows(bc, data; on_node, on_edge)
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
 

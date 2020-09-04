@@ -1,10 +1,16 @@
-export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
+export ParamBitCircuit, EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 
 "A `BitCircuit` with parameters attached to the elements"
 struct ParamBitCircuit{V,M,W}
     bitcircuit::BitCircuit{V,M}
     params::W
 end
+
+import LogicCircuits: num_nodes, num_elements, num_features
+
+num_nodes(c::ParamBitCircuit) = num_nodes(c.bitcircuit)
+num_elements(c::ParamBitCircuit) = num_elements(c.bitcircuit)
+num_features(c::ParamBitCircuit) = num_features(c.bitcircuit)
 
 import LogicCircuits: to_gpu, to_cpu #extend
 
@@ -68,7 +74,7 @@ function log_likelihood_per_instance_cpu(bc, data)
         nothing
     end
 
-    compute_values_flows(bc.bitcircuit, data; on_edge)
+    satisfies_flows(bc.bitcircuit, data; on_edge)
     return ll
 end
 
@@ -91,7 +97,7 @@ function log_likelihood_per_instance_gpu(bc, data)
         nothing
     end
     
-    v, f = compute_values_flows(bc.bitcircuit, data; on_edge)
+    v, f = satisfies_flows(bc.bitcircuit, data; on_edge)
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
     
