@@ -1,6 +1,7 @@
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
+using DataFrames: DataFrame
 
 
 @testset "structured probabilistic circuit nodes" begin

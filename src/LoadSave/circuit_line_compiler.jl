@@ -111,7 +111,7 @@ function decorate_logistic(lines::CircuitFormatLines, logic_circuit::LogicCircui
 
     function compile(ln::BiasLine)
         root = id2logisticnode(ln.node_id)::Logistic⋁Node
-        # @assert length(node.thetas) == 1
+        # @assert length(root.thetas) == 1
         root.thetas[1,:] .= ln.weights
     end
 
