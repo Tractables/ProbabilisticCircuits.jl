@@ -1,8 +1,8 @@
 module Logistic
 
 using LogicCircuits
+using ...ProbabilisticCircuits
 
-include("logistic_nodes.jl")
 include("queries.jl")
 include("parameters.jl")
 
