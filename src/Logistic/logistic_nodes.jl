@@ -112,5 +112,5 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data)
         end
     end
     bc = BitCircuit(lc, data; on_decision)
-    ParamBitCircuit(bc, permutedims(hcat(params...), (2, 1)))
+    ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
