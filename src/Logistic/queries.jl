@@ -4,45 +4,35 @@ using CUDA
 using LoopVectorization: @avx, vifelse
 
 
-
 """
 Class Conditional Probability
 """
-
-function bitcircuit_with_params(lc, nc, data)
-    params::Vector{Vector{Float64}} = Vector{Vector{Float64}}()
-    on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
-        if isnothing(n)
-            # @assert first_element == last_element
-            push!(params, zeros(Float64, nc))
-        else
-            # @assert last_element-first_element+1 == length(n.log_probs) "$last_element-$first_element+1 != $(length(n.log_probs))"
-            for theta in eachrow(n.thetas)
-                push!(params, theta)
-            end
-        end
-    end
-    bc = BitCircuit(lc, data; on_decision)
-    (bc, permutedims(hcat(params...), (2, 1)))
-end
-
 function class_likelihood_per_instance(lc::LogicCircuit, nc::Int, data)    
     cw = class_weights_per_instance(lc, nc, data)
     isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
 end
 
+function class_likelihood_per_instance(bc, data)
+    cw = class_likelihood_per_instance(bc, data)
+    isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
+end
+
 function class_weights_per_instance(lc::LogisticCircuit, nc::Int, data)
-    bc, params = bitcircuit_with_params(lc, nc, data)
+    bc = ParamBitCircuit(lc, nc, data)
+    class_weights_per_instance(bc, data)
+end
+
+function class_weights_per_instance(bc, data)
     if isgpu(data)
-        class_weights_per_instance_gpu(to_gpu(bc), data, to_gpu(params))
+        class_weights_per_instance_gpu(to_gpu(bc), data)
     else
-        class_weights_per_instance_cpu(bc, data, params)
+        class_weights_per_instance_cpu(bc, data)
     end
 end
 
-function class_weights_per_instance_cpu(bc, data, params)
+function class_weights_per_instance_cpu(bc, data)
     ne::Int = num_examples(data)
-    nc::Int = size(params, 2)
+    nc::Int = size(bc.params, 2)
     cw::Matrix{Float64} = zeros(Float64, ne, nc)
     cw_lock::Threads.ReentrantLock = Threads.ReentrantLock()
  
@@ -56,8 +46,8 @@ function class_weights_per_instance_cpu(bc, data, params)
                     @simd for j = first_true_bit:last_true_bit
                         if get_bit(edge_flow, j)
                             ex_id = ((i-1) << 6) + j
-                            for class = 1:size(cw, 2)
-                                @inbounds cw[ex_id, class] += params[el_id, class]
+                            for class = 1:nc
+                                @inbounds cw[ex_id, class] += bc.params[el_id, class]
                             end
                         end
                     end
@@ -73,8 +63,8 @@ function class_weights_per_instance_cpu(bc, data, params)
                 @avx for i = 1:size(flows, 1)
                     @inbounds edge_flow = values[i, p] * values[i, s] / values[i, dec_id] * flows[i, dec_id]
                     edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(Float32))
-                    for class = 1:size(cw, 2)
-                        @inbounds cw[i, class] += edge_flow * params[el_id, class]
+                    for class = 1:nc
+                        @inbounds cw[i, class] += edge_flow * bc.params[el_id, class]
                     end
                 end
             end
@@ -91,21 +81,21 @@ function class_weights_per_instance_cpu(bc, data, params)
     return cw
 end
 
-function class_weights_per_instance_gpu(bc, data, params)
+function class_weights_per_instance_gpu(bc, data)
     ne::Int = num_examples(data)
-    nc::Int = size(params, 2)
+    nc::Int = size(bc.params, 2)
     cw::CuMatrix{Float64} = CUDA.zeros(Float64, num_examples(data), nc)
     cw_device = CUDA.cudaconvert(cw)
-    params_device = CUDA.cudaconvert(params)
+    params_device = CUDA.cudaconvert(bc.params)
 
     @inline function on_edge_binary(flows, values, dec_id, el_id, p, s, els_start, els_end, chunk_id, edge_flow)
         if els_start != els_end
-            first_true_bit = 1+trailing_zeros(edge_flow)
-            last_true_bit = 64-leading_zeros(edge_flow)
+            first_true_bit = 1 + trailing_zeros(edge_flow)
+            last_true_bit = 64 - leading_zeros(edge_flow)
             for j = first_true_bit:last_true_bit
                 if get_bit(edge_flow, j)
                     ex_id = ((chunk_id-1) << 6) + j
-                    for class = 1:size(cw_device, 2)
+                    for class = 1:nc
                         CUDA.@atomic cw_device[ex_id, class] += params_device[el_id, class]
                     end
                 end
@@ -116,7 +106,7 @@ function class_weights_per_instance_gpu(bc, data, params)
 
     @inline function on_edge_float(flows, values, dec_id, el_id, p, s, els_start, els_end, ex_id, edge_flow)
         if els_start != els_end
-            for class = 1:size(cw_device, 2)
+            for class = 1:nc
                 CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[el_id, class]
             end
         end
@@ -155,11 +145,11 @@ end
 """
 Prediction accuracy
 """
-accuracy(lc::LogisticCircuit, nc::Int, data, labels) = 
+accuracy(lc::LogisticCircuit, nc::Int, data, labels::Vector) = 
     accuracy(predict_class(lc, nc, data), labels)
 
-accuracy(predicted_class, labels) = 
+accuracy(predicted_class::Vector, labels::Vector) = 
     Float64(sum(@. predicted_class == labels)) / length(labels)
 
-accuracy(class_likelihoods, labels) = 
+accuracy(class_likelihoods::Matrix, labels::Vector) = 
     accuracy(predict_class(class_likelihoods), labels)

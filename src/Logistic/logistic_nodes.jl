@@ -1,5 +1,5 @@
 export 
-    LogisticCircuit, 
+    LogisticCircuit, ParamBitCircuit,
     LogisticLeafNode, LogisticInnerNode, 
     LogisticLiteral, Logistic⋀Node, Logistic⋁Node,
     num_classes, num_parameters_per_class
@@ -79,6 +79,8 @@ import ..Utils: num_parameters
 @inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * classes(n), ⋁_nodes(c))
 @inline num_parameters_per_class(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
 
+
+
 #####################
 # constructors and conversions
 #####################
@@ -89,4 +91,26 @@ function LogisticCircuit(circuit::LogicCircuit, classes::Int)
     f_a(n, cn) = Logistic⋀Node(cn)
     f_o(n, cn) = Logistic⋁Node(cn, classes)
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, LogisticCircuit)
+end
+
+
+
+"""
+Construct a `BitCircuit` while storing edge parameters in a separate array
+"""
+function ParamBitCircuit(lc::LogisticCircuit, nc, data)
+    thetas::Vector{Vector{Float64}} = Vector{Vector{Float64}}()
+    on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
+        if isnothing(n)
+            # @assert first_element == last_element
+            push!(thetas, zeros(Float64, nc))
+        else
+            # @assert last_element-first_element+1 == length(n.log_probs) "$last_element-$first_element+1 != $(length(n.log_probs))"
+            for theta in eachrow(n.thetas)
+                push!(thetas, theta)
+            end
+        end
+    end
+    bc = BitCircuit(lc, data; on_decision)
+    ParamBitCircuit(bc, permutedims(hcat(params...), (2, 1)))
 end
