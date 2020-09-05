@@ -1,5 +1,5 @@
 export 
-    LogisticCircuit, ParamBitCircuit,
+    LogisticCircuit,
     LogisticLeafNode, LogisticInnerNode, 
     LogisticLiteral, Logistic⋀Node, Logistic⋁Node,
     num_classes, num_parameters_per_class

@@ -59,7 +59,17 @@ function update_parameters_cpu(bc, cl, labels, step_size)
         end
         nothing
     end
+
+    if isbinarydata(data)
+        v,f = compute_values_flows(bc, data; on_edge = on_edge_binary) 
+    else
+        @assert isfpdata(data) "Only floating point and binary data are supported"
+        v,f = compute_values_flows(bc, data; on_edge = on_edge_float)
+    end
+
+    nothing
 end
+
 
 function update_parameters_gpu(bc, cl, labels, step_size)
     ne::Int = num_examples(data)
@@ -78,6 +88,7 @@ function update_parameters_gpu(bc, cl, labels, step_size)
                     for class = 1:nc
                         CUDA.@atomic params_device[el_id, class] -= (cl_device[ex_id, class] - labels[ex_id, class]) * step_size
                     end
+                end
             end
         end
         nothing 
@@ -92,7 +103,7 @@ function update_parameters_gpu(bc, cl, labels, step_size)
         nothing
     end
 
-    if isbinarydata()
+    if isbinarydata(data)
         v,f = compute_values_flows(bc, data; on_edge = on_edge_binary) 
     else
         @assert isfpdata(data) "Only floating point and binary data are supported"
