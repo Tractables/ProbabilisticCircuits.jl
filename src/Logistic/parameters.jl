@@ -61,10 +61,10 @@ function update_parameters_cpu(bc, cl, labels, step_size)
     end
 
     if isbinarydata(data)
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_binary) 
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_binary) 
     else
         @assert isfpdata(data) "Only floating point and binary data are supported"
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_float)
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_float)
     end
 
     nothing
@@ -104,10 +104,10 @@ function update_parameters_gpu(bc, cl, labels, step_size)
     end
 
     if isbinarydata(data)
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_binary) 
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_binary) 
     else
         @assert isfpdata(data) "Only floating point and binary data are supported"
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_float)
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_float)
     end
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort

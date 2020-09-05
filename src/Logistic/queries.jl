@@ -73,9 +73,9 @@ function class_weights_per_instance_cpu(bc, data)
     end
 
     if isbinarydata(data)
-        compute_values_flows(bc, data; on_edge = on_edge_binary)
+        satisfies_flows(bc, data; on_edge = on_edge_binary)
     else
-        compute_values_flows(bc, data; on_edge = on_edge_float)
+        satisfies_flows(bc, data; on_edge = on_edge_float)
     end
 
     return cw
@@ -114,10 +114,10 @@ function class_weights_per_instance_gpu(bc, data)
     end
     
     if isbinarydata(data)
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_binary)
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_binary)
     else
         @assert isfpdata(data) "Only floating point and binary data are supported"
-        v,f = compute_values_flows(bc, data; on_edge = on_edge_float)
+        v,f = satisfies_flows(bc, data; on_edge = on_edge_float)
     end
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
