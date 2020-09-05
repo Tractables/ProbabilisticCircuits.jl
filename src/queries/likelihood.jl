@@ -1,24 +1,6 @@
 export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 
 """
-Construct a `BitCircuit` while storing edge parameters in a separate array
-"""
-function ParamBitCircuit(pc::ProbCircuit, data)
-    logprobs::Vector{Float64} = Vector{Float64}()
-    on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
-        if isnothing(n) # this decision node is not part of the PC
-            # @assert first_element == last_element
-            push!(logprobs, 0.0)
-        else
-            # @assert last_element-first_element+1 == length(n.log_probs) 
-            append!(logprobs, n.log_probs)
-        end
-    end
-    bc = BitCircuit(pc, data; on_decision)
-    ParamBitCircuit(bc, logprobs)
-end
-
-"""
 Compute the likelihood of the PC given each individual instance in the data
 """
 function log_likelihood_per_instance(pc::ProbCircuit, data)
@@ -54,7 +36,7 @@ function log_likelihood_per_instance_cpu(bc, data)
         nothing
     end
 
-    compute_values_flows(bc.bitcircuit, data; on_edge)
+    satisfies_flows(bc.bitcircuit, data; on_edge)
     return ll
 end
 
@@ -77,7 +59,7 @@ function log_likelihood_per_instance_gpu(bc, data)
         nothing
     end
     
-    v, f = compute_values_flows(bc.bitcircuit, data; on_edge)
+    v, f = satisfies_flows(bc.bitcircuit, data; on_edge)
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
     
