@@ -36,10 +36,11 @@ using DataFrames: DataFrame
     @test num_variables(f) == 10
     @test issmooth(f)
 
-    @test f(DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
-                    1 1 1 1 1 1 1 1 1 1;
-                    0 0 0 0 0 0 0 0 0 0;
-                    0 1 1 0 1 0 0 1 0 1]))) == BitVector([1,1,1,1])
+    input = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
+                1 1 1 1 1 1 1 1 1 1;
+                0 0 0 0 0 0 0 0 0 0;
+                0 1 1 0 1 0 0 1 0 1]))
+    @test satisfies(f,input) == BitVector([1,1,1,1])
 
     plainf = PlainLogicCircuit(f) 
     foreach(plainf) do n
