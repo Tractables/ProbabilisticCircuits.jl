@@ -20,7 +20,7 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
             if num_children(pn) == 1
                 pn.log_probs .= zero(Float64)
             else
-                id = (pn.data::⋁NodeId).node_id
+                id = (pn.data::⋁NodeIds).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_probs .= params[els_start:els_end]
@@ -37,29 +37,41 @@ function estimate_parameters_cpu(bc, data, pseudocount)
     node_counts::Vector{UInt} = Vector{UInt}(undef, num_nodes(bc))
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
 
-    @inline function on_node(flows, values, dec_id, els_start, els_end, locks)
-        if els_start != els_end
+    @inline function on_node(flows, values, dec_id)
+        if !has_single_child(bc.nodes, dec_id)
             @inbounds node_counts[dec_id] = sum(1:size(flows,1)) do i
                 count_ones(flows[i, dec_id]) 
             end
         end
-        nothing
+    end
+
+    @inline function estimate(el_id, parent, edge_count)
+        num_els = num_elements(bc.nodes, parent)
+        @inbounds log_params[el_id] = 
+            log((edge_count+pseudocount/num_els)
+                   /(node_counts[parent]+pseudocount))
     end
     
-    @inline function on_edge(flows, values, dec_id, el_id, p, s, els_start, els_end, locks)
-        if els_start != els_end
+    @inline function on_edge(flows, values, dec_id, par, grandpa)
+        if !has_single_child(bc.nodes, grandpa)
             edge_count = sum(1:size(flows,1)) do i
-                @inbounds count_ones(values[i, p] & values[i, s] & flows[i, dec_id]) 
+                @inbounds count_ones(flows[i, grandpa]) 
             end
-            # TODO do the log before the division?
-            log_param = log((edge_count+pseudocount/(els_end-els_start+1))
-                            /(node_counts[dec_id]+pseudocount))
-            @inbounds log_params[el_id] = log_param
+            estimate(par, grandpa, edge_count)
         end
-        nothing
+    end
+
+    @inline function on_edge(flows, values, dec_id, par, grandpa, sib_id)
+        if !has_single_child(bc.nodes, grandpa)
+            edge_count = sum(1:size(flows,1)) do i
+                @inbounds count_ones(values[i, dec_id] & values[i, sib_id] & flows[i, grandpa]) 
+            end
+            estimate(par, grandpa, edge_count)
+        end
     end
 
     satisfies_flows(bc, data; on_node, on_edge)
+
     return log_params
 end
 

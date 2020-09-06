@@ -148,219 +148,147 @@ function marginal_layers_cuda(layer, nodes, elements, params, values)
 end
 
 
-# export evaluate_exp, compute_exp_flows, get_downflow, get_upflow, get_exp_downflow, get_exp_upflow
+
+#####################
+# Bit circuit values and flows (up and downward pass)
+#####################
+
+"Compute the value and flow of each node"
+function marginal_flows(circuit::ProbCircuit, data, 
+    reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop) 
+    bc = same_device(ProbBitCircuit(circuit, data), data)
+    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge)
+end
+
+function marginal_flows(circuit::ParamBitCircuit, data, 
+            reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop)
+    values = marginal_all(circuit, data, reuse_values)
+    flows = marginal_flows_down(circuit, values, reuse_flows; on_node, on_edge)
+    return values, flows
+end
+
+#####################
+# Bit circuit flows downward pass
+#####################
+
+"When marginals at nodes have already been computed, do a downward pass computing the marginal flows at each node"
+function marginal_flows_down(circuit::ParamBitCircuit, values, reuse=nothing; on_node=noop, on_edge=noop)
+    flows = similar!(reuse, typeof(values), size(values)...)
+    init_marginal_flows(flows, values)
+    marginal_flows_down_layers(circuit, flows, values, on_node, on_edge)
+    return flows
+end
+
+function init_marginal_flows(flows::AbstractArray{F}, values::AbstractArray{F}) where F
+    flows .= zero(F)
+    @views flows[:,end] .= values[:,end] # set flow at root
+end
+
+# downward pass helpers on CPU
+
+function marginal_flows_down_layers(circuit::ParamBitCircuit, flows::Matrix, values::Matrix, on_node, on_edge)
+    els = circuit.bitcircuit.elements
+    locks = [Threads.ReentrantLock() for i=1:num_nodes(circuit)]    
+    for layer in Iterators.reverse(circuit.bitcircuit.layers)
+        Threads.@threads for dec_id in layer
+            els_start = @inbounds circuit.bitcircuit.nodes[1,dec_id]
+            els_end = @inbounds circuit.bitcircuit.nodes[2,dec_id]
+            on_node(flows, values, dec_id, els_start, els_end, locks)
+            #TODO do something faster when els_start == els_end?
+            for j = els_start:els_end
+                p = els[2,j]
+                s = els[3,j]
+                θ = circuit.params[j]
+                accum_marginal_flow(flows, values, dec_id, p, s, θ, locks)
+                on_edge(flows, values, dec_id, j, p, s, els_start, els_end, locks)
+            end
+        end
+    end
+end
+
+function accum_marginal_flow(f::Matrix{<:AbstractFloat}, v, d, p, s, θ, locks)
+    # retrieve locks in index order to avoid deadlock
+    l1, l2 = order_asc(p,s)
+    lock(locks[l1]) do 
+        lock(locks[l2]) do 
+            # note: in future, if there is a need to scale to many more threads, it would be beneficial to avoid this synchronization by ordering downward pass layers by child id, not parent id, so that there is no contention when processing a single layer and no need for synchronization, as in the upward pass
+            @avx for j in 1:size(f,1)
+                edge_flow = v[j, p] + v[j, s] - v[j, d] + f[j, d] + θ
+                edge_flow = vifelse(isfinite(edge_flow), edge_flow, log(zero(Float32)))
+                x = f[j, p]
+                y = edge_flow
+                Δ = ifelse(x == y, zero(Float64), abs(x - y))
+                @inbounds f[j,p] = max(x, y) + log1p(exp(-Δ))
+                x = f[j, s]
+                Δ = ifelse(x == y, zero(Float64), abs(x - y))
+                @inbounds f[j,s] = max(x, y) + log1p(exp(-Δ))
+            end
+        end
+    end
+end
 
 
+# downward pass helpers on GPU
 
-# # TODO move to LogicCircuits
-# # TODO downflow struct
-# using LogicCircuits: materialize, UpFlow, UpDownFlow, UpDownFlow1, UpDownFlow2
+"Pass flows down the layers of a bit circuit on the GPU"
+function marginal_flows_down_layers(circuit::ParamBitCircuit, flows::CuMatrix, values::CuMatrix, on_node, on_edge; 
+            dec_per_thread = 4, log2_threads_per_block = 8)
+    bc = circuit.bitcircuit
+    CUDA.@sync for layer in Iterators.reverse(bc.layers)
+        num_examples = size(values, 1)
+        num_decision_sets = length(layer)/dec_per_thread
+        num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
+        num_blocks = (ceil(Int, num_examples/num_threads[1]), 
+                      ceil(Int, num_decision_sets/num_threads[2])) 
+        @cuda threads=num_threads blocks=num_blocks marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, circuit.params, flows, values, on_node, on_edge)
+    end
+end
 
-# """
-# Get upflow from logic circuit
-# """
-# @inline get_upflow(n::LogicCircuit) = get_upflow(n.data)
-# @inline get_upflow(elems::UpDownFlow1) = elems.upflow
-# @inline get_upflow(elems::UpFlow) = materialize(elems)
+"CUDA kernel for passing flows down circuit"
+function marginal_flows_down_layers_cuda(layer, nodes, elements, params, flows, values, on_node, on_edge)
+    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    stride_x = blockDim().x * gridDim().x
+    stride_y = blockDim().y * gridDim().y
+    for k = index_x:stride_x:size(values,1)
+        for i = index_y:stride_y:length(layer) #TODO swap loops??
+            dec_id = @inbounds layer[i]
+            els_start = @inbounds nodes[1,dec_id]
+            els_end = @inbounds nodes[2,dec_id]
+            n_up = @inbounds values[k, dec_id]
+            on_node(flows, values, dec_id, els_start, els_end, k)
+            if !iszero(n_up) # on_edge will only get called when edge flows are non-zero
+                n_down = @inbounds flows[k, dec_id]
+                #TODO do something faster when els_start == els_end?
+                for j = els_start:els_end
+                    p = @inbounds elements[2,j]
+                    s = @inbounds elements[3,j]
+                    @inbounds edge_flow = values[k, p] + values[k, s] - n_up + n_down + params[j]
+                    # following needs to be memory safe, hence @atomic
 
-# """
-# Get the node/edge flow from logic circuit
-# """
-# function get_downflow(n::LogicCircuit; root=nothing)::BitVector
-#     downflow(x::UpDownFlow1) = x.downflow
-#     downflow(x::UpDownFlow2) = begin
-#         ors = or_nodes(root)
-#         p = findall(p -> n in children(p), ors)
-#         @assert length(p) == 1
-#         get_downflow(ors[p[1]], n)
-#     end
-#     downflow(n.data)
-# end
+                    @inbounds y = values[j, elements[2,k]] + values[j, elements[3,k]] + params[k]
+                    Δ = ifelse(x == y, zero(Float64), CUDA.abs(x - y))
+                    x = max(x, y) + CUDA.log1p(CUDA.exp(-Δ))
 
-# function get_downflow(n::LogicCircuit, c::LogicCircuit)::BitVector
-#     @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
-#     get_downflow(n) .& get_upflow(c)
-# end
-
-# #####################
-# # performance-critical queries related to circuit flows
-# #####################
-
-# "Container for circuit flows represented as a float vector"
-# const ExpUpFlow1 = Vector{Float64}
-
-# "Container for circuit flows represented as an implicit conjunction of a prime and sub float vector (saves memory allocations in circuits with many binary conjunctions)"
-# struct ExpUpFlow2
-#     prime_flow::Vector{Float64}
-#     sub_flow::Vector{Float64}
-# end
-
-# const ExpUpFlow = Union{ExpUpFlow1,ExpUpFlow2}
-
-# @inline ExpUpFlow1(elems::ExpUpFlow1) = elems
-# @inline ExpUpFlow1(elems::ExpUpFlow2) = elems.prime_flow .+ elems.sub_flow
-
-# function evaluate_exp(root::ProbCircuit, data;
-#                    nload = nload, nsave = nsave, reset=true)::Vector{Float64}
-#     n_ex::Int = num_examples(data)
-#     ϵ = 0.0
-
-#     @inline f_lit(n) = begin
-#         uf = convert(Vector{Int8}, feature_values(data, variable(n)))
-#         if ispositive(n)
-#             uf[uf.==-1] .= 1
-#         else
-#             uf .= 1 .- uf
-#             uf[uf.==2] .= 1
-#         end
-#         uf = convert(Vector{Float64}, uf)
-#         uf .= log.(uf .+ ϵ)
-#     end
-    
-#     @inline f_con(n) = begin
-#         uf = istrue(n) ? ones(Float64, n_ex) : zeros(Float64, n_ex)
-#         uf .= log.(uf .+ ϵ)
-#     end
-    
-#     @inline fa(n, call) = begin
-#         if num_children(n) == 1
-#             return ExpUpFlow1(call(@inbounds children(n)[1]))
-#         else
-#             c1 = call(@inbounds children(n)[1])::ExpUpFlow
-#             c2 = call(@inbounds children(n)[2])::ExpUpFlow
-#             if num_children(n) == 2 && c1 isa ExpUpFlow1 && c2 isa ExpUpFlow1 
-#                 return ExpUpFlow2(c1, c2) # no need to allocate a new BitVector
-#             end
-#             x = flowop(c1, c2, +)
-#             for c in children(n)[3:end]
-#                 accumulate(x, call(c), +)
-#             end
-#             return x
-#         end
-#     end
-    
-#     @inline fo(n, call) = begin
-#         if num_children(n) == 1
-#             return ExpUpFlow1(call(@inbounds children(n)[1]))
-#         else
-#             log_probs = n.log_probs
-#             c1 = call(@inbounds children(n)[1])::ExpUpFlow
-#             c2 = call(@inbounds children(n)[2])::ExpUpFlow
-#             x = flowop(c1, log_probs[1], c2, log_probs[2], logsumexp)
-#             for (i, c) in enumerate(children(n)[3:end])
-#                 accumulate(x, call(c), log_probs[i+2], logsumexp)
-#             end
-#             return x
-#         end
-#     end
-    
-#     # ensure flow us Flow1 at the root, even when it's a conjunction
-#     root_flow = ExpUpFlow1(foldup(root, f_con, f_lit, fa, fo, ExpUpFlow; nload, nsave, reset))
-#     return nsave(root, root_flow)
-# end
-
-# @inline flowop(x::ExpUpFlow, y::ExpUpFlow, op)::ExpUpFlow1 =
-#     op.(ExpUpFlow1(x), ExpUpFlow1(y))
-
-# @inline flowop(x::ExpUpFlow, w1::Float64, y::ExpUpFlow, w2::Float64, op)::ExpUpFlow1 =
-#     op.(ExpUpFlow1(x) .+ w1, ExpUpFlow1(y) .+ w2)
-
-# import Base.accumulate
-# @inline accumulate(x::ExpUpFlow1, v::ExpUpFlow, op) = 
-#     @inbounds @. x = op($ExpUpFlow1(x), $ExpUpFlow1(v)); nothing
-
-# @inline accumulate(x::ExpUpFlow1, v::ExpUpFlow, w::Float64, op) = 
-#     @inbounds @. x = op($ExpUpFlow1(x), $ExpUpFlow1(v) + w); nothing
+                    
+                    accum_flow(flows, k, p, edge_flow)
+                    accum_flow(flows, k, s, edge_flow)
 
 
-# #####################
-# # downward pass
-# #####################
+                    
+                    on_edge(flows, values, dec_id, j, p, s, els_start, els_end, k, edge_flow)
+                end
+            end
+        end
+    end
+    return nothing
+end
 
-# struct ExpUpDownFlow1
-#     upflow::ExpUpFlow1
-#     downflow::Vector{Float64}
-#     ExpUpDownFlow1(upf::ExpUpFlow1) = new(upf, log.(zeros(Float64, length(upf)) .+ 1e-300))
-# end
+compute_edge_flow(p_up::AbstractFloat, s_up, n_up, n_down) = p_up * s_up / n_up * n_down
+compute_edge_flow(p_up::Unsigned, s_up, n_up, n_down) = p_up & s_up & n_down
 
-# const ExpUpDownFlow2 = ExpUpFlow2
+accum_flow(flows, j, e, edge_flow::AbstractFloat) = 
+    CUDA.@atomic flows[j, e] += edge_flow #atomic is automatically inbounds
 
-# const ExpUpDownFlow = Union{ExpUpDownFlow1, ExpUpDownFlow2}
-
-
-# function compute_exp_flows(circuit::ProbCircuit, data)
-
-#     # upward pass
-#     @inline upflow!(n, v) = begin
-#         n.data = (v isa ExpUpFlow1) ? ExpUpDownFlow1(v) : v
-#         v
-#     end
-
-#     @inline upflow(n) = begin
-#         d = n.data::ExpUpDownFlow
-#         (d isa ExpUpDownFlow1) ? d.upflow : d
-#     end
-
-#     evaluate_exp(circuit, data; nload=upflow, nsave=upflow!, reset=false)
-    
-#     # downward pass
-
-#     @inline downflow(n) = (n.data::ExpUpDownFlow1).downflow
-#     @inline isfactorized(n) = n.data::ExpUpDownFlow isa ExpUpDownFlow2
-
-#     downflow(circuit) .= 0.0
-
-#     foreach_down(circuit; setcounter=false) do n
-#         if isinner(n) && !isfactorized(n)
-#             downflow_n = downflow(n)
-#             upflow_n = upflow(n)
-#             for ite in 1 : num_children(n)
-#                 c = children(n)[ite]
-#                 log_theta = is⋀gate(n) ? 0.0 : n.log_probs[ite]
-#                 if isfactorized(c)
-#                     upflow2_c = c.data::ExpUpDownFlow2
-#                     # propagate one level further down
-#                     for i = 1:2
-#                         downflow_c = downflow(@inbounds children(c)[i])
-#                         accumulate(downflow_c, downflow_n .+ log_theta .+ upflow2_c.prime_flow 
-#                         .+ upflow2_c.sub_flow .- upflow_n, logsumexp)
-#                     end
-#                 else
-#                     upflow1_c = (c.data::ExpUpDownFlow1).upflow
-#                     downflow_c = downflow(c)
-#                     accumulate(downflow_c, downflow_n .+ log_theta .+ upflow1_c .- upflow_n, logsumexp)
-#                 end
-#             end 
-#         end
-#         nothing
-#     end
-#     nothing
-# end
-
-
-# """
-# Get upflow of a probabilistic circuit
-# """
-# @inline get_exp_upflow(pc::ProbCircuit) = get_exp_upflow(pc.data)
-# @inline get_exp_upflow(elems::ExpUpDownFlow1) = elems.upflow
-# @inline get_exp_upflow(elems::ExpUpFlow) = ExpUpFlow1(elems)
-
-# """
-# Get the node/edge downflow from probabilistic circuit
-# """
-# function get_exp_downflow(n::ProbCircuit; root=nothing)::Vector{Float64}
-#     downflow(x::ExpUpDownFlow1) = x.downflow
-#     downflow(x::ExpUpDownFlow2) = begin
-#         ors = or_nodes(root)
-#         p = findall(p -> n in children(p), ors)
-#         @assert length(p) == 1
-#         get_exp_downflow(ors[p[1]], n)
-#     end
-#     downflow(n.data)
-# end
-
-# function get_exp_downflow(n::ProbCircuit, c::ProbCircuit)::Vector{Float64}
-#     @assert !is⋁gate(c) && is⋁gate(n) && c in children(n)
-#     log_theta = n.log_probs[findfirst(x -> x == c, children(n))]
-#     return get_exp_downflow(n) .+ log_theta .+ get_exp_upflow(c) .- get_exp_upflow(n)
-# end
+accum_flow(flows, j, e, edge_flow::Unsigned) = 
+    CUDA.@atomic flows[j, e] |= edge_flow #atomic is automatically inbounds
