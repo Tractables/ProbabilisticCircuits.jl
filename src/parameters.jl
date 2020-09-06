@@ -10,7 +10,7 @@ Maximum likilihood estimation of parameters given data
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
     bc = BitCircuit(pc, data; reset=false)
-    params::Vector{Float64} = if isgpu(data)
+    params = if isgpu(data)
         estimate_parameters_gpu(to_gpu(bc), data, pseudocount)
     else
         estimate_parameters_cpu(bc, data, pseudocount)
@@ -38,39 +38,34 @@ function estimate_parameters_cpu(bc, data, pseudocount)
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
 
     @inline function on_node(flows, values, dec_id)
-        if !has_single_child(bc.nodes, dec_id)
-            @inbounds node_counts[dec_id] = sum(1:size(flows,1)) do i
+        # if !has_single_child(bc.nodes, dec_id)
+            node_counts[dec_id] = sum(1:size(flows,1)) do i
                 count_ones(flows[i, dec_id]) 
             end
-        end
+        # end
     end
 
-    @inline function estimate(el_id, parent, edge_count)
-        num_els = num_elements(bc.nodes, parent)
-        @inbounds log_params[el_id] = 
+    @inline function estimate(element, decision, edge_count)
+        num_els = num_elements(bc.nodes, decision)
+        log_params[element] = 
             log((edge_count+pseudocount/num_els)
-                   /(node_counts[parent]+pseudocount))
-    end
-    
-    @inline function on_edge(flows, values, dec_id, par, grandpa)
-        if !has_single_child(bc.nodes, grandpa)
-            edge_count = sum(1:size(flows,1)) do i
-                @inbounds count_ones(flows[i, grandpa]) 
-            end
-            estimate(par, grandpa, edge_count)
-        end
+                   /(node_counts[decision]+pseudocount))
     end
 
-    @inline function on_edge(flows, values, dec_id, par, grandpa, sib_id)
-        if !has_single_child(bc.nodes, grandpa)
-            edge_count = sum(1:size(flows,1)) do i
-                @inbounds count_ones(values[i, dec_id] & values[i, sib_id] & flows[i, grandpa]) 
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child)
+        edge_count = if single_child
+            sum(1:size(flows,1)) do i
+                count_ones(flows[i, grandpa]) 
             end
-            estimate(par, grandpa, edge_count)
+        else
+            sum(1:size(flows,1)) do i
+                count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) 
+            end
         end
+        estimate(element, grandpa, edge_count)
     end
 
-    satisfies_flows(bc, data; on_node, on_edge)
+    v, f = satisfies_flows(bc, data; on_node, on_edge)
 
     return log_params
 end
@@ -78,42 +73,35 @@ end
 function estimate_parameters_gpu(bc, data, pseudocount)
     node_counts::CuVector{Int32} = CUDA.zeros(Int32, num_nodes(bc))
     edge_counts::CuVector{Int32} = CUDA.zeros(Int32, num_elements(bc))
-    params::CuVector{Float64} = CuVector{Float64}(undef, num_elements(bc))
     # need to manually cudaconvert closure variables
     node_counts_device = CUDA.cudaconvert(node_counts)
     edge_counts_device = CUDA.cudaconvert(edge_counts)
-    params_device = CUDA.cudaconvert(params)
     
-    @inline function on_node(flows, values, dec_id, els_start, els_end, ex_id)
-        if els_start != els_end
-            @inbounds c::Int32 = count_ones(flows[ex_id, dec_id]) # cast for @atomic to be happy
+    @inline function on_node(flows, values, dec_id, ex_id, flow)
+        # # # if els_start != els_end
+            c::Int32 = count_ones(flow) # cast for @atomic to be happy
             CUDA.@atomic node_counts_device[dec_id] += c
-        end
-        if isone(ex_id) # only do this once
-            for i=els_start:els_end
-                @inbounds params_device[i] = pseudocount/(els_end-els_start+1)
-            end
-        end
-        nothing
+        # # # end
     end
-    
-    @inline function on_edge(flows, values, dec_id, el_id, p, s, els_start, els_end, ex_id, edge_flow)
-        if els_start != els_end
+
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
+        # # # if els_start != els_end
             c::Int32 = count_ones(edge_flow) # cast for @atomic to be happy
-            CUDA.@atomic edge_counts_device[el_id] += c
-        end
-        nothing
+            CUDA.@atomic edge_counts_device[element] += c
+        # # # end
     end
 
     v, f = satisfies_flows(bc, data; on_node, on_edge)
+
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
 
-    # TODO: reinstate following implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
-    # parent_counts = @views node_counts[bc.elements[1,:]]
+    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
     @inbounds parents = bc.elements[1,:]
     @inbounds parent_counts = node_counts[parents]
-    params .= log.(params .+ edge_counts) .- log.(parent_counts .+ pseudocount)
+    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                    ./ (parent_counts .+ pseudocount))
     return to_cpu(params)
 end
 
@@ -132,4 +120,4 @@ function uniform_parameters(pc::ProbCircuit)
     end
 end
 
-# TODO add em paramaters learning 
+# TODO add em parameter learning 
