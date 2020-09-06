@@ -38,11 +38,9 @@ function estimate_parameters_cpu(bc, data, pseudocount)
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
 
     @inline function on_node(flows, values, dec_id)
-        # if !has_single_child(bc.nodes, dec_id)
-            node_counts[dec_id] = sum(1:size(flows,1)) do i
-                count_ones(flows[i, dec_id]) 
-            end
-        # end
+        node_counts[dec_id] = sum(1:size(flows,1)) do i
+            count_ones(flows[i, dec_id]) 
+        end
     end
 
     @inline function estimate(element, decision, edge_count)
@@ -53,16 +51,12 @@ function estimate_parameters_cpu(bc, data, pseudocount)
     end
 
     @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child)
-        edge_count = if single_child
-            sum(1:size(flows,1)) do i
-                count_ones(flows[i, grandpa]) 
-            end
-        else
-            sum(1:size(flows,1)) do i
+        if !single_child
+            edge_count = sum(1:size(flows,1)) do i
                 count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) 
             end
-        end
-        estimate(element, grandpa, edge_count)
+            estimate(element, grandpa, edge_count)
+        end # no need to estimate single child params, they are always prob 1
     end
 
     v, f = satisfies_flows(bc, data; on_node, on_edge)
@@ -77,18 +71,16 @@ function estimate_parameters_gpu(bc, data, pseudocount)
     node_counts_device = CUDA.cudaconvert(node_counts)
     edge_counts_device = CUDA.cudaconvert(edge_counts)
     
-    @inline function on_node(flows, values, dec_id, ex_id, flow)
-        # # # if els_start != els_end
-            c::Int32 = count_ones(flow) # cast for @atomic to be happy
-            CUDA.@atomic node_counts_device[dec_id] += c
-        # # # end
+    @inline function on_node(flows, values, dec_id, chunk_id, flow)
+        c::Int32 = CUDA.count_ones(flow) # cast for @atomic to be happy
+        CUDA.@atomic node_counts_device[dec_id] += c
     end
 
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
-        # # # if els_start != els_end
-            c::Int32 = count_ones(edge_flow) # cast for @atomic to be happy
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+        if !single_child
+            c::Int32 = CUDA.count_ones(edge_flow) # cast for @atomic to be happy
             CUDA.@atomic edge_counts_device[element] += c
-        # # # end
+        end
     end
 
     v, f = satisfies_flows(bc, data; on_node, on_edge)
