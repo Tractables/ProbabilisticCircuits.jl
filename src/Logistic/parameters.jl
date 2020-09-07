@@ -90,7 +90,7 @@ function update_parameters_gpu(bc, data, labels, cl, step_size)
                 if get_bit(edge_flow, j)
                     ex_id = ((chunk_id - 1) << 6) + j
                     for class = 1:nc
-                        CUDA.@atomic params_device[el_id, class] -= (cl_device[ex_id, class] - label_device[ex_id, class]) * step_size
+                        CUDA.@atomic params_device[element, class] -= (cl_device[ex_id, class] - label_device[ex_id, class]) * step_size
                     end
                 end
             end
