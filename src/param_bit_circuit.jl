@@ -6,24 +6,6 @@ struct ParamBitCircuit{V,M,W}
     params::W
 end
 
-import LogicCircuits: num_nodes, num_elements, num_features
-
-num_nodes(c::ParamBitCircuit) = num_nodes(c.bitcircuit)
-num_elements(c::ParamBitCircuit) = num_elements(c.bitcircuit)
-num_features(c::ParamBitCircuit) = num_features(c.bitcircuit)
-
-import LogicCircuits: to_gpu, to_cpu #extend
-
-to_gpu(c::ParamBitCircuit) = 
-    ParamBitCircuit(to_gpu(c.bitcircuit), to_gpu(c.params))
-
-to_cpu(c::ParamBitCircuit) = 
-    ParamBitCircuit(to_cpu(c.bitcircuit), to_cpu(c.params))
-
-
-"""
-Construct a `BitCircuit` while storing edge parameters in a separate array
-"""
 function ParamBitCircuit(pc::ProbCircuit, data)
     logprobs::Vector{Float64} = Vector{Float64}()
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
@@ -55,3 +37,27 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data)
     bc = BitCircuit(lc, data; on_decision)
     ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
+
+
+
+#######################
+## Helper functions ###
+#######################
+
+import LogicCircuits: num_nodes, num_elements, num_features
+
+num_nodes(c::ParamBitCircuit) = num_nodes(c.bitcircuit)
+num_elements(c::ParamBitCircuit) = num_elements(c.bitcircuit)
+num_features(c::ParamBitCircuit) = num_features(c.bitcircuit)
+
+import LogicCircuits: to_gpu, to_cpu, isgpu #extend
+
+to_gpu(c::ParamBitCircuit) = 
+    ParamBitCircuit(to_gpu(c.bitcircuit), to_gpu(c.params))
+
+to_cpu(c::ParamBitCircuit) = 
+    ParamBitCircuit(to_cpu(c.bitcircuit), to_cpu(c.params))
+
+
+isgpu(c::ParamBitCircuit) = 
+    isgpu(c.bitcircuit) && isgpu(c.params)
