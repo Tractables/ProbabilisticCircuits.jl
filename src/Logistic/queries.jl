@@ -13,7 +13,7 @@ function class_likelihood_per_instance(lc::LogicCircuit, nc::Int, data)
 end
 
 function class_likelihood_per_instance(bc, data)
-    cw = class_likelihood_per_instance(bc, data)
+    cw = class_weights_per_instance(bc, data)
     isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
 end
 
@@ -36,18 +36,18 @@ function class_weights_per_instance_cpu(bc, data)
     cw::Matrix{Float64} = zeros(Float64, ne, nc)
     cw_lock::Threads.ReentrantLock = Threads.ReentrantLock()
  
-    @inline function on_edge_binary(flows, values, dec_id, el_id, p, s, els_start, els_end, locks)
-        if els_start != els_end
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child)
+        if !single_child
             lock(cw_lock) do # TODO: move lock to inner loop?
                 for i = 1:size(flows, 1)
-                    @inbounds edge_flow = values[i, p] & values[i, s] & flows[i, dec_id]
+                    @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
                     first_true_bit = trailing_zeros(edge_flow) + 1
                     last_true_bit = 64 - leading_zeros(edge_flow)
                     @simd for j = first_true_bit:last_true_bit
+                        ex_id = ((i - 1) << 6) + j
                         if get_bit(edge_flow, j)
-                            ex_id = ((i-1) << 6) + j
                             for class = 1:nc
-                                @inbounds cw[ex_id, class] += bc.params[el_id, class]
+                                @inbounds cw[ex_id, class] += bc.params[element, class]
                             end
                         end
                     end
@@ -57,14 +57,14 @@ function class_weights_per_instance_cpu(bc, data)
         nothing
     end
 
-    @inline function on_edge_float(flows, values, dec_id, el_id, p, s, els_start, els_end, locks)
-        if els_start != els_end
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child)
+        if !single_child
             lock(cw_lock) do # TODO: move lock to inner loop?
                 @avx for i = 1:size(flows, 1)
-                    @inbounds edge_flow = values[i, p] * values[i, s] / values[i, dec_id] * flows[i, dec_id]
-                    edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(Float32))
+                    @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
+                    edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
                     for class = 1:nc
-                        @inbounds cw[i, class] += edge_flow * bc.params[el_id, class]
+                        @inbounds cw[i, class] += edge_flow * bc.params[element, class]
                     end
                 end
             end
@@ -73,9 +73,9 @@ function class_weights_per_instance_cpu(bc, data)
     end
 
     if isbinarydata(data)
-        satisfies_flows(bc, data; on_edge = on_edge_binary)
+        satisfies_flows(bc.bitcircuit, data; on_edge = on_edge_binary)
     else
-        satisfies_flows(bc, data; on_edge = on_edge_float)
+        satisfies_flows(bc.bitcircuit, data; on_edge = on_edge_float)
     end
 
     return cw
@@ -88,15 +88,15 @@ function class_weights_per_instance_gpu(bc, data)
     cw_device = CUDA.cudaconvert(cw)
     params_device = CUDA.cudaconvert(bc.params)
 
-    @inline function on_edge_binary(flows, values, dec_id, el_id, p, s, els_start, els_end, chunk_id, edge_flow)
-        if els_start != els_end
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+        if !single_child
             first_true_bit = 1 + trailing_zeros(edge_flow)
             last_true_bit = 64 - leading_zeros(edge_flow)
             for j = first_true_bit:last_true_bit
+                ex_id = ((chunk_id - 1) << 6) + j
                 if get_bit(edge_flow, j)
-                    ex_id = ((chunk_id-1) << 6) + j
                     for class = 1:nc
-                        CUDA.@atomic cw_device[ex_id, class] += params_device[el_id, class]
+                        CUDA.@atomic cw_device[ex_id, class] += params_device[element, class]
                     end
                 end
             end
@@ -104,20 +104,20 @@ function class_weights_per_instance_gpu(bc, data)
         nothing
     end
 
-    @inline function on_edge_float(flows, values, dec_id, el_id, p, s, els_start, els_end, ex_id, edge_flow)
-        if els_start != els_end
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
+        if !single_child
             for class = 1:nc
-                CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[el_id, class]
+                CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[element, class]
             end
         end
         nothing
     end
     
     if isbinarydata(data)
-        v,f = satisfies_flows(bc, data; on_edge = on_edge_binary)
+        v,f = satisfies_flows(bc.bitcircuit, data; on_edge = on_edge_binary)
     else
         @assert isfpdata(data) "Only floating point and binary data are supported"
-        v,f = satisfies_flows(bc, data; on_edge = on_edge_float)
+        v,f = satisfies_flows(bc.bitcircuit, data; on_edge = on_edge_float)
     end
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
