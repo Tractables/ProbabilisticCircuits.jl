@@ -22,6 +22,8 @@ include("queries/marginal_flow.jl")
 include("queries/sample.jl")
 include("queries/pr_constraint.jl")
 include("queries/information.jl")
+include("queries/expectation_rec.jl")
+include("queries/expectation_graph.jl")
 
 include("Logistic/Logistic.jl")
 @reexport using .Logistic

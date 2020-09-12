@@ -1,4 +1,4 @@
-export pr_constraint, Expectation, ExpectationUpward, Moment
+export Expectation, ExpectationUpward, Moment
 
 
 ExpCacheDict = Dict{Pair{ProbCircuit, LogisticCircuit}, Array{Float64, 2}}

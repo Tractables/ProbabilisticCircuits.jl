@@ -1,4 +1,4 @@
-export pr_constraint, Expectation, ExpectationUpward, Moment
+export pr_constraint
 
 const PRCache = Dict{Tuple{ProbCircuit, LogicCircuit}, Float64}
 
