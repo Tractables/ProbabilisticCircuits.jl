@@ -10,7 +10,7 @@
 #     N = 4;
 #     data_all = generate_data_all(N);
 
-#     calc_prob_all = log_likelihood_per_instance(prob_circuit, data_all);
+#     calc_prob_all = EVI(prob_circuit, data_all);
 #     calc_prob_all = exp.(calc_prob_all);
 
 #     using DataStructures
@@ -42,14 +42,14 @@
 
 #     N = 4;
 #     data = Int8.([0 -1 0 -1])
-#     calc_prob = marginal_log_likelihood_per_instance(prob_circuit, data);
+#     calc_prob = MAR(prob_circuit, data);
 #     calc_prob = exp.(calc_prob);
 
-#     data_all = Int8.([0 0 0 0;
+#     data_all = DataFrame(BitArray([0 0 0 0;
 #                     0 0 0 1;
 #                     0 1 0 0;
-#                     0 1 0 1;]);
-#     calc_prob_all = marginal_log_likelihood_per_instance(prob_circuit, data_all);
+#                     0 1 0 1;]));
+#     calc_prob_all = MAR(prob_circuit, data_all);
 #     calc_prob_all = exp.(calc_prob_all);
 
 #     calc_prob_all ./= calc_prob[1]

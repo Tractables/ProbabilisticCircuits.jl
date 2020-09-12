@@ -37,8 +37,8 @@ end
 """
 Given some missing values generates all possible fillings
 """
-function generate_all(row::Array{Int8})
-    miss_count = count(row .== -1)
+function generate_all(row::Vector)
+    miss_count = count(ismissing, row)
     lits = length(row)
     result = Bool.(zeros(1 << miss_count, lits))
 
@@ -51,7 +51,7 @@ function generate_all(row::Array{Int8})
             result[mask+1,:] = cur
         end
     end
-    result
+    DataFrame(result)
 end
 
 """
