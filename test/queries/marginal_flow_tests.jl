@@ -74,36 +74,24 @@ end
         f[:,3:end] # ignore true and false leaf
     end
 
-    # # Validating one example with missing features done by hand
-    # data_partial = Int8.([-1 1 -1 1])
-    # prob_circuit = zoo_psdd("little_4var.psdd");
-    # compute_exp_flows(prob_circuit, data_partial)
+    # Validating one example with missing features done by hand
+    data_partial = DataFrame([missing true missing true;])
+    prob_circuit = zoo_psdd("little_4var.psdd");
+    _, f = marginal_flows(prob_circuit, data_partial)
+    f = exp.(f)
 
-    # # (node index, correct down_flow_value)
-    # true_vals = [(1, 0.5),
-    #             (2, 1.0),
-    #             (3, 0.5),
-    #             (4, 0.0),
-    #             (5, 0.0),
-    #             (6, 0.5),
-    #             (7, 0.5),
-    #             (8, 0.0),
-    #             (9, 1.0),
-    #             (10, 1/3),
-    #             (11, 1),
-    #             (12, 1/3),
-    #             (13, 0.0),
-    #             (14, 0.0),
-    #             (15, 2/3),
-    #             (16, 2/3),
-    #             (17, 0.0),
-    #             (18, 1.0),
-    #             (19, 1.0),
-    #             (20, 1.0)]
-    # lin = linearize(prob_circuit)
-    
-    # for ind_val in true_vals
-    #     @test exp(get_exp_downflow(lin[ind_val[1]]; root=prob_circuit)[1]) ≈ ind_val[2] atol= EPS
-    # end
+    @test f[end] ≈ 1.0
+    @test f[end-1] ≈ 1.0
+    @test f[end-2] ≈ 1.0
+    @test f[end-4] ≈ 2/3
+    @test f[end-5] ≈ 0.0 atol=1e-7
+    @test f[end-6] ≈ 1/2
+    @test f[end-7] ≈ 1.0
+    @test f[end-8] ≈ 1/3
+    @test f[end-9] ≈ 1
+    @test f[end-10] ≈ 1/2
+
+    # correctness on gpu by transitivy with above test
+
 end
 
