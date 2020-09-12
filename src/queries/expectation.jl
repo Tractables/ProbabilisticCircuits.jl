@@ -1,68 +1,6 @@
 export pr_constraint, Expectation, ExpectationUpward, Moment
 
 
-const StrutCircuit = Union{ProbCircuit, StructLogicCircuit}
-const PRCache = Dict{Tuple{ProbCircuit, StrutCircuit}, Float64}
-
-# Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
-# spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
-
-"""
-Calculate the probability of the logic formula given by sdd for the psdd
-"""
-function pr_constraint(psdd_node::ProbCircuit, sdd_node::StrutCircuit,
-    cache::PRCache=PRCache())::Float64
-    
-    # Cache hit
-    if (psdd_node, sdd_node) in keys(cache) 
-        return cache[psdd_node, sdd_node]
-    
-    # Boundary cases
-    elseif psdd_node isa StructProbLiteralNode
-        # Both are literals, just check whether they agrees with each other 
-        if isliteralgate(sdd_node)
-            if literal(psdd_node) == literal(sdd_node)
-                return get!(cache, (psdd_node, sdd_node), 1.0)
-            else
-                return get!(cache, (psdd_node, sdd_node), 0.0)
-            end
-        else
-            pr_constraint(psdd_node, children(sdd_node)[1], cache)
-            if length(children(sdd_node)) > 1
-                pr_constraint(psdd_node, children(sdd_node)[2], cache)
-                return get!(cache, (psdd_node, sdd_node), 1.0)
-            else
-                return get!(cache, (psdd_node, sdd_node),
-                    literal(children(sdd_node)[1]) == literal(psdd_node) ? 1.0 : 0.0)
-            end
-        end
-    
-    # The psdd is true
-    elseif children(psdd_node)[1] isa StructProbLiteralNode 
-        theta = exp(psdd_node.log_probs[1])
-        return get!(cache, (psdd_node, sdd_node),
-            theta * pr_constraint(children(psdd_node)[1], sdd_node, cache) +
-            (1.0 - theta) * pr_constraint(children(psdd_node)[2], sdd_node, cache))
-    
-    # Both psdds are not trivial
-    else 
-        prob = 0.0
-        for (prob⋀_node, log_theta) in zip(children(psdd_node), psdd_node.log_probs)
-            p = children(prob⋀_node)[1]
-            s = children(prob⋀_node)[2]
-
-            theta = exp(log_theta)
-            for sdd⋀_node in children(sdd_node)
-                r = children(sdd⋀_node)[1]
-                t = children(sdd⋀_node)[2]
-                prob += theta * pr_constraint(p, r, cache) * pr_constraint(s, t, cache)
-            end
-        end
-        return get!(cache, (psdd_node, sdd_node), prob)
-    end
-end
-
-
 ExpCacheDict = Dict{Pair{ProbCircuit, LogisticCircuit}, Array{Float64, 2}}
 MomentCacheDict = Dict{Tuple{ProbCircuit, LogisticCircuit, Int64}, Array{Float64, 2}}
 

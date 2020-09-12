@@ -20,14 +20,13 @@ include("parameters.jl")
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
 include("queries/sample.jl")
+include("queries/pr_constraint.jl")
+# include("queries/information.jl")
 
 include("Logistic/Logistic.jl")
 @reexport using .Logistic
 
 # include("exp_flows.jl")
-# include("queries.jl")
-# include("informations.jl")
-
 
 # include("reasoning/expectation.jl")
 # include("reasoning/exp_flow_circuits.jl")
