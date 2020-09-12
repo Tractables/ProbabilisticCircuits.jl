@@ -4,9 +4,7 @@ using ProbabilisticCircuits
 using DataFrames: DataFrame
 using CUDA
 
-function cpu_gpu_agree(f, data; atol=1e-7)
-    CUDA.functional() && @test f(data) ≈ to_cpu(f(to_gpu(data))) atol=atol
-end
+include("../helper/gpu.jl")
 
 @testset "Marginals" begin
     prob_circuit = zoo_psdd("little_4var.psdd");

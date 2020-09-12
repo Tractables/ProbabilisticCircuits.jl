@@ -3,11 +3,12 @@ using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames: DataFrame
 
+include("../helper/gpu.jl")
+
 @testset "Likelihood" begin
     # Uses a PC with 4 variables, and tests 3 of the configurations to
     # match with python. Also tests all probabilities sum up to 1.
 
-    EPS = 1e-7;
     prob_circuit = zoo_psdd("little_4var.psdd");
     @test prob_circuit isa ProbCircuit;
 
@@ -18,9 +19,7 @@ using DataFrames: DataFrame
     calc_prob = EVI(prob_circuit, data)
     calc_prob = exp.(calc_prob)
 
-    for i = 1:3
-        @test true_prob[i] ≈ calc_prob[i] atol= EPS;
-    end
+    @test true_prob ≈ calc_prob atol=1e-7;
 
     # Step 2. Add up all probabilities and see if they add up to one
     N = 4;
@@ -30,5 +29,10 @@ using DataFrames: DataFrame
     calc_prob_all = exp.(calc_prob_all)
     sum_prob_all = sum(calc_prob_all)
 
-    @test 1 ≈ sum_prob_all atol = EPS;
+    @test 1 ≈ sum_prob_all atol = 1e-7;
+
+    cpu_gpu_agree(data_all) do d 
+        EVI(prob_circuit, d)
+    end
+    
 end
