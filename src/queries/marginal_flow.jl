@@ -37,6 +37,9 @@ const MAR = marginal
 #####################
 
 "Evaluate the probabilistic circuit bottom-up for a given input and return the marginal probability value of all nodes"
+marginal_all(circuit::ProbCircuit, data::DataFrame) =
+    marginal_all(same_device(ParamBitCircuit(circuit, data), data) , data)
+
 function marginal_all(circuit::ParamBitCircuit, data, reuse=nothing)
     @assert num_features(data) == num_features(circuit) 
     @assert isbinarydata(data)
@@ -193,7 +196,7 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values:
             if iszero(par_start)
                 if dec_id == num_nodes(circuit)
                     # marginal flow start from 0.0
-                    @inbounds @views @. flows[:, dec_id] = 0.0
+                    @inbounds @views flows[:, dec_id] .= zero(eltype(flows))
                 end
                 # no parents, ignore (can happen for false/true node and root)
             else
@@ -283,8 +286,8 @@ function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params
         for i = index_y:stride_y:length(layer)
             dec_id = @inbounds layer[i]
             if dec_id == size(nodes,2)
-                # populate root flow from values
-                flow = values[k, dec_id]
+                # populate root flows
+                flow = zero(eltype(flows))
             else
                 par_start = @inbounds nodes[3,dec_id]
                 flow = typemin(eltype(flows)) # log(0)
