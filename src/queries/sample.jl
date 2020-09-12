@@ -1,74 +1,41 @@
 export sample
 
-##################
-# Sampling from a psdd
-##################
+import Random: default_rng
 
 """
 Sample from a PC without any evidence
 """
-function sample(circuit::ProbCircuit)::AbstractVector{Bool}
-
-    simulate(node::Union{PlainProbLiteralNode, StructProbLiteralNode}) = begin
-        inst[variable(node)] = ispositive(node) ? 1 : 0
+function sample(circuit::ProbCircuit; rng = default_rng())::BitVector
+    
+    inst = Dict{Var,Bool}()
+    
+    simulate(node) = simulate(node, GateType(node))
+    
+    simulate(node, ::LeafGate) = begin
+        inst[variable(node)] = ispositive(node)
     end
     
-    simulate(node::Union{PlainSumNode, StructSumNode}) = begin
-        idx = sample(exp.(node.log_probs))
+    simulate(node, ::⋁Gate) = begin
+        idx = sample_index(exp.(node.log_probs); rng)
         simulate(children(node)[idx])
     end
 
-    simulate(node::Union{PlainMulNode, StructMulNode}) = foreach(simulate, children(node))
+    simulate(node, ::⋀Gate) = 
+        foreach(simulate, children(node))
 
-    inst = Dict{Var,Int64}()
     simulate(circuit)
+    
     len = length(keys(inst))
-    ans = Vector{Bool}()
-    for i = 1:len
-        push!(ans, inst[i])
-    end
-    ans
-end
-
-
-"""
-Sampling with Evidence from a psdd.
-"""
-function sample(circuit::ProbCircuit, evidence)::AbstractVector{Bool}
-
-    @assert num_examples(evidence) == 1 "evidence have to be one example"
-    
-    simulate(node::Union{PlainProbLiteralNode, StructProbLiteralNode}) = begin
-        inst[variable(node)] = ispositive(node) ? 1 : 0
-    end
-    
-    function simulate(node::Union{PlainSumNode, StructSumNode})
-        prs = [get_exp_upflow(ch)[1] for ch in children(node)] # #evidence == 1
-        idx = sample(exp.(node.log_probs .+ prs))
-        simulate(children(node)[idx])
-    end
-    
-    simulate(node::Union{PlainMulNode, StructMulNode}) = foreach(simulate, children(node))
-
-    evaluate_exp(circuit, evidence)
-
-    inst = Dict{Var,Int64}()
-    simulate(circuit)
-    len = length(keys(inst))
-    ans = Vector{Bool}()
-    for i = 1:len
-        push!(ans, inst[i])
-    end
-    ans
+    BitVector([inst[i] for i = 1:len])
 end
 
 
 """
 Uniformly sample based on the probability of the items and return the selected index
 """
-function sample(probs::AbstractVector{<:Number})::Int32
+function sample_index(probs::AbstractVector{<:Number}; rng = default_rng())::Int32
     z = sum(probs)
-    q = rand() * z
+    q = rand(rng) * z
     cur = 0.0
     for i = 1:length(probs)
         cur += probs[i]

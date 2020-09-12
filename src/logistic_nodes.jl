@@ -75,7 +75,6 @@ import LogicCircuits: children # make available for extension
 @inline children(n::LogisticInnerNode) = n.children
 @inline num_classes(n::Logistic⋁Node) = size(n.thetas)[2]
 
-import ..Utils: num_parameters
 @inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * classes(n), ⋁_nodes(c))
 @inline num_parameters_per_class(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
 
