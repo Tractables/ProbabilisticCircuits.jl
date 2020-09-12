@@ -190,8 +190,8 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values:
             par_start = @inbounds circuit.nodes[3,dec_id]
             if iszero(par_start)
                 if dec_id == num_nodes(circuit)
-                    # populate root flow from values
-                    @inbounds @views @. flows[:, dec_id] = values[:, dec_id]
+                    # marginal flow start from 0.0
+                    @inbounds @views @. flows[:, dec_id] = 0.0
                 end
                 # no parents, ignore (can happen for false/true node and root)
             else

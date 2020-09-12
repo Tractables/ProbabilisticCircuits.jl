@@ -1,4 +1,4 @@
-export estimate_parameters, uniform_parameters
+export estimate_parameters, uniform_parameters, estimate_parameters_em, test
 
 using StatsFuns: logsumexp
 using CUDA
@@ -15,6 +15,11 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
     else
         estimate_parameters_cpu(bc, data, pseudocount)
     end
+    estimate_parameters_cached!(pc, bc, params)
+    params
+end
+
+function estimate_parameters_cached!(pc, bc, params)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
@@ -29,10 +34,10 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64)
             end
         end
     end
-    params
+    nothing
 end
 
-function estimate_parameters_cpu(bc, data, pseudocount)
+function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount)
     # no need to synchronize, since each computation is unique to a decision node
     node_counts::Vector{UInt} = Vector{UInt}(undef, num_nodes(bc))
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
@@ -64,7 +69,7 @@ function estimate_parameters_cpu(bc, data, pseudocount)
     return log_params
 end
 
-function estimate_parameters_gpu(bc, data, pseudocount)
+function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount)
     node_counts::CuVector{Int32} = CUDA.zeros(Int32, num_nodes(bc))
     edge_counts::CuVector{Int32} = CUDA.zeros(Int32, num_elements(bc))
     # need to manually cudaconvert closure variables
@@ -112,4 +117,51 @@ function uniform_parameters(pc::ProbCircuit)
     end
 end
 
-# TODO add em parameter learning 
+"""
+Expectation maximization parameter learning given missing data
+"""
+function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64)
+    pbc = ParamBitCircuit(pc, data; reset=false)
+    params = if isgpu(data)
+        estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+    else
+        estimate_parameters_cpu(pbc, data, pseudocount)
+    end
+    estimate_parameters_cached!(pc, pbc.bitcircuit, params)
+    params
+end
+
+function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount)
+    # no need to synchronize, since each computation is unique to a decision node
+    bc = pbc.bitcircuit
+    node_counts::Vector{Float64} = Vector{Float64}(undef, num_nodes(bc))
+    log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
+
+    @inline function on_node(flows, values, dec_id)
+        sum_flows = map(1:size(flows,1)) do i
+            flows[i, dec_id]
+        end
+        node_counts[dec_id] = logsumexp(sum_flows)
+    end
+
+    @inline function estimate(element, decision, edge_count)
+        num_els = num_elements(bc.nodes, decision)
+        log_params[element] = 
+            log((exp(edge_count)+pseudocount/num_els) / (exp(node_counts[decision])+pseudocount))
+    end
+
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child)
+        θ = eltype(flows)(pbc.params[element])
+        if !single_child
+            edge_flows = map(1:size(flows,1)) do i
+                values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
+            end
+            edge_count = logsumexp(edge_flows)
+            estimate(element, grandpa, edge_count)
+        end # no need to estimate single child params, they are always prob 1
+    end
+
+    v, f = marginal_flows(pbc, data; on_node, on_edge)
+
+    return log_params
+end

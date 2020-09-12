@@ -6,7 +6,7 @@ struct ParamBitCircuit{V,M,W}
     params::W
 end
 
-function ParamBitCircuit(pc::ProbCircuit, data)
+function ParamBitCircuit(pc::ProbCircuit, data; reset=true)
     logprobs::Vector{Float64} = Vector{Float64}()
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n) # this decision node is not part of the PC
@@ -17,11 +17,11 @@ function ParamBitCircuit(pc::ProbCircuit, data)
             append!(logprobs, n.log_probs)
         end
     end
-    bc = BitCircuit(pc, data; on_decision)
+    bc = BitCircuit(pc, data; reset=reset, on_decision)
     ParamBitCircuit(bc, logprobs)
 end
 
-function ParamBitCircuit(lc::LogisticCircuit, nc, data)
+function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
     thetas::Vector{Vector{Float64}} = Vector{Vector{Float64}}()
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n)
@@ -34,7 +34,7 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data)
             end
         end
     end
-    bc = BitCircuit(lc, data; on_decision)
+    bc = BitCircuit(lc, data; reset=reset, on_decision)
     ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
 
