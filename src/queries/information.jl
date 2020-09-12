@@ -1,6 +1,6 @@
 export kl_divergence
 
-const KLDCache = Dict{ProbCircuit, Float64}
+const KLDCache = Dict{Tuple{ProbCircuit,ProbCircuit}, Float64}
 
 """"
 Calculate entropy of the distribution of the input pc."

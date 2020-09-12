@@ -82,6 +82,7 @@ end
 #####################
 # Entropy
 #####################
+
 function entropy(dis_cache::DisCache)
     D = dimension(dis_cache)
     px_log_px = @. xlogx(dis_cache.marginal)

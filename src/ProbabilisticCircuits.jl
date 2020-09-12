@@ -21,7 +21,7 @@ include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
 include("queries/sample.jl")
 include("queries/pr_constraint.jl")
-# include("queries/information.jl")
+include("queries/information.jl")
 
 include("Logistic/Logistic.jl")
 @reexport using .Logistic

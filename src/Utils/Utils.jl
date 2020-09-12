@@ -5,6 +5,6 @@ that could be useful in any Julia project
 module Utils
 
 include("misc.jl")
-include("informations.jl")
+include("information.jl")
 
 end #module

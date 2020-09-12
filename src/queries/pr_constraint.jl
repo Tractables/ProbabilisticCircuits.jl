@@ -1,8 +1,6 @@
 export pr_constraint, Expectation, ExpectationUpward, Moment
 
-#TODO relax some of these specific choices
-const StructCircuit = Union{ProbCircuit, StructLogicCircuit}
-const PRCache = Dict{Tuple{ProbCircuit, StructCircuit}, Float64}
+const PRCache = Dict{Tuple{ProbCircuit, LogicCircuit}, Float64}
 
 # Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability
 # spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
@@ -10,10 +8,9 @@ const PRCache = Dict{Tuple{ProbCircuit, StructCircuit}, Float64}
 """
 Calculate the probability of the logic formula given by LC for the PC
 """
-function pr_constraint(pc_node::ProbCircuit, lc_node::StructCircuit,
-    cache::PRCache=PRCache())::Float64
+function pr_constraint(pc_node::StructProbCircuit, lc_node, cache::PRCache=PRCache())::Float64
 
-    # TODO require that both circuits have a vtree for safety. If they don't, then first convert them to have a vtree
+    # TODO require that both circuits have an equal vtree for safety. If they don't, then first convert them to have a vtree
     
     # Cache hit
     if (pc_node, lc_node) in keys(cache) 

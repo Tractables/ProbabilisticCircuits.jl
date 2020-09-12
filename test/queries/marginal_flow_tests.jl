@@ -50,7 +50,9 @@ end
     function test_flows(data)
         # Comparing with down pass with fully observed data
 
-        _, f1 = satisfies_flows(prob_circuit, Float64.(data))
+        data_f = CUDA.@allowscalar Float64.(data)
+
+        _, f1 = satisfies_flows(prob_circuit, data_f)
         _, f2 = marginal_flows(prob_circuit, data)
 
         # note: while downward pass flows should be the same, 
