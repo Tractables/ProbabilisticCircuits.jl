@@ -69,7 +69,7 @@ end
 """
 Complete evidence queries
 """
-EVI = log_likelihood_per_instance
+const EVI = log_likelihood_per_instance
 
 """
 Compute the likelihood of the PC given the data

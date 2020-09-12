@@ -5,7 +5,7 @@ using DataFrames: DataFrame
 using LoopVectorization: @avx
 using LogicCircuits: balance_threads
 
-export marginal, marginal_all, marginal_flows, marginal_flows_down
+export marginal, MAR, marginal_all, marginal_flows, marginal_flows_down
 
 #####################
 # Circuit marginal evaluation
@@ -29,6 +29,8 @@ marginal(circuit::ProbCircuit, data::DataFrame) =
 function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
     marginal_all(circuit,data)[:,end]
 end
+
+const MAR = marginal
 
 #####################
 # Circuit evaluation of *all* nodes in circuit

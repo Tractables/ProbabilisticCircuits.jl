@@ -19,6 +19,7 @@ include("parameters.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
+include("queries/sample.jl")
 
 include("Logistic/Logistic.jl")
 @reexport using .Logistic
@@ -40,7 +41,7 @@ include("Logistic/Logistic.jl")
 # include("structurelearner/learner.jl")
 
 
-# include("LoadSave/LoadSave.jl")
-# @reexport using .LoadSave
+include("LoadSave/LoadSave.jl")
+@reexport using .LoadSave
 
 end

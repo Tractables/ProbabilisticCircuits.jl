@@ -109,15 +109,23 @@ end
 
 # claim `StructProbCircuit` as the default `ProbCircuit` implementation that has a vtree
 
+compile(::Type{ProbCircuit}, a1::Union{Vtree, StructLogicCircuit}, args...) =
+    compile(StructProbCircuit, a1, args...)
+
 compile(n::StructProbCircuit, args...) = 
     compile(typeof(n), root(vtree(n)), args...)
+
+compile(::Type{<:StructProbCircuit}, c::StructLogicCircuit) =
+    compile(StructProbCircuit, root(vtree(c)), c)
+
+compile(::Type{<:StructLogicCircuit}, c::StructProbCircuit) =
+    compile(StructLogicCircuit, root(vtree(c)), c)
 
 compile(::Type{<:StructProbCircuit}, ::Vtree, ::Bool) =
     error("Probabilistic circuits do not have constant leafs.")
 
 compile(::Type{<:StructProbCircuit}, vtree::Vtree, l::Lit) =
     StructProbLiteralNode(l,find_leaf(lit2var(l),vtree))
-
 
 function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::LogicCircuit)
     f_con(n) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
