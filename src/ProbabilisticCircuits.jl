@@ -28,12 +28,11 @@ include("queries/expectation_graph.jl")
 include("Logistic/Logistic.jl")
 @reexport using .Logistic
 
-# include("exp_flows.jl")
+include("mixtures/shared_prob_nodes.jl")
 
 # include("reasoning/expectation.jl")
 # include("reasoning/exp_flow_circuits.jl")
 
-# include("mixtures/shared_prob_nodes.jl")
 # include("mixtures/em.jl")
 
 # include("structurelearner/chow_liu_tree.jl")
