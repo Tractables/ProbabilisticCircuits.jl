@@ -1,10 +1,11 @@
 export one_step_em, component_weights_per_example, initial_weights, clustering,
 log_likelihood_per_instance_per_component, estimate_parameters_cached, learn_em_model
+
 using Statistics: mean
 using LinearAlgebra: normalize!
 using Clustering: kmeans, nclusters, assignments
 
-function one_step_em(spc, train_x, component_weights;pseudocount)
+function one_step_em(spc, train_x, component_weights; pseudocount)
     # E step
     lls = log_likelihood_per_instance_per_component(spc, train_x)
     lls .+= log.(component_weights)
