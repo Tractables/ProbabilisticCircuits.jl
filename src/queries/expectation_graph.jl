@@ -1,4 +1,4 @@
-export UpExpFlow, ExpFlowCircuit, exp_pass_up
+export UpExpFlow, ExpFlowCircuit, exp_pass_up, ExpectationUpward
 
 #####################
 # Expectation Flow circuits
@@ -22,13 +22,37 @@ import LogicCircuits: children
 children(x::UpExpFlow) = x.children
 
 """
+Expected Prediction of LC w.r.t PC.
+This implementation uses the computation graph approach.
+"""
+function ExpectationUpward(pc::ProbCircuit, lc::LogisticCircuit, data)
+    # 1. Get probability of each observation
+    log_likelihoods = marginal(pc, data)
+    p_observed = exp.( log_likelihoods )
+    
+    # 2. Expectation w.r.t. P(x_m, x_o)
+    exps_flow = exp_pass_up(pc, lc, data)
+    results_unnormalized = exps_flow[end].fg
+
+    # 3. Expectation w.r.t P(x_m | x_o)
+    results = transpose(results_unnormalized) ./ p_observed
+
+    # 4. Add Bias terms
+    biases = lc.thetas
+    results .+= biases
+    
+    results, exps_flow
+end
+
+
+"""
 Construct a upward expectation flow circuit from a given pair of PC and LC circuits
 Note that its assuming the two circuits share the same vtree
 """
 function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, ::Type{El}) where El
     F = Array{El, 2}
     fmem = () -> zeros(1, batch_size) #Vector{El}(undef, batch_size)  #init_array(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)
-    fgmem = () -> zeros(classes(lc), batch_size)
+    fgmem = () -> zeros(num_classes(lc), batch_size)
 
     root_pc = pc
     root_lc = children(lc)[1]
