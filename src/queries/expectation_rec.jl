@@ -1,4 +1,4 @@
-export Expectation, ExpectationUpward, Moment
+export Expectation, Moment
 
 
 ExpCacheDict = Dict{Pair{ProbCircuit, LogisticCircuit}, Array{Float64, 2}}
@@ -32,7 +32,7 @@ Missing values should be denoted by -1
 """
 function Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
     # 1. Get probability of each observation
-    log_likelihoods = marginal_log_likelihood_per_instance(pc, data)
+    log_likelihoods = marginal(pc, data)
     p_observed = exp.( log_likelihoods )
     
     # 2. Expectation w.r.t. P(x_m, x_o)
@@ -51,13 +51,13 @@ end
 
 function Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
     # 1. Get probability of each observation
-    log_likelihoods = marginal_log_likelihood_per_instance(pc, data)
+    log_likelihoods = marginal(pc, data)
     p_observed = exp.( log_likelihoods )
     
     # 2. Moment w.r.t. P(x_m, x_o)
     cache = MomentCache()
     biases = lc.thetas
-    results_unnormalized = zeros(num_examples(data), classes(lc))
+    results_unnormalized = zeros(num_examples(data), num_classes(lc))
     
     for z = 0:moment-1  
         results_unnormalized .+= choose(moment, z) .* (biases .^ (z)) .* transpose(moment_g(pc, children(lc)[1], data, moment - z, cache))
@@ -72,25 +72,6 @@ function Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
     results, cache
 end
 
-
-function ExpectationUpward(pc::ProbCircuit, lc::LogisticCircuit, data)
-    # 1. Get probability of each observation
-    log_likelihoods = marginal_log_likelihood_per_instance(pc, data)
-    p_observed = exp.( log_likelihoods )
-    
-    # 2. Expectation w.r.t. P(x_m, x_o)
-    exps_flow = exp_pass_up(pc, lc, data)
-    results_unnormalized = exps_flow[end].fg
-
-    # 3. Expectation w.r.t P(x_m | x_o)
-    results = transpose(results_unnormalized) ./ p_observed
-
-    # 4. Add Bias terms
-    biases = lc.thetas
-    results .+= biases
-    
-    results, exps_flow
-end
 
 
 # exp_f (pr-constraint) is originally from:
@@ -168,7 +149,7 @@ end
 
 function exp_fg(n::PlainSumNode, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
-        value = zeros(classes(m) , num_examples(data) )
+        value = zeros(num_classes(m) , num_examples(data) )
         pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
         @fastmath @simd for i in 1:num_children(n)
             for j in 1:num_children(m)
