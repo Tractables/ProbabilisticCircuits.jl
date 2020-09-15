@@ -61,6 +61,19 @@ import LogicCircuits: conjoin, disjoin # make available for extension
 compile(::Type{<:ProbCircuit}, ::Bool) =
     error("Probabilistic circuits do not have constant leafs.")
 
+struct WeightProbCircuit
+    tmp_weight :: Float64
+    circuit :: ProbCircuit
+end
+
+@inline Base.:*(w::Real, x::ProbCircuit) = WeightProbCircuit(w, x)
+@inline Base.:*(x::ProbCircuit, w::Real) = w * x
+@inline Base.:+(wpc1::WeightProbCircuit, wpc2::WeightProbCircuit) = begin
+    pc = wpc1.circuit + wpc2.circuit
+    pc.log_probs .= log.([wpc1.tmp_weight, wpc2.tmp_weight])
+    pc
+end
+
 #####################
 # circuit inspection
 #####################

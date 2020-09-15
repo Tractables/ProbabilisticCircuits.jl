@@ -99,4 +99,14 @@ using DataFrames: DataFrame
     @test num_edges(c3) == 69
     @test num_variables(c3) == 7
 
+    # compilation tests
+    v = Vtree(Var(1))
+    lit1 = compile(StructProbCircuit, v, Lit(1))
+    litn1 = compile(StructProbCircuit, v, Lit(-1))
+    r = lit1 * 0.3 + 0.7 * litn1
+    @test r isa StructSumNode
+    @test all(children(r) .== [lit1, litn1])
+    @test vtree(r) === vtree(lit1)
+    @test all(r.log_probs .≈ log.([0.3, 0.7]))
+
 end

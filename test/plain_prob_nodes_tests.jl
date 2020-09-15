@@ -39,4 +39,11 @@ include("helper/plain_logic_circuits.jl")
 
     @test length(mul_nodes(r1)) == 1
 
+    # compilation tests
+    lit1 = compile(PlainProbCircuit, Lit(1))
+    litn1 = compile(PlainProbCircuit, Lit(-1))
+    r = lit1 * 0.3 + 0.7 * litn1
+    @test r isa PlainSumNode
+    @test all(children(r) .== [lit1, litn1])
+    @test all(r.log_probs .≈ log.([0.3, 0.7]))
 end
