@@ -106,7 +106,7 @@ using DataFrames: DataFrame
     r = lit1 * 0.3 + 0.7 * litn1
     @test r isa StructSumNode
     @test all(children(r) .== [lit1, litn1])
-    @test vtree(r) === vtree(lit1)
+    @test r.vtree === lit1.vtree
     @test all(r.log_probs .≈ log.([0.3, 0.7]))
 
 end
