@@ -11,14 +11,14 @@ Calculate the probability of the logic formula given by LC for the PC
 function pr_constraint(pc_node::StructProbCircuit, lc_node, cache::PRCache=PRCache())::Float64
 
     # TODO require that both circuits have an equal vtree for safety. If they don't, then first convert them to have a vtree
-    
+    @assert respects_vtree(lc_node, vtree(pc_node)) "Both circuits do not have an equal vtree"
+
     # Cache hit
     if (pc_node, lc_node) in keys(cache) 
         return cache[pc_node, lc_node]
     
     # Boundary cases
-    # TODO: make this more general-purpose, use `isliteralgate`
-    elseif pc_node isa StructProbLiteralNode
+    elseif isliteralgate(pc_node)
         # Both are literals, just check whether they agrees with each other 
         if isliteralgate(lc_node)
             if literal(pc_node) == literal(lc_node)
@@ -38,7 +38,7 @@ function pr_constraint(pc_node::StructProbCircuit, lc_node, cache::PRCache=PRCac
         end
     
     # The pc is true
-    elseif children(pc_node)[1] isa StructProbLiteralNode 
+    elseif isliteralgate(children(pc_node)[1])
         theta = exp(pc_node.log_probs[1])
         return get!(cache, (pc_node, lc_node),
             theta * pr_constraint(children(pc_node)[1], lc_node, cache) +

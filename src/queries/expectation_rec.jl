@@ -77,7 +77,7 @@ end
 # exp_f (pr-constraint) is originally from:
 #   Arthur Choi, Guy Van den Broeck, and Adnan Darwiche. Tractable learning for structured probability spaces: A case study in learning preference distributions. In Proceedings of IJCAI, 2015.
 
-function exp_f(n::PlainSumNode, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
+function exp_f(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
         pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
@@ -90,7 +90,7 @@ function exp_f(n::PlainSumNode, m::Logistic⋁Node, data, cache::Union{Expectati
     end
 end
 
-function exp_f(n::PlainMulNode, m::Logistic⋀Node, data, cache::Union{ExpectationCache, MomentCache})
+function exp_f(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = ones(1 , num_examples(data) )
         @fastmath for (i,j) in zip(children(n), children(m))
@@ -102,7 +102,7 @@ function exp_f(n::PlainMulNode, m::Logistic⋀Node, data, cache::Union{Expectati
 end
 
 
-@inline function exp_f(n::PlainProbLiteralNode, m::LogisticLiteral, data, cache::Union{ExpectationCache, MomentCache})
+@inline function exp_f(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
         var = lit2var(literal(m))
@@ -123,7 +123,7 @@ end
 """
 Has to be a Logistic⋁Node with only one child, which is a leaf node 
 """
-@inline function exp_f(n::PlainProbLiteralNode, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
+@inline function exp_f(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         exp_f(n, children(m)[1], data, cache)
     end
@@ -133,7 +133,7 @@ end
 ######## exp_g, exp_fg
 ########################################################################
 
-@inline function exp_g(n::PlainSumNode, m::Logistic⋁Node, data, cache::ExpectationCache)
+@inline function exp_g(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, cache::ExpectationCache)
     exp_fg(n, m, data, cache) # exp_fg and exp_g are the same for OR nodes
 end
 
@@ -147,7 +147,7 @@ end
 # end
 
 
-function exp_fg(n::PlainSumNode, m::Logistic⋁Node, data, cache::ExpectationCache)
+function exp_fg(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         value = zeros(num_classes(m) , num_examples(data) )
         pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
@@ -161,7 +161,7 @@ function exp_fg(n::PlainSumNode, m::Logistic⋁Node, data, cache::ExpectationCac
     end
 end
 
-function exp_fg(n::PlainMulNode, m::Logistic⋀Node, data, cache::ExpectationCache)
+function exp_fg(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         # Assuming 2 children
         value = exp_f(children(n)[1], children(m)[1], data, cache) .* exp_fg(children(n)[2], children(m)[2], data, cache)
@@ -174,13 +174,13 @@ end
 """
 Has to be a Logistic⋁Node with only one child, which is a leaf node 
 """
-@inline function exp_fg(n::PlainProbLiteralNode, m::Logistic⋁Node, data, cache::ExpectationCache)
+@inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
         m.thetas[1,:] .* exp_f(n, m, data, cache)
     end
 end
 
-@inline function exp_fg(n::PlainProbLiteralNode, m::LogisticLiteral, data, cache::ExpectationCache)
+@inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, cache::ExpectationCache)
     #dont know how many classes, boradcasting does the job
     zeros(1 , num_examples(data)) 
 end
@@ -189,7 +189,7 @@ end
 ######## moment_g, moment_fg
 ########################################################################
 
-@inline function moment_g(n::PlainSumNode, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
+@inline function moment_g(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
     get!(cache.fg, (n, m, moment)) do
         moment_fg(n, m, data, moment, cache)
     end
@@ -198,7 +198,7 @@ end
 """
 Calculating  E[g^k * f]
 """
-function moment_fg(n::PlainSumNode, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
+function moment_fg(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
     if moment == 0
         return exp_f(n, m, data, cache)
     end
@@ -217,13 +217,13 @@ function moment_fg(n::PlainSumNode, m::Logistic⋁Node, data, moment::Int, cache
     end
 end
 
-@inline function moment_fg(n::PlainProbLiteralNode, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
+@inline function moment_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::Logistic⋁Node, data, moment::Int, cache::MomentCache)
     get!(cache.fg, (n, m, moment)) do
         m.thetas[1,:].^(moment) .* exp_f(n, m, data, cache)
     end
 end
 
-@inline function moment_fg(n::PlainProbLiteralNode, m::LogisticLiteral, data, moment::Int, cache::MomentCache)
+@inline function moment_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, moment::Int, cache::MomentCache)
     #dont know how many classes, boradcasting does the job
     if moment == 0
         exp_f(n, m, data, cache)
@@ -232,7 +232,7 @@ end
     end
 end
 
-function moment_fg(n::PlainMulNode, m::Logistic⋀Node, data, moment::Int, cache::MomentCache)
+function moment_fg(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data, moment::Int, cache::MomentCache)
     if moment == 0
         return exp_f(n, m, data, cache)
     end
