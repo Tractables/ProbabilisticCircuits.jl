@@ -9,12 +9,13 @@ Class Conditional Probability
 """
 function class_likelihood_per_instance(lc::LogicCircuit, nc::Int, data)    
     cw = class_weights_per_instance(lc, nc, data)
-    isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
+    one = Float32(1.0)
+    isgpu(data) ? (@. one / (one + exp(-cw))) : (@. @avx one / (one + exp(-cw)))
 end
 
 function class_likelihood_per_instance(bc, data)
     cw = class_weights_per_instance(bc, data)
-    isgpu(data) ? (@. 1.0 / (1.0 + exp(-cw))) : (@. @avx 1.0 / (1.0 + exp(-cw)))
+    isgpu(data) ? (@. one / (one + exp(-cw))) : (@. @avx one / (one + exp(-cw)))
 end
 
 function class_weights_per_instance(lc::LogisticCircuit, nc::Int, data)
@@ -33,22 +34,20 @@ end
 function class_weights_per_instance_cpu(bc, data)
     ne::Int = num_examples(data)
     nc::Int = size(bc.params, 2)
-    cw::Matrix{Float64} = zeros(Float64, ne, nc)
+    cw::Matrix{Float32} = zeros(Float32, ne, nc)
     cw_lock::Threads.ReentrantLock = Threads.ReentrantLock()
  
     @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child)
-        if !single_child
-            lock(cw_lock) do # TODO: move lock to inner loop?
-                for i = 1:size(flows, 1)
-                    @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
-                    first_true_bit = trailing_zeros(edge_flow) + 1
-                    last_true_bit = 64 - leading_zeros(edge_flow)
-                    @simd for j = first_true_bit:last_true_bit
-                        ex_id = ((i - 1) << 6) + j
-                        if get_bit(edge_flow, j)
-                            for class = 1:nc
-                                @inbounds cw[ex_id, class] += bc.params[element, class]
-                            end
+        lock(cw_lock) do # TODO: move lock to inner loop?
+            for i = 1:size(flows, 1)
+                @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
+                first_true_bit = trailing_zeros(edge_flow) + 1
+                last_true_bit = 64 - leading_zeros(edge_flow)
+                @simd for j = first_true_bit:last_true_bit
+                    ex_id = ((i - 1) << 6) + j
+                    if get_bit(edge_flow, j)
+                        for class = 1:nc
+                            @inbounds cw[ex_id, class] += bc.params[element, class]
                         end
                     end
                 end
@@ -58,14 +57,12 @@ function class_weights_per_instance_cpu(bc, data)
     end
 
     @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child)
-        if !single_child
-            lock(cw_lock) do # TODO: move lock to inner loop?
-                @avx for i = 1:size(flows, 1)
-                    @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
-                    edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
-                    for class = 1:nc
-                        @inbounds cw[i, class] += edge_flow * bc.params[element, class]
-                    end
+        lock(cw_lock) do # TODO: move lock to inner loop?
+            @avx for i = 1:size(flows, 1)
+                @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
+                edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
+                for class = 1:nc
+                    @inbounds cw[i, class] += edge_flow * bc.params[element, class]
                 end
             end
         end
@@ -84,20 +81,18 @@ end
 function class_weights_per_instance_gpu(bc, data)
     ne::Int = num_examples(data)
     nc::Int = size(bc.params, 2)
-    cw::CuMatrix{Float64} = CUDA.zeros(Float64, num_examples(data), nc)
+    cw::CuMatrix{Float32} = CUDA.zeros(Float32, num_examples(data), nc)
     cw_device = CUDA.cudaconvert(cw)
     params_device = CUDA.cudaconvert(bc.params)
 
     @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
-        if !single_child
-            first_true_bit = 1 + trailing_zeros(edge_flow)
-            last_true_bit = 64 - leading_zeros(edge_flow)
-            for j = first_true_bit:last_true_bit
-                ex_id = ((chunk_id - 1) << 6) + j
-                if get_bit(edge_flow, j)
-                    for class = 1:nc
-                        CUDA.@atomic cw_device[ex_id, class] += params_device[element, class]
-                    end
+        first_true_bit = 1 + trailing_zeros(edge_flow)
+        last_true_bit = 64 - leading_zeros(edge_flow)
+        for j = first_true_bit:last_true_bit
+            ex_id = ((chunk_id - 1) << 6) + j
+            if get_bit(edge_flow, j)
+                for class = 1:nc
+                    CUDA.@atomic cw_device[ex_id, class] += params_device[element, class]
                 end
             end
         end
@@ -105,10 +100,8 @@ function class_weights_per_instance_gpu(bc, data)
     end
 
     @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
-        if !single_child
-            for class = 1:nc
-                CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[element, class]
-            end
+        for class = 1:nc
+            CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[element, class]
         end
         nothing
     end
