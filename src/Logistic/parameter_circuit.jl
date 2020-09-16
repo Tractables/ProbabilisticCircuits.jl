@@ -5,6 +5,13 @@ export LayeredParameterCircuit, CuLayeredParameterCircuit
 export class_likelihood, class_weights
 export one_hot, learn_parameters, update_parameters
 
+#############################################################
+############## This is the old implementation ###############
+#### Not intended to be used under the current framework ####
+#############################################################
+
+
+
 # in a parameter circuit
 # 1 is true, 2 is false
 const TRUE_ID = Int32(1)
