@@ -11,7 +11,6 @@ export one_hot, learn_parameters, update_parameters
 #############################################################
 
 
-
 # in a parameter circuit
 # 1 is true, 2 is false
 const TRUE_ID = Int32(1)
