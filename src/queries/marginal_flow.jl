@@ -5,7 +5,8 @@ using DataFrames: DataFrame
 using LoopVectorization: @avx
 using LogicCircuits: balance_threads
 
-export marginal, MAR, marginal_all, marginal_flows, marginal_flows_down
+export marginal, MAR, marginal_all, marginal_log_likelihood, 
+marginal_log_likelihood_avg, marginal_flows, marginal_flows_down
 
 #####################
 # Circuit marginal evaluation
@@ -30,7 +31,20 @@ function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
     marginal_all(circuit,data)[:,end]
 end
 
+"""
+Marginal queries
+"""
 const MAR = marginal
+
+"""
+Compute the marginal likelihood of the PC given the data
+"""
+marginal_log_likelihood(pc, data) = sum(marginal(pc, data))
+
+"""
+Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
+"""
+marginal_log_likelihood_avg(pc, data) = marginal_log_likelihood(pc, data)/num_examples(data)
 
 #####################
 # Circuit evaluation of *all* nodes in circuit

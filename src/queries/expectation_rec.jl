@@ -110,11 +110,11 @@ end
         if ispositive(n) && ispositive(m) 
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 1 ] .= 1.0 # positive observations
-            value[1, X[:, var] .!= 0 ] .= 1.0 # positive or missing observations
+            value[1, .!isequal.(X[:, var], 0)] .= 1.0 # positive or missing observations
         elseif isnegative(n) && isnegative(m)
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 0 ] .= 1.0 # negative observations
-            value[1, X[:, var] .!= 1 ] .= 1.0 # negative or missing observations
+            value[1, .!isequal.(X[:, var], 1)] .= 1.0 # negative or missing observations
         end
         return value
     end
@@ -204,7 +204,7 @@ function moment_fg(n::PlainSumNode, m::Logistic⋁Node, data, moment::Int, cache
     end
 
     get!(cache.fg, (n, m, moment)) do
-        value = zeros(classes(m) , num_examples(data) )
+        value = zeros(num_classes(m) , num_examples(data) )
         pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
         @fastmath @simd for i in 1:num_children(n)
             for j in 1:num_children(m)

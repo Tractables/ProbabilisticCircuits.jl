@@ -56,7 +56,9 @@ import LogicCircuits: conjoin, disjoin # make available for extension
     summate(args; reuse)
 
 @inline Base.:*(x::ProbCircuit, y::ProbCircuit) = multiply(x,y)
+@inline Base.:*(xs::ProbCircuit...) = multiply(xs...)
 @inline Base.:+(x::ProbCircuit, y::ProbCircuit) = summate(x,y)
+@inline Base.:+(xs::ProbCircuit...) = summate(xs...)
 
 compile(::Type{<:ProbCircuit}, ::Bool) =
     error("Probabilistic circuits do not have constant leafs.")
@@ -68,9 +70,12 @@ end
 
 @inline Base.:*(w::Real, x::ProbCircuit) = WeightProbCircuit(w, x)
 @inline Base.:*(x::ProbCircuit, w::Real) = w * x
-@inline Base.:+(wpc1::WeightProbCircuit, wpc2::WeightProbCircuit) = begin
-    pc = wpc1.circuit + wpc2.circuit
-    pc.log_probs .= log.([wpc1.tmp_weight, wpc2.tmp_weight])
+@inline Base.:+(x::WeightProbCircuit...) = begin
+    ch = collect(x)
+    c = map(x -> x.circuit, ch)
+    w = map(x -> x.tmp_weight, ch)
+    pc = summate(c)
+    pc.log_probs .= log.(w)
     pc
 end
 

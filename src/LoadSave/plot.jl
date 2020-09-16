@@ -1,4 +1,6 @@
+export DiGraph, plot
 using LightGraphs
+using TikzGraphs
 
 import LightGraphs: DiGraph
 
@@ -23,4 +25,10 @@ function DiGraph(pc::ProbCircuit)
     end
     g, _ = LogicCircuits.LoadSave.DiGraph(pc;on_edge=on_edge, on_var=add_label!)
     g, label, edge_labels
+end
+
+import TikzGraphs: plot
+plot(pc::ProbCircuit) = begin
+    g, label, edge_labels = DiGraph(pc)
+    TikzGraphs.plot(g, label, edge_labels=edge_labels)
 end
