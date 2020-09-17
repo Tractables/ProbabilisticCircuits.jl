@@ -1,11 +1,11 @@
-export learn_struct_prob_circuit, learn_vtree_from_clt, compile_sdd_from_clt
+export learn_chow_liu_tree_circuit, learn_vtree_from_clt, compile_sdd_from_clt
 using LightGraphs: outneighbors
 using MetaGraphs: get_prop
 
 """
 Learning from data a structured-decomposable circuit with several structure learning algorithms
 """
-function learn_struct_prob_circuit(data;
+function learn_chow_liu_tree_circuit(data;
         pseudocount = 1.0, 
         algo = "chow-liu", algo_kwargs=(α=1.0, clt_root="graph_center"), 
         vtree = "chow-liu", vtree_kwargs=(vtree_mode="balanced",))    

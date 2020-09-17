@@ -20,7 +20,7 @@ function DiGraph(pc::ProbCircuit)
     on_edge(g, id_dict, n::Union{PlainSumNode, StructSumNode}, c, n_id, c_id) = begin
         edge_labels[(n_id, c_id)] = begin
             i = findall(x -> x === c, children(n))[1]
-            "$(exp(n.log_probs[i]))"
+            "$(round(exp(n.log_probs[i]), digits=3))"
         end
     end
     g, _ = LogicCircuits.LoadSave.DiGraph(pc;on_edge=on_edge, on_var=add_label!)
@@ -30,5 +30,5 @@ end
 import TikzGraphs: plot
 plot(pc::ProbCircuit) = begin
     g, label, edge_labels = DiGraph(pc)
-    TikzGraphs.plot(g, label, edge_labels=edge_labels)
+    TikzGraphs.plot(g, label, edge_labels=edge_labels, edge_style="font=\\tiny")
 end

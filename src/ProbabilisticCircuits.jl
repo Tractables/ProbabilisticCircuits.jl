@@ -31,10 +31,10 @@ include("Logistic/Logistic.jl")
 include("mixtures/shared_prob_nodes.jl")
 # include("mixtures/em.jl")
 
-# include("structurelearner/chow_liu_tree.jl")
-# include("structurelearner/init.jl")
-# include("structurelearner/heuristics.jl")
-# include("structurelearner/learner.jl")
+include("structurelearner/chow_liu_tree.jl")
+include("structurelearner/init.jl")
+include("structurelearner/heuristics.jl")
+include("structurelearner/learner.jl")
 
 include("LoadSave/LoadSave.jl")
 @reexport using .LoadSave
