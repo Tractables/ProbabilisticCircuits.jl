@@ -19,6 +19,7 @@ include("parameters.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
+include("queries/map.jl")
 include("queries/sample.jl")
 include("queries/pr_constraint.jl")
 include("queries/information.jl")
