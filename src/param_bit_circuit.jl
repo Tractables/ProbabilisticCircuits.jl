@@ -47,11 +47,17 @@ end
 ## Helper functions ###
 #######################
 
-import LogicCircuits: num_nodes, num_elements, num_features
+params(c::ParamBitCircuit) = c.params
+
+import LogicCircuits: num_nodes, num_elements, num_features, num_leafs, nodes, elements
 
 num_nodes(c::ParamBitCircuit) = num_nodes(c.bitcircuit)
 num_elements(c::ParamBitCircuit) = num_elements(c.bitcircuit)
 num_features(c::ParamBitCircuit) = num_features(c.bitcircuit)
+num_leafs(c::ParamBitCircuit) = num_leafs(c.bitcircuit)
+
+nodes(c::ParamBitCircuit) = nodes(c.bitcircuit)
+elements(c::ParamBitCircuit) = elements(c.bitcircuit)
 
 import LogicCircuits: to_gpu, to_cpu, isgpu #extend
 
