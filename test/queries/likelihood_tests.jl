@@ -31,7 +31,7 @@ include("../helper/gpu.jl")
 
     @test 1 ≈ sum_prob_all atol = 1e-7;
 
-    cpu_gpu_agree(data_all) do d 
+    cpu_gpu_agree_approx(data_all) do d 
         EVI(prob_circuit, d)
     end
     

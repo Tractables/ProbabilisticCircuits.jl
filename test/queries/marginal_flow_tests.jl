@@ -22,7 +22,7 @@ include("../helper/gpu.jl")
     calc_prob = exp.(MAR(prob_circuit, data_marg))
     @test true_prob ≈ calc_prob atol=1e-7
 
-    cpu_gpu_agree(data_marg) do d 
+    cpu_gpu_agree_approx(data_marg) do d 
         marginal_all(prob_circuit, d)
     end
 
@@ -37,7 +37,7 @@ include("../helper/gpu.jl")
     test_complete_mar(data_full)
     CUDA.functional() && test_complete_mar(to_gpu(data_full))
 
-    cpu_gpu_agree(data_full) do d 
+    cpu_gpu_agree_approx(data_full) do d 
         marginal_all(prob_circuit, d)
     end
 
@@ -69,7 +69,7 @@ end
     test_flows(data_full)
     CUDA.functional() && test_flows(to_gpu(data_full))
     
-    cpu_gpu_agree(data_full) do d 
+    cpu_gpu_agree_approx(data_full) do d 
         _, f = marginal_flows(prob_circuit, d)
         f[:,3:end] # ignore true and false leaf
     end
