@@ -1,7 +1,9 @@
 export to_long_mi,
+    pop_cuda!, push_cuda!, length_cuda,
     generate_all, generate_data_all
 
 using DataFrames
+using CUDA: CUDA
 
 ###################
 # Misc.
@@ -12,6 +14,30 @@ function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
     δint = max_int - min_int
     return @. round(Int64, m * δint / δmi + min_int)
 end
+
+
+###################
+# Rudimentary CUDA-compatible stack data structure
+####################
+
+function pop_cuda!(stack, i)
+    if @inbounds stack[i,1] == zero(eltype(stack))
+        return zero(eltype(stack))
+    else
+        @inbounds stack[i,1] -= one(eltype(stack))
+        @inbounds return stack[i,stack[i,1]+2]
+    end
+end
+
+function push_cuda!(stack, i, v)
+    @inbounds stack[i,1] += one(eltype(stack))
+    @inbounds CUDA.@cuassert 1+stack[i,1] <= size(stack,2) "CUDA stack overflow"
+    @inbounds stack[i,1+stack[i,1]] = v
+    return nothing
+end
+
+length_cuda(stack, i) = stack[i,1]
+
 
 ###################
 # One-Hot Encoding

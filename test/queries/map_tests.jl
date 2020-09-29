@@ -39,6 +39,16 @@ include("../helper/gpu.jl")
     @test all(mar .> mappr .- 1e-6)
 
     # same MAP states on CPU and GPU
+    cpu_gpu_agree(data_full) do d 
+        MAP(prob_circuit, d)[1]
+    end
+
+    # same MAP probabilities on CPU and GPU
+    cpu_gpu_agree_approx(data_full) do d 
+        MAP(prob_circuit, d)[2]
+    end
+
+    # same MAP states on CPU and GPU
     cpu_gpu_agree(data_marg) do d 
         MAP(prob_circuit, d)[1]
     end
