@@ -11,7 +11,7 @@ max_a_posteriori(root::ProbCircuit, data::Union{Bool,Missing}...) =
     max_a_posteriori(root, collect(Union{Bool,Missing}, data))
 
 max_a_posteriori(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
-    max_a_posteriori(root, DataFrame(reshape(data, 1, :)))[1,:]
+    example(max_a_posteriori(root, DataFrame(reshape(data, 1, :))), 1)
 
 max_a_posteriori(circuit::ProbCircuit, data::DataFrame) =
     max_a_posteriori(same_device(ParamBitCircuit(circuit, data), data), data)
