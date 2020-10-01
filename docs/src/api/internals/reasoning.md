@@ -1,5 +1,0 @@
-# Reasoning
-
-```@autodocs
-Modules = [Reasoning]
-```

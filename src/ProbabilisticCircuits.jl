@@ -5,24 +5,39 @@ module ProbabilisticCircuits
 # USE EXTERNAL MODULES
 
 using Reexport
+@reexport using LogicCircuits
 
 include("Utils/Utils.jl")
-
 @reexport using .Utils
 
-# INCLUDE CHILD MODULES
-include("Probabilistic/Probabilistic.jl")
+include("abstract_prob_nodes.jl")
+include("plain_prob_nodes.jl")
+include("structured_prob_nodes.jl")
+include("logistic_nodes.jl")
+include("param_bit_circuit.jl")
+include("parameters.jl")
+
+include("queries/likelihood.jl")
+include("queries/marginal_flow.jl")
+include("queries/map.jl")
+include("queries/sample.jl")
+include("queries/pr_constraint.jl")
+include("queries/information.jl")
+include("queries/expectation_rec.jl")
+include("queries/expectation_graph.jl")
+
 include("Logistic/Logistic.jl")
-include("IO/IO.jl")
-include("StructureLearner/StructureLearner.jl")
-include("Reasoning/Reasoning.jl")
-
-
-# USE CHILD MODULES (in order to re-export some functions)
-@reexport using .Probabilistic
 @reexport using .Logistic
-@reexport using .IO
-@reexport using .StructureLearner
-@reexport using .Reasoning
+
+include("mixtures/shared_prob_nodes.jl")
+# include("mixtures/em.jl")
+
+include("structurelearner/chow_liu_tree.jl")
+include("structurelearner/init.jl")
+include("structurelearner/heuristics.jl")
+include("structurelearner/learner.jl")
+
+include("LoadSave/LoadSave.jl")
+@reexport using .LoadSave
 
 end

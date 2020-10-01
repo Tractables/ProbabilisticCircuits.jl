@@ -1,5 +1,0 @@
-# Probabilistic
-
-```@autodocs
-Modules = [Probabilistic]
-```
