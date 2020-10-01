@@ -324,7 +324,7 @@ function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params
                                 v_sub = @inbounds values[k, sub]
                                 edge_flow = compute_marg_edge_flow(v_prime, v_sub, v_gp, f_gp, θ)
                             end
-                            flow = sum_marg_flows(flow, edge_flow)
+                            flow = logsumexp_cuda(flow, edge_flow)
                             # report edge flow only once:
                             dec_id == prime && on_edge(flows, values, prime, sub, par, grandpa, k, edge_flow, single_child)
                         end
@@ -336,11 +336,6 @@ function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params
         end
     end
     return nothing
-end
-
-@inline function sum_marg_flows(x,y) 
-    Δ = ifelse(x == y, zero(x), CUDA.abs(x - y))
-    max(x, y) + CUDA.log1p(CUDA.exp(-Δ))
 end
 
 @inline function compute_marg_edge_flow(p_up, s_up, n_up, n_down, θ)

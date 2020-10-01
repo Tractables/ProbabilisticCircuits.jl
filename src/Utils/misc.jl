@@ -1,5 +1,5 @@
-export to_long_mi,
-    pop_cuda!, push_cuda!, length_cuda,
+export to_long_mi, logsumexp_cuda,
+    pop_cuda!, push_cuda!, all_empty, length_cuda,
     generate_all, generate_data_all
 
 using DataFrames
@@ -15,10 +15,17 @@ function to_long_mi(m::Matrix{Float64}, min_int, max_int)::Matrix{Int64}
     return @. round(Int64, m * δint / δmi + min_int)
 end
 
+# TODO: get rid of all copies
+@inline function logsumexp_cuda(x,y) 
+    Δ = ifelse(x == y, zero(x), CUDA.abs(x - y))
+    max(x, y) + CUDA.log1p(CUDA.exp(-Δ))
+end
 
 ###################
 # Rudimentary CUDA-compatible stack data structure
 ####################
+
+# sadly making `i` varargs doesn't work; kernel won't compile
 
 function pop_cuda!(stack, i)
     if @inbounds stack[i,1] == zero(eltype(stack))
@@ -29,14 +36,37 @@ function pop_cuda!(stack, i)
     end
 end
 
-function push_cuda!(stack, i, v)
+function pop_cuda!(stack, i, j)
+    if @inbounds stack[i,j,1] == zero(eltype(stack))
+        return zero(eltype(stack))
+    else
+        @inbounds stack[i,j,1] -= one(eltype(stack))
+        @inbounds return stack[i,j,stack[i,j,1]+2]
+    end
+end
+
+function push_cuda!(stack, v, i)
     @inbounds stack[i,1] += one(eltype(stack))
-    @inbounds CUDA.@cuassert 1+stack[i,1] <= size(stack,2) "CUDA stack overflow"
+    @inbounds CUDA.@cuassert 1+stack[i,1] <= size(stack, ndims(stack)) "CUDA stack overflow"
     @inbounds stack[i,1+stack[i,1]] = v
     return nothing
 end
 
-length_cuda(stack, i) = stack[i,1]
+function push_cuda!(stack, v, i, j)
+    @inbounds stack[i, j,1] += one(eltype(stack))
+    @inbounds CUDA.@cuassert 1+stack[i, j,1] <= size(stack, ndims(stack)) "CUDA stack overflow"
+    @inbounds stack[i, j,1+stack[i, j,1]] = v
+    return nothing
+end
+
+all_empty(stack::AbstractArray{T,2}) where T = 
+    all(x -> iszero(x), stack[:,1])
+
+all_empty(stack::AbstractArray{T,3}) where T = 
+    all(x -> iszero(x), stack[:,:,1])
+
+
+length_cuda(stack, i...) = stack[i...,1]
 
 
 ###################

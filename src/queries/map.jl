@@ -19,17 +19,7 @@ max_a_posteriori(circuit::ProbCircuit, data::DataFrame) =
 function max_a_posteriori(pbc::ParamBitCircuit, data; Float=Float32)
     @assert isgpu(data) == isgpu(pbc) "ParamBitCircuit and data need to be on the same device"
     values = marginal_all(pbc, data)
-    state, logprob = map_down(pbc, data, values; Float)
-    if isgpu(values)
-        CUDA.unsafe_free!(values) # save the GC some effort
-        # do the conversion to a CuBitVector on the CPU...
-        df = DataFrame(to_cpu(state))
-        mapcols!(c -> to_gpu(BitVector(c)), df)
-    else
-        df = DataFrame(state)
-        mapcols!(c -> BitVector(c), df)
-    end
-    df, logprob
+    return map_down(pbc, data, values; Float)
 end
 
 """
@@ -68,7 +58,9 @@ function map_down(pbc, data, values::Array; Float=Float32)
     Threads.@threads for ex_id = 1:size(state,1)
         map_rec(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), ex_id, num_nodes(pbc), values, state, logprob)
     end
-    return state, logprob
+    df = DataFrame(state)
+    mapcols!(c -> BitVector(c), df)
+    return df, logprob
 end
 
 function map_rec(nl, params, nodes, elements, ex_id, dec_id, values, state, logprob)
@@ -98,7 +90,11 @@ function map_down(pbc, data, values::CuArray; Float=Float32)
     CUDA.@sync begin
         @cuda threads=num_threads blocks=num_blocks map_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, logprob, stack)
     end
-    return state, logprob
+    CUDA.unsafe_free!(values) # save the GC some effort
+    # do the conversion to a CuBitVector on the CPU...
+    df = DataFrame(to_cpu(state))
+    mapcols!(c -> to_gpu(BitVector(c)), df)
+    return df, logprob
 end
 
 function map_cuda_kernel(nl, params, nodes, elements, values, state, logprob, stack)
@@ -116,8 +112,8 @@ function map_cuda_kernel(nl, params, nodes, elements, values, state, logprob, st
             else
                 edge_log_pr, prime, sub = map_child(params, nodes, elements, ex_id, dec_id, values)
                 @inbounds logprob[ex_id] += edge_log_pr
-                push_cuda!(stack, ex_id, prime)
-                push_cuda!(stack, ex_id, sub)
+                push_cuda!(stack, prime, ex_id)
+                push_cuda!(stack, sub, ex_id)
             end
             dec_id = pop_cuda!(stack, ex_id)
         end

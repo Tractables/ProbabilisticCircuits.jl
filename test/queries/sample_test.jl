@@ -2,31 +2,43 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using Random: MersenneTwister
+using CUDA: functional
+
+function histogram_matches_likelihood(samples::Matrix{Bool}, worlds, loglikelihoods)
+    hist = Dict{BitVector,Int}()
+    for i = 1:size(samples,1)
+        sample = BitVector(samples[i,:]) 
+        hist[sample] = get(hist, sample, 0) + 1
+    end
+    for i = 1:size(worlds,1)
+        exact_prob = exp(loglikelihoods[i])
+        ex = BitVector(example(worlds,i))
+        estim_prob = get(hist, ex, 0) / size(samples,1)
+        @test exact_prob ≈ estim_prob atol=1e-2;
+    end
+
+end
 
 @testset "Unconditional Sampling Test" begin
 
     rng = MersenneTwister(42)
 
-    prob_circuit = zoo_psdd("little_4var.psdd");
-    data_all = generate_data_all(num_variables(prob_circuit));
+    pc = zoo_psdd("little_4var.psdd");
+    worlds = generate_data_all(num_variables(pc));
 
-    calc_prob_all = EVI(prob_circuit, data_all)
-
-    hist = Dict{BitVector,Int}()
+    loglikelihoods = EVI(pc, worlds)
 
     Nsamples = 2_0000
-    samples, _ = sample(prob_circuit, Nsamples; rng)
-    samples = map(BitVector, samples)
-    for i = 1:Nsamples
-        hist[samples[i]] = get(hist, samples[i], 0) + 1
+
+    samples, _ = sample(pc, Nsamples; rng)
+    histogram_matches_likelihood(samples, worlds, loglikelihoods)
+
+    if CUDA.functional()
+        samples, _ = sample(pc, Nsamples; rng, gpu = true)
+        samples_cpu = to_cpu(samples)
+        histogram_matches_likelihood(samples_cpu, worlds, loglikelihoods)    
     end
 
-    for i = 1:num_examples(data_all)
-        exact_prob = exp(calc_prob_all[i])
-        ex = BitVector(example(data_all,i))
-        estim_prob = get(hist, ex, 0) / Nsamples
-        @test exact_prob ≈ estim_prob atol=1e-2;
-    end
 end
 
 @testset "Conditional Sampling Test" begin
@@ -44,10 +56,21 @@ end
     sample_states, sample_prs = sample(pc, num_samples, data_all; rng)
 
     for i in 1:num_samples
-        @test sample_states[i] == data_all
+        @test sample_states[i,:,:] == convert(Matrix,data_all)
         @test sample_prs[i,:] ≈ loglikelihoods atol=1e-6
     end
     
+    # same states on CPU and GPU
+    cpu_gpu_agree(data_all) do d 
+        sample(pc, num_samples, d)[1]
+    end
+
+    # same probabilities on CPU and GPU
+    cpu_gpu_agree_approx(data_all) do d 
+        sample(pc, num_samples, d)[2]
+    end
+
+
     # sampling given partial data invariants
 
     data_marg = DataFrame([false false false false; 
@@ -65,14 +88,14 @@ end
     for i in 1:num_samples
 
         # samples keep the partial evidence values
-        @test all(zip(eachcol(sample_states[i]), eachcol(data_marg))) do (cf,cm) 
-            all(zip(cf, cm)) do (f,m) 
-                ismissing(m) || f == m
-            end
+        pairs = collect(zip(sample_states[i,:,:], convert(Matrix,data_marg)))
+        @test all(pairs) do (f,m)
+            ismissing(m) || f == m
         end
 
         # probability does not exceed MAP probability
         @test all(sample_prs[i,:] .<= map_pr .+ 1e-6)
     end
+
 
 end
