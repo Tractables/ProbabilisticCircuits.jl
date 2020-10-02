@@ -1,5 +1,6 @@
 using Test
 using LogicCircuits
+using ProbabilisticCircuits
 
 @testset "ParamBitCircuit test" begin
 
