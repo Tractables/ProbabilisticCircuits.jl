@@ -9,4 +9,3 @@ Documenter = "0.24"
 DocumenterLaTeX = "0.2"
 LogicCircuits = "0.2"
 ProbabilisticCircuits = "0.2"
-

@@ -26,9 +26,10 @@ jobs:
     - stage: "Deploy Documentation"      
       os: linux
       julia: 1.5
+      install:
+        - julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.develop(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile();'
+        - julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
       script:
-        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile();'
-        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
         - julia --project=docs/ docs/make.jl
       after_success: skip
 
