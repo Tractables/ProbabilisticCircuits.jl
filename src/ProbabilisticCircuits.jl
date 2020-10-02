@@ -5,7 +5,10 @@ module ProbabilisticCircuits
 # USE EXTERNAL MODULES
 
 using Reexport
-@reexport using LogicCircuits
+
+using LogicCircuits
+# only reexport selectively from LogicCircuits
+# export ...
 
 include("Utils/Utils.jl")
 @reexport using .Utils
