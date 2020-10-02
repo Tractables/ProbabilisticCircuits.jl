@@ -6,3 +6,7 @@ ProbabilisticCircuits = "2396afbe-23d7-11ea-1e05-f1aa98e17a44"
 
 [compat]
 Documenter = "0.24"
+DocumenterLaTeX = "0.2"
+LogicCircuits = "0.2"
+ProbabilisticCircuits = "0.2"
+
