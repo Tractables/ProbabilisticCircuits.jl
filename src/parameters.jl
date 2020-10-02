@@ -166,3 +166,37 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount)
 
     return log_params
 end
+
+function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount)
+    bc = pbc.bitcircuit
+    node_counts::CuVector{Float64} = CUDA.zeros(Float64, num_nodes(bc))
+    edge_counts::CuVector{Float64} = CUDA.zeros(Float64, num_elements(bc))
+    # need to manually cudaconvert closure variables
+    node_counts_device = CUDA.cudaconvert(node_counts)
+    edge_counts_device = CUDA.cudaconvert(edge_counts)
+    
+    @inline function on_node(flows, values, dec_id, chunk_id, flow)
+        c::Float64 = exp(flow) # cast for @atomic to be happy
+        CUDA.@atomic node_counts_device[dec_id] += c
+    end
+
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+        if !single_child
+            c::Float64 = exp(edge_flow) # cast for @atomic to be happy
+            CUDA.@atomic edge_counts_device[element] += c
+        end
+    end
+
+    v, f = marginal_flows(bc, data; on_node, on_edge)
+
+    CUDA.unsafe_free!(v) # save the GC some effort
+    CUDA.unsafe_free!(f) # save the GC some effort
+
+    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+    @inbounds parents = bc.elements[1,:]
+    @inbounds parent_counts = node_counts[parents]
+    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                    ./ (parent_counts .+ pseudocount))
+    return to_cpu(params)
+end
