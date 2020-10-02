@@ -18,4 +18,10 @@ Note that if you do not have the package in the development mode, the docs build
 
 
 #### Note about Pretty URLs
-For easier navigation for local builds its probably easier to disable pretty URLs. To disable that, go to `make.jl` and set `prettyurls = false`. For more information about pretty URLs, check out  [the documentation](https://juliadocs.github.io/Documenter.jl/stable/man/guide/) for `Documenter.jl`.
+For easier navigation for local builds its easier to disable pretty URLs. To disable pretty urls run the following instead:
+
+```bash
+julia --project=docs docs/make.jl local
+```
+
+For more information about pretty URLs, check out  [the documentation](https://juliadocs.github.io/Documenter.jl/stable/man/guide/) for `Documenter.jl`.
