@@ -36,8 +36,21 @@ end
     uniform_parameters(pc)
     pc.children[1].prime.log_probs .= log.([0.3, 0.7])
     pc.children[1].sub.log_probs .= log.([0.4, 0.6])
-    pbc = ParamBitCircuit(pc, data)
     estimate_parameters_em(pc, data; pseudocount=0.0)
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
+
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    uniform_parameters(r)
+    estimate_parameters(r,dfb; pseudocount=1.0)
+    paras1 = ParamBitCircuit(r, dfb).params
+    uniform_parameters(r)
+    estimate_parameters_em(r, dfb; pseudocount=1.0)
+    paras2 = ParamBitCircuit(r, dfb).params
+    @test all(paras1 .≈ paras2)
+
+
+
+
 end

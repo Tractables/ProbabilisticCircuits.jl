@@ -18,8 +18,8 @@ include("helper/plain_logic_circuits.jl")
     @test p1 isa PlainSumNode
     @test children(p1)[1] isa PlainMulNode
     @test lit3 isa PlainProbLiteralNode
-    @test GateType(p1) isa ⋁Gate
-    @test GateType(children(p1)[1]) isa ⋀Gate
+    @test issum(p1)
+    @test ismul(children(p1)[1])
     @test GateType(lit3) isa LiteralGate
     @test length(mul_nodes(p1)) == 4
     
@@ -33,6 +33,7 @@ include("helper/plain_logic_circuits.jl")
     @test !isnegative(left_most_descendent(p1))
     @test num_nodes(p1) == 15
     @test num_edges(p1) == 18
+    @test num_parameters_node(p1) == 2
 
     r1 = fully_factorized_circuit(ProbCircuit,10)
     @test num_parameters(r1) == 2*10+1
@@ -40,10 +41,13 @@ include("helper/plain_logic_circuits.jl")
     @test length(mul_nodes(r1)) == 1
 
     # compilation tests
-    lit1 = compile(PlainProbCircuit, Lit(1))
-    litn1 = compile(PlainProbCircuit, Lit(-1))
-    r = lit1 * 0.3 + 0.7 * litn1
+    @test_throws Exception compile(ProbCircuit, true)
+    v1, v2, v3 = vars(1:3, ProbCircuit)
+    r = v1[1] * 0.3 + 0.7 * v1[2]
     @test r isa PlainSumNode
-    @test all(children(r) .== [lit1, litn1])
-    @test all(r.log_probs .≈ log.([0.3, 0.7]))
+    @test all(children(r) .== [v1[1], v1[2]])
+    @test all(ProbabilisticCircuits.params(r) .≈ log.([0.3, 0.7]))
+    @test r * v2[1] isa PlainMulNode
+    @test num_children(v1[1] * v2[1] * v3[1]) == 3
+    @test num_children(v1[1] + v2[1] + v3[1]) == 3
 end

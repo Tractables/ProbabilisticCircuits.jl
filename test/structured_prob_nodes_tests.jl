@@ -13,6 +13,7 @@ using DataFrames: DataFrame
     @test num_edges(f) == 20+18+9+1
     @test length(mul_nodes(f)) == 9
     @test length(sum_nodes(f)) == 10+9+1
+    @test num_parameters_node(f) == 1
 
     @test respects_vtree(f)
     @test respects_vtree(f, PlainVtree(10, :balanced))
@@ -48,7 +49,7 @@ using DataFrames: DataFrame
     end
     @test plainf !== f
     @test num_edges(plainf) == num_edges(f)
-    @test num_nodes(plainf) == num_nodes(f) 
+    @test num_nodes(plainf) == num_nodes(f)
     @test length(and_nodes(plainf)) == 9
     @test length(or_nodes(plainf)) == 10+9+1
     @test model_count(plainf) == BigInt(2)^10
@@ -62,7 +63,8 @@ using DataFrames: DataFrame
     @test f !== ref
     @test f.vtree === ref.vtree
     @test num_edges(ref) == num_edges(f)
-    @test num_nodes(ref) == num_nodes(f) 
+    @test num_nodes(ref) == num_nodes(f)
+    @test num_parameters_node(ref) == num_parameters_node(f)
     @test length(and_nodes(ref)) == 9
     @test length(or_nodes(ref)) == 10+9+1
     @test model_count(ref) == BigInt(2)^10
@@ -76,7 +78,8 @@ using DataFrames: DataFrame
     @test f !== ref
     @test f.vtree === ref.vtree
     @test num_edges(ref) == num_edges(f)
-    @test num_nodes(ref) == num_nodes(f) 
+    @test num_nodes(ref) == num_nodes(f)
+    @test num_parameters_node(ref) == num_parameters_node(f)
     @test length(and_nodes(ref)) == 9
     @test length(or_nodes(ref)) == 10+9+1
     @test model_count(ref) == BigInt(2)^10
@@ -101,6 +104,7 @@ using DataFrames: DataFrame
 
     # compilation tests
     v = Vtree(Var(1))
+    @test_throws Exception compile(StructProbCircuit, v, true)
     lit1 = compile(StructProbCircuit, v, Lit(1))
     litn1 = compile(StructProbCircuit, v, Lit(-1))
     r = lit1 * 0.3 + 0.7 * litn1
@@ -108,5 +112,13 @@ using DataFrames: DataFrame
     @test all(children(r) .== [lit1, litn1])
     @test r.vtree === lit1.vtree
     @test all(r.log_probs .≈ log.([0.3, 0.7]))
+    r1 = compile(r, r)
+    @test r1 !== r
+    @test r1.vtree === r.vtree
+    @test num_edges(r1) == num_edges(r)
+    @test num_nodes(r1) == num_nodes(r)
+    @test num_parameters_node(r1) == num_parameters_node(r)
+    @test isempty(intersect(linearize(r1),linearize(r)))
+
 
 end

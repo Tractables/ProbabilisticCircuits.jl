@@ -75,7 +75,7 @@ import LogicCircuits: children # make available for extension
 @inline children(n::LogisticInnerNode) = n.children
 @inline num_classes(n::Logistic⋁Node) = size(n.thetas)[2]
 
-@inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * classes(n), ⋁_nodes(c))
+@inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * num_classes(n), ⋁_nodes(c))
 @inline num_parameters_per_class(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
 
 
@@ -90,4 +90,18 @@ function LogisticCircuit(circuit::LogicCircuit, classes::Int)
     f_a(n, cn) = Logistic⋀Node(cn)
     f_o(n, cn) = Logistic⋁Node(cn, classes)
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, LogisticCircuit)
+end
+
+compile(::Type{<:LogisticCircuit}, l::Lit) = 
+    LogisticLiteral(l)
+
+function compile(::Type{<:LogisticCircuit}, classes, circuit::LogicCircuit)
+    LogisticCircuit(circuit, classes)
+end
+
+import LogicCircuits: fully_factorized_circuit #extend
+
+function fully_factorized_circuit(::Type{<:LogisticCircuit}, n::Int; classes::Int)
+    ff_logic_circuit = fully_factorized_circuit(PlainLogicCircuit, n)
+    compile(LogisticCircuit, classes, ff_logic_circuit)
 end

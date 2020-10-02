@@ -1,7 +1,7 @@
 export ProbCircuit,
     multiply, summate, ismul, issum,
-    num_parameters,
-    mul_nodes, sum_nodes
+    num_parameters, num_parameters_node,
+    mul_nodes, sum_nodes, params
 
 using LogicCircuits
 
@@ -55,10 +55,10 @@ import LogicCircuits: conjoin, disjoin # make available for extension
 @inline disjoin(args::Vector{<:ProbCircuit}; reuse=nothing) = 
     summate(args; reuse)
 
-@inline Base.:*(x::ProbCircuit, y::ProbCircuit) = multiply(x,y)
-@inline Base.:*(xs::ProbCircuit...) = multiply(xs...)
-@inline Base.:+(x::ProbCircuit, y::ProbCircuit) = summate(x,y)
-@inline Base.:+(xs::ProbCircuit...) = summate(xs...)
+@inline Base.:*(x::ProbCircuit, y::ProbCircuit) = conjoin(x,y)
+@inline Base.:*(xs::ProbCircuit...) = conjoin(xs...)
+@inline Base.:+(x::ProbCircuit, y::ProbCircuit) = disjoin(x,y)
+@inline Base.:+(xs::ProbCircuit...) = disjoin(xs...)
 
 compile(::Type{<:ProbCircuit}, ::Bool) =
     error("Probabilistic circuits do not have constant leafs.")

@@ -27,7 +27,7 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
         if isnothing(n)
             # @assert first_element == last_element
             push!(thetas, zeros(Float32, nc))
-            println("here, some node is not part of the logistic circuit")
+            # println("here, some node is not part of the logistic circuit")
         else
             # @assert last_element - first_element + 1 == size(n.thetas, 1)
             # @assert size(n.thetas, 2) == nc
