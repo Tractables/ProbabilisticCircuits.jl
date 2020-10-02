@@ -14,8 +14,8 @@ jobs:
       os: linux
       julia: 1.5
       install:
-        - julia -e 'using Pkg; Pkg.activate("."); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile();'
-        - julia -e 'using Pkg; Pkg.activate("./test"); Pkg.add(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.develop(PackageSpec(path = pwd())); Pkg.instantiate(); Pkg.precompile();'
+        - julia -e 'using Pkg; Pkg.activate("."); Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.precompile();'
+        - julia -e 'using Pkg; Pkg.activate("./test"); Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path = pwd())); Pkg.instantiate(); Pkg.precompile();'
 
       script:
         - julia --code-coverage --color=yes -p2 test/runtests.jl
@@ -27,8 +27,7 @@ jobs:
       os: linux
       julia: 1.5
       install:
-        - julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.develop(PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl")); Pkg.instantiate(); Pkg.precompile();'
-        - julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
+        - julia -e 'using Pkg; Pkg.activate("./docs"); Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path = pwd())); Pkg.instantiate(); Pkg.precompile();'
       script:
         - julia --project=docs/ docs/make.jl
       after_success: skip
