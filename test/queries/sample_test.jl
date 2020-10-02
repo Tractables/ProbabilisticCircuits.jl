@@ -4,6 +4,8 @@ using ProbabilisticCircuits
 using Random: MersenneTwister
 using CUDA: functional
 
+include("../helper/gpu.jl")
+
 function histogram_matches_likelihood(samples::Matrix{Bool}, worlds, loglikelihoods)
     hist = Dict{BitVector,Int}()
     for i = 1:size(samples,1)
