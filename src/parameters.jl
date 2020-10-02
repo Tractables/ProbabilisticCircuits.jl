@@ -1,4 +1,4 @@
-export estimate_parameters, uniform_parameters, estimate_parameters_em, test
+export estimate_parameters, uniform_parameters, estimate_parameters_em
 
 using StatsFuns: logsumexp
 using CUDA
@@ -154,7 +154,8 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount)
         θ = eltype(flows)(pbc.params[element])
         if !single_child
             edge_flows = map(1:size(flows,1)) do i
-                values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
+                f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
+                f = ifelse(isnan(f), typemin(eltype(flows)), f)
             end
             edge_count = logsumexp(edge_flows)
             estimate(element, grandpa, edge_count)
