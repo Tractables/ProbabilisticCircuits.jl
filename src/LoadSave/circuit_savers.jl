@@ -115,7 +115,7 @@ save_circuit(name::String, circuit::LogisticCircuit, vtree::PlainVtree) =
 
 using Printf: @sprintf
 "Save prob circuits to .dot file"
-function save_as_dot(circuit::ProbCircuit, file::String)
+function save_as_dot(file::String, circuit::ProbCircuit)
     # TODO (https://github.com/Juice-jl/LogicCircuits.jl/issues/7)
     node_cache = Dict{ProbCircuit, Int64}()
     for (i, n) in enumerate(circuit)
