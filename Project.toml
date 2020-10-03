@@ -29,7 +29,7 @@ TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 
 [compat]
 BlossomV = "0.4"
-CUDA = "1.2"
+CUDA = "2"
 Clustering = "0.14"
 DataFrames = "0.21"
 DataStructures = "0.17"
