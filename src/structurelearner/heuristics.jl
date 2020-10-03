@@ -1,5 +1,6 @@
 
 using LinearAlgebra: diagind
+export heuristic_loss
 """
 Pick the edge with maximum flow
 """
@@ -62,8 +63,6 @@ end
 Pick the variable randomly
 """
 function vRand(vars::Vector{Var})
-    lits = collect(Set{Lit}(scope[and]))
-    vars =  Var.(intersect(filter(l -> l > 0, lits), - filter(l -> l < 0, lits)))
     return Var(rand(vars))
 end
 

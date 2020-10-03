@@ -1,4 +1,4 @@
-export entropy, conditional_entropy, mutual_information
+export entropy, conditional_entropy, mutual_information, set_mutual_information
 using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
@@ -66,7 +66,7 @@ function mutual_information(bm, w::Union{Nothing, Vector}=nothing; α)
 end
 
 "Calculate set mutual information"
-function set_mutual_information(mi::Matrix, sets::Vector{Vector})::Matrix
+function set_mutual_information(mi::Matrix, sets::AbstractVector{<:AbstractVector})::Matrix
     len = length(sets)
     if len == size(mi)[1]
         return mi

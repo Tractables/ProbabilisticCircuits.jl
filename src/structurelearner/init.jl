@@ -6,7 +6,7 @@ using MetaGraphs: get_prop
 Learning from data a structured-decomposable circuit with several structure learning algorithms
 """
 function learn_chow_liu_tree_circuit(data;
-        pseudocount = 1.0, algo_kwargs=(α=1.0, clt_root="graph_center"), vtree_kwargs=(vtree_mode="balanced",))    
+        pseudocount = 1.0, algo_kwargs=(α=1.0, clt_root="graph_center"), vtree_kwargs=(vtree_mode="balanced",))
     clt = learn_chow_liu_tree(data; algo_kwargs...)
     vtree = learn_vtree_from_clt(clt; vtree_kwargs...)
     lc = compile_sdd_from_clt(clt, vtree)

@@ -14,7 +14,7 @@ function learn_single_model(train_x;
 
     # init
     Random.seed!(seed)
-    pc, vtree = learn_struct_prob_circuit(train_x)
+    pc, vtree = learn_chow_liu_tree_circuit(train_x)
 
     # structure_update
     loss(circuit) = heuristic_loss(circuit, train_x; pick_edge=pick_edge, pick_var=pick_var)
