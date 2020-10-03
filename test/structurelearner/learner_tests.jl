@@ -34,15 +34,15 @@ using Suppressor
             pseudocount=0.0, 
             algo_kwargs=(α=0.0, clt_root="graph_center"), 
             vtree_kwargs=(vtree_mode=vtree_mode,))
-        test_pc_property(pc, vtree1, train_x)
+        test_pc_property(pc, vtree1, data)
         @test num_parameters(pc) == 48
         @test num_nodes(pc) == 73
-        @test log_likelihood_avg(pc, train_x) ≈ -1.8636799873410004 atol=1e-6
+        @test log_likelihood_avg(pc, data) ≈ -1.8636799873410004 atol=1e-6
     end
 
-    @suppress_out pc3 = learn_single_model(data, maxiter=10)
+    pc3 = @suppress_out learn_single_model(data, maxiter=10)
     test_pc_property(pc3, vtree(pc3), data)
-    @test num_parameters(pc3) == 59
-    @test num_nodes(pc3) == 91
-    @test log_likelihood_avg(pc3, data) ≈ -3.2257220163449736 atol=1e-6
+    @test num_parameters(pc3) == 79
+    @test num_nodes(pc3) == 115
+    @test log_likelihood_avg(pc3, data) ≈ -3.1147246511839652 atol=1e-6
 end
