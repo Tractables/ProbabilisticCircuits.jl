@@ -39,6 +39,7 @@ include("structurelearner/chow_liu_tree.jl")
 include("structurelearner/init.jl")
 include("structurelearner/heuristics.jl")
 include("structurelearner/learner.jl")
+include("structurelearner/vtree_learner.jl")
 
 include("LoadSave/LoadSave.jl")
 @reexport using .LoadSave
