@@ -41,8 +41,8 @@ using Suppressor
     end
 
     @suppress_out pc3 = learn_single_model(data, maxiter=10)
-    test_pc_property(pc3, vtree(pc3), train_x)
+    test_pc_property(pc3, vtree(pc3), data)
     @test num_parameters(pc3) == 59
     @test num_nodes(pc3) == 91
-    @test log_likelihood_avg(pc3, train_x) ≈ -3.2257220163449736 atol=1e-6
+    @test log_likelihood_avg(pc3, data) ≈ -3.2257220163449736 atol=1e-6
 end
