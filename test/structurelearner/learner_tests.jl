@@ -2,6 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
+using Suppressor
 
 @testset "prob circuit structure learn tests" begin
     function test_pc_property(pc, vtree1, train_x)

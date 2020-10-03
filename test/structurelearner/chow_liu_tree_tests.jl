@@ -4,6 +4,7 @@ using ProbabilisticCircuits
 using LightGraphs
 using MetaGraphs
 using DataFrames
+using Suppressor
 
 @testset "learn chow-liu tree tests" begin
     EPS = 1e-6
