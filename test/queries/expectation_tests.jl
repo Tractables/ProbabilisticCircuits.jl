@@ -1,6 +1,7 @@
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
+using DataFrames
 
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
