@@ -40,7 +40,7 @@ mutable struct PlainSumNode <: PlainProbInnerNode
     data
     counter::UInt32
     PlainSumNode(c) = begin
-        new(c, init_array(Float64, length(c)), nothing, 0)
+        new(c, log.(ones(Float64, length(c)) / length(c)), nothing, 0)
     end
 end
 

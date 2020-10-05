@@ -4,35 +4,9 @@ export heuristic_loss
 """
 Pick the edge with maximum flow
 """
-function count_downflow(values::Matrix{UInt64}, flows::Matrix{UInt64}, n::LogicCircuit)
-    dec_id = n.data.node_id
-    sum(1:size(flows,1)) do i
-        count_ones(flows[i, dec_id]) 
-    end
-end
-
-function count_downflow(values::Matrix{UInt64}, flows::Matrix{UInt64}, n::LogicCircuit, c::LogicCircuit)
-    grandpa = n.data.node_id
-    prime = c.prime.data.node_id
-    sub = c.sub.data.node_id
-    edge_count = sum(1:size(flows,1)) do i
-        count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) 
-    end
-end
-
-function downflow_all(values::Matrix{UInt64}, flows::Matrix{UInt64}, n::LogicCircuit, c::LogicCircuit)
-    grandpa = n.data.node_id
-    prime = c.prime.data.node_id
-    sub = c.sub.data.node_id
-    edge = map(1:size(flows,1)) do i
-        digits(Bool, values[i, prime] & values[i, sub] & flows[i, grandpa], base=2, pad=64)
-    end
-    vcat(edge...)
-end
-
 function eFlow(values, flows, candidates::Vector{Tuple{Node, Node}})
     edge2flows = map(candidates) do (or, and)
-        count_downflow(values, flows, or, and)
+        count_downflow(values, flows, nothing, or, and)
     end
     (max_flow, max_edge_id) = findmax(edge2flows)
     candidates[max_edge_id], max_flow
@@ -42,7 +16,7 @@ end
 Pick the variable with maximum sum of mutual information
 """
 function vMI(values, flows, edge, vars::Vector{Var}, train_x)
-    examples_id = downflow_all(values, flows, edge...)[1:num_examples(train_x)]
+    examples_id = downflow_all(values, flows, num_examples(train_x), edge...)
     sub_matrix = train_x[examples_id, vars]
     (_, mi) = mutual_information(sub_matrix; α=1.0)
     mi[diagind(mi)] .= 0

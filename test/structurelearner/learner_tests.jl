@@ -28,7 +28,8 @@ using Suppressor
 
     @test_throws "Unknown type of strategy" learn_chow_liu_tree_circuit(data; 
         pseudocount=0.0, algo_kwargs=(α=0.0, clt_root="graph_center"), vtree_kwargs=(vtree_mode="",))
-
+    clt = learn_chow_liu_tree(data)
+    @test_throws String lc = compile_sdd_from_clt(clt, Vtree(10,:balanced))
     for vtree_mode in ["balanced", "linear"]
         pc, vtree1 = learn_chow_liu_tree_circuit(data; 
             pseudocount=0.0, 

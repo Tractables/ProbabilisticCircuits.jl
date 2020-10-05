@@ -51,22 +51,22 @@ function my_graph(G::SparseMatrixCSC; check_hermitian=true)
     return WeightedGraph(idx_t(N), xadj, adjncy, adjwgt)
 end
 
-function my_partition(G::WeightedGraph, nparts::Integer; alg = :KWAY)
+function my_partition(G::WeightedGraph, nparts::Integer)
     part = Vector{Metis.idx_t}(undef, G.nvtxs)
     edgecut = fill(idx_t(0), 1)
-    if alg === :RECURSIVE
+    # if alg === :RECURSIVE
         Metis.METIS_PartGraphRecursive(G.nvtxs, idx_t(1), G.xadj, G.adjncy, C_NULL, C_NULL, G.adjwgt,
                                  idx_t(nparts), C_NULL, C_NULL, Metis.options, edgecut, part)
-    elseif alg === :KWAY
-        Metis.METIS_PartGraphKway(G.nvtxs, idx_t(1), G.xadj, G.adjncy, C_NULL, C_NULL, G.adjwgt,
-                            idx_t(nparts), C_NULL, C_NULL, Metis.options, edgecut, part)
-    else
-        throw(ArgumentError("unknown algorithm $(repr(alg))"))
-    end
+    # elseif alg === :KWAY
+    #     Metis.METIS_PartGraphKway(G.nvtxs, idx_t(1), G.xadj, G.adjncy, C_NULL, C_NULL, G.adjwgt,
+    #                         idx_t(nparts), C_NULL, C_NULL, Metis.options, edgecut, part)
+    # else
+    #     throw(ArgumentError("unknown algorithm $(repr(alg))"))
+    # end
     return part
 end
 
-my_partition(G, nparts; alg = :KWAY) = my_partition(my_graph(G), nparts, alg = alg)
+my_partition(G, nparts) = my_partition(my_graph(G), nparts)
 
 "Metis top down method"
 function metis_top_down(data::DataFrame;α)
@@ -88,7 +88,7 @@ function metis_top_down(data::DataFrame;α)
             sub_context[i, i] = 0
         end
         g = convert(SparseMatrixCSC, sub_context)
-        partition = my_partition(my_graph(g), 2, alg = :RECURSIVE)
+        partition = my_partition(my_graph(g), 2)
     
         subsets = (Vector{PlainVtreeLeafNode}(), Vector{PlainVtreeLeafNode}())
         for (index, p) in enumerate(partition)

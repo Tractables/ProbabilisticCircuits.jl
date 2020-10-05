@@ -4,10 +4,11 @@ log_likelihood_per_instance_per_component, estimate_parameters_cached, learn_em_
 using Statistics: mean
 using LinearAlgebra: normalize!
 using Clustering: kmeans, nclusters, assignments
+using DataFrames
 
-function one_step_em(spc, train_x, component_weights; pseudocount)
+function one_step_em(spc, data, values, flows, component_weights; pseudocount)
     # E step
-    lls = log_likelihood_per_instance_per_component(spc, train_x)
+    lls = log_likelihood_per_instance_per_component(spc, data, values, flows)
     lls .+= log.(component_weights)
 
     example_weights = component_weights_per_example(lls)
@@ -15,7 +16,7 @@ function one_step_em(spc, train_x, component_weights; pseudocount)
     normalize!(component_weights, 1.0)
 
     # M step
-    estimate_parameters_cached(spc, example_weights; pseudocount=pseudocount)
+    estimate_parameters_cached(spc, example_weights, values, flows; pseudocount=pseudocount)
     logsumexp(lls, 2), component_weights
 end
 
@@ -27,9 +28,9 @@ function component_weights_per_example(log_p_of_x_and_c)
     Matrix(p_of_given_x_query_c)
 end
 
-function initial_weights(train_x, mix_num::Int64; alg="cluster")::Vector{Float64}
+function initial_weights(data, mix_num::Int64; alg="cluster")::Vector{Float64}
     if alg == "cluster"
-        clustered = clustering(train_x, mix_num)
+        clustered = clustering(data, mix_num)
         counting = Float64.(num_examples.(clustered))
         return normalize!(counting, 1)
     elseif alg == "random"
@@ -39,43 +40,42 @@ function initial_weights(train_x, mix_num::Int64; alg="cluster")::Vector{Float64
     end
 end
 
-function clustering(train_x, mix_num::Int64; maxiter=200)::Vector
-    train_x = Matrix(train_x)
+function clustering(data, mix_num::Int64; maxiter=200)::Vector
+    n = num_examples(data)
     if mix_num == 1
-        return [train_x]
+        return [data]
     end
-    
-    n = num_examples(train_x)
-
-    R = kmeans(train_x, mix_num; maxiter=maxiter)
+    data = Matrix(data)
+    R = kmeans(data, mix_num; maxiter=maxiter)
     @assert nclusters(R) == mix_num
     a = assignments(R)
 
-    clustered_train_x = Vector()
+    clustered_data = Vector()
     for k in 1 : mix_num
-        push!(clustered_train_x, train_x[:, findall(x -> x == k, a)]')
+        push!(clustered_data, DataFrame(data[:, findall(x -> x == k, a)]'))
     end
 
-    return clustered_train_x
+    return clustered_data
 end
 
-function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data)
+
+function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::DataFrame, values::Matrix{UInt64}, flows::Matrix{UInt64})
     @assert isbinarydata(data) "Can only calculate EVI on Bool data"
     
-    compute_flows(pc, data)
+    N = num_examples(data)
     num_mix = num_components(pc)
-    log_likelihoods = zeros(Float64, num_examples(data), num_mix)
-    indices = init_array(Bool, num_examples(data))::BitVector
+    log_likelihoods = zeros(Float64, N, num_mix)
+    indices = init_array(Bool, N)::BitVector
     
     
     ll(n::SharedProbCircuit) = ()
-    ll(n::SharedPlainSumNode) = begin
+    ll(n::SharedSumNode) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
             for i in 1 : num_children(n)
                 c = children(n)[i]
                 log_theta = reshape(n.log_probs[i, :], 1, num_mix)
-                indices = get_downflow(n, c)
-                view(log_likelihoods, indices::BitVector, :) .+=  log_theta # see MixedProductKernelBenchmark.jl
+                indices = downflow_all(values, flows, N, n, c)
+                view(log_likelihoods, indices::BitVector, :) .+=  log_theta
             end
          end
     end
@@ -84,15 +84,17 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data)
     log_likelihoods
 end
 
-function estimate_parameters_cached(pc::SharedProbCircuit, example_weights; pseudocount::Float64)
+function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64}, 
+        values::Matrix{UInt64}, flows::Matrix{UInt64}; pseudocount::Float64)
+    N = size(example_weights, 1)
     foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
                 pn.log_probs .= 0.0
             else
-                smoothed_flow = Float64.(sum(example_weights[get_downflow(pn), :], dims=1)) .+ pseudocount
+                smoothed_flow = Float64.(sum(example_weights[downflow_all(values, flows, N, pn), :], dims=1)) .+ pseudocount
                 uniform_pseudocount = pseudocount / num_children(pn)
-                children_flows = vcat(map(c -> sum(example_weights[get_downflow(pn, c), :], dims=1), children(pn))...)
+                children_flows = vcat(map(c -> sum(example_weights[downflow_all(values, flows, N, pn, c), :], dims=1), children(pn))...)
                 @. pn.log_probs = log((children_flows + uniform_pseudocount) / smoothed_flow)
                 @assert all(sum(exp.(pn.log_probs), dims=1) .≈ 1.0) "Parameters do not sum to one locally"
                 # normalize away any leftover error
@@ -102,18 +104,22 @@ function estimate_parameters_cached(pc::SharedProbCircuit, example_weights; pseu
     end
 end
 
-function learn_em_model(pc, train_x;
+function learn_em_model(pc, data;
         num_mix=5,
         pseudocount=1.0,
         maxiter=typemax(Int))
-    spc = SharedProbCircuit(pc, num_mix)
-    compute_flows(spc, train_x)
-    estimate_parameters_cached(spc, ones(Float64, num_examples(train_x), num_mix) ./ num_mix; pseudocount=pseudocount)
-    component_weights = reshape(initial_weights(train_x, num_mix), 1, num_mix)
 
+    spc = compile(SharedProbCircuit, pc, num_mix)
+    values, flows = satisfies_flows(spc, data)
+    component_weights = reshape(initial_weights(data, num_mix), 1, num_mix)
+    estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows; pseudocount=pseudocount)
+
+
+    lls = nothing
     for iter in 1 : maxiter
         @assert isapprox(sum(component_weights), 1.0; atol=1e-10)
-        lls, component_weights = one_step_em(spc, train_x, component_weights; pseudocount=pseudocount)
+        lls, component_weights = one_step_em(spc, data, values, flows, component_weights; pseudocount=pseudocount)
         println("Log likelihood per instance is $(mean(lls))")
     end
+    lls, component_weights
 end

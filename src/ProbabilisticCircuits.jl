@@ -33,7 +33,7 @@ include("Logistic/Logistic.jl")
 @reexport using .Logistic
 
 include("mixtures/shared_prob_nodes.jl")
-# include("mixtures/em.jl")
+include("mixtures/em.jl")
 
 include("structurelearner/chow_liu_tree.jl")
 include("structurelearner/init.jl")

@@ -49,7 +49,7 @@ mutable struct SharedSumNode <: SharedProbInnerNode
     data
     counter::UInt32
     SharedSumNode(children, n_mixture) = begin
-        new(children, init_array(Float64, length(children), n_mixture), nothing, 0)
+        new(children, log.(ones(Float64, length(children), n_mixture) / length(children)), nothing, 0)
     end
 end
 
@@ -99,13 +99,19 @@ function compile(::Type{<:SharedProbCircuit}, circuit::LogicCircuit, num_compone
     f_con(n) = error("Cannot construct a probabilistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
     f_lit(n) = compile(SharedProbCircuit, literal(n))
     f_a(_, cns) = multiply(cns)
-    f_o(_, cns) = summate(cns, num_components)
+    f_o(n, cns) = begin 
+        prod = summate(cns, num_components)
+        if n isa ProbCircuit
+            prod.log_probs .= n.log_probs
+        end
+        prod
+    end
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, SharedProbCircuit)
 end
 
 import LogicCircuits: fully_factorized_circuit #extend
 
-function fully_factorized_circuit(::Type{<:SharedProbCircuit}, n::Int)
+function fully_factorized_circuit(::Type{<:SharedProbCircuit}, n::Int, num_mix::Int)
     ff_logic_circuit = fully_factorized_circuit(PlainLogicCircuit, n)
-    compile(SharedProbCircuit, ff_logic_circuit)
+    compile(SharedProbCircuit, ff_logic_circuit, num_mix)
 end

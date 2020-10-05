@@ -35,14 +35,10 @@ function learn_chow_liu_tree(train_x; α = 1.0, clt_root="graph_center",
     # Build rooted tree / forest
     if clt_root == "graph_center"
         clt = SimpleDiGraph(features_num)
-        if nv(tree) == ne(tree) + 1
-            clt = bfs_tree(tree, center(tree)[1])
-        else
-            for c in filter(c -> (length(c) > 1), connected_components(tree))
-                sg, vmap = induced_subgraph(tree, c)
-                sub_root = vmap[center(sg)[1]]
-                clt = union(clt, bfs_tree(tree, sub_root))
-            end
+        for c in filter(c -> (length(c) > 1), connected_components(tree))
+            sg, vmap = induced_subgraph(tree, c)
+            sub_root = vmap[center(sg)[1]]
+            clt = union(clt, bfs_tree(tree, sub_root))
         end
     elseif clt_root == "rand"
         roots = [rand(c) for c in connected_components(tree)]
@@ -93,9 +89,6 @@ import LogicCircuits: print_tree
 "Print edges and vertices of a ChowLiu tree"
 function print_tree(clt::CLT)
     for e in edges(clt) print(e); print(" ");end
-    if clt isa SimpleDiGraph
-        for v in vertices(clt) print(v); print(" "); end
-    end
     if clt isa MetaDiGraph
         for v in vertices(clt) print(v); print(" "); println(props(clt, v)) end
     end

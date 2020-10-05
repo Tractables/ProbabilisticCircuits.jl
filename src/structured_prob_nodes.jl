@@ -50,7 +50,7 @@ mutable struct StructSumNode <: StructProbInnerNode
     data
     counter::UInt32
     StructSumNode(c, v) = 
-        new(c, init_array(Float64, length(c)), v, nothing, 0)
+        new(c, log.(ones(Float64, length(c)) / length(c)), v, nothing, 0)
 end
 
 #####################
