@@ -17,7 +17,7 @@ using DataFrames
                 0 0 0 0 0 0 0 0 0 0;
                 0 1 1 0 1 0 0 1 0 1]))
     p1 = [[[[1,7],[9,10]],[4,6]], [[2,8],[3,5]]]
-    p2 = [[[4,6],[1,[7,9]]],[[3,5],[2,[8,10]]]]
+    p2 = [[[6,4],[2,[10,8]]],[[5,3],[1,[9,7]]]]
     p3 = [1, [[[3,[[2,[8,10]],5]],[4,6]],[7, 9]]]
     @test_throws ErrorException learn_vtree(data; alg=nothing)
     for (alg, vars) in zip([:bottomup, :topdown, :clt], [p1, p2, p3])
