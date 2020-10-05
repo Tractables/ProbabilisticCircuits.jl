@@ -26,6 +26,9 @@ end
     rng = MersenneTwister(42)
 
     pc = zoo_psdd("little_4var.psdd");
+    s, p = sample(pc;rng)
+    @test pc(s...) ≈ p
+
     worlds = generate_data_all(num_variables(pc));
 
     loglikelihoods = EVI(pc, worlds)

@@ -28,7 +28,7 @@ end
 
 # On Tractable Computation of Expected Predictions (https://arxiv.org/abs/1910.02182)
 """
-Missing values should be denoted by -1
+Missing values should be denoted by missing
 """
 function Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
     # 1. Get probability of each observation

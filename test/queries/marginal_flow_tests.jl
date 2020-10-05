@@ -8,6 +8,7 @@ include("../helper/gpu.jl")
 
 @testset "Marginals" begin
     prob_circuit = zoo_psdd("little_4var.psdd");
+    @test prob_circuit(false, false, false, missing) ≈ -1.0498221
 
     data_marg = DataFrame([false false false false; 
                       false true true false; 
@@ -21,6 +22,15 @@ include("../helper/gpu.jl")
 
     calc_prob = exp.(MAR(prob_circuit, data_marg))
     @test true_prob ≈ calc_prob atol=1e-7
+    @test marginal_log_likelihood_avg(prob_circuit, data_marg) ≈ sum(log.(true_prob))/7
+    @test marginal_all(prob_circuit, data_marg) ≈  
+        [0.0 -Inf -Inf -Inf -Inf -Inf 0.0 0.0 0.0 0.0 -0.356675 -2.30259 -2.65926
+        0.0 -Inf -Inf 0.0 0.0 -Inf 0.0 -Inf -Inf 0.0 -2.30259 -1.20397 -3.50656
+        0.0 -Inf -Inf -Inf 0.0 0.0 0.0 0.0 -Inf -Inf -0.356675 -1.60944 -1.96611
+        0.0 -Inf -Inf -Inf -Inf 0.0 0.0 0.0 0.0 0.0 -0.356675 -0.693147 -1.04982
+        0.0 -Inf 0.0 0.0 -Inf 0.0  0.0 -Inf 0.0 0.0 -1.60944 -0.693147 -2.30259
+        0.0 -Inf 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -2.98023f-8 -7.45058f-9 -3.72529f-8
+        0.0 -Inf -Inf 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -0.223144 -7.45058f-9 -0.223144]
 
     cpu_gpu_agree_approx(data_marg) do d 
         marginal_all(prob_circuit, d)

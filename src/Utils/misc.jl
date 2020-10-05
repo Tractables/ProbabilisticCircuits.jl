@@ -102,8 +102,9 @@ function generate_all(row::Vector)
         result[1, :] = copy(row)
     else
         for mask = 0: (1<<miss_count) - 1
-            cur = copy(row)
-            cur[row .== -1] = transpose(parse.(Bool, split(bitstring(mask)[end-miss_count+1:end], "")))
+            cur = missings(Bool, lits)
+            cur .= row
+            cur[ismissing.(row)] = transpose(parse.(Bool, split(bitstring(mask)[end-miss_count+1:end], "")))
             result[mask+1,:] = cur
         end
     end

@@ -150,11 +150,11 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
         var = variable(m)
         X = data
         if ispositive(node.p_origin) && ispositive(m)
-            node.f[:, X[:, var] .!= 0 ] .= 1.0 # positive and missing observations
-            node.f[:, X[:, var] .== 0 ] .= 0.0
+            node.f[:, .!isequal.(X[:, var], 0)] .= 1.0 # positive and missing observations
+            node.f[:, isequal.(X[:, var], 0)] .= 0.0
         elseif isnegative(node.p_origin) && isnegative(m)
-            node.f[:, X[:, var] .!= 1 ] .= 1.0 # negative and missing observations
-            node.f[:, X[:, var] .== 1 ] .= 0.0
+            node.f[:, .!isequal.(X[:, var], 1)] .= 1.0 # negative and missing observations
+            node.f[:, isequal.(X[:, var], 1)] .= 0.0
         else
             node.f .= 0.0
         end

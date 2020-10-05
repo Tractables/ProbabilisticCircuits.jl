@@ -56,7 +56,6 @@ marginal_all(circuit::ProbCircuit, data::DataFrame) =
 
 function marginal_all(circuit::ParamBitCircuit, data, reuse=nothing)
     @assert num_features(data) == num_features(circuit) 
-    @assert isbinarydata(data)
     values = init_marginal(data, reuse, num_nodes(circuit))
     marginal_layers(circuit, values)
     return values
