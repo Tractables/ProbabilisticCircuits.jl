@@ -85,7 +85,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
             return node
         end
     end
-    function ExpflowTraverse(n::PlainProbLiteralNode, m::LogisticLiteral) 
+    function ExpflowTraverse(n::PlainProbLiteralNode, m::LogisticLiteralNode) 
         get!(cache, Pair(n, m)) do
             ch = Vector{ExpFlowNode{F}}() # TODO
             node = UpExpFlow{F}(n, m, ch, fmem(), fgmem())
@@ -141,7 +141,7 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
     elseif node.p_origin isa PlainProbLiteralNode 
         if node.f_origin isa Logistic⋁Node
             m = children(node.f_origin)[1]
-        elseif node.f_origin isa LogisticLiteral
+        elseif node.f_origin isa LogisticLiteralNode
             m = node.f_origin
         else
             error("Invalid Types of pairs {$pType} - {$fType}")

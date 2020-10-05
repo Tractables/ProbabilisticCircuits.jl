@@ -48,10 +48,4 @@ using Suppressor
     test_chow_liu_tree(t1, train_x)
     t2 = learn_chow_liu_tree(train_x; α=0.0, clt_root="rand")
     test_chow_liu_tree(t2, train_x)
-    train_x2, _, _ = twenty_datasets("nltcs")
-    t3 = learn_chow_liu_tree(train_x2; α=0.0)
-    for name in LogicCircuits.LoadSave.twenty_dataset_names[1:20]
-        train_x2, _, _ = twenty_datasets(name)
-        t3 = learn_chow_liu_tree(train_x2; α=0.0)
-    end
 end

@@ -3,7 +3,8 @@ load_struct_prob_circuit, load_logistic_circuit
 
 using LogicCircuits
 using Pkg.Artifacts
-using LogicCircuits.LoadSave: parse_psdd_file, parse_circuit_file, parse_vtree_file
+using LogicCircuits.LoadSave: parse_psdd_file, parse_circuit_file, 
+parse_vtree_file, parse_lc_file
 
 #####################
 # circuit loaders from module zoo

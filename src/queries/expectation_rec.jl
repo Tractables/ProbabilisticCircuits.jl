@@ -102,7 +102,7 @@ function exp_f(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data, 
 end
 
 
-@inline function exp_f(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, cache::Union{ExpectationCache, MomentCache})
+@inline function exp_f(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteralNode, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
         value = zeros(1 , num_examples(data) )
         var = lit2var(literal(m))
@@ -180,7 +180,7 @@ Has to be a Logistic⋁Node with only one child, which is a leaf node
     end
 end
 
-@inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, cache::ExpectationCache)
+@inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteralNode, data, cache::ExpectationCache)
     #dont know how many classes, boradcasting does the job
     zeros(1 , num_examples(data)) 
 end
@@ -223,7 +223,7 @@ end
     end
 end
 
-@inline function moment_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteral, data, moment::Int, cache::MomentCache)
+@inline function moment_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteralNode, data, moment::Int, cache::MomentCache)
     #dont know how many classes, boradcasting does the job
     if moment == 0
         exp_f(n, m, data, cache)

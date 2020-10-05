@@ -21,15 +21,37 @@ decompile(n::StructProbLiteralNode, node2id, vtree2id)::UnweightedLiteralLine =
 make_element(n::StructMulNode, w::AbstractFloat, node2id) = 
     PSDDElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
 
-istrue_node(n)::Bool = 
-    is⋁gate(n) && num_children(n) == 2 && GateType(children(n)[1]) isa LiteralGate && GateType(children(n)[2]) isa LiteralGate && 
-    ispositive(children(n)[1]) && isnegative(children(n)[2])
+istrue_node(n::StructSumNode)::Bool = 
+    is⋁gate(n) && num_children(n) == 2 && isliteralgate(children(n)[1]) && isliteralgate(children(n)[2]) && 
+    literal(children(n)[1]) + literal(children(n)[2]) == 0
 
 function decompile(n::StructSumNode, node2id, vtree2id)::Union{WeightedNamedConstantLine, DecisionLine{PSDDElement}} 
     if istrue_node(n)
         WeightedNamedConstantLine(node2id[n], vtree2id[n.vtree], lit2var(children(n)[1].literal), n.log_probs[1]) # TODO
     else
         DecisionLine(node2id[n], vtree2id[n.vtree], UInt32(num_children(n)), map(x -> make_element(x[1], x[2], node2id), zip(children(n), n.log_probs)))
+    end
+end
+
+#####################
+# decompile for logistic nodes
+#####################
+
+make_element(n::Logistic⋀Node, w::Vector{<:AbstractFloat}, node2id) = 
+    LCElement(node2id[children(n)[1]],  node2id[children(n)[2]], w)
+
+function decompile(n::Logistic⋁Node, node2id)::Union{DecisionLine{<:LCElement}, BiasLine, WeightedLiteralLine}
+    if num_children(n) == 1 && isliteralgate(n.children[1])
+        WeightedLiteralLine(node2id[n], UInt32(0), literal(n.children[1]), true, vec(n.thetas))  # TODO vtree id
+    
+    elseif num_children(n) == 1 && is⋁gate(n.children[1])
+        BiasLine(vec(n.thetas))
+    
+    else
+        DecisionLine(node2id[n], UInt32(0), UInt32(num_children(n)), # TODO vtree id
+            map(1:num_children(n)) do i
+                make_element(children(n)[i], vec(n.thetas[i,:]), node2id)
+            end)
     end
 end
 
@@ -92,12 +114,12 @@ end
 function save_as_logistic(name::String, circuit::LogisticCircuit, vtree)
     @assert endswith(name, ".circuit")
     node2id = get_node2id(circuit)
-    vtree2id = get_vtree2id(vtree)
+    # TODO lc vtree
     formatlines = Vector{CircuitFormatLine}()
     append!(formatlines, parse_lc_file(IOBuffer(lc_header())))
     push!(formatlines, LcHeaderLine())
-    for n in filter(n -> !is⋀gate(n), circuit)
-        push!(formatlines, decompile(n, node2id, vtree2id))
+    for n in filter(n -> is⋁gate(n), circuit)
+        push!(formatlines, decompile(n, node2id))
     end
     save_lines(name, formatlines)
 end
@@ -110,15 +132,16 @@ import LogicCircuits.LoadSave: save_circuit, save_as_dot # make available for ex
 save_circuit(name::String, circuit::StructProbCircuit, vtree::PlainVtree) =
     save_as_psdd(name, circuit, vtree)
 
-save_circuit(name::String, circuit::LogisticCircuit, vtree::PlainVtree) =
+save_circuit(name::String, circuit::LogisticCircuit, vtree) =
     save_as_logistic(name, circuit, vtree)
 
 using Printf: @sprintf
 "Save prob circuits to .dot file"
 function save_as_dot(file::String, circuit::ProbCircuit)
     # TODO (https://github.com/Juice-jl/LogicCircuits.jl/issues/7)
+    circuit_nodes = linearize(circuit)
     node_cache = Dict{ProbCircuit, Int64}()
-    for (i, n) in enumerate(circuit)
+    for (i, n) in enumerate(circuit_nodes)
         node_cache[n] = i
     end
 
@@ -138,26 +161,26 @@ function save_as_dot(file::String, circuit::ProbCircuit)
         end
     end
 
-    for n in reverse(circuit)
-        if n isa PlainMulNode
+    for n in reverse(circuit_nodes)
+        if ismul(n)
             write(f, "$(node_cache[n]) [label=\"*$(node_cache[n])\"]\n")
-        elseif n isa Prob⋁
+        elseif issum(n)
             write(f, "$(node_cache[n]) [label=\"+$(node_cache[n])\"]\n")
-        elseif n isa PlainProbLiteralNode && ispositive(n)
-            write(f, "$(node_cache[n]) [label=\"+$(variable(n.origin))\"]\n")
-        elseif n isa PlainProbLiteralNode && isnegative(n)
-            write(f, "$(node_cache[n]) [label=\"-$(variable(n.origin))\"]\n")
+        elseif isliteralgate(n) && ispositive(n)
+            write(f, "$(node_cache[n]) [label=\"+$(variable(n))\"]\n")
+        elseif isliteralgate(n) && isnegative(n)
+            write(f, "$(node_cache[n]) [label=\"-$(variable(n))\"]\n")
         else
             throw("unknown ProbCircuit type")
         end
     end
 
-    for n in reverse(circuit)
-        if n isa Prob⋀
+    for n in reverse(circuit_nodes)
+        if ismul(n)
             for c in children(n)
                 write(f, "$(node_cache[n]) -> $(node_cache[c])\n")
             end
-        elseif n isa Prob⋁
+        elseif issum(n)
             for (c, p) in zip(children(n), exp.(n.log_probs))
                 prob = @sprintf "%0.1f" p
                 write(f, "$(node_cache[n]) -> $(node_cache[c]) [label=\"$prob\"]\n")

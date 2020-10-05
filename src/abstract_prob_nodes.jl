@@ -17,7 +17,7 @@ abstract type ProbCircuit <: LogicCircuit end
 #####################
 
 "Get the parameters associated with a sum node"
-params(n) = n.log_probs
+params(n::ProbCircuit) = n.log_probs
 
 import LogicCircuits: children, compile # extend
 

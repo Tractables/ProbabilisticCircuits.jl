@@ -17,7 +17,7 @@ include("helper/plain_logic_circuits.jl")
     @test p1 isa LogisticInnerNode
     @test p1 isa Logistic⋁Node
     @test children(p1)[1] isa Logistic⋀Node
-    @test lit3 isa LogisticLiteral
+    @test lit3 isa LogisticLiteralNode
     @test is⋁gate(p1)
     @test is⋀gate(children(p1)[1])
     @test isliteralgate(lit3)

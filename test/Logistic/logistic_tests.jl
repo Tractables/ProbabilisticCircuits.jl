@@ -50,7 +50,7 @@ using ProbabilisticCircuits
     # foreach(logistic_circuit) do ln
     #     if ln isa Logistic⋁Node
     #         foreach(ln.children, eachrow(ln.thetas)) do c, theta
-    #             if c isa LogisticLiteral
+    #             if c isa LogisticLiteralNode
     #                 original_literal_parameters[c.literal] = copy(theta)
     #             end
     #         end
@@ -68,7 +68,7 @@ using ProbabilisticCircuits
     # foreach(logistic_circuit) do ln
     #     if ln isa Logistic⋁Node
     #         foreach(ln.children, eachrow(ln.thetas)) do c, theta
-    #             if c isa LogisticLiteral
+    #             if c isa LogisticLiteralNode
     #                 for class = 1:CLASSES
     #                     true_update_amount = -step_size * sum(c.data.upflow .* true_error[:, class]) / size(true_error)[1]
     #                     updated_amount = theta[class] - original_literal_parameters[c.literal][class]

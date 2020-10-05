@@ -10,8 +10,11 @@ import DataFrames: DataFrame, mapcols!
 max_a_posteriori(root::ProbCircuit, data::Union{Bool,Missing}...) =
     max_a_posteriori(root, collect(Union{Bool,Missing}, data))
 
-max_a_posteriori(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
-    example(max_a_posteriori(root, DataFrame(reshape(data, 1, :))), 1)
+max_a_posteriori(root::ProbCircuit, data::Union{Vector{<:Union{Bool,Missing}},CuVector{UInt8}}) = begin
+    map, prob = max_a_posteriori(root, DataFrame(reshape(data, 1, :)))
+    example(map, 1), prob[1]
+end
+    
 
 max_a_posteriori(circuit::ProbCircuit, data::DataFrame) =
     max_a_posteriori(same_device(ParamBitCircuit(circuit, data), data), data)

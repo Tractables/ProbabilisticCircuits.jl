@@ -38,6 +38,10 @@ include("../helper/gpu.jl")
 
     @test all(mar .> mappr .- 1e-6)
 
+    map, mappr = MAP(prob_circuit, false, false, false, missing)
+    @test map == [false, false, false, true]
+    @test mappr ≈ -1.2729657
+
     # same MAP states on CPU and GPU
     cpu_gpu_agree(data_full) do d 
         MAP(prob_circuit, d)[1]

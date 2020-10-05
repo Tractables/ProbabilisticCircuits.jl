@@ -1,7 +1,7 @@
 export 
     LogisticCircuit,
     LogisticLeafNode, LogisticInnerNode, 
-    LogisticLiteral, Logistic⋀Node, Logistic⋁Node,
+    LogisticLiteralNode, Logistic⋀Node, Logistic⋁Node,
     num_classes, num_parameters_per_class
     
 #####################
@@ -24,11 +24,11 @@ abstract type LogisticInnerNode <: LogisticCircuit end
 """
 A logistic literal node
 """
-mutable struct LogisticLiteral <: LogisticLeafNode
+mutable struct LogisticLiteralNode <: LogisticLeafNode
     literal::Lit
     data
     counter::UInt32
-    LogisticLiteral(l) = begin 
+    LogisticLiteralNode(l) = begin 
         new(l, nothing, 0)
     end
 end
@@ -63,7 +63,7 @@ end
 #####################
 
 import LogicCircuits.GateType # make available for extension
-@inline GateType(::Type{<:LogisticLiteral}) = LiteralGate()
+@inline GateType(::Type{<:LogisticLiteralNode}) = LiteralGate()
 @inline GateType(::Type{<:Logistic⋀Node}) = ⋀Gate()
 @inline GateType(::Type{<:Logistic⋁Node}) = ⋁Gate()
 
@@ -78,7 +78,8 @@ import LogicCircuits: children # make available for extension
 @inline num_parameters(c::LogisticCircuit) = sum(n -> num_children(n) * num_classes(n), ⋁_nodes(c))
 @inline num_parameters_per_class(c::LogisticCircuit) = sum(n -> num_children(n), ⋁_nodes(c))
 
-
+"Get the parameters associated with a or node"
+params(n::Logistic⋁Node) = n.thetas
 
 #####################
 # constructors and conversions
@@ -86,14 +87,14 @@ import LogicCircuits: children # make available for extension
 
 function LogisticCircuit(circuit::LogicCircuit, classes::Int)
     f_con(n) = error("Cannot construct a logistic circuit from constant leafs: first smooth and remove unsatisfiable branches.")
-    f_lit(n) = LogisticLiteral(literal(n))
+    f_lit(n) = compile(LogisticCircuit, literal(n))
     f_a(n, cn) = Logistic⋀Node(cn)
     f_o(n, cn) = Logistic⋁Node(cn, classes)
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, LogisticCircuit)
 end
 
 compile(::Type{<:LogisticCircuit}, l::Lit) = 
-    LogisticLiteral(l)
+    LogisticLiteralNode(l)
 
 function compile(::Type{<:LogisticCircuit}, classes, circuit::LogicCircuit)
     LogisticCircuit(circuit, classes)
@@ -104,4 +105,11 @@ import LogicCircuits: fully_factorized_circuit #extend
 function fully_factorized_circuit(::Type{<:LogisticCircuit}, n::Int; classes::Int)
     ff_logic_circuit = fully_factorized_circuit(PlainLogicCircuit, n)
     compile(LogisticCircuit, classes, ff_logic_circuit)
+end
+
+function check_parameter_integrity(circuit::LogisticCircuit)
+    for node in or_nodes(circuit)
+        @assert all(θ -> !isnan(θ), node.thetas) "There is a NaN in one of the log_probs"
+    end
+    true
 end
