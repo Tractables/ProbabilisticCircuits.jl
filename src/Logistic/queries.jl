@@ -7,7 +7,7 @@ using LoopVectorization: @avx, vifelse
 """
 Class Conditional Probability
 """
-function class_likelihood_per_instance(lc::LogicCircuit, nc::Int, data)    
+function class_likelihood_per_instance(lc::LogisticCircuit, nc::Int, data)    
     cw = class_weights_per_instance(lc, nc, data)
     one = Float32(1.0)
     isgpu(data) ? (@. one / (one + exp(-cw))) : (@. @avx one / (one + exp(-cw)))
