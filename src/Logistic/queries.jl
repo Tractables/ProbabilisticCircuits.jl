@@ -15,6 +15,7 @@ end
 
 function class_likelihood_per_instance(bc, data)
     cw = class_weights_per_instance(bc, data)
+    one = Float32(1.0)
     isgpu(data) ? (@. one / (one + exp(-cw))) : (@. @avx one / (one + exp(-cw)))
 end
 
