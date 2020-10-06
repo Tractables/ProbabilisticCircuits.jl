@@ -1,24 +1,47 @@
-# Public Documentation
+# [Public APIs](@id api-public)
 
-Documentation for `ProbabilisticCircuits.jl`'s public interface.
-
-See the Internals section of the manual for internal package docs covering all submodules.
-
-## Contents
+This page lists documentation for the most commonly used public APIs of `ProbabilisticCircuits.jl`. Visit the internals section for a auto generated documentation for more public API and internal APIs.
 
 ```@contents
 Pages = ["public.md"]
 ```
 
-## Index
-
-```@index
-Pages = ["public.md"]
-```
-
-## Public Interface
+## Loading Circuits
 
 ```@docs
 load_prob_circuit
 load_struct_prob_circuit
+load_logistic_circuit
 ```
+
+## Saving Interface
+
+```@docs
+save_circuit
+save_as_psdd
+save_as_logistic
+save_as_dot
+```
+
+## Learning Circuit
+
+```@docs
+learn_parameters
+learn_chow_liu_tree_circuit
+learn_single_model
+```
+
+## Circuit Queries
+
+
+```@docs
+marginal
+max_a_posteriori
+```
+
+## Compilation
+
+```@docs
+compile_sdd_from_clt
+```
+

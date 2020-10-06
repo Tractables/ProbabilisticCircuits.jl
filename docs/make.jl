@@ -17,8 +17,9 @@ const  pages = [
     "Manual" => Any[
         "Queries" => "manual/queries.md"
     ],
-    "API" => Any[
-        "Public" => "api/public.md",
+    "API" => [
+        "api/public.md",
+        "api/types.md",
         "Internals" => map(
             s -> "api/internals/$(s)",
             sort(readdir(joinpath(@__DIR__, "src/api/internals")))
