@@ -32,7 +32,10 @@ function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
 end
 
 """
-Marginal queries
+    MAR(pc, data)
+
+Computes Marginal log likelhood of data.  Outputs ``\\log{p(x^o)}`` for each data point. 
+Missing values should be denoted by `missing` in the data.
 """
 const MAR = marginal
 

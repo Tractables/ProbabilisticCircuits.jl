@@ -23,7 +23,7 @@ save_as_logistic
 save_as_dot
 ```
 
-## Learning Circuit
+## Learning Circuits
 
 ```@docs
 learn_parameters

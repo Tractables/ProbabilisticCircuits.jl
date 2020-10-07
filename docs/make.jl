@@ -14,8 +14,9 @@ end
 const  pages = [
     "Home" => "index.md",
     "Installation" => "installation.md",
-    "Manual" => Any[
-        "Queries" => "manual/queries.md"
+    "Manual" => [
+        "manual/queries.md",
+        "manual/learning.md"
     ],
     "API" => [
         "api/public.md",

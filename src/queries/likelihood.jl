@@ -67,16 +67,23 @@ function log_likelihood_per_instance_gpu(bc, data)
 end
 
 """
-Complete evidence queries
+    EVI(pc, data)
+
+Computes the log likelihood data given full evidence.
+Outputs `` \\log{p(x)} `` for each datapoint.
 """
 const EVI = log_likelihood_per_instance
 
 """
+    log_likelihood(pc, data)
+
 Compute the likelihood of the PC given the data
 """
 log_likelihood(pc, data) = sum(log_likelihood_per_instance(pc, data))
 
 """
+    log_likelihood_avg(pc, data)
+
 Compute the likelihood of the PC given the data, averaged over all instances in the data
 """
 log_likelihood_avg(pc, data) = log_likelihood(pc, data)/num_examples(data)
