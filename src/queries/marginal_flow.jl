@@ -12,12 +12,25 @@ marginal_log_likelihood_avg, marginal_flows, marginal_flows_down
 # Circuit marginal evaluation
 #####################
   
-# evaluate a probabilistic circuit as a function
+"""
+Evaluate a probabilistic circuit as a function
+"""
 function (root::ProbCircuit)(data...)
     marginal(root, data...)
 end
 
-"Evaluate marginals of the circuit bottom-up for a given input"
+"""
+    marginal(root::ProbCircuit, data::Union{Real,Missing}...)
+    marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}})
+    marginal(circuit::ProbCircuit, data::DataFrame)
+    marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
+    
+Evaluate marginals of the circuit bottom-up for given input(s).
+
+Missing values should be denoted by `missing` in the data.
+
+Outputs ``\\log{p(x^o)}`` for each data point. 
+"""
 marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
     marginal(root, collect(Union{Bool,Missing}, data))
 
@@ -34,8 +47,7 @@ end
 """
     MAR(pc, data)
 
-Computes Marginal log likelhood of data.  Outputs ``\\log{p(x^o)}`` for each data point. 
-Missing values should be denoted by `missing` in the data.
+Computes Marginal log likelhood of data.  
 """
 const MAR = marginal
 

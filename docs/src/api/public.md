@@ -33,7 +33,6 @@ learn_single_model
 
 ## Circuit Queries
 
-
 ```@docs
 marginal
 max_a_posteriori
@@ -44,4 +43,3 @@ max_a_posteriori
 ```@docs
 compile_sdd_from_clt
 ```
-

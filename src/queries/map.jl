@@ -6,7 +6,16 @@ import DataFrames: DataFrame, mapcols!
 # Circuit MAP/MPE evaluation
 #####################
 
-"Evaluate maximum a-posteriori state of the circuit for a given input"
+""" 
+    max_a_posteriori(root::ProbCircuit, data::Union{Bool,Missing}...)
+    max_a_posteriori(root::ProbCircuit, data::Union{Vector{<:Union{Bool,Missing}},CuVector{UInt8}})
+    max_a_posteriori(circuit::ProbCircuit, data::DataFrame)
+    max_a_posteriori(pbc::ParamBitCircuit, data; Float=Float32)
+
+Evaluate maximum a-posteriori state of the circuit for given input(s).
+
+Outputs the states, and the corresponding probabilities (in log domain).
+"""
 max_a_posteriori(root::ProbCircuit, data::Union{Bool,Missing}...) =
     max_a_posteriori(root, collect(Union{Bool,Missing}, data))
 
