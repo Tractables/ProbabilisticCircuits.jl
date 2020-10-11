@@ -8,7 +8,7 @@ using Reexport
 
 using LogicCircuits
 # only reexport selectively from LogicCircuits
-# export ...
+export pos_literals, neg_literals
 
 include("Utils/Utils.jl")
 @reexport using .Utils

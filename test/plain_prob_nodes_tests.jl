@@ -42,7 +42,7 @@ include("helper/plain_logic_circuits.jl")
 
     # compilation tests
     @test_throws Exception compile(ProbCircuit, true)
-    v1, v2, v3 = vars(1:3, ProbCircuit)
+    v1, v2, v3 = literals(ProbCircuit, 3)
     r = v1[1] * 0.3 + 0.7 * v1[2]
     @test r isa PlainSumNode
     @test all(children(r) .== [v1[1], v1[2]])

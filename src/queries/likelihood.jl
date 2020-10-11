@@ -36,7 +36,12 @@ function log_likelihood_per_instance_cpu(bc, data)
         nothing
     end
 
-    satisfies_flows(bc.bitcircuit, data; on_edge)
+    v, _ = satisfies_flows(bc.bitcircuit, data; on_edge)
+    
+    # when the example is outside of the support, give 0 likelihood 
+    in_support = AbstractBitVector(v[:,end], num_examples(data))
+    ll[.! in_support] .= -Inf
+
     return ll
 end
 
@@ -60,10 +65,19 @@ function log_likelihood_per_instance_gpu(bc, data)
     end
     
     v, f = satisfies_flows(bc.bitcircuit, data; on_edge)
-    CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
+
+    # when the example is outside of the support, give 0 likelihood 
+    # lazy programmer: do the conversion to a Vector{Bool} on CPU 
+    #   so that CUDA.jl can build a quick kernel
+    # TODO: write a function to do this conversion on GPU directly
+    in_support = AbstractBitVector(to_cpu(v[:,end]), num_examples(data))
+    in_support = to_gpu(convert(Vector{Bool}, in_support))
+    ll2 = map((x,s) -> s ? x : -Inf, ll, in_support)
+    CUDA.unsafe_free!(v) # save the GC some effort
+    CUDA.unsafe_free!(ll) # save the GC some effort
     
-    return ll
+    return ll2
 end
 
 """

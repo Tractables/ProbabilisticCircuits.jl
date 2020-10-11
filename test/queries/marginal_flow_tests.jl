@@ -51,6 +51,16 @@ include("../helper/gpu.jl")
         marginal_all(prob_circuit, d)
     end
 
+    # make sure log-likelihoods are -Inf when the input is not satisfied
+    data = DataFrame([false true false missing; 
+                      false true true false; 
+                      missing missing missing false])
+    alltrue = multiply(pos_literals(ProbCircuit,4))
+    @test all(MAR(alltrue, data) .== -Inf)
+
+    cpu_gpu_agree(data) do d 
+        MAR(alltrue, d)
+    end
 end
 
 @testset "Marginal flows" begin

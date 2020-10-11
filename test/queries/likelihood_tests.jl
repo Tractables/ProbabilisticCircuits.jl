@@ -35,4 +35,12 @@ include("../helper/gpu.jl")
         EVI(prob_circuit, d)
     end
     
+    # make sure log-likelihoods are -Inf when the input is not satisfied
+    alltrue = multiply(pos_literals(ProbCircuit,4))
+    @test all(EVI(alltrue, data) .== -Inf)
+    
+    cpu_gpu_agree(data) do d 
+        EVI(alltrue, d)
+    end
+
 end
