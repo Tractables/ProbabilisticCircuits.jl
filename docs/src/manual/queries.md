@@ -44,12 +44,12 @@ First, we randomly make some features go `missing`:
 ```@example queries
 using DataFrames
 function make_missing(d::DataFrame;keep_prob=0.8)    
-    m = missings(Bool, num_examples(data), num_features(data)) 
-    flag = rand(num_examples(data), num_features(data)) .<= keep_prob
+    m = missings(Bool, num_examples(d), num_features(d)) 
+    flag = rand(num_examples(d), num_features(d)) .<= keep_prob
     m[flag] .= Matrix(d)[flag] 
     DataFrame(m) 
 end; 
-data_miss = make_missing(data);
+data_miss = make_missing(data[1:1000,:]);
 nothing #hide
 ```
 
