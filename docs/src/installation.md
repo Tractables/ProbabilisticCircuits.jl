@@ -47,3 +47,9 @@ If you are installing the latest commit, we recommend running the test suite to 
 ```bash
 julia --color=yes -e 'using Pkg; Pkg.test("ProbabilisticCircuits")'
 ```
+
+**Note**: If you want the tests to run faster, you can use multiple cores. To do that set the following environment variable (default = 1 core):
+
+```bash
+export JIVE_PROCS=8
+```

@@ -18,23 +18,27 @@ Depending on your usecase you might also want to have `LogicCircuits.jl` in deve
 
 ## Testing
 
+### Prerequisite
+Set the following environment variable, to automatically download data artifacts needed during tests without user input. Otherwise the tests would fail if the artifact is not already downloaded.
+
+    export DATADEPS_ALWAYS_ACCEPT=1
+
+Additionally, if you want the tests to run faster, you can use more cores by setting the following variable. The default value is 1.
+
+    export JIVE_PROCS=8
+
+### Running the tests  
+
 Make sure to run the tests before commiting new code.
 
 To run all the tests:
 
-    julia --color=yes -pauto test/runtests.jl
+    julia --project=test --color=yes test/runtests.jl
 
-The flag `-pauto` parallelizes the tests across all CPU cores.
-You can also run all the tests for a single (sub-)module, for example:
+You can also run a specific test:
 
-    julia --color=yes -pauto test/runtests.jl IO
-
-Or even any individual test, for example:
-
-    julia --color=yes -pauto test/runtests.jl IO/CircuitSaverTest.jl
+    julia --project=test --color=yes test/aqua_test.jl
     
-   
-   
    ## Releasing New Versions
 
 Only do this for when the repo is in stable position, and we have decent amount of changes from previous version.
