@@ -6,6 +6,7 @@ using CUDA: CUDA
 
 @testset "MLE tests" begin
     
+    # Binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
@@ -14,16 +15,40 @@ using CUDA: CUDA
 
     estimate_parameters(r,dfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+    
+    # Weighted binary dataset
+    weights = DataFrame(weight = [0.6, 0.6, 0.6])
+    wdfb = hcat(dfb, weights)
+    
+    estimate_parameters(r,wdfb; pseudocount=1.0)
+    @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
+    @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
+    
+    estimate_parameters(r,wdfb; pseudocount=0.0)
+    @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+    @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
 
     if CUDA.functional()
 
+        # Binary dataset
         dfb_gpu = to_gpu(dfb)
         
-        estimate_parameters(r,dfb_gpu; pseudocount=1.0)
+        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
 
-        estimate_parameters(r,dfb_gpu; pseudocount=0.0)
+        estimate_parameters(r, dfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+        
+        # Weighted binary dataset
+        weights_gpu = to_gpu(weights)
+        
+        estimate_parameters(r, dfb_gpu, weights_gpu; pseudocount=1.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, dfb_gpu, weights_gpu)
+
+        estimate_parameters(r, dfb_gpu, weights_gpu; pseudocount=0.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, dfb_gpu, weights_gpu)
 
     end
 

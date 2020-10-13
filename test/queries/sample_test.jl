@@ -3,6 +3,7 @@ using LogicCircuits
 using ProbabilisticCircuits
 using Random: MersenneTwister
 using CUDA: functional
+using DataFrames
 
 include("../helper/gpu.jl")
 
