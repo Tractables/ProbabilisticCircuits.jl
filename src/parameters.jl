@@ -8,8 +8,7 @@ using LoopVectorization
 Maximum likilihood estimation of parameters given data
 """
 function estimate_parameters(pc::ProbCircuit, data, weights = nothing; pseudocount::Float64, use_sample_weights::Bool = true)
-    # TODO: add a function in the data module called `isweighted`, factor out some of this logic
-    if cmp(names(data)[end], "weight") === 0
+    if isweighted(data)
         # `data' is weighted according to its `weight' column
         weights = data[:, end]
         data = data[:, 1:end - 1]

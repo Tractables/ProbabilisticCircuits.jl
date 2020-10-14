@@ -96,7 +96,7 @@ const EVI = log_likelihood_per_instance
 Compute the likelihood of the PC given the data
 """
 log_likelihood(pc, data) = begin
-    if cmp(names(data)[end], "weight") === 0
+    if isweighted(data)
         # `data' is weighted according to its `weight' column
         weights = data[:, end]
         data = data[:, 1:end - 1]
@@ -124,7 +124,7 @@ end
 Compute the likelihood of the PC given the data, averaged over all instances in the data
 """
 log_likelihood_avg(pc, data) = begin
-    if cmp(names(data)[end], "weight") === 0
+    if isweighted(data)
         # `data' is weighted according to its `weight' column
         weights = data[:, end]
         data = data[:, 1:end - 1]
