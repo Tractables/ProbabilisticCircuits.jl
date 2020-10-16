@@ -54,12 +54,50 @@ const MAR = marginal
 """
 Compute the marginal likelihood of the PC given the data
 """
-marginal_log_likelihood(pc, data) = sum(marginal(pc, data))
+marginal_log_likelihood(pc, data) = begin
+    if isweighted(data)
+        # `data' is weighted according to its `weight' column
+        weights = data[:, end]
+        data = data[:, 1:end - 1]
+        
+        marginal_log_likelihood(pc, data, weights)
+    else
+        sum(marginal(pc, data))
+    end
+end
+marginal_log_likelihood(pc, data, weights::DataFrame) = marginal_log_likelihood(pc, data, weights[:, 1])
+marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
+    if isgpu(weights)
+        weights = to_cpu(weights)
+    end
+    likelihoods = marginal(pc, data)
+    if isgpu(likelihoods)
+        likelihoods = to_cpu(likelihoods)
+    end
+    mapreduce(*, +, likelihoods, weights)
+end
 
 """
 Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
 """
-marginal_log_likelihood_avg(pc, data) = marginal_log_likelihood(pc, data)/num_examples(data)
+marginal_log_likelihood_avg(pc, data) = begin
+    if isweighted(data)
+        # `data' is weighted according to its `weight' column
+        weights = data[:, end]
+        data = data[:, 1:end - 1]
+        
+        marginal_log_likelihood_avg(pc, data, weights)
+    else
+        marginal_log_likelihood(pc, data)/num_examples(data)
+    end
+end
+marginal_log_likelihood_avg(pc, data, weights::DataFrame) = marginal_log_likelihood_avg(pc, data, weights[:, 1])
+marginal_log_likelihood_avg(pc, data, weights) = begin
+    if isgpu(weights)
+        weights = to_cpu(weights)
+    end
+    marginal_log_likelihood(pc, data, weights)/sum(weights)
+end
 
 #####################
 # Circuit evaluation of *all* nodes in circuit
