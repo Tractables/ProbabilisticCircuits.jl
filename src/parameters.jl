@@ -188,7 +188,11 @@ function estimate_parameters_em(pc::ProbCircuit, data, weights = nothing; pseudo
     
     pbc = ParamBitCircuit(pc, data; reset=false)
     params = if isgpu(data)
-        estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+        if use_sample_weights
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
+        else
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+        end
     else
         if use_sample_weights
             estimate_parameters_cpu(pbc, data, pseudocount; weights)
@@ -201,6 +205,11 @@ function estimate_parameters_em(pc::ProbCircuit, data, weights = nothing; pseudo
 end
 
 function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing)
+    # rescale pseudocount using the average weight of samples
+    if weights !== nothing
+        pseudocount = pseudocount * sum(weights) / size(weights, 1)
+    end
+    
     # no need to synchronize, since each computation is unique to a decision node
     bc = pbc.bitcircuit
     node_counts::Vector{Float64} = Vector{Float64}(undef, num_nodes(bc))
@@ -214,7 +223,7 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
     end
     @inline function on_node(flows, values, dec_id, weights)
         sum_flows = map(1:size(flows,1)) do i
-            flows[i, dec_id] * weights[i]
+            flows[i, dec_id] + log(weights[i])
         end
         node_counts[dec_id] = logsumexp(sum_flows)
     end
@@ -240,20 +249,25 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
         θ = eltype(flows)(pbc.params[element])
         if !single_child
             edge_flows = map(1:size(flows,1)) do i
-                f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
+                f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ + log(weights[i])
                 f = ifelse(isnan(f), typemin(eltype(flows)), f)
             end
-            edge_count = logsumexp(edge_flows) * weights[i]
+            edge_count = logsumexp(edge_flows)
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
     end
 
-    v, f = marginal_flows(pbc, data; on_node, on_edge)
+    v, f = marginal_flows(pbc, data; on_node, on_edge, weights)
 
     return log_params
 end
 
 function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing)
+    # rescale pseudocount using the average weight of samples
+    if weights !== nothing
+        pseudocount = pseudocount * sum(weights) / size(weights, 1)
+    end
+    
     bc = pbc.bitcircuit
     node_counts::CuVector{Float64} = CUDA.zeros(Float64, num_nodes(bc))
     edge_counts::CuVector{Float64} = CUDA.zeros(Float64, num_elements(bc))
@@ -283,7 +297,7 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         end
     end
 
-    v, f = marginal_flows(bc, data; on_node, on_edge)
+    v, f = marginal_flows(pbc, data; on_node, on_edge, weights)
 
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort

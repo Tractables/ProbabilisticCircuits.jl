@@ -75,6 +75,15 @@ end
     estimate_parameters_em(pc, data; pseudocount=0.0)
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
+    
+    if CUDA.functional()
+        data_gpu = to_gpu(data)
+        
+        # TODO: fix estimate_parameter_em for gpu data
+        # estimate_parameters_em(pc, data_gpu; pseudocount=0.0)
+        # @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
+        # @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
+    end
 
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -100,6 +109,15 @@ end
     estimate_parameters_em(pc, wdata; pseudocount=0.0)
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
+    
+    if CUDA.functional()
+        data_gpu = to_gpu(data)
+        weights_gpu = to_gpu(weights)
+        
+        # estimate_parameters_em(pc, data_gpu, weights_gpu; pseudocount=0.0)
+        # @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
+        # @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
+    end
 
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     weights = DataFrame(weight = [0.6, 0.6, 0.6])

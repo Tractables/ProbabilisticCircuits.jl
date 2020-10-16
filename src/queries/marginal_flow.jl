@@ -189,14 +189,14 @@ end
 function marginal_flows(circuit::ProbCircuit, data, 
     reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop, weights=nothing) 
     bc = same_device(ParamBitCircuit(circuit, data), data)
-    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge, weights = weights)
+    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge, weights)
 end
 
 function marginal_flows(circuit::ParamBitCircuit, data, 
             reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop, weights=nothing)
     @assert isgpu(data) == isgpu(circuit) "ParamBitCircuit and data need to be on the same device"
     values = marginal_all(circuit, data, reuse_values)
-    flows = marginal_flows_down(circuit, values, reuse_flows; on_node, on_edge, weights = weights)
+    flows = marginal_flows_down(circuit, values, reuse_flows; on_node, on_edge, weights)
     return values, flows
 end
 
@@ -383,7 +383,7 @@ function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params
                             else
                                 v_prime = @inbounds values[k, prime]
                                 v_sub = @inbounds values[k, sub]
-                                edge_flow = compute_marg_edge_flow(v_prime, v_sub, v_gp, f_gp, θ)
+                                edge_flow = compute_marg_edge_flow(v_prime, v_sub, v_gp, f_gp, θ, weight)
                             end
                             flow = logsumexp_cuda(flow, edge_flow)
                             # report edge flow only once:
@@ -401,5 +401,9 @@ end
 
 @inline function compute_marg_edge_flow(p_up, s_up, n_up, n_down, θ)
     x = p_up + s_up - n_up + n_down + θ
+    ifelse(isnan(x), typemin(n_down), x)
+end
+@inline function compute_marg_edge_flow(p_up, s_up, n_up, n_down, θ, weight)
+    x = p_up + s_up - n_up + n_down + θ + log(weight)
     ifelse(isnan(x), typemin(n_down), x)
 end
