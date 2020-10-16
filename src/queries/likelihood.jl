@@ -19,7 +19,7 @@ function log_likelihood_per_instance_cpu(bc, data)
     ll::Vector{Float64} = zeros(Float64, num_examples(data))
     ll_lock::Threads.ReentrantLock = Threads.ReentrantLock()
     
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child)
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child, weights)
         if !single_child
             lock(ll_lock) do # TODO: move lock to inner loop? change to atomic float?
                 for i = 1:size(flows,1)
@@ -52,7 +52,7 @@ function log_likelihood_per_instance_gpu(bc, data)
     ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
     ll_device = CUDA.cudaconvert(ll)
         
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weights)
         if !single_child
             first_true_bit = 1+trailing_zeros(edge_flow)
             last_true_bit = 64-leading_zeros(edge_flow)

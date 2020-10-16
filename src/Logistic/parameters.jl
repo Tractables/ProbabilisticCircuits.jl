@@ -29,7 +29,7 @@ function update_parameters_cpu(bc, data, labels, cl, step_size)
     nc::Int = size(bc.params, 2)
     params_lock::Threads.ReentrantLock = Threads.ReentrantLock()
 
-    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child)
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(params_lock) do # TODO: move lock to inner loop?
             for i = 1:size(flows, 1)
                 @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
@@ -47,7 +47,7 @@ function update_parameters_cpu(bc, data, labels, cl, step_size)
         end
     end
     
-    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child)
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(params_lock) do # TODO: move lock to inner loop?
             @avx for i = 1:size(flows, 1)
                 @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
@@ -78,7 +78,7 @@ function update_parameters_gpu(bc, data, labels, cl, step_size)
     label_device = CUDA.cudaconvert(labels)
     params_device = CUDA.cudaconvert(bc.params)
 
-    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weights)
         first_true_bit = 1 + trailing_zeros(edge_flow)
         last_true_bit = 64 - leading_zeros(edge_flow)
         for j = first_true_bit:last_true_bit
@@ -92,7 +92,7 @@ function update_parameters_gpu(bc, data, labels, cl, step_size)
         nothing 
     end
 
-    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child, weights)
         for class = 1:nc
             CUDA.@atomic params_device[element, class] -= (cl_device[ex_id, class] - label_device[ex_id, class]) * edge_flow * step_size
         end

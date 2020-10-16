@@ -38,7 +38,7 @@ function class_weights_per_instance_cpu(bc, data)
     cw::Matrix{Float32} = zeros(Float32, ne, nc)
     cw_lock::Threads.ReentrantLock = Threads.ReentrantLock()
  
-    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child)
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(cw_lock) do # TODO: move lock to inner loop?
             for i = 1:size(flows, 1)
                 @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
@@ -57,7 +57,7 @@ function class_weights_per_instance_cpu(bc, data)
         nothing
     end
 
-    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child)
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(cw_lock) do # TODO: move lock to inner loop?
             @avx for i = 1:size(flows, 1)
                 @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
@@ -86,7 +86,7 @@ function class_weights_per_instance_gpu(bc, data)
     cw_device = CUDA.cudaconvert(cw)
     params_device = CUDA.cudaconvert(bc.params)
 
-    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child)
+    @inline function on_edge_binary(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weights)
         first_true_bit = 1 + trailing_zeros(edge_flow)
         last_true_bit = 64 - leading_zeros(edge_flow)
         for j = first_true_bit:last_true_bit
@@ -100,7 +100,7 @@ function class_weights_per_instance_gpu(bc, data)
         nothing
     end
 
-    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child)
+    @inline function on_edge_float(flows, values, prime, sub, element, grandpa, ex_id, edge_flow, single_child, weights)
         for class = 1:nc
             CUDA.@atomic cw_device[ex_id, class] += edge_flow * params_device[element, class]
         end
