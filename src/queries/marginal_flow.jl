@@ -187,16 +187,16 @@ end
 
 "Compute the marginal and flow of each node"
 function marginal_flows(circuit::ProbCircuit, data, 
-    reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop) 
+    reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop, weights=nothing) 
     bc = same_device(ParamBitCircuit(circuit, data), data)
-    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge)
+    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge, weights = weights)
 end
 
 function marginal_flows(circuit::ParamBitCircuit, data, 
-            reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop)
+            reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop, weights=nothing)
     @assert isgpu(data) == isgpu(circuit) "ParamBitCircuit and data need to be on the same device"
     values = marginal_all(circuit, data, reuse_values)
-    flows = marginal_flows_down(circuit, values, reuse_flows; on_node, on_edge)
+    flows = marginal_flows_down(circuit, values, reuse_flows; on_node, on_edge, weights = weights)
     return values, flows
 end
 
@@ -205,16 +205,16 @@ end
 #####################
 
 "When marginals of nodes have already been computed, do a downward pass computing the marginal flows at each node"
-function marginal_flows_down(circuit::ParamBitCircuit, values, reuse=nothing; on_node=noop, on_edge=noop)
+function marginal_flows_down(circuit::ParamBitCircuit, values, reuse=nothing; on_node=noop, on_edge=noop, weights=nothing)
     flows = similar!(reuse, typeof(values), size(values)...)
-    marginal_flows_down_layers(circuit, flows, values, on_node, on_edge)
+    marginal_flows_down_layers(circuit, flows, values, on_node, on_edge; weights = weights)
     return flows
 end
 
 # downward pass helpers on CPU
 
-"Evaluate marginals of the layers of a bit circuit on the CPU (SIMD & multi-threaded)"
-function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values::Matrix, on_node, on_edge)
+"Evaluate marginals of the layers of a parameter bit circuit on the CPU (SIMD & multi-threaded)"
+function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values::Matrix, on_node, on_edge; weights = nothing)
     @assert flows !== values
     circuit = pbc.bitcircuit 
     els = circuit.elements   
@@ -249,13 +249,13 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values:
                         end
                     end
                     # report edge flow only once:
-                    sib_id > dec_id && on_edge(flows, values, dec_id, sib_id, par, grandpa, single_child)
+                    sib_id > dec_id && on_edge(flows, values, dec_id, sib_id, par, grandpa, single_child, weights)
                 end
             end
-            on_node(flows, values, dec_id)
+            on_node(flows, values, dec_id, weights)
         end
     end
-end 
+end
 
 function assign_marg_flow(f::Matrix{<:AbstractFloat}, v, d, g, s, θ)
     @inbounds @simd for j in 1:size(f,1) #@avx gives incorrect results
@@ -292,7 +292,7 @@ end
 "Pass marginal flows down the layers of a bit circuit on the GPU"
 function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::CuMatrix, values::CuMatrix, 
             on_node, on_edge; 
-            dec_per_thread = 8, log2_threads_per_block = 7)
+            dec_per_thread = 8, log2_threads_per_block = 7, weights = nothing)
     bc = pbc.bitcircuit
     CUDA.@sync for layer in Iterators.reverse(bc.layers)
         num_examples = size(values, 1)
@@ -300,12 +300,12 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::CuMatrix, value
         num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
         num_blocks = (ceil(Int, num_examples/num_threads[1]), 
                       ceil(Int, num_decision_sets/num_threads[2])) 
-        @cuda threads=num_threads blocks=num_blocks marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge)
+        @cuda threads=num_threads blocks=num_blocks marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights)
     end
 end
 
 "CUDA kernel for passing marginal flows down circuit"
-function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params, flows, values, on_node, on_edge)
+function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params, flows, values, on_node, on_edge, weights::Nothing)
     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     stride_x = blockDim().x * gridDim().x
@@ -340,13 +340,60 @@ function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params
                             end
                             flow = logsumexp_cuda(flow, edge_flow)
                             # report edge flow only once:
-                            dec_id == prime && on_edge(flows, values, prime, sub, par, grandpa, k, edge_flow, single_child)
+                            dec_id == prime && on_edge(flows, values, prime, sub, par, grandpa, k, edge_flow, single_child, nothing)
                         end
                     end
                 end
             end
             @inbounds flows[k, dec_id] = flow
-            on_node(flows, values, dec_id, k, flow)
+            on_node(flows, values, dec_id, k, flow, nothing)
+        end
+    end
+    return nothing
+end
+function marginal_flows_down_layers_cuda(layer, nodes, elements, parents, params, flows, values, on_node, on_edge, weights::Any)
+    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    stride_x = blockDim().x * gridDim().x
+    stride_y = blockDim().y * gridDim().y
+    for k = index_x:stride_x:size(values,1)
+        weight = @inbounds weights[k]
+        for i = index_y:stride_y:length(layer)
+            dec_id = @inbounds layer[i]
+            if dec_id == size(nodes,2)
+                # populate root flows
+                flow = zero(eltype(flows))
+            else
+                par_start = @inbounds nodes[3,dec_id]
+                flow = typemin(eltype(flows)) # log(0)
+                if !iszero(par_start)
+                    par_end = @inbounds nodes[4,dec_id]
+                    for j = par_start:par_end
+                        par = @inbounds parents[j]
+                        grandpa = @inbounds elements[1,par]
+                        v_gp = @inbounds values[k, grandpa]
+                        prime = elements[2,par]
+                        sub = elements[3,par]
+                        θ = eltype(flows)(params[par])
+                        if !iszero(v_gp) # edge flow only gets reported when non-zero
+                            f_gp = @inbounds flows[k, grandpa]
+                            single_child = has_single_child(nodes, grandpa)
+                            if single_child
+                                edge_flow = f_gp
+                            else
+                                v_prime = @inbounds values[k, prime]
+                                v_sub = @inbounds values[k, sub]
+                                edge_flow = compute_marg_edge_flow(v_prime, v_sub, v_gp, f_gp, θ)
+                            end
+                            flow = logsumexp_cuda(flow, edge_flow)
+                            # report edge flow only once:
+                            dec_id == prime && on_edge(flows, values, prime, sub, par, grandpa, k, edge_flow, single_child, weight)
+                        end
+                    end
+                end
+            end
+            @inbounds flows[k, dec_id] = flow
+            on_node(flows, values, dec_id, k, flow, weight)
         end
     end
     return nothing
