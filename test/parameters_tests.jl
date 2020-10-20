@@ -36,7 +36,9 @@ end
     
     # Weighted binary dataset
     weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = hcat(dfb, weights)
+    wdfb = add_sample_weights(dfb, weights)
+    
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
     
     estimate_parameters(r,wdfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
@@ -52,15 +54,15 @@ end
         dfb_gpu = to_gpu(dfb)
         
         # Weighted binary dataset
-        weights_gpu = to_gpu(weights)
+        wdfb_gpu = to_gpu(wdfb)
         
-        estimate_parameters(r, dfb_gpu, weights_gpu; pseudocount=1.0)
+        estimate_parameters(r, wdfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
-        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, dfb_gpu, weights_gpu)
-
-        estimate_parameters(r, dfb_gpu, weights_gpu; pseudocount=0.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
+        
+        estimate_parameters(r, wdfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
-        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, dfb_gpu, weights_gpu)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
 
     end
 end

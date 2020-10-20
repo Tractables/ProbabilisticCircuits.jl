@@ -7,15 +7,12 @@ using LoopVectorization
 """
 Maximum likilihood estimation of parameters given data
 """
-function estimate_parameters(pc::ProbCircuit, data, weights = nothing; pseudocount::Float64, use_sample_weights::Bool = true)
+function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, use_sample_weights::Bool = true)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
-    elseif weights === nothing
+        data, weights = split_sample_weights(data)
+    else
         use_sample_weights = false
-    elseif weights isa DataFrame
-        weights = weights[:, 1]
     end
     
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
@@ -47,7 +44,7 @@ function estimate_parameters_cached!(pc, bc, params)
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_probs .= params[els_start:els_end]
-                @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-6) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
+                @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-4) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
                 pn.log_probs .-= logsumexp(pn.log_probs) # normalize away any leftover error
             end
         end
@@ -175,15 +172,12 @@ end
 """
 Expectation maximization parameter learning given missing data
 """
-function estimate_parameters_em(pc::ProbCircuit, data, weights = nothing; pseudocount::Float64, use_sample_weights::Bool = true)
+function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, use_sample_weights::Bool = true)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
-    elseif weights === nothing
+        data, weights = split_sample_weights(data)
+    else
         use_sample_weights = false
-    elseif weights isa DataFrame
-        weights = weights[:, 1]
     end
     
     pbc = ParamBitCircuit(pc, data; reset=false)

@@ -98,8 +98,7 @@ Compute the likelihood of the PC given the data
 log_likelihood(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
+        data, weights = split_sample_weights(data)
         
         log_likelihood(pc, data, weights)
     else
@@ -126,12 +125,11 @@ Compute the likelihood of the PC given the data, averaged over all instances in 
 log_likelihood_avg(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
+        data, weights = split_sample_weights(data)
         
         log_likelihood_avg(pc, data, weights)
     else
-        log_likelihood(pc, data)/num_examples(data)
+        log_likelihood(pc, data) / num_examples(data)
     end
 end
 log_likelihood_avg(pc, data, weights::DataFrame) = log_likelihood_avg(pc, data, weights[:, 1])
@@ -139,5 +137,5 @@ log_likelihood_avg(pc, data, weights) = begin
     if isgpu(weights)
         weights = to_cpu(weights)
     end
-    log_likelihood(pc, data, weights)/sum(weights)
+    log_likelihood(pc, data, weights) / sum(weights)
 end

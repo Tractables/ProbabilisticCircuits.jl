@@ -57,8 +57,7 @@ Compute the marginal likelihood of the PC given the data
 marginal_log_likelihood(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
+        data, weights = split_sample_weights(data)
         
         marginal_log_likelihood(pc, data, weights)
     else
@@ -83,8 +82,7 @@ Compute the marginal likelihood of the PC given the data, averaged over all inst
 marginal_log_likelihood_avg(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        weights = data[:, end]
-        data = data[:, 1:end - 1]
+        data, weights = split_sample_weights(data)
         
         marginal_log_likelihood_avg(pc, data, weights)
     else
