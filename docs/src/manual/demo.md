@@ -18,33 +18,21 @@ pc = 0.3 * (X1[1] *
 nothing # hide
 ```
 
-Let's plot the above circuit to get a better understanding of it.
-
-```@example demo
-using TikzPictures; # hide
-z = plot(pc); # hide
-mktempdir() do tmp  # hide
-    save(PDF("$tmp/tst"), z) # hide
-end # hide
-nothing # hide
-```
-
-```@example demo
-plot(pc)
-```
-
-The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
+We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
 
 ```@example demo
 using TikzPictures;
 z = plot(pc);
+save(PDF("plot"), z);
 save(SVG("plot"), z);
-# save(PDF("plot"), z);
-# save(TEX("plot"), z);
-# save(TIKZ("plot"), z);
+save(TEX("plot"), z);
+save(TIKZ("plot"), z);
+nothing # hide
 ```
 
-You can ask basic questions about PCs, such as (1) how many variables they depends on, (2) how many nodes, (3) how many edges , (4) or how many parameters they have.
+The output files from above command can be found here: [PDF](./plot.pdf), [SVG](./plot.svg), [TEX](./plot.tex), [TIKZ](./plot.tikz).
+
+You can ask basic questions about PCs, such as (1) how many variables they depends on, (2) how many nodes, (3) how many edges, (4) or how many parameters they have.
 
 ```@example demo
 num_variables(pc)
@@ -62,7 +50,7 @@ num_edges(pc)
 num_parameters(pc)
 ```
 
-In the case that we have literals as input units, PCs also can be thought of as a parameterized LogicCircuit (See `LogicCircuit.jl` docs for more details). To get the corresponding logical formula, we can:
+In the case that we have literals as input units, PCs can also be thought of as adding paramters to a LogicCircuit to define a distribution (See `LogicCircuit.jl` docs for more details). To get the corresponding logical formula, we can:
 
 ```@example demo
 tree_formula_string(pc)
