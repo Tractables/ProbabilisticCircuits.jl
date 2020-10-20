@@ -15,6 +15,7 @@ pc = 0.3 * (X1[1] *
      0.7 * (X1[2] *
              (0.4 * X2[2] + 0.6 * X3[1]));
 
+nothing # hide
 ```
 
 Let's plot the above circuit to get a better understanding of it.
@@ -25,7 +26,10 @@ z = plot(pc); # hide
 mktempdir() do tmp  # hide
     save(PDF("$tmp/tst"), z) # hide
 end # hide
+nothing # hide
+```
 
+```@example demo
 plot(pc)
 ```
 
@@ -34,12 +38,10 @@ The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, no
 ```@example demo
 using TikzPictures;
 z = plot(pc);
-mktempdir() do tmp
-    save(PDF("$tmp/plot"), z);
-    save(SVG("$tmp/plot"), z);
-    save(TEX("$tmp/plot"), z);
-    save(TIKZ("$tmp/plot"), z);
-end
+save(SVG("plot"), z);
+# save(PDF("plot"), z);
+# save(TEX("plot"), z);
+# save(TIKZ("plot"), z);
 ```
 
 You can ask basic questions about PCs, such as (1) how many variables they depends on, (2) how many nodes, (3) how many edges , (4) or how many parameters they have.
