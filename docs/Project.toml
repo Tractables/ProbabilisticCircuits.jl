@@ -4,6 +4,9 @@ DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterLaTeX = "cd674d7a-5f81-5cf3-af33-235ef1834b99"
 LogicCircuits = "a7847b3b-b7f1-4dd5-83c3-60e0aa0f8599"
+PGFPlots = "3b7a836e-365b-5785-a47d-02c71176b4aa"
+TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
+TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
 
 [compat]
 Documenter = "0.25"

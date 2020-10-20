@@ -15,6 +15,7 @@ const  pages = [
     "Home" => "index.md",
     "Installation" => "installation.md",
     "Manual" => [
+        "manual/demo.md",
         "manual/queries.md",
         "manual/learning.md"
     ],
