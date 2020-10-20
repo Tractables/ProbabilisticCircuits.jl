@@ -20,17 +20,14 @@ nothing # hide
 
 We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
 
-```@example demo
+```julia
 using TikzPictures;
 z = plot(pc);
 save(PDF("plot"), z);
 save(SVG("plot"), z);
 save(TEX("plot"), z);
 save(TIKZ("plot"), z);
-nothing # hide
 ```
-
-The output files from above command can be found here: [PDF](./plot.pdf), [SVG](./plot.svg), [TEX](./plot.tex), [TIKZ](./plot.tikz).
 
 You can ask basic questions about PCs, such as (1) how many variables they depends on, (2) how many nodes, (3) how many edges, (4) or how many parameters they have.
 
