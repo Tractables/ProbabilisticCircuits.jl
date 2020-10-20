@@ -177,3 +177,20 @@ end
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
 end
+
+@testset "Batched EM tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6])
+    wdfb = add_sample_weights(dfb, weights)
+    batched_wdfb = batch(wdfb)
+    
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    uniform_parameters(r)
+    
+    estimate_parameters(r, batched_wdfb; pseudocount=1.0)
+    paras1 = ParamBitCircuit(r, wdfb).params
+    uniform_parameters(r)
+    estimate_parameters_em(r, batched_wdfb; pseudocount=1.0)
+    paras2 = ParamBitCircuit(r, wdfb).params
+    @test all(paras1 .≈ paras2)
+end
