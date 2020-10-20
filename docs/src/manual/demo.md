@@ -18,7 +18,15 @@ pc = 0.3 * (X1[1] *
 nothing # hide
 ```
 
-We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
+We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. 
+
+```@example demo
+using TikzPictures  # hide
+TikzPictures.standaloneWorkaround(true)  # hide
+plot(pc);
+```
+
+However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
 
 ```julia
 using TikzPictures;
@@ -75,4 +83,3 @@ c1 = X1[1] * X2[1] + X1[1] * X2[2];
 c2 = X1[1] * X2[1] + X1[1] * X2[1]
 "Is $(tree_formula_string(c2)) deterministic? $(isdeterministic(c2))"
 ```
-
