@@ -67,6 +67,50 @@ end
     end
 end
 
+@testset "Batched MLE tests" begin
+    # Binary dataset
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    # Weighted binary dataset
+    weights = DataFrame(weight = [0.6, 0.6, 0.6])
+    wdfb = add_sample_weights(dfb, weights)
+    
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    
+    # Batched dataset
+    batched_wdfb = batch(wdfb, 1)
+    
+    estimate_parameters(r,batched_wdfb; pseudocount=1.0)
+    @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
+    @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
+    
+    estimate_parameters(r,batched_wdfb; pseudocount=0.0)
+    @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+    @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
+
+    if CUDA.functional()
+
+        # Binary dataset
+        dfb_gpu = to_gpu(dfb)
+        
+        # Weighted binary dataset
+        wdfb_gpu = to_gpu(wdfb)
+        
+        # Batched dataset
+        batched_wdfb_gpu = to_gpu(batch(wdfb, 1))
+        
+        estimate_parameters(r, batched_wdfb_gpu; pseudocount=1.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
+        
+        estimate_parameters(r, batched_wdfb_gpu; pseudocount=0.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
+
+    end
+end
+
 @testset "EM tests" begin
     data = DataFrame([true missing])
     vtree2 = PlainVtree(2, :balanced)
