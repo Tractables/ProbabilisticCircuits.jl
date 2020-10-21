@@ -84,10 +84,12 @@ end
     estimate_parameters(r,batched_wdfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
+    @test log_likelihood_avg(r,batched_wdfb) ≈ log_likelihood_avg(r,wdfb)
     
     estimate_parameters(r,batched_wdfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
+    @test log_likelihood_avg(r,batched_wdfb) ≈ log_likelihood_avg(r,wdfb)
 
     if CUDA.functional()
 

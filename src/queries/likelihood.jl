@@ -116,6 +116,9 @@ log_likelihood(pc, data, weights::AbstractArray) = begin
     end
     mapreduce(*, +, likelihoods, weights)
 end
+log_likelihood(pc, data::Array{DataFrame}) = begin
+    mapreduce(d -> log_likelihood(pc, d), +, data)
+end
 
 """
     log_likelihood_avg(pc, data)
@@ -138,4 +141,12 @@ log_likelihood_avg(pc, data, weights) = begin
         weights = to_cpu(weights)
     end
     log_likelihood(pc, data, weights) / sum(weights)
+end
+log_likelihood_avg(pc, data::Array{DataFrame}) = begin
+    if isweighted(data)
+        weights = get_weights(data)
+        log_likelihood(pc, data) / mapreduce(sum, +, weights)
+    else
+        log_likelihood(pc, data) / num_examples(data)
+    end
 end
