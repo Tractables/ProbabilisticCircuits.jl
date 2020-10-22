@@ -37,7 +37,10 @@ jobs:
             - libgconf2-4
             - texlive-fonts-recommended
             - texlive-fonts-extra
+            - fonts-lmodern
       script:
+        - luatex -v
+        - pdflatex -v
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
         - julia --project=docs/ docs/make.jl
       after_success: skip
