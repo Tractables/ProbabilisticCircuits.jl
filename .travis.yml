@@ -20,13 +20,24 @@ jobs:
         - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());'
 
     - stage: "Documentation"
+      addons:
+        apt:
+          packages:
+            - poppler-utils
+            - pdf2svg
+            - texlive-latex-base
+            - texlive-binaries
+            - texlive-pictures
+            - texlive-latex-extra
+            - texlive-luatex
+            - texlive-xetex
+            - ghostscript-x
+            - texlive-xetex
+            - latexmk
+            - libgconf2-4
+            - texlive-fonts-recommended
+            - texlive-fonts-extra
       script:
-        - sudo apt-get -qq update
-        - sudo apt-get install pdf2svg
-        - sudo apt-get install -y texlive-latex-recommended texlive-pictures  texlive-latex-extra texlive-luatex texlive-xetex latexmk
-        - sudo apt-get install -y texlive-base texlive-latex-base texlive-latex-extra texlive-fonts-recommended
-        - sudo apt-get install poppler-utils
-        - sudo apt-get install -y texlive-binaries
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
         - julia --project=docs/ docs/make.jl
       after_success: skip

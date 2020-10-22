@@ -29,6 +29,7 @@ save_as_dot
 learn_parameters
 learn_chow_liu_tree_circuit
 learn_circuit
+learn_strudel
 learn_circuit_mixture
 ```
 
