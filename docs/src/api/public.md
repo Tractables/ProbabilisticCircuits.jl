@@ -28,7 +28,8 @@ save_as_dot
 ```@docs
 learn_parameters
 learn_chow_liu_tree_circuit
-learn_single_model
+learn_circuit
+learn_circuit_mixture
 ```
 
 ## Circuit Queries

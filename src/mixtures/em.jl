@@ -1,5 +1,11 @@
-export one_step_em, component_weights_per_example, initial_weights, clustering,
-log_likelihood_per_instance_per_component, estimate_parameters_cached, learn_em_model
+export one_step_em, 
+    component_weights_per_example, 
+    initial_weights, 
+    clustering,
+    log_likelihood_per_instance_per_component, 
+    estimate_parameters_cached, 
+    learn_circuit_mixture, 
+    learn_strudel
 
 using Statistics: mean
 using LinearAlgebra: normalize!
@@ -104,22 +110,46 @@ function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matr
     end
 end
 
-function learn_em_model(pc, data;
+
+"""
+Learns a mixture of circuits
+
+    learn_strudel (train_x; init_maxiter = 10, em_maxiter=20)
+
+See Strudel: Learning Structured-Decomposable Probabilistic Circuits. https://arxiv.org/abs/2007.09331
+"""
+function learn_strudel(train_x; num_mix = 5,
+    pseudocount=1.0,
+    init_maxiter = 10, 
+    em_maxiter = 20)
+
+    pc = learn_circuit(train_x, maxiter=init_maxiter)
+    learn_circuit_mixture(pc, train_x; num_mix = num_mix, pseudocount= pseudocount, em_maxiter=em_maxiter)
+end  
+
+
+"""
+Given a circuit, learns a mixture of structure decomposable circuits based on that circuit
+
+    learn_circuit_mixture(pc, data; num_mix=5, pseudocount=1.0, maxiter=20)
+"""
+function learn_circuit_mixture(pc, data;
         num_mix=5,
         pseudocount=1.0,
-        maxiter=typemax(Int))
+        em_maxiter=20)
 
     spc = compile(SharedProbCircuit, pc, num_mix)
     values, flows = satisfies_flows(spc, data)
     component_weights = reshape(initial_weights(data, num_mix), 1, num_mix)
     estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows; pseudocount=pseudocount)
 
-
     lls = nothing
-    for iter in 1 : maxiter
+    for iter in 1 : em_maxiter
         @assert isapprox(sum(component_weights), 1.0; atol=1e-10)
         lls, component_weights = one_step_em(spc, data, values, flows, component_weights; pseudocount=pseudocount)
-        println("Log likelihood per instance is $(mean(lls))")
+        println("EM Iteration $iter/$em_maxiter. Log likelihood $(mean(lls))")
     end
-    lls, component_weights
+    spc, component_weights, lls
 end
+
+
