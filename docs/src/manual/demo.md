@@ -20,7 +20,7 @@ nothing # hide
 
 We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. 
 
-```@example demo
+```julia
 using TikzPictures  # workaround
 TikzPictures.standaloneWorkaround(true)  # workaround
 plot(pc);
