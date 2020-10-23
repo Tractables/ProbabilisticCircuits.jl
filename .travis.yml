@@ -38,9 +38,16 @@ jobs:
             - texlive-fonts-recommended
             - texlive-fonts-extra
             - fonts-lmodern
-      script:
+
+      before_install:
+        - sudo apt-get -qq update
+        - sudo apt-get install -y pdf2svg
+        - wget https://github.com/scottkosty/install-tl-ubuntu/raw/master/install-tl-ubuntu && chmod +x ./install-tl-ubuntu
+        - sudo ./install-tl-ubuntu -p test/texlive.profile
+        - PATH=$PATH:/opt/texbin
         - luatex -v
         - pdflatex -v
+      script:
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
         - julia --project=docs/ docs/make.jl
       after_success: skip
