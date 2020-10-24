@@ -26,9 +26,13 @@ choose_cache = [ 1.0 * binomial(i,j) for i=0:max_k+1, j=0:max_k+1 ]
 end
 
 
-# On Tractable Computation of Expected Predictions (https://arxiv.org/abs/1910.02182)
 """
+    Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
+    
+Compute Expected Prediction of a Logistic/Regression Circuit w.r.t to a ProbabilistcCircuit
+
 Missing values should be denoted by missing
+See: On Tractable Computation of Expected Predictions [arxiv.org/abs/1910.02182](https://arxiv.org/abs/1910.02182)
 """
 function Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
     # 1. Get probability of each observation
@@ -49,6 +53,11 @@ function Expectation(pc::ProbCircuit, lc::LogisticCircuit, data)
     results, cache
 end
 
+"""
+    Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
+
+Compute higher moments of Expected Prediction for the pair of Logistic/Regression Circuit, ProbabilistcCircuit
+"""
 function Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
     # 1. Get probability of each observation
     log_likelihoods = marginal(pc, data)

@@ -26,11 +26,11 @@ save_as_dot
 ## Learning Circuits
 
 ```@docs
-learn_parameters
-learn_chow_liu_tree_circuit
 learn_circuit
 learn_strudel
-learn_circuit_mixture
+estimate_parameters
+learn_parameters
+learn_chow_liu_tree_circuit
 ```
 
 ## Circuit Queries
@@ -38,6 +38,9 @@ learn_circuit_mixture
 ```@docs
 marginal
 max_a_posteriori
+sample
+Expectation
+Moment
 ```
 
 ## Compilation

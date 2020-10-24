@@ -112,11 +112,10 @@ end
 
 
 """
-Learns a mixture of circuits
+    learn_strudel(train_x; num_mix = 5, init_maxiter = 10, em_maxiter=20)
 
-    learn_strudel (train_x; init_maxiter = 10, em_maxiter=20)
-
-See Strudel: Learning Structured-Decomposable Probabilistic Circuits. https://arxiv.org/abs/2007.09331
+Learn a mixture of circuits
+See "Strudel: Learning Structured-Decomposable Probabilistic Circuits. [arxiv.org/abs/2007.09331](https://arxiv.org/abs/2007.09331)
 """
 function learn_strudel(train_x; num_mix = 5,
     pseudocount=1.0,

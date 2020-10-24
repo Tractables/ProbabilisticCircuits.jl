@@ -52,6 +52,8 @@ Computes Marginal log likelhood of data.
 const MAR = marginal
 
 """
+    marginal_log_likelihood(pc, data)
+    
 Compute the marginal likelihood of the PC given the data
 """
 marginal_log_likelihood(pc, data) = begin

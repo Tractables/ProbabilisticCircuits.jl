@@ -43,12 +43,12 @@ First, we randomly make some features go `missing`:
 
 ```@example queries
 using DataFrames
-function make_missing(d::DataFrame;keep_prob=0.8)    
-    m = missings(Bool, num_examples(d), num_features(d)) 
+function make_missing(d::DataFrame;keep_prob=0.8)
+    m = missings(Bool, num_examples(d), num_features(d))
     flag = rand(num_examples(d), num_features(d)) .<= keep_prob
-    m[flag] .= Matrix(d)[flag] 
-    DataFrame(m) 
-end; 
+    m[flag] .= Matrix(d)[flag]
+    DataFrame(m)
+end;
 data_miss = make_missing(data[1:1000,:]);
 nothing #hide
 ```
@@ -72,7 +72,8 @@ probs_mar ≈ probs_evi
 
 ## Conditionals (CON)
 
-In this case, given observed features ``x^o``, we would like to compute ``p(Q \mid x^o)``, where ``Q`` is a subset of features disjoint with ``x^o``. We can leverage Bayes rule to compute conditionals as two seperate MAR queries as follows:
+In this case, given observed features ``x^o``, we would like to compute ``p(Q \mid x^o)``, where ``Q`` is a subset of features disjoint with ``x^o``. 
+We can use Bayes rule to compute conditionals as two seperate MAR queries as follows:
 
 ```math
 p(q \mid x^o) = \cfrac{p(q, x^o)}{p(x^o)}
@@ -84,8 +85,7 @@ Currently, this has to be done manually by the user. We plan to add a simple API
 
 In this case, given the observed features ``x^o`` the goal is to fill out the missing features in a way that ``p(x^m, x^o)`` is maximized.
 
-
-We can use the [`MAP`](@ref) method to compute MAP, which outputs the states that maximize the probability and returns the probabilities themselves.
+We can use the [`MAP`](@ref) method to compute MAP, which outputs the states that maximize the probability and the log-likelihoods of each state.
 
 ```@example queries
 data_miss = make_missing(data,keep_prob=0.5);
@@ -93,8 +93,55 @@ states, probs = MAP(pc, data_miss);
 probs[1:3]
 ```
 
-## Probability of logical Events
+## Sampling
 
-## Expected Prediction
+We can also sample from the distrubtion ``p(x)`` defined by a Probabilistic Circuit. You can use [`sample`](@ref) to achieve this task.
 
-## Same Decision Probability
+```@example queries
+samples, lls = sample(pc, 100);
+lls[1:3]
+```
+
+Additionally, we can do conditional samples ``x \sim p(x \mid x^o)``, where ``x^o`` are the observed features (``x^o \subseteq x``), and could be any arbitrary subset of features.
+
+```@example queries
+#3 random evidences for the examples
+evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))))
+
+samples, lls = sample(pc, 3, evidence);
+lls
+```
+
+## Expected Prediction (EXP)
+
+Expected Prediction (EXP) is the task of taking expectation of a discrimintative model w.r.t a generative model conditioned on evidemce (subset of features observed).
+
+``\mathbb{E}_{x^m \sim p(x^m \mid x^o)} [ f(x^o x^m) ]``
+
+In the case where ``f`` and ``p`` are circuit, and some structural constrains for the pair, we can do this expectation and higher moments tractably. 
+You can use [`Expectation`](@ref) and [`Moment`](@ref) to compute the expectations.
+
+```@example queries
+using DataFrames
+
+pc = zoo_psdd("insurance.psdd")
+rc = zoo_lc("insurance.circuit", 1)
+
+# Using samples from circuit for the example; replace with real data
+data, _ = sample(pc, 10);
+data = make_missing(DataFrame(data));
+
+exps, exp_cache = Expectation(pc, rc, data)
+
+exps[1:3]
+```
+
+```@example queries
+second_moments, moment_cache = Moment(pc, rc, data, 2);
+exps[1:3]
+```
+
+```@example queries
+stds = sqrt.( second_moments - exps.^2 );
+stds[1:3]
+```
