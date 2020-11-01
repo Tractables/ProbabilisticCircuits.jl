@@ -44,7 +44,7 @@ function estimate_parameters_cached!(pc, bc, params)
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_probs .= params[els_start:els_end]
-                @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-4) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
+                @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-3) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
                 pn.log_probs .-= logsumexp(pn.log_probs) # normalize away any leftover error
             end
         end
@@ -74,6 +74,17 @@ function estimate_parameters_cpu_batched(bc::BitCircuit, data, pseudocount, node
     
     edge_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
     parent_node_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
+    println(typeof(weights))
+    
+    @inline function weighted_count_ones(bits::UInt64, start_idx::Number, end_idx::Number, weights)
+        count::Float64 = 0.0
+        op_bits::UInt64 = bits
+        @inbounds for idx = 0 : (end_idx - start_idx)
+            count += weights[start_idx + idx] * (op_bits & UInt64(0x1))
+            op_bits = (op_bits >> 1)
+        end
+        count
+    end
 
     @inline function on_node(flows, values, dec_id, weights::Nothing)
         node_counts[dec_id] = sum(1:size(flows,1)) do i
@@ -82,7 +93,8 @@ function estimate_parameters_cpu_batched(bc::BitCircuit, data, pseudocount, node
     end
     @inline function on_node(flows, values, dec_id, weights)
         node_counts[dec_id] = sum(1:size(flows,1)) do i
-            count_ones(flows[i, dec_id]) * weights[i]
+            # count_ones(flows[i, dec_id]) * weights[i]
+            weighted_count_ones(flows[i, dec_id], i * 64 - 63, min(i * 64, length(weights)), weights)
         end
     end
 
@@ -102,7 +114,9 @@ function estimate_parameters_cpu_batched(bc::BitCircuit, data, pseudocount, node
     @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child, weights)
         if !single_child
             edge_count = sum(1:size(flows,1)) do i
-                count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) * weights[i]
+                # count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) * weights[i]
+                weighted_count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa], 
+                                    i * 64 - 63, min(i * 64, length(weights)), weights)
             end
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
@@ -127,6 +141,16 @@ function estimate_parameters_cpu_not_batched(bc::BitCircuit, data, pseudocount, 
     end
     
     log_params::Vector{Float64} = Vector{Float64}(undef, num_elements(bc))
+    
+    @inline function weighted_count_ones(bits::UInt64, start_idx::Number, end_idx::Number)
+        count::Float64 = 0.0
+        op_bits::UInt64 = bits
+        @inbounds for idx = 0 : (end_idx - start_idx)
+            count += weights[start_idx + idx] * (op_bits & UInt64(0x1))
+            op_bits = (op_bits >> 1)
+        end
+        count
+    end
 
     @inline function on_node(flows, values, dec_id, weights::Nothing)
         node_counts[dec_id] = sum(1:size(flows,1)) do i
@@ -135,7 +159,8 @@ function estimate_parameters_cpu_not_batched(bc::BitCircuit, data, pseudocount, 
     end
     @inline function on_node(flows, values, dec_id, weights)
         node_counts[dec_id] = sum(1:size(flows,1)) do i
-            count_ones(flows[i, dec_id]) * weights[i]
+            # count_ones(flows[i, dec_id]) * weights[i]
+            weighted_count_ones(flows[i, dec_id], i * 64 - 63, min(i * 64, length(weights)))
         end
     end
 
@@ -157,7 +182,9 @@ function estimate_parameters_cpu_not_batched(bc::BitCircuit, data, pseudocount, 
     @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child, weights)
         if !single_child
             edge_count = sum(1:size(flows,1)) do i
-                count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) * weights[i]
+                # count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa]) * weights[i]
+                weighted_count_ones(values[i, prime] & values[i, sub] & flows[i, grandpa], 
+                                    i * 64 - 63, min(i * 64, length(weights)))
             end
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
@@ -188,8 +215,8 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
         c::Float32 = CUDA.count_ones(flow) # cast for @atomic to be happy
         CUDA.@atomic node_counts_device[dec_id] += c
     end
-    @inline function on_node(flows, values, dec_id, chunk_id, flow, weight::AbstractFloat)
-        c::Float32 = CUDA.count_ones(flow) * weight # cast for @atomic to be happy
+    @inline function on_node(flows, values, dec_id, bit_idx, flow, weight::Float32)
+        c::Float32 = ((flow >> bit_idx) & UInt64(0x1)) * weight # cast for @atomic to be happy
         CUDA.@atomic node_counts_device[dec_id] += c
     end
 
@@ -199,9 +226,9 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
             CUDA.@atomic edge_counts_device[element] += c
         end
     end
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weight::AbstractFloat)
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, bit_idx, edge_flow, single_child, weight::Float32)
         if !single_child
-            c::Float32 = CUDA.count_ones(edge_flow) * weight # cast for @atomic to be happy
+            c::Float32 = ((edge_flow >> bit_idx) & UInt64(0x1)) * weight # cast for @atomic to be happy
             CUDA.@atomic edge_counts_device[element] += c
         end
     end
@@ -373,7 +400,7 @@ function estimate_parameters_cpu_not_batched(pbc::ParamBitCircuit, data, pseudoc
 
     @inline function estimate(element, decision, edge_count)
         num_els = num_elements(bc.nodes, decision)
-        log_params[element] = 
+        @inbounds log_params[element] = 
             log((exp(edge_count)+pseudocount/num_els) / (exp(node_counts[decision])+pseudocount))
     end
 
@@ -381,7 +408,7 @@ function estimate_parameters_cpu_not_batched(pbc::ParamBitCircuit, data, pseudoc
         θ = eltype(flows)(pbc.params[element])
         if !single_child
             edge_flows = map(1:size(flows,1)) do i
-                f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
+                @inbounds f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ
                 f = ifelse(isnan(f), typemin(eltype(flows)), f)
             end
             edge_count = logsumexp(edge_flows)
@@ -392,7 +419,7 @@ function estimate_parameters_cpu_not_batched(pbc::ParamBitCircuit, data, pseudoc
         θ = eltype(flows)(pbc.params[element])
         if !single_child
             edge_flows = map(1:size(flows,1)) do i
-                f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ + log(weights[i])
+                @inbounds f = values[i, prime] + values[i, sub] - values[i, grandpa] + flows[i, grandpa] + θ + log(weights[i])
                 f = ifelse(isnan(f), typemin(eltype(flows)), f)
             end
             edge_count = logsumexp(edge_flows)
