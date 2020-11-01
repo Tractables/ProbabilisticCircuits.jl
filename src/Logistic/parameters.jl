@@ -4,7 +4,7 @@ using CUDA
 using LoopVectorization: @avx, vifelse
 
 """
-Parameter learning through gradient descents
+LogisticCircuit Parameter learning through gradient descents
 Note: data need to be DataFrame and Labels need to be in one-hot form.
 """
 function learn_parameters(lc::LogisticCircuit, nc::Int, data, labels; num_epochs=25, step_size=0.01)

@@ -52,6 +52,8 @@ Computes Marginal log likelhood of data.
 const MAR = marginal
 
 """
+    marginal_log_likelihood(pc, data)
+    
 Compute the marginal likelihood of the PC given the data
 """
 marginal_log_likelihood(pc, data) = begin
@@ -121,11 +123,12 @@ function init_marginal(data, reuse, num_nodes; Float=Float32)
     # here we should use a custom CUDA kernel to extract Float marginals from bit vectors
     # for now the lazy solution is to move everything to the CPU and do the work there...
     data_cpu = to_cpu(data)
-    for i=1:num_features(data)
+    nfeatures = num_features(data)
+    for i=1:nfeatures
         marg_pos::Vector{Float} = log.(coalesce.(data_cpu[:,i], one(Float)))
         marg_neg::Vector{Float} = log.(coalesce.(1.0 .- data_cpu[:,i], one(Float)))
         values[:,2+i] .= same_device(marg_pos, values)
-        values[:,2+num_features(data)+i] .= same_device(marg_neg, values)
+        values[:,2+nfeatures+i] .= same_device(marg_neg, values)
     end
     return values
 end

@@ -26,9 +26,11 @@ save_as_dot
 ## Learning Circuits
 
 ```@docs
+learn_circuit
+learn_strudel
+estimate_parameters
 learn_parameters
 learn_chow_liu_tree_circuit
-learn_single_model
 ```
 
 ## Circuit Queries
@@ -36,6 +38,9 @@ learn_single_model
 ```@docs
 marginal
 max_a_posteriori
+sample
+Expectation
+Moment
 ```
 
 ## Compilation

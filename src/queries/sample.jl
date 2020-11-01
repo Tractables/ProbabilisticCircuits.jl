@@ -7,7 +7,12 @@ import Random: default_rng
 # Circuit sampling
 #####################
 
-"Sample states from the circuit distribution."
+"""
+    sample(pc::ProbCircuit, num_samples)
+    sample(pc::ProbCircuit, num_samples, evidences)
+
+Sample states from the probabilistic circuit distribution. Also can do conditional sampling if evidence is given (any subset of features).
+"""
 function sample(pc::ProbCircuit; rng = default_rng())
     states, prs = sample(pc, 1, [missing for i=1:num_variables(pc)]...; rng)
     return states[1,:], prs[1]

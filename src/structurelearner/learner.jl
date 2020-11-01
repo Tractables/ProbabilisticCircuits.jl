@@ -1,19 +1,23 @@
-export learn_single_model
+export learn_circuit
 using LogicCircuits: split_step, struct_learn
 using Statistics: mean
 using Random
 """
-Learn structure decomposable circuits
+Learn structure of a single structured decomposable circuit
 """
-function learn_single_model(train_x;
+function learn_circuit(train_x;
         pick_edge="eFlow", pick_var="vMI", depth=1, 
         pseudocount=1.0,
         sanity_check=true,
-        maxiter=typemax(Int),
-        seed=1337)
+        maxiter=100,
+        seed=nothing,
+        return_vtree=false)
 
-    # init
-    Random.seed!(seed)
+    if seed !== nothing
+        Random.seed!(seed)
+    end
+
+    # Initial Structure
     pc, vtree = learn_chow_liu_tree_circuit(train_x)
 
     # structure_update
@@ -25,9 +29,8 @@ function learn_single_model(train_x;
     end
     iter = 0
     log_per_iter(circuit) = begin
-        ll = EVI(circuit, train_x)
-        println("Log likelihood of iteration $iter is $(mean(ll))")
-        println()
+        ll = EVI(circuit, train_x);
+        println("Iteration $iter/$maxiter. LogLikelihood = $(mean(ll)); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
         iter += 1
         false
     end
@@ -35,5 +38,11 @@ function learn_single_model(train_x;
     pc = struct_learn(pc; 
         primitives=[pc_split_step], kwargs=Dict(pc_split_step=>()), 
         maxiter=maxiter, stop=log_per_iter)
+
+    if return_vtree
+        pc, vtree
+    else
+        pc
+    end
 end
 
