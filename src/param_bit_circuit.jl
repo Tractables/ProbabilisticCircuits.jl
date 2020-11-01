@@ -8,6 +8,7 @@ end
 
 function ParamBitCircuit(pc::ProbCircuit, data; reset=true)
     logprobs::Vector{Float64} = Vector{Float64}()
+    sizehint!(logprobs, num_edges(pc))
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n) # this decision node is not part of the PC
             # @assert first_element == last_element

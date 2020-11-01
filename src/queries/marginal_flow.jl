@@ -3,7 +3,7 @@ using StatsFuns: logsumexp, log1pexp
 using CUDA: CUDA, @cuda
 using DataFrames: DataFrame
 using LoopVectorization: @avx
-using LogicCircuits: balance_threads
+using LogicCircuits: balance_threads, BitCircuit
 
 export marginal, MAR, marginal_all, marginal_log_likelihood, 
 marginal_log_likelihood_avg, marginal_flows, marginal_flows_down
@@ -137,7 +137,7 @@ end
 
 "Compute marginals on the CPU (SIMD & multi-threaded)"
 function marginal_layers(circuit::ParamBitCircuit, values::Matrix)
-    bc = circuit.bitcircuit
+    bc::BitCircuit = circuit.bitcircuit
     els = bc.elements
     pars = circuit.params
     for layer in bc.layers[2:end]
@@ -255,8 +255,8 @@ end
 "Evaluate marginals of the layers of a parameter bit circuit on the CPU (SIMD & multi-threaded)"
 function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values::Matrix, on_node, on_edge; weights = nothing)
     @assert flows !== values
-    circuit = pbc.bitcircuit 
-    els = circuit.elements   
+    circuit::BitCircuit = pbc.bitcircuit 
+    els = circuit.elements
     for layer in Iterators.reverse(circuit.layers)
         Threads.@threads for dec_id in layer
             par_start = @inbounds circuit.nodes[3,dec_id]
@@ -297,7 +297,7 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::Matrix, values:
 end
 
 function assign_marg_flow(f::Matrix{<:AbstractFloat}, v, d, g, s, θ)
-    @inbounds @simd for j in 1:size(f,1) #@avx gives incorrect results
+    @inbounds @simd for j=1:size(f,1) #@avx gives incorrect results
         edge_flow = v[j, s] + v[j, d] - v[j, g] + f[j, g] + θ
         edge_flow = ifelse(isnan(edge_flow), typemin(eltype(f)), edge_flow)
         f[j, d] = edge_flow 
@@ -306,7 +306,7 @@ function assign_marg_flow(f::Matrix{<:AbstractFloat}, v, d, g, s, θ)
 end
 
 function accum_marg_flow(f::Matrix{<:AbstractFloat}, d, g)
-    @avx for j=1:size(f,1) #@avx gives incorrect results
+    @inbounds @simd for j=1:size(f,1) #@avx gives incorrect results
         x = f[j, d]
         y = f[j, g]
         Δ = ifelse(x == y, zero(eltype(f)), abs(x - y))

@@ -127,7 +127,7 @@ end
     if CUDA.functional()
         data_gpu = to_gpu(data)
         
-        # TODO: fix estimate_parameter_em for gpu data
+        # uniform_parameters(pc)
         # estimate_parameters_em(pc, data_gpu; pseudocount=0.0)
         # @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
         # @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
