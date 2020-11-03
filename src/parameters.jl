@@ -6,8 +6,11 @@ using LoopVectorization
 
 """
 Maximum likilihood estimation of parameters given data
+
+use_gpu: If set to `true`, use gpu learning no matter which device `data` is in.
 """
-function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, use_sample_weights::Bool = true)
+function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
+                             use_sample_weights::Bool = true, use_gpu::Bool = false)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -17,7 +20,10 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, use_sa
     
     @assert isbinarydata(data) "Probabilistic circuit parameter estimation for binary data only"
     bc = BitCircuit(pc, data; reset=false)
-    params = if isgpu(data)
+    if isgpu(data)
+        use_gpu = true
+    end
+    params = if use_gpu
         if use_sample_weights
             estimate_parameters_gpu(to_gpu(bc), data, pseudocount; weights)
         else
@@ -74,7 +80,6 @@ function estimate_parameters_cpu_batched(bc::BitCircuit, data, pseudocount, node
     
     edge_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
     parent_node_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
-    println(typeof(weights))
     
     @inline function weighted_count_ones(bits::UInt64, start_idx::Number, end_idx::Number, weights)
         count::Float64 = 0.0
@@ -236,10 +241,16 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
     if isbatched(data)
         v, f = nothing, nothing
         map(zip(data, weights)) do (d, w)
-            v, f = satisfies_flows(bc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
+            if w != nothing
+                w = to_gpu(w)
+            end
+            v, f = satisfies_flows(to_gpu(bc), to_gpu(d), v, f; on_node = on_node, on_edge = on_edge, weights = w)
         end
     else
-        v, f = satisfies_flows(bc, data; on_node, on_edge, weights)
+        if weights != nothing
+            weights = to_gpu(weights)
+        end
+        v, f = satisfies_flows(to_gpu(bc), to_gpu(data); on_node = on_node, on_edge = on_edge, weights = weights)
     end
     
     CUDA.unsafe_free!(v) # save the GC some effort

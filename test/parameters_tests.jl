@@ -60,6 +60,10 @@ end
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
+        estimate_parameters(r, dfb; pseudocount=1.0, use_gpu=true)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
+        @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
+        
         estimate_parameters(r, wdfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
