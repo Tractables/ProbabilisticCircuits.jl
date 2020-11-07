@@ -14,6 +14,7 @@ include("Utils/Utils.jl")
 @reexport using .Utils
 
 include("abstract_prob_nodes.jl")
+include("shared_prob_nodes.jl")
 include("plain_prob_nodes.jl")
 include("structured_prob_nodes.jl")
 include("logistic_nodes.jl")
@@ -32,7 +33,6 @@ include("queries/expectation_graph.jl")
 include("Logistic/Logistic.jl")
 @reexport using .Logistic
 
-include("mixtures/shared_prob_nodes.jl")
 include("mixtures/em.jl")
 
 include("structurelearner/chow_liu_tree.jl")
