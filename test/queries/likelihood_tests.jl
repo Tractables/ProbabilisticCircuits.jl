@@ -44,3 +44,23 @@ include("../helper/gpu.jl")
     end
 
 end
+
+@testset "Bagging models' likelihood" begin
+    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
+    
+    r = compile(SharedProbCircuit, r, 2)
+    
+    estimate_parameters(r, bag_dfb; pseudocount = 1.0)
+    
+    ll = log_likelihood_per_instance(r, dfb)
+    @test ll[1] ≈ -0.2107210 atol = 1e-6
+    @test ll[2] ≈ -0.2107210 atol = 1e-6
+    @test ll[3] ≈ -0.2107210 atol = 1e-6
+    @test ll[4] ≈ -0.2107210 atol = 1e-6
+    
+    @test log_likelihood(r, dfb) ≈ -0.8428841 atol = 1e-6
+    
+    @test log_likelihood_avg(r, dfb) ≈ -0.2107210 atol = 1e-6
+end

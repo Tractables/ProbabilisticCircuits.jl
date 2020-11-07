@@ -6,8 +6,22 @@ export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 Compute the likelihood of the PC given each individual instance in the data
 """
 function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = false)
+    log_likelihood_per_instance_single_model(pc, data; use_gpu)
+end
+function log_likelihood_per_instance(spc::SharedProbCircuit, data; use_gpu::Bool = false)
+    get_single_model_ll(component_idx::Integer) = begin
+        log_likelihood_per_instance_single_model(spc, data; use_gpu, component_idx)
+    end
+    
+    mapreduce(get_single_model_ll, +, [1:num_components(spc);]) ./ num_components(spc)
+end
+function log_likelihood_per_instance_single_model(pc::ProbCircuit, data; use_gpu::Bool = false, component_idx::Integer = 0)
     @assert isbinarydata(data) "Probabilistic circuit likelihoods are for binary data only"
-    bc = ParamBitCircuit(pc, data)
+    if pc isa SharedProbCircuit
+        bc = ParamBitCircuit(pc, data; component_idx)
+    else
+        bc = ParamBitCircuit(pc, data)
+    end
     if isgpu(data)
         use_gpu = true
     end
@@ -201,8 +215,23 @@ log_likelihood(pc, data, weights::AbstractArray; use_gpu::Bool = false) = begin
     mapreduce(*, +, likelihoods, weights)
 end
 log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    if pc isa SharedProbCircuit && num_components(pc) == length(data)
+        total_ll = 0.0
+        for component_idx = 1 : num_components(pc)
+            total_ll += log_likelihood_batched(pc, data; use_gpu, component_idx)
+        end
+        total_ll
+    else
+        log_likelihood_batched(pc, data; use_gpu)
+    end
+end
+log_likelihood_batched(pc, data::Array{DataFrame}; use_gpu::Bool = false, component_idx::Integer = 0) = begin
     # mapreduce(d -> log_likelihood(pc, d; use_gpu), +, data)
-    bc = ParamBitCircuit(pc, data)
+    if pc isa SharedProbCircuit
+        pbc = ParamBitCircuit(pc, data; component_idx)
+    else
+        pbc = ParamBitCircuit(pc, data)
+    end
     
     total_ll::Float64 = 0.0
     if isweighted(data)
@@ -210,7 +239,7 @@ log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
         
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance_reuse(bc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance_reuse(pbc, data[idx], v, f; use_gpu)
             if isgpu(likelihoods)
                 likelihoods = to_cpu(likelihoods)
             end
@@ -223,7 +252,7 @@ log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
     else
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance_reuse(bc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance_reuse(pbc, data[idx], v, f; use_gpu)
             total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
         end
     end
@@ -259,13 +288,17 @@ log_likelihood_avg(pc, data, weights; use_gpu::Bool = false) = begin
     log_likelihood(pc, data, weights; use_gpu) / sum(weights)
 end
 log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
-    if isweighted(data)
-        weights = get_weights(data)
-        if isgpu(weights)
-            weights = to_cpu(weights)
-        end
-        log_likelihood(pc, data; use_gpu) / mapreduce(sum, +, weights)
+    if pc isa SharedProbCircuit && num_components(pc) == length(data)
+        mapreduce(idx -> log_likelihood_avg(pc, data[idx]; use_gpu), +, [1:num_components(pc);]) / num_components(pc)
     else
-        log_likelihood(pc, data; use_gpu) / num_examples(data)
+        if isweighted(data)
+            weights = get_weights(data)
+            if isgpu(weights)
+                weights = to_cpu(weights)
+            end
+            log_likelihood(pc, data; use_gpu) / mapreduce(sum, +, weights)
+        else
+            log_likelihood(pc, data; use_gpu) / num_examples(data)
+        end
     end
 end
