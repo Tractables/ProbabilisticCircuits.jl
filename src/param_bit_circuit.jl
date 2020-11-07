@@ -42,7 +42,21 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
     ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
 
-
+function ParamBitCircuit(spc::SharedProbCircuit, data; component_idx, reset = true)
+    logprobs::Vector{Float64} = Vector{Float64}()
+    sizehint!(logprobs, num_edges(spc))
+    on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
+        if isnothing(n) # this decision node is not part of the PC
+            # @assert first_element == last_element
+            push!(logprobs, 0.0)
+        else
+            # @assert last_element-first_element+1 == length(n.log_probs) 
+            append!(logprobs, n.log_probs[:, component_idx])
+        end
+    end
+    bc = BitCircuit(spc, data; reset=reset, on_decision)
+    ParamBitCircuit(bc, logprobs)
+end
 
 #######################
 ## Helper functions ###
