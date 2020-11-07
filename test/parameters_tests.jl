@@ -29,6 +29,21 @@ using CUDA: CUDA
 
 end
 
+@testset "Bagging tests" begin
+    # Binary dataset
+    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
+    
+    r = compile(SharedProbCircuit, r, 2)
+    
+    params = estimate_parameters(r, bag_dfb; pseudocount = 1.0)
+    @test all(abs.(params[1] .- params[2]) .< 1e-6)
+    
+    params = estimate_parameters(r, bag_dfb; pseudocount = 2.0)
+    @test all(abs.(params[1] .- params[2]) .< 1e-6)
+end
+
 @testset "Weighted MLE tests" begin
     # Binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false true]))

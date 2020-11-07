@@ -8,9 +8,26 @@ using LoopVectorization
 Maximum likilihood estimation of parameters given data
 
 use_gpu: If set to `true`, use gpu learning no matter which device `data` is in.
+
+bagging support: If `pc` is a SharedProbCircuit and data is an array of DataFrames
+  with the same number of "components", learn each circuit with its corresponding 
+  dataset.
 """
-function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
+function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
                              use_sample_weights::Bool = true, use_gpu::Bool = false)
+    estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu)
+end
+function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
+                             use_sample_weights::Bool = true, use_gpu::Bool = false)
+    @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
+    
+    map(1 : num_components(spc)) do component_idx
+        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, use_sample_weights, use_gpu, component_idx)
+    end
+end
+function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
+                                            use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                            component_idx::Integer = 0)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -36,11 +53,32 @@ function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
             estimate_parameters_cpu(bc, data, pseudocount)
         end
     end
-    estimate_parameters_cached!(pc, bc, params)
+    if pc isa SharedProbCircuit
+        estimate_parameters_cached!(pc, bc, params, component_idx)
+    else
+        estimate_parameters_cached!(pc, bc, params)
+    end
     params
 end
 
-function estimate_parameters_cached!(pc, bc, params)
+function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, component_idx)
+    foreach_reset(pc) do pn
+        if is⋁gate(pn)
+            if num_children(pn) == 1
+                pn.log_probs[:, component_idx] .= zero(Float64)
+            else
+                id = (pn.data::⋁NodeIds).node_id
+                @inbounds els_start = bc.nodes[1,id]
+                @inbounds els_end = bc.nodes[2,id]
+                @inbounds @views pn.log_probs[:, component_idx] .= params[els_start:els_end]
+                @assert isapprox(sum(exp.(pn.log_probs[:, component_idx])), 1.0, atol=1e-3) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
+                pn.log_probs[:, component_idx] .-= logsumexp(pn.log_probs[:, component_idx]) # normalize away any leftover error
+            end
+        end
+    end
+    nothing
+end
+function estimate_parameters_cached!(pc::ProbCircuit, bc, params)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
