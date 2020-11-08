@@ -205,7 +205,10 @@ end
     # Binary dataset
     dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
-    bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
+    # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
+    bag_dfb = Array{DataFrame}(undef, 2)
+    bag_dfb[1] = dfb[[2, 1, 3, 4], :]
+    bag_dfb[2] = dfb[[4, 3, 2, 1], :]
     
     r = compile(SharedProbCircuit, r, 2)
     
