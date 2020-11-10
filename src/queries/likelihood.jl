@@ -215,12 +215,12 @@ log_likelihood(pc, data, weights::AbstractArray; use_gpu::Bool = false) = begin
     mapreduce(*, +, likelihoods, weights)
 end
 log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
-    if pc isa SharedProbCircuit && num_components(pc) == length(data)
+    if pc isa SharedProbCircuit
         total_ll = 0.0
         for component_idx = 1 : num_components(pc)
             total_ll += log_likelihood_batched(pc, data; use_gpu, component_idx)
         end
-        total_ll
+        total_ll / num_components(pc)
     else
         log_likelihood_batched(pc, data; use_gpu)
     end
@@ -288,17 +288,13 @@ log_likelihood_avg(pc, data, weights; use_gpu::Bool = false) = begin
     log_likelihood(pc, data, weights; use_gpu) / sum(weights)
 end
 log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
-    if pc isa SharedProbCircuit && num_components(pc) == length(data)
-        mapreduce(idx -> log_likelihood_avg(pc, data[idx]; use_gpu), +, [1:num_components(pc);]) / num_components(pc)
-    else
-        if isweighted(data)
-            weights = get_weights(data)
-            if isgpu(weights)
-                weights = to_cpu(weights)
-            end
-            log_likelihood(pc, data; use_gpu) / mapreduce(sum, +, weights)
-        else
-            log_likelihood(pc, data; use_gpu) / num_examples(data)
+    if isweighted(data)
+        weights = get_weights(data)
+        if isgpu(weights)
+            weights = to_cpu(weights)
         end
+        log_likelihood(pc, data; use_gpu) / mapreduce(sum, +, weights)
+    else
+        log_likelihood(pc, data; use_gpu) / num_examples(data)
     end
 end
