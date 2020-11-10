@@ -53,6 +53,7 @@ function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::
             estimate_parameters_cpu(bc, data, pseudocount)
         end
     end
+    
     if pc isa SharedProbCircuit
         estimate_parameters_cached!(pc, bc, params, component_idx)
     else
@@ -278,11 +279,17 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
     
     if isbatched(data)
         v, f = nothing, nothing
-        map(zip(data, weights)) do (d, w)
-            if w != nothing
-                w = to_gpu(w)
+        if weights != nothing
+            map(zip(data, weights)) do (d, w)
+                if w != nothing
+                    w = to_gpu(w)
+                end
+                v, f = satisfies_flows(to_gpu(bc), to_gpu(d), v, f; on_node = on_node, on_edge = on_edge, weights = w)
             end
-            v, f = satisfies_flows(to_gpu(bc), to_gpu(d), v, f; on_node = on_node, on_edge = on_edge, weights = w)
+        else
+            map(data) do d
+                v, f = satisfies_flows(to_gpu(bc), to_gpu(d), v, f; on_node = on_node, on_edge = on_edge, weights = nothing)
+            end
         end
     else
         if weights != nothing
