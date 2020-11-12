@@ -1,8 +1,9 @@
-export mutual_information, set_mutual_information
+export pairwise_marginals, mutual_information, set_mutual_information
+
 using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
-using CUDA: CUDA, CuMatrix, CuVector
+using CUDA: CUDA, CuMatrix, CuVector, CuArray
 
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
@@ -18,7 +19,7 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 # Methods for pairwise and marginal distribution
 #####################
 
-#TODO: give a better name
+#TODO: give a better name; make this the default `pairwise_marginals` for all binary data on CPU?
 function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pairwise=true, marginal=true))
     
     # parameters
