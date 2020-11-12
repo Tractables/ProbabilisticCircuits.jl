@@ -5,7 +5,21 @@ using Random
 """
 Learn structure of a single structured decomposable circuit
 """
-function learn_circuit(train_x;
+function learn_circuit(train_x; 
+        pick_edge="eFlow", pick_var="vMI", depth=1, 
+        pseudocount=1.0,
+        sanity_check=true,
+        maxiter=100,
+        seed=nothing,
+        return_vtree=false)
+    
+    # Initial Structure
+    pc, vtree = learn_chow_liu_tree_circuit(train_x)
+    
+    learn_circuit(train_x, pc, vtree; pick_edge, pick_var, depth, pseudocount, sanity_check, 
+                  maxiter, seed, return_vtree)
+end
+function learn_circuit(train_x, pc, vtree;
         pick_edge="eFlow", pick_var="vMI", depth=1, 
         pseudocount=1.0,
         sanity_check=true,
@@ -16,9 +30,6 @@ function learn_circuit(train_x;
     if seed !== nothing
         Random.seed!(seed)
     end
-
-    # Initial Structure
-    pc, vtree = learn_chow_liu_tree_circuit(train_x)
 
     # structure_update
     loss(circuit) = heuristic_loss(circuit, train_x; pick_edge=pick_edge, pick_var=pick_var)
