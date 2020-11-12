@@ -38,7 +38,6 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
         end
     end
     bc = BitCircuit(lc, data; reset=reset, on_decision)
-    thetas_matrix = permutedims(hcat(thetas...), (2, 1))
     ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
 
