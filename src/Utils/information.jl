@@ -2,7 +2,7 @@ export mutual_information, set_mutual_information
 using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
-
+using CUDA: CUDA, CuMatrix, CuVector
 
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
