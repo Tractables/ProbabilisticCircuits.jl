@@ -3,6 +3,8 @@ using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
 
+
+
 "Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
     pairwise::Array{Float64}
@@ -16,6 +18,7 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 # Methods for pairwise and marginal distribution
 #####################
 
+#TODO: give a better name
 function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pairwise=true, marginal=true))
     
     # parameters
@@ -42,6 +45,85 @@ function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pa
         dis_cache.marginal[:, 2] = (sum(m .* w, dims=1).+ 2 * α) / base
     end
     dis_cache
+end
+
+"Compute an array giving all pairwise marginals estimated on empirical (weighted) data"
+function pairwise_marginals(data::Matrix, weights::Vector, num_cats = maximum(data); pseudocount = 1.0)
+    
+    @assert minimum(data) > 0 "Categorical data labels are assumed to be indexed starting 1"
+    num_vars = size(data,2)
+    pair_margs = Array{Float32}(undef, num_vars, num_vars, num_cats, num_cats)
+    Z = sum(weights) + pseudocount
+    single_smooth = pseudocount / num_cats
+    pair_smooth = single_smooth / num_cats
+    
+    for i = 1:num_vars 
+        Threads.@threads for j = 1:num_vars # note: multithreading needs to be on inner loop for thread-safe copying across diagonal
+            if i<=j
+                if i!=j
+                    @inbounds pair_margs[i,j,:,:] .= pair_smooth
+                else
+                    @inbounds pair_margs[i,j,:,:] .= zero(eltype(pair_margs))
+                    for l = 1:num_cats
+                        @inbounds pair_margs[i,j,l,l] = single_smooth
+                    end
+                end
+                @simd for k = 1:size(data,1) # @avx here gives incorrect results
+                    @inbounds pair_margs[i,j,data[k,i],data[k,j]] += weights[k]
+                end
+                @inbounds pair_margs[i,j,:,:] ./= Z
+            else
+                @inbounds pair_margs[i,j,:,:] .= (@view pair_margs[j,i,:,:])' 
+            end
+            nothing
+        end
+    end
+
+    return pair_margs
+end
+
+function pairwise_marginals(data::CuMatrix, weights::CuVector, num_cats = maximum(data); pseudocount = 1.0)
+    
+    @assert minimum(data) > 0 "Categorical data labels are assumed to be indexed starting 1"
+    num_vars = size(data,2)
+    pair_margs = CuArray{Float32}(undef, num_vars, num_vars, num_cats, num_cats)
+    Z = sum(weights) + pseudocount
+    single_smooth = pseudocount / num_cats
+    pair_smooth = single_smooth / num_cats
+    
+    data_device = CUDA.cudaconvert(data)
+    weights_device = CUDA.cudaconvert(weights)
+    pair_margs_device = CUDA.cudaconvert(pair_margs)
+
+    var_indices = CuArray(1:num_vars)
+    CUDA.@sync begin
+        broadcast(var_indices, var_indices') do i,j
+            if i <= j
+                if i!=j
+                    @inbounds pair_margs_device[i,j,:,:] .= pair_smooth
+                else
+                    @inbounds pair_margs_device[i,j,:,:] .= zero(Float32)
+                    for l = 1:num_cats
+                        @inbounds pair_margs_device[i,j,l,l] = single_smooth
+                    end
+                end
+                for k = 1:size(data_device,1)
+                    pair_margs_device[i,j,data_device[k,i],data_device[k,j]] += weights_device[k]
+                end
+            end
+            nothing
+        end
+        pair_margs ./= Z
+        broadcast(var_indices, var_indices') do i,j
+            if i > j
+                for l = 1:num_cats, m = 1:num_cats
+                    @inbounds pair_margs_device[i,j,l,m] = pair_margs_device[j,i,m,l] 
+                end
+            end
+            nothing
+        end
+    end
+    return pair_margs
 end
 
 #####################
