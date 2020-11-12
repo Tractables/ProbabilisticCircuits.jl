@@ -1,4 +1,4 @@
-export kl_divergence
+export kl_divergence, entropy
 
 const KLDCache = Dict{Tuple{ProbCircuit,ProbCircuit}, Float64}
 
