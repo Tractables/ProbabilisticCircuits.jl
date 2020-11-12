@@ -5,7 +5,7 @@ using DataFrames
 
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
-    EPS = 1e-5;
+    EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True expectation brute force
     true_exp = zeros(COUNT, CLASSES)
@@ -37,7 +37,7 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
 end
 
 function test_moment_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int, moment::Int)
-    EPS = 1e-5;
+    EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True moment brute force
     true_mom = zeros(COUNT, CLASSES)
