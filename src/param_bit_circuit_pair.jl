@@ -206,18 +206,12 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
             layer_id::NodePairId = zero(NodePairId)
             push!(parents, NodePairId[])
 
-            
-
             for i in 1:num_children(n)
                 for j in 1:num_children(m)
                     cur = results[i][j];  
                     layer_id = max(layer_id, cur.layer_id)
-
-                    # if !(children(m)[1] isa LogisticLeafNode)
                     last_el_id += one(NodePairId)
-                    # end
-
-
+                    
                     if typeof(cur) == ProdNodePairIds
                         push!(elements, last_dec_id, cur.left_left_id, cur.right_right_id, NodeId(i), NodeId(j));
                         @inbounds push!(parents[cur.left_left_id], last_el_id)
@@ -269,5 +263,53 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
 end
 
 
+######################
+## Helper Functions ##
+######################
+
+import LogicCircuits: num_nodes, num_elements, num_features, num_leafs, nodes, elements
+import LogicCircuits: to_gpu, to_cpu, isgpu #extend
+
+# most of this are identical with bitcircuit maybe make the BitCircuitPair a subtype of BitCircuit?
+nodes(c::BitCircuitPair) = c.nodes
+elements(c::BitCircuitPair) = c.elements
+
+num_nodes(c::BitCircuitPair) = size(c.nodes, 2)
+
+num_elements(c::BitCircuitPair) = size(c.elements, 2)
+
+to_gpu(c::BitCircuitPair) = 
+    BitCircuitPair(map(to_gpu, c.layers), to_gpu(c.nodes), to_gpu(c.elements), to_gpu(c.parents))
+
+to_cpu(c::BitCircuitPair) = 
+    BitCircuitPair(map(to_cpu, c.layers), to_cpu(c.nodes), to_cpu(c.elements), to_cpu(c.parents))
+
+isgpu(c::BitCircuitPair{<:CuArray,<:CuArray}) = true
+isgpu(c::BitCircuitPair{<:Array,<:Array}) = false
 
 
+#############################
+## Param Helper functions ###
+#############################
+
+pc_params(c::ParamBitCircuitPair) = c.pc_params
+lc_params(c::ParamBitCircuitPair) = c.lc_params
+
+num_nodes(c::ParamBitCircuitPair) = num_nodes(c.bcp)
+num_elements(c::ParamBitCircuitPair) = num_elements(c.bcp)
+num_features(c::ParamBitCircuitPair) = num_features(c.bcp)
+num_leafs(c::ParamBitCircuitPair) = num_leafs(c.bcp)
+
+nodes(c::ParamBitCircuitPair) = nodes(c.bcp)
+elements(c::ParamBitCircuitPair) = elements(c.bcp)
+
+
+to_gpu(c::ParamBitCircuitPair) = 
+    ParamBitCircuitPair(to_gpu(c.pc_bit), to_gpu(c.lc_bit),
+        to_gpu(c.bcp), to_gpu(c.pc_params), to_gpu(c.lc_params))
+
+to_cpu(c::ParamBitCircuitPair) = 
+    ParamBitCircuitPair(to_cpu(c.pc_bit), to_cpu(c.lc_bit), to_cpu(bcp), to_cpu(pc_params), to_cpu(lc_params))
+
+isgpu(c::ParamBitCircuitPair) = 
+    isgpu(c.pc_bit) && isgpu(c.lc_bit) && isgpu(c.bcp) && isgpu(pc_params) && isgpu(lc_params)
