@@ -1,0 +1,31 @@
+name: Unit Tests 
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: 
+  pull_request:
+  
+  workflow_dispatch:
+
+
+env:
+  DATADEPS_ALWAYS_ACCEPT: 1
+  JIVE_PROCS: 2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: 1.5
+
+      # Runs a single command using the runners shell
+      - name: Unit Tests
+        run: |
+          julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build();'
+          julia --project=test/ -e 'using Pkg; Pkg.instantiate(); Pkg.build();'
+          julia --project --check-bounds=yes --depwarn=error -e 'import Pkg; Pkg.test(; coverage=true)'
