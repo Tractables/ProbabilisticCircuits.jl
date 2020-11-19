@@ -49,7 +49,7 @@ function init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g,
     nfeatures = num_features(data)
 
     # TODO might not need to zero everything out, but was giving wrong answer 
-    # on reuse if only leaves are reset; 
+    # on gpu reuse if not; 
     fvalues[:,:] .= zero(Float)
     fgvalues[:,:,:] .= zero(Float)
 
@@ -105,10 +105,16 @@ function expectation_layers(circuit, fvalues::Array{<:AbstractFloat,2}, fgvalues
                     @inbounds LCZ = lc.nodes[1, lc_id] + B - 1
 
                     ## Compute fvalues[:, dec_id]
-                    
-                    @inbounds @fastmath @avx fvalues[:, dec_id] .+= pc_pars[PCZ] .* 
-                        fvalues[:, els[2,Z]] .* 
-                        fvalues[:, els[3,Z]]
+                    # @inbounds @fastmath @avx fvalues[:, dec_id] .+= pc_pars[PCZ] .* 
+                    #     fvalues[:, els[2,Z]] .* 
+                    #     fvalues[:, els[3,Z]]
+
+                    # The for loops are faster, cause much less memory needed
+                    # @avx throws error, not sure why
+                    for j=1:size(fvalues,1)
+                        @inbounds fvalues[j, dec_id] += pc_pars[PCZ] * fvalues[j, els[2,Z]] * fvalues[j, els[3,Z]]
+                    end
+
 
                     ## Compute fgvalues[:, dec_id, :]
                     if els[3,Z] == els[2,Z]
@@ -117,15 +123,31 @@ function expectation_layers(circuit, fvalues::Array{<:AbstractFloat,2}, fgvalues
                             transpose(lc_pars[LCZ,:]) .* 
                             fvalues[:, dec_id] 
                     else
-                        @inbounds @fastmath @avx fgvalues[:, dec_id, :] .+=  
-                            pc_pars[PCZ] .* 
-                            transpose(lc_pars[LCZ,:]) .* 
-                            (fvalues[:, els[2,Z]] .* fvalues[:, els[3,Z]])
+                        # @inbounds @fastmath @avx fgvalues[:, dec_id, :] .+=  
+                        #     pc_pars[PCZ] .* 
+                        #     transpose(lc_pars[LCZ,:]) .* 
+                        #     (fvalues[:, els[2,Z]] .* fvalues[:, els[3,Z]])
 
-                        @inbounds @fastmath @avx fgvalues[:, dec_id, :] .+= 
-                            pc_pars[PCZ] .* 
-                            ((fvalues[:, els[3,Z]] .* fgvalues[:, els[2,Z], :]) .+ 
-                            (fvalues[:, els[2,Z]] .* fgvalues[:, els[3,Z], :]))
+                        # @inbounds @fastmath @avx fgvalues[:, dec_id, :] .+= 
+                        #     pc_pars[PCZ] .* 
+                        #     ((fvalues[:, els[3,Z]] .* fgvalues[:, els[2,Z], :]) .+ 
+                        #     (fvalues[:, els[2,Z]] .* fgvalues[:, els[3,Z], :]))
+
+                        # The for loops are faster, cause much less memory needed
+                        # @avx throws error, not sure why
+                        @simd for j=1:size(fgvalues,1)
+                            @simd for nc=1:size(fgvalues, 3)
+                                @inbounds @fastmath fgvalues[j, dec_id, nc] +=  
+                                    pc_pars[PCZ] * 
+                                    lc_pars[LCZ,nc] * 
+                                    (fvalues[j, els[2,Z]] * fvalues[j, els[3,Z]])
+
+                                @inbounds @fastmath fgvalues[j, dec_id, nc] += 
+                                    pc_pars[PCZ] * 
+                                    ((fvalues[j, els[3,Z]] * fgvalues[j, els[2,Z], nc]) + 
+                                    (fvalues[j, els[2,Z]] * fgvalues[j, els[3,Z], nc]))
+                            end
+                        end                        
                     end
                     
                 end # B
@@ -199,12 +221,12 @@ function expectation_layers_cuda(layer, nodes, els,
                         end
                     else
                         for class=1:num_classes
-                            fgvalues[j, dec_id, class] +=  
+                            @inbounds fgvalues[j, dec_id, class] +=  
                                 pc_pars[PCZ] * 
                                 lc_pars[LCZ,class] * 
                                 (fvalues[j, els[2,Z]] * fvalues[j, els[3,Z]])
                         
-                            fgvalues[j, dec_id, class] += 
+                            @inbounds fgvalues[j, dec_id, class] += 
                                 pc_pars[PCZ] * 
                                 ((fvalues[j, els[3,Z]] * fgvalues[j, els[2,Z], class]) + 
                                 (fvalues[j, els[2,Z]] * fgvalues[j, els[3,Z], class]))

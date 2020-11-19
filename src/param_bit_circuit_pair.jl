@@ -34,7 +34,7 @@ end
 
 
 const NODES_LENGTH = 6
-const ELEMENTS_LENGTH = 5
+const ELEMENTS_LENGTH = 3
 
 """
 A bit circuit pair is a low-level representation of pairs of nodes traversed for a pair of probabilistic circuit logical circuit structure.
@@ -63,8 +63,6 @@ Elements are represented by a 5xE matrix, where
   * elements[1,:] is the Product pair node id,
   * elements[2,:] is the (left,left) child node id 
   * elements[3,:] is the (right right) child node id 
-  * elements[4,:] i for debugging, remove later (can assume the child ordering)
-  * elements[5,:] j
 """
 struct BitCircuitPair{V,M}#, WPC, WLC}
     layers::Vector{V}
@@ -213,12 +211,12 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
                     last_el_id += one(NodePairId)
                     
                     if typeof(cur) == ProdNodePairIds
-                        push!(elements, last_dec_id, cur.left_left_id, cur.right_right_id, NodeId(i), NodeId(j));
+                        push!(elements, last_dec_id, cur.left_left_id, cur.right_right_id);
                         @inbounds push!(parents[cur.left_left_id], last_el_id)
                         @inbounds push!(parents[cur.right_right_id], last_el_id)
                     else
                         @assert children(m)[1] isa LogisticLeafNode
-                        push!(elements, last_dec_id, cur.node_id, cur.node_id, NodeId(i), NodeId(j));
+                        push!(elements, last_dec_id, cur.node_id, cur.node_id);
                         @inbounds push!(parents[cur.node_id], last_el_id)
                         @inbounds push!(parents[cur.node_id], last_el_id)
                     end
