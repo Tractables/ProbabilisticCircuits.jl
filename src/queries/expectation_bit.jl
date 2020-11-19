@@ -12,66 +12,71 @@ function ExpectationBit(pc::ProbCircuit, lc::LogisticCircuit, data)
     ExpectationBit(pbc, pc, lc, data);
 end
 
-function ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticCircuit, data)
+function ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticCircuit, data, reuse_f=nothing, reuse_g=nothing)
     # 1. Get probability of each observation
+    
     parambit = ParamBitCircuit(pbc.pc_bit, pbc.pc_params);
     log_likelihoods = MAR(parambit, data);
     p_observed = exp.( log_likelihoods )
     
     # 2. Expectation w.r.t. P(x_m, x_o)
-    fvalues, gvalues = init_expectations(pbc, data, nothing, nothing, size(pbc.bcp.nodes)[2], num_classes(lc))
-
+    fvalues, gvalues = init_expectations(pbc, data, reuse_f, reuse_g, size(pbc.bcp.nodes)[2], num_classes(lc))
     expectation_layers(pbc, fvalues, gvalues)
-    results_unnormalized = gvalues[:, end,:]
 
     # 3. Expectation w.r.t P(x_m | x_o)
-    results = results_unnormalized ./ p_observed
-    
-    if isgpu(results)
-        results = to_cpu(results)
-    end
+    results = gvalues[:, end,:] ./ p_observed
     
     # # 4. Add Bias terms
-    biases = lc.thetas
+    biases = if isgpu(results)
+        biases = to_gpu(lc.thetas)
+    else
+        biases = lc.thetas
+    end
     results .+= biases
     
     results, fvalues, gvalues, pbc
 end
 
-function init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g, nodes_num, classes_num; Float=Float32)
-    flowtype = Array{Float} #isgpu(data) ? CuArray{Float} : Array{Float}
+
+function init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g, nodes_num, classes_num; Float = Float32)
+    flowtype = isgpu(data) ? CuArray{Float} : Array{Float}
+    @assert isgpu(data) == isgpu(circuit)
+    
     fvalues = similar!(reuse_f, flowtype, num_examples(data), nodes_num)
     fgvalues = similar!(reuse_g, flowtype, num_examples(data), nodes_num, classes_num)
 
     # This is all only O(nfeatures) so was not worth doing parallization or on GPU
-    data_cpu = to_cpu(data)
     nfeatures = num_features(data)
 
+    # TODO might not need to zero everything out, but was giving wrong answer 
+    # on reuse if only leaves are reset; 
     fvalues[:,:] .= zero(Float)
     fgvalues[:,:,:] .= zero(Float)
 
     PARS = circuit.lc_params
     for var=1:nfeatures
-        fvalues[.!isequal.(data_cpu[:, var], 0), var] .= one(Float)
-        fvalues[.!isequal.(data_cpu[:, var], 1), var + 3*nfeatures] .= one(Float)
+        # even if data is on gpu this might become on cpu (eg when data is dataframe)
+        temp_cpu = .!isequal.(data[:, var], 0) .* one(Float)
+        fvalues[:, var] .= same_device(temp_cpu, data)
 
+        temp_cpu .= .!isequal.(data[:, var], 1) .* one(Float)
+        fvalues[:, var + 3*nfeatures] .= same_device(temp_cpu, data)
+    end
+
+    for var=1:nfeatures
         ind2 = var + 3*nfeatures
         # find the index of correct paramter to grab from LogisticCircuit
         p_ind = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var]]
         p_ind2 = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var+nfeatures]]
 
         for cc=1:classes_num
-            fgvalues[:, var, cc] .= (fvalues[:, var] .* PARS[p_ind,cc])
-            fgvalues[:, ind2, cc] .= (fvalues[:, ind2] .* PARS[p_ind2,cc])
+            fgvalues[:, var, cc] .= (fvalues[:, var] .* PARS[p_ind, cc])
+            fgvalues[:, ind2, cc] .= (fvalues[:, ind2] .* PARS[p_ind2, cc])
         end
     end
-
-    if isgpu(data)
-        return to_gpu(fvalues), to_gpu(fgvalues)
-    else
-        return fvalues, fgvalues
-    end
+    return fvalues, fgvalues
 end
+
 
 function expectation_layers(circuit, fvalues::Array{<:AbstractFloat,2}, fgvalues::Array{<:AbstractFloat,3})
     bcp::BitCircuitPair = circuit.bcp

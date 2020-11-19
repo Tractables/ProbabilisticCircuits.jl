@@ -309,7 +309,7 @@ to_gpu(c::ParamBitCircuitPair) =
         to_gpu(c.bcp), to_gpu(c.pc_params), to_gpu(c.lc_params))
 
 to_cpu(c::ParamBitCircuitPair) = 
-    ParamBitCircuitPair(to_cpu(c.pc_bit), to_cpu(c.lc_bit), to_cpu(bcp), to_cpu(pc_params), to_cpu(lc_params))
+    ParamBitCircuitPair(to_cpu(c.pc_bit), to_cpu(c.lc_bit), to_cpu(c.bcp), to_cpu(c.pc_params), to_cpu(c.lc_params))
 
 isgpu(c::ParamBitCircuitPair) = 
-    isgpu(c.pc_bit) && isgpu(c.lc_bit) && isgpu(c.bcp) && isgpu(pc_params) && isgpu(lc_params)
+    isgpu(c.pc_bit) && isgpu(c.lc_bit) && isgpu(c.bcp) && isgpu(c.pc_params) && isgpu(c.lc_params)
