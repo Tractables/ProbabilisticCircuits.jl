@@ -33,13 +33,13 @@ Make sure to run the tests before commiting new code.
 
 To run all the tests:
 
-    julia --project=test --color=yes test/runtests.jl
+    JIVE_PROCS=8 julia --project=test --color=yes test/runtests.jl
 
 You can also run a specific test:
 
-    julia --project=test --color=yes test/aqua_test.jl
+    julia --project=test --color=yes test/parameters_tests.jl
     
-   ## Releasing New Versions
+## Releasing New Versions
 
 Only do this for when the repo is in stable position, and we have decent amount of changes from previous version.
 
