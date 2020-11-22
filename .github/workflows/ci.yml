@@ -31,6 +31,8 @@ jobs:
           julia --project --check-bounds=yes --depwarn=error -e 'import Pkg; Pkg.test(; coverage=true)'
       
       - name: Docs Build
+        env:
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
         run: |
           sudo apt-get -qq update
           sudo apt install -y pdf2svg texlive-latex-base texlive-binaries texlive-pictures texlive-latex-extra texlive-luatex    
