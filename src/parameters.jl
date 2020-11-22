@@ -191,8 +191,14 @@ function estimate_parameters_cpu_batched(bc::BitCircuit, data, pseudocount, node
     end
 
     v, f = nothing, nothing
-    map(zip(data, weights)) do (d, w)
-        v, f = satisfies_flows(bc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
+    if weights != nothing
+        map(zip(data, weights)) do (d, w)
+            v, f = satisfies_flows(bc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
+        end
+    else
+        map(data) do d
+            v, f = satisfies_flows(bc, d, v, f; on_node = on_node, on_edge = on_edge, weights = nothing)
+        end
     end
     
     # Reuse `edge_counts` to store log_params to save space and time.
