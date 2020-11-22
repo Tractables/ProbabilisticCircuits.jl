@@ -48,7 +48,7 @@ function heuristic_loss(circuit::LogicCircuit, train_x; pick_edge="eFlow", pick_
     end
     
     candidates, variable_scope = split_candidates(circuit)
-    values, flows = satisfies_flows(circuit, train_x; weights)
+    values, flows = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here
     if pick_edge == "eFlow"
         edge, flow = eFlow(values, flows, candidates)
     elseif pick_edge == "eRand"
