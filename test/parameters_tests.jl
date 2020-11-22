@@ -117,6 +117,47 @@ end
     end
 end
 
+@testset "Soft MLE test" begin
+    # Weighted binary dataset
+    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = soften(dfb, 0.001; scale_by_marginal = false)
+    weights = DataFrame(weight = [0.6, 0.6, 0.6])
+    wdfb = add_sample_weights(dfb, weights)
+    
+    # Binary dataset
+    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = soften(dfb, 0.001; scale_by_marginal = false)
+    
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    estimate_parameters(r, dfb; pseudocount=0.0)
+    @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+    @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+    
+    estimate_parameters(r, wdfb; pseudocount=0.0)
+    @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+    @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+    
+    if CUDA.functional()
+        estimate_parameters(r, to_gpu(dfb); pseudocount=0.0)
+        @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+        @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+        
+        estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
+        @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+        @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+    end
+    
+end
+
 @testset "EM tests" begin
     data = DataFrame([true missing])
     vtree2 = PlainVtree(2, :balanced)
