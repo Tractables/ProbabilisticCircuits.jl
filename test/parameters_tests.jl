@@ -118,6 +118,18 @@ end
 end
 
 @testset "Soft MLE test" begin
+    # Batched binary dataset
+    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = soften(dfb, 0.001; scale_by_marginal = false)
+    batched_dfb = batch(dfb, 1)
+    
+    # Batched weighted binary dataset
+    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = soften(dfb, 0.001; scale_by_marginal = false)
+    weights = DataFrame(weight = [0.6, 0.6, 0.6])
+    wdfb = add_sample_weights(dfb, weights)
+    batched_wdfb = batch(wdfb, 1)
+    
     # Weighted binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
@@ -142,6 +154,18 @@ end
     @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
     
+    estimate_parameters(r, batched_dfb; pseudocount=0.0)
+    @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+    @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+    
+    estimate_parameters(r, batched_wdfb; pseudocount=0.0)
+    @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+    @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+    @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+    
     if CUDA.functional()
         estimate_parameters(r, to_gpu(dfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
@@ -150,6 +174,18 @@ end
         @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
         
         estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
+        @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+        @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+        
+        estimate_parameters(r, to_gpu(batched_dfb); pseudocount=0.0)
+        @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
+        @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
+        @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
+
+        estimate_parameters(r, to_gpu(batched_wdfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
         @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
