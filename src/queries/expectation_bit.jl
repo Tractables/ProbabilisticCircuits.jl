@@ -4,23 +4,35 @@ using LoopVectorization: @avx
 
 export ExpectationBit
 
-function ExpectationBit(pc::ProbCircuit, lc::LogisticCircuit, data)
-    pbc = ParamBitCircuitPair(pc, lc, data);
+
+"""
+    ExpectationBit(pc::ProbCircuit, lc::LogisticCircuit, data)
+    ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticCircuit, data)
+    
+Compute Expected Prediction of a Logistic/Regression Circuit w.r.t to a ProbabilistcCircuit.
+Uses the BitCircuitPair implementation, which enables parrallism on both CPU/GPU.
+If the data is on gpu the gpu version will get called (repectively for cpu.)
+
+Missing values should be denoted by missing
+See: On Tractable Computation of Expected Predictions [arxiv.org/abs/1910.02182](https://arxiv.org/abs/1910.02182)
+"""
+function ExpectationBit(pc::ProbCircuit, lc::LogisticCircuit, data; return_aux = false)
+    # children(lc)[1]: Currently root of LC's are for bias values and not a real sum node, so should be skipped.
+    pbc = ParamBitCircuitPair(pc, children(lc)[1]);
     if isgpu(data)
         pbc = to_gpu(pbc)
     end
-    ExpectationBit(pbc, pc, lc, data);
+    ExpectationBit(pbc, pc, lc, data; return_aux);
 end
 
-function ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticCircuit, data, reuse_f=nothing, reuse_g=nothing)
+function ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticCircuit, data, reuse_f=nothing, reuse_g=nothing; return_aux=true)
     # 1. Get probability of each observation
-    
-    parambit = ParamBitCircuit(pbc.pc_bit, pbc.pc_params);
+    parambit::ParamBitCircuit = ParamBitCircuit(pbc.pc_bit, pbc.pc_params);
     log_likelihoods = MAR(parambit, data);
     p_observed = exp.( log_likelihoods )
     
     # 2. Expectation w.r.t. P(x_m, x_o)
-    fvalues, gvalues = init_expectations(pbc, data, reuse_f, reuse_g, size(pbc.bcp.nodes)[2], num_classes(lc))
+    fvalues, gvalues = init_expectations(pbc, data, reuse_f, reuse_g, size(pbc.pair_bit.nodes)[2], num_classes(lc))
     expectation_layers(pbc, fvalues, gvalues)
 
     # 3. Expectation w.r.t P(x_m | x_o)
@@ -34,18 +46,25 @@ function ExpectationBit(pbc::ParamBitCircuitPair, pc::ProbCircuit, lc::LogisticC
     end
     results .+= biases
     
-    results, fvalues, gvalues, pbc
+    if return_aux
+        results, fvalues, gvalues, pbc
+    else
+        results
+    end
 end
 
+"""
+    init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g, nodes_num, classes_num; Float = Float32)
 
+    Initialized the input layer for `fvalues` and `gvalues`. 
+    To reduce memory allocation can pass `reuse_f` and `reuse_g` to get reused (very useful during batching).
+"""
 function init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g, nodes_num, classes_num; Float = Float32)
     flowtype = isgpu(data) ? CuArray{Float} : Array{Float}
     @assert isgpu(data) == isgpu(circuit)
     
     fvalues = similar!(reuse_f, flowtype, num_examples(data), nodes_num)
     fgvalues = similar!(reuse_g, flowtype, num_examples(data), nodes_num, classes_num)
-
-    # This is all only O(nfeatures) so was not worth doing parallization or on GPU
     nfeatures = num_features(data)
 
     # TODO might not need to zero everything out, but was giving wrong answer 
@@ -79,7 +98,7 @@ end
 
 
 function expectation_layers(circuit, fvalues::Array{<:AbstractFloat,2}, fgvalues::Array{<:AbstractFloat,3})
-    bcp::BitCircuitPair = circuit.bcp
+    bcp::BitCircuitPair = circuit.pair_bit
     pc::BitCircuit = circuit.pc_bit
     lc::BitCircuit = circuit.lc_bit
     els = bcp.elements
@@ -162,7 +181,7 @@ function expectation_layers(circuit::ParamBitCircuitPair,
     fvalues::CuArray, fgvalues::CuArray; 
     dec_per_thread = 8, log2_threads_per_block = 8)
 
-    bcp = circuit.bcp
+    bcp = circuit.pair_bit
     pc_pars = exp.(circuit.pc_params)
 
     CUDA.@sync for layer in bcp.layers[2:end]

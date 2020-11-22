@@ -55,34 +55,35 @@ Nodes are represented as a 6xN matrix where
   * nodes[5,:] is the id of corresponding node from the PC (first circuit)
   * nodes[6,:] is the id of corresponding node from the LC (first circuit)
 
-
-  Elements belonging to node pair `i` are `elements[:, nodes[1,i]:nodes[2,i]]` 
-  Parents belonging to node pair `i` are `parents[nodes[3,i]:nodes[4,i]]`
-
-Elements are represented by a 5xE matrix, where 
+Elements are represented by a 3xE matrix, where 
   * elements[1,:] is the Product pair node id,
   * elements[2,:] is the (left,left) child node id 
   * elements[3,:] is the (right right) child node id 
+
+  Elements belonging to node pair `i` are `elements[:, nodes[1,i]:nodes[2,i]]` 
+
+Parents are represented as a one dimentional array  
+    Parents belonging to node pair `i` are `parents[nodes[3,i]:nodes[4,i]]`
+
 """
-struct BitCircuitPair{V,M}#, WPC, WLC}
+struct BitCircuitPair{V,M}
     layers::Vector{V}
     nodes::M
     elements::M
     parents::V
 end
 
-
 struct ParamBitCircuitPair{V,M, WPC, WLC}
     pc_bit::BitCircuit{V,M}
     lc_bit::BitCircuit{V,M}
-    bcp::BitCircuitPair{V,M}
+    pair_bit::BitCircuitPair{V,M}
     pc_params::WPC
     lc_params::WLC
 end
 
-function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit, data; reset=true)
-    pc_thetas::Vector{Float64} = Vector{Float64}()
-    lc_thetas::Vector{Vector{Float32}} = Vector{Vector{Float32}}()
+function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, Float=Float32)
+    pc_thetas::Vector{Float} = Vector{Float}()
+    lc_thetas::Vector{Vector{Float}} = Vector{Vector{Float}}()
 
     sizehint!(pc_thetas, num_edges(pc))
 
@@ -90,10 +91,9 @@ function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit, data; reset=t
     lc_cache = Dict{Node, NodeId}() # only for sum nodes
 
     lc_num_classes = num_classes(lc);
-
     pc_on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n) # this decision node is not part of the PC
-            push!(pc_thetas, 0.0)
+            push!(pc_thetas, zero(Float))
         else
             pc_cache[n] = decision_id
             append!(pc_thetas, n.log_probs)
@@ -116,21 +116,24 @@ function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit, data; reset=t
         nothing
     end
 
-    pc_bit = BitCircuit(pc, data; reset=reset, on_decision=pc_on_decision)
-    lc_bit = BitCircuit(lc, data; reset=reset, on_decision=lc_on_decision)
-    bcp = BitCircuitPair(pc, lc; reset, on_sum_callback = pbc_callback, pc_cache, lc_cache)
+    pc_bit = BitCircuit(pc, num_variables(pc); reset=reset, on_decision=pc_on_decision)
+    lc_bit = BitCircuit(lc, num_variables(pc); reset=reset, on_decision=lc_on_decision)
+    bcp = BitCircuitPair(pc, lc; on_sum_callback = pbc_callback, pc_cache, lc_cache)
     
     lc_thetas_reshaped = permutedims(hcat(lc_thetas...), (2, 1))
-
     ParamBitCircuitPair(pc_bit, lc_bit, bcp, pc_thetas, lc_thetas_reshaped)
 end
 
 
-function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum_callback=noop, 
-    pc_cache=nothing, lc_cache=nothing)
+function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; 
+    on_sum_callback=noop, 
+    pc_cache=nothing, lc_cache=nothing, property_check=false)
 
-    @assert num_variables(pc) == num_variables(lc)
-    # TODO check if they both have same vtree
+    if property_check
+        @assert num_variables(pc) == num_variables(lc)
+        vtree1::Vtree = infer_vtree(pc);
+        @assert respects_vtree(lc, vtree1);
+    end
 
     num_features = num_variables(pc)
     num_leafs = 4*num_features
@@ -138,13 +141,13 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
     nodes::Vector{NodePairId} = zeros(NodePairId, NODES_LENGTH*num_leafs)
     elements::Vector{NodePairId} = NodePairId[]
     parents::Vector{Vector{NodePairId}} = Vector{NodePairId}[NodePairId[] for i = 1:num_leafs]
-    last_dec_id::NodePairId = 4*num_features
+    last_dec_id::NodePairId = num_leafs
     last_el_id::NodePairId = zero(NodePairId)
 
     cache = Dict{Pair{Node, Node}, NodePairIds}()
 
     func(n,m) = begin
-        throw("This should not happen!! $n, $m")
+        throw("Unsupported pair of nodes!! $n, $m")
     end
 
     function func(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, 
@@ -188,22 +191,21 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
                     m::Logistic⋁Node)::NodePairIds
         
         get!(cache, Pair(n, m)) do 
-            
-        
             # First process the children
             results::Vector{Vector{NodePairIds}} = NodePairIds[]
             for i in 1:num_children(n)
                 push!(results, NodePairIds[])
                 for j in 1:num_children(m)
-                    #results[i][j] = func(children(n)[i], children(m)[j])
                     push!(results[i], func(children(n)[i], children(m)[j]))
                 end
             end
 
+            # Do not move this, otherwise el_ids would be wrong.
             first_el_id::NodePairId = last_el_id + one(NodePairId)
             layer_id::NodePairId = zero(NodePairId)
             push!(parents, NodePairId[])
 
+            # Add processed children to bitcircuitpair
             for i in 1:num_children(n)
                 for j in 1:num_children(m)
                     cur = results[i][j];  
@@ -215,7 +217,7 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
                         @inbounds push!(parents[cur.left_left_id], last_el_id)
                         @inbounds push!(parents[cur.right_right_id], last_el_id)
                     else
-                        @assert children(m)[1] isa LogisticLeafNode
+                        !property_check &&  @assert children(m)[1] isa LogisticLeafNode
                         push!(elements, last_dec_id, cur.node_id, cur.node_id);
                         @inbounds push!(parents[cur.node_id], last_el_id)
                         @inbounds push!(parents[cur.node_id], last_el_id)
@@ -238,7 +240,7 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
     end
 
     # Call on roots
-    func(pc, children(lc)[1]) # skipping bias node of LC
+    func(pc, lc)
 
     nodes_m = reshape(nodes, NODES_LENGTH, :)
     elements_m = reshape(elements, ELEMENTS_LENGTH, :)
@@ -254,7 +256,7 @@ function BitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, on_sum
             last_parent += length(parents[i])
             nodes_m[4,i] = last_parent
         else
-            @assert i <= num_leafs "Only root and leaf nodes can have no parents: $i <= $num_leafs"
+            !property_check && @assert i <= num_leafs "Only root and leaf nodes can have no parents: $i <= $num_leafs"
         end
     end
     return BitCircuitPair(layers, nodes_m, elements_m, parents_m)
@@ -293,21 +295,21 @@ isgpu(c::BitCircuitPair{<:Array,<:Array}) = false
 pc_params(c::ParamBitCircuitPair) = c.pc_params
 lc_params(c::ParamBitCircuitPair) = c.lc_params
 
-num_nodes(c::ParamBitCircuitPair) = num_nodes(c.bcp)
-num_elements(c::ParamBitCircuitPair) = num_elements(c.bcp)
-num_features(c::ParamBitCircuitPair) = num_features(c.bcp)
-num_leafs(c::ParamBitCircuitPair) = num_leafs(c.bcp)
+num_nodes(c::ParamBitCircuitPair) = num_nodes(c.pair_bit)
+num_elements(c::ParamBitCircuitPair) = num_elements(c.pair_bit)
+num_features(c::ParamBitCircuitPair) = num_features(c.pair_bit)
+num_leafs(c::ParamBitCircuitPair) = num_leafs(c.pair_bit)
 
-nodes(c::ParamBitCircuitPair) = nodes(c.bcp)
-elements(c::ParamBitCircuitPair) = elements(c.bcp)
+nodes(c::ParamBitCircuitPair) = nodes(c.pair_bit)
+elements(c::ParamBitCircuitPair) = elements(c.pair_bit)
 
 
 to_gpu(c::ParamBitCircuitPair) = 
     ParamBitCircuitPair(to_gpu(c.pc_bit), to_gpu(c.lc_bit),
-        to_gpu(c.bcp), to_gpu(c.pc_params), to_gpu(c.lc_params))
+        to_gpu(c.pair_bit), to_gpu(c.pc_params), to_gpu(c.lc_params))
 
 to_cpu(c::ParamBitCircuitPair) = 
-    ParamBitCircuitPair(to_cpu(c.pc_bit), to_cpu(c.lc_bit), to_cpu(c.bcp), to_cpu(c.pc_params), to_cpu(c.lc_params))
+    ParamBitCircuitPair(to_cpu(c.pc_bit), to_cpu(c.lc_bit), to_cpu(c.pair_bit), to_cpu(c.pc_params), to_cpu(c.lc_params))
 
 isgpu(c::ParamBitCircuitPair) = 
-    isgpu(c.pc_bit) && isgpu(c.lc_bit) && isgpu(c.bcp) && isgpu(c.pc_params) && isgpu(c.lc_params)
+    isgpu(c.pc_bit) && isgpu(c.lc_bit) && isgpu(c.pair_bit) && isgpu(c.pc_params) && isgpu(c.lc_params)
