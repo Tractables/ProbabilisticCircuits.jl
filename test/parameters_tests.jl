@@ -299,9 +299,22 @@ end
 
 @testset "Batched EM tests" begin
     dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    batched_dfb = batch(dfb, 1)
+    
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    uniform_parameters(r)
+    estimate_parameters_em(r, dfb; pseudocount=1.0)
+    paras1 = ParamBitCircuit(r, dfb).params
+    uniform_parameters(r)
+    estimate_parameters_em(r, batched_dfb; pseudocount=1.0)
+    paras2 = ParamBitCircuit(r, dfb).params
+    @test all(paras1 .≈ paras2)
+    
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
     weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6])
     wdfb = add_sample_weights(dfb, weights)
-    batched_wdfb = batch(wdfb)
+    batched_wdfb = batch(wdfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     uniform_parameters(r)
@@ -312,6 +325,46 @@ end
     estimate_parameters_em(r, batched_wdfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
+    
+    if CUDA.functional()
+        batched_dfb_gpu = to_gpu(batched_dfb)
+        
+        uniform_parameters(r)
+        estimate_parameters_em(r, batched_dfb_gpu; pseudocount=1.0)
+        paras1 = ParamBitCircuit(r, dfb).params
+        
+        uniform_parameters(r)
+        estimate_parameters(r, batched_dfb_gpu; pseudocount=1.0)
+        paras2 = ParamBitCircuit(r, dfb).params
+        
+        @test all(paras1 .≈ paras2)
+        
+        batched_wdfb_gpu = to_gpu(batched_wdfb)
+        
+        uniform_parameters(r)
+        estimate_parameters_em(r, batched_wdfb_gpu; pseudocount=1.0)
+        paras1 = ParamBitCircuit(r, dfb).params
+        
+        uniform_parameters(r)
+        estimate_parameters(r, batched_wdfb_gpu; pseudocount=1.0)
+        paras2 = ParamBitCircuit(r, dfb).params
+        
+        @test all(paras1 .≈ paras2)
+        
+        data = DataFrame([true missing; false missing])
+        r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+        batched_data = batch(data, 1)
+        
+        uniform_parameters(r)
+        estimate_parameters_em(r, batched_data; pseudocount = 0.0)
+        paras1 = ParamBitCircuit(r, dfb).params
+        
+        uniform_parameters(r)
+        estimate_parameters_em(r, to_gpu(batched_data); pseudocount = 0.0)
+        paras2 = ParamBitCircuit(r, dfb).params
+        
+        @test all(paras1 .≈ paras2)
+    end
 end
 
 @testset "Bagging tests" begin
