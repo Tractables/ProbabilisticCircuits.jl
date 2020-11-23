@@ -219,11 +219,11 @@ end
         dfb_gpu = to_gpu(dfb)
         
         uniform_parameters(r)
-        estimate_parameters_em(r, dfb; pseudocount=1.0)
+        estimate_parameters_em(r, dfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters(r)
-        estimate_parameters(r, dfb; pseudocount=1.0)
+        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -270,27 +270,27 @@ end
     @test all(paras1 .≈ paras2)
     
     if CUDA.functional()
-        dfb_gpu = to_gpu(dfb)
+        uniform_parameters(r)
+        estimate_parameters_em(r, wdfb; pseudocount=0.0, use_gpu=true)
+        paras1 = ParamBitCircuit(r, wdfb).params
         
         uniform_parameters(r)
-        estimate_parameters_em(r, dfb; pseudocount=1.0)
-        paras1 = ParamBitCircuit(r, dfb).params
-        
-        uniform_parameters(r)
-        estimate_parameters(r, dfb; pseudocount=1.0)
-        paras2 = ParamBitCircuit(r, dfb).params
+        estimate_parameters(r, wdfb; pseudocount=0.0, use_gpu=true)
+        paras2 = ParamBitCircuit(r, wdfb).params
         
         @test all(paras1 .≈ paras2)
         
         data = DataFrame([true missing; false missing])
-        r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+        weights = DataFrame(weight = [0.6, 0.6])
+        wdata = hcat(data, weights)
+        r = fully_factorized_circuit(ProbCircuit, num_features(wdata))
         
         uniform_parameters(r)
-        estimate_parameters_em(r, data; pseudocount = 0.0)
+        estimate_parameters_em(r, wdata; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters(r)
-        estimate_parameters_em(r, to_gpu(data); pseudocount = 0.0)
+        estimate_parameters_em(r, to_gpu(wdata); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
