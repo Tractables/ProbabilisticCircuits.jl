@@ -28,7 +28,7 @@ jobs:
         run: |
           julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
           julia --project=test/ -e 'using Pkg; Pkg.instantiate(); Pkg.build();'
-          julia --project --check-bounds=yes --depwarn=error -e 'import Pkg; Pkg.test(; coverage=true)'
+          julia --project --check-bounds=yes --depwarn=yes -e 'import Pkg; Pkg.test(; coverage=true)'
       
       - name: Docs Build
         env:
@@ -41,4 +41,3 @@ jobs:
           julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
           julia --project=docs/ docs/make.jl
 
-          

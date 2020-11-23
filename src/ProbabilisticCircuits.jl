@@ -19,6 +19,7 @@ include("plain_prob_nodes.jl")
 include("structured_prob_nodes.jl")
 include("logistic_nodes.jl")
 include("param_bit_circuit.jl")
+include("param_bit_circuit_pair.jl")
 include("parameters.jl")
 
 include("queries/likelihood.jl")
@@ -29,6 +30,7 @@ include("queries/pr_constraint.jl")
 include("queries/information.jl")
 include("queries/expectation_rec.jl")
 include("queries/expectation_graph.jl")
+include("queries/expectation_bit.jl")
 
 include("Logistic/Logistic.jl")
 @reexport using .Logistic
