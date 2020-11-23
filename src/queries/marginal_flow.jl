@@ -443,6 +443,6 @@ end
     ifelse(isnan(x), typemin(n_down), x)
 end
 @inline function compute_marg_edge_flow(p_up, s_up, n_up, n_down, θ, weight)
-    x = p_up + s_up - n_up + n_down + θ + log(weight)
+    x = p_up + s_up - n_up + n_down + θ
     ifelse(isnan(x), typemin(n_down), x)
 end

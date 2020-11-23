@@ -419,6 +419,9 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
         use_gpu = true
     end
     params = if use_gpu
+        if !isgpu(data)
+            data = to_gpu(data)
+        end
         if use_sample_weights
             estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
         else
@@ -566,6 +569,9 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         end
     end
 
+    if weights != nothing
+        weights = to_gpu(weights)
+    end
     v, f = marginal_flows(pbc, data; on_node, on_edge, weights)
 
     CUDA.unsafe_free!(v) # save the GC some effort
