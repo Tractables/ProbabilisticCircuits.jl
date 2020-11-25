@@ -47,7 +47,7 @@ end
 """
     MAR(pc, data)
 
-Computes Marginal log likelhood of data.  
+Computes Marginal log likelhood of data. See docs for `marginal`.
 """
 const MAR = marginal
 

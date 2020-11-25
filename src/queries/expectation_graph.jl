@@ -19,7 +19,7 @@ struct UpExpFlow{F} <: ExpFlowNode{F}
 end
 
 import LogicCircuits: children
-children(x::UpExpFlow) = x.children
+@inline children(x::UpExpFlow) = x.children
 
 """
 Expected Prediction of LC w.r.t PC.
@@ -51,14 +51,14 @@ Note that its assuming the two circuits share the same vtree
 """
 function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, ::Type{El}) where El
     F = Array{El, 2}
-    fmem = () -> zeros(1, batch_size) #Vector{El}(undef, batch_size)  #init_array(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)
-    fgmem = () -> zeros(num_classes(lc), batch_size)
+    fmem = () -> zeros(El, 1, batch_size) #Vector{El}(undef, batch_size)  #init_array(El, batch_size) # note: fmem's return type will determine type of all UpFlows in the circuit (should be El)
+    fgmem = () -> zeros(El, num_classes(lc), batch_size)
 
     root_pc = pc
     root_lc = children(lc)[1]
     
     cache = Dict{Pair{Node, Node}, ExpFlowNode}()
-    sizehint!(cache, (num_nodes(pc) + num_nodes(lc))*4÷3)
+    sizehint!(cache, (num_nodes(pc) + num_nodes(lc))*10)
     expFlowCircuit = Vector{ExpFlowNode}()
 
     function ExpflowTraverse(n::PlainSumNode, m::Logistic⋁Node) 
@@ -99,7 +99,7 @@ function ExpFlowCircuit(pc::ProbCircuit, lc::LogisticCircuit, batch_size::Int, :
 end
 
 function exp_pass_up(pc::ProbCircuit, lc::LogisticCircuit, data)
-    expFlowCircuit = ExpFlowCircuit(pc, lc, num_examples(data), Float64);
+    expFlowCircuit = ExpFlowCircuit(pc, lc, num_examples(data), Float32);
     for n in expFlowCircuit
         exp_pass_up_node(n, data)
     end 
@@ -120,23 +120,42 @@ function exp_pass_up_node(node::ExpFlowNode{E}, data) where E
     fType = typeof(node.f_origin)
 
     if node.p_origin isa PlainSumNode && node.f_origin isa Logistic⋁Node
-        #todo this ordering might be different than the ExpFlowNode children
-        pthetas = [exp(node.p_origin.log_probs[i])
-                    for i in 1:length(children(node.p_origin)) for j in 1:length(children(node.f_origin))]
-        fthetas = [node.f_origin.thetas[j,:] # only taking the first class for now
-            for i in 1:length(node.p_origin.children) for j in 1:length(node.f_origin.children)]
+        # pthetas = [exp(node.p_origin.log_probs[i])
+        #             for i in 1:length(children(node.p_origin)) for j in 1:length(children(node.f_origin))]
+        # fthetas = [node.f_origin.thetas[j,:]
+        #     for i in 1:length(node.p_origin.children) for j in 1:length(node.f_origin.children)]
+
+        # node.f .= 0.0
+        # node.fg .= 0.0
+        # for z = 1:length(children(node))
+        #     node.f  .+= pthetas[z] .* children(node)[z].f
+        #     node.fg .+= (pthetas[z] .* fthetas[z]) .* children(node)[z].f
+        #     node.fg .+= pthetas[z] .* children(node)[z].fg
+        # end
 
         node.f .= 0.0
         node.fg .= 0.0
-        for z = 1:length(children(node))
-            node.f  .+= pthetas[z] .* children(node)[z].f
-            node.fg .+= (pthetas[z] .* fthetas[z]) .* children(node)[z].f
-            node.fg .+= pthetas[z] .* children(node)[z].fg
+        N = length(children(node.p_origin))
+        M = length(children(node.f_origin))
+        @inline pthetas(i) = exp(node.p_origin.log_probs[i])
+        @inline fthetas(j) = node.f_origin.thetas[j,:]
+        @fastmath @inbounds @simd for i=1:N
+            @simd for j=1:M
+                z = (i-1)*M + j
+                node.f  .+= pthetas(i) .* children(node)[z].f
+                node.fg .+= (pthetas(i) .* fthetas(j)) .* children(node)[z].f
+                node.fg .+= pthetas(i) .* children(node)[z].fg
+            end
         end
+
     elseif node.p_origin isa PlainMulNode && node.f_origin isa Logistic⋀Node
-        node.f .= children(node)[1].f .* children(node)[2].f # assume 2 children
-        node.fg .= (children(node)[1].f .* children(node)[2].fg) .+
-                   (children(node)[2].f .* children(node)[1].fg)
+
+        @fastmath @inbounds  begin
+            # assume 2 children
+            node.f .= children(node)[1].f .* children(node)[2].f 
+            node.fg .= (children(node)[1].f .* children(node)[2].fg) .+
+                       (children(node)[2].f .* children(node)[1].fg)
+        end
 
     elseif node.p_origin isa PlainProbLiteralNode 
         if node.f_origin isa Logistic⋁Node
