@@ -63,6 +63,49 @@ include("../helper/gpu.jl")
     end
 end
 
+@testset "Marginals batch" begin
+    prob_circuit = zoo_psdd("little_4var.psdd");
+    @test prob_circuit(false, false, false, missing) ≈ -1.0498221
+
+    data_marg = DataFrame([false false false false; 
+                      false true true false; 
+                      false false true true;
+                      false false false missing; 
+                      missing true false missing; 
+                      missing missing missing missing; 
+                      false missing missing missing])
+    batched_data_marg = batch(data_marg, 1)
+    
+    data_marg = DataFrame([false false false false; 
+                      false true true false; 
+                      false false true true;
+                      false false false missing; 
+                      missing true false missing; 
+                      missing missing missing missing; 
+                      false missing missing missing])
+    weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6])
+    data_marg_w = add_sample_weights(data_marg, weights)
+    batched_data_marg_w = batch(data_marg_w, 1)
+    
+    true_prob = [0.07; 0.03; 0.13999999999999999;
+                    0.3499999999999; 0.1; 1.0; 0.8]
+    
+    data_marg = DataFrame([false false false false; 
+                      false true true false; 
+                      false false true true;
+                      false false false missing; 
+                      missing true false missing; 
+                      missing missing missing missing; 
+                      false missing missing missing])
+
+    calc_prob = exp.(MAR(prob_circuit, data_marg))
+    @test true_prob ≈ calc_prob atol=1e-7
+    @test marginal_log_likelihood(prob_circuit, batched_data_marg) ≈ sum(log.(true_prob))
+    @test marginal_log_likelihood_avg(prob_circuit, batched_data_marg) ≈ sum(log.(true_prob)) / 7
+    @test marginal_log_likelihood(prob_circuit, batched_data_marg_w) ≈ sum(log.(true_prob)) * 0.6
+    @test marginal_log_likelihood_avg(prob_circuit, batched_data_marg_w) ≈ sum(log.(true_prob)) / 7
+end
+
 @testset "Marginal flows" begin
     
     prob_circuit = zoo_psdd("little_4var.psdd");

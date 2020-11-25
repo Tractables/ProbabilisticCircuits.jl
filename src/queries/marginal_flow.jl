@@ -77,6 +77,45 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     end
     mapreduce(*, +, likelihoods, weights)
 end
+marginal_log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    pbc = ParamBitCircuit(pc, data)
+    
+    total_ll::Float64 = 0.0
+    if isweighted(data)
+        data, weights = split_sample_weights(data)
+        
+        if use_gpu
+            data = to_gpu(data)
+        end
+        
+        v = nothing
+        for idx = 1 : length(data)
+            v = marginal_all(pbc, data[idx], v)
+            likelihoods = v[:,end]
+            if isgpu(likelihoods)
+                likelihoods = to_cpu(likelihoods)
+            end
+            w = weights[idx]
+            if isgpu(w)
+                w = to_cpu(w)
+            end
+            total_ll += mapreduce(*, +, likelihoods, w)
+        end
+    else
+        v = nothing
+        for idx = 1 : length(data)
+            v = marginal_all(pbc, data[idx], v)
+            likelihoods = v[:,end]
+            total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
+        end
+    end
+    
+    if use_gpu
+        CUDA.unsafe_free!(v) # save the GC some effort
+    end
+    
+    total_ll
+end
 
 """
 Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
@@ -97,6 +136,24 @@ marginal_log_likelihood_avg(pc, data, weights) = begin
         weights = to_cpu(weights)
     end
     marginal_log_likelihood(pc, data, weights)/sum(weights)
+end
+marginal_log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    total_ll = marginal_log_likelihood(pc, data; use_gpu = use_gpu)
+    
+    if isweighted(data)
+        data, weights = split_sample_weights(data)
+        
+        total_weights = 0.0
+        for idx = 1 : length(weights)
+            total_weights += sum(isgpu(weights[idx]) ? to_cpu(weights[idx]) : weights[idx])
+        end
+        
+        avg_ll = total_ll / total_weights
+    else
+        avg_ll = total_ll / num_examples(data)
+    end
+    
+    avg_ll
 end
 
 #####################
