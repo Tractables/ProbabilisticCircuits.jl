@@ -78,6 +78,10 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     mapreduce(*, +, likelihoods, weights)
 end
 marginal_log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    if use_gpu
+        data = to_gpu(data)
+    end
+    
     pbc = ParamBitCircuit(pc, data)
     
     total_ll::Float64 = 0.0
@@ -241,6 +245,7 @@ end
 
 "Compute marginals on the GPU"
 function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix;  dec_per_thread = 8, log2_threads_per_block = 8)
+    circuit = to_gpu(circuit)
     bc = circuit.bitcircuit
     CUDA.@sync for layer in bc.layers[2:end]
         num_examples = size(values, 1)

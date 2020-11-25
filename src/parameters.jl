@@ -417,6 +417,8 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
     pbc = ParamBitCircuit(pc, data; reset=false)
     if isgpu(data)
         use_gpu = true
+    elseif use_gpu && !isgpu(data)
+        data = to_gpu(data)
     end
     params = if use_gpu
         if !isgpu(data)
