@@ -45,7 +45,11 @@ function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
 end
 
 function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVector
-    marginals = Vector{Float64}(undef, num_examples(data))
+    if isgpu(data)
+        marginals = CuVector{Float64}(undef, num_examples(data))
+    else
+        marginals = Vector{Float64}(undef, num_examples(data))
+    end
     
     v, start_idx = nothing, 1
     map(data) do d
@@ -55,7 +59,7 @@ function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVec
         start_idx += v_len
     end
     
-    marginals
+    isgpu(data) ? convert(Array{Float64, 1}, to_cpu(marginals)) : marginals
 end
 
 """
