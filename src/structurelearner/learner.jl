@@ -27,6 +27,7 @@ function learn_circuit(train_x, pc, vtree;
         seed=nothing,
         return_vtree=false,
         batch_size=0,
+        splitting_data=nothing,
         use_gpu=false)
 
     if seed !== nothing
@@ -34,7 +35,9 @@ function learn_circuit(train_x, pc, vtree;
     end
 
     # structure_update
-    loss(circuit) = heuristic_loss(circuit, train_x; pick_edge=pick_edge, pick_var=pick_var)
+    loss(circuit) = heuristic_loss(circuit, splitting_data == nothing ? train_x : splitting_data; 
+                                   pick_edge=pick_edge, pick_var=pick_var)
+    
     pc_split_step(circuit) = begin
         c::ProbCircuit, = split_step(circuit; loss=loss, depth=depth, sanity_check=sanity_check)
         if batch_size > 0
