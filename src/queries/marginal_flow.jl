@@ -37,11 +37,25 @@ marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
 marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
     marginal(root, DataFrame(reshape(data, 1, :)))[1]
 
-marginal(circuit::ProbCircuit, data::DataFrame) =
+marginal(circuit::ProbCircuit, data::Union{DataFrame, Array{DataFrame}}) =
     marginal(same_device(ParamBitCircuit(circuit, data), data) , data)
 
 function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
-    marginal_all(circuit,data)[:,end]
+    marginal_all(circuit, data)[:,end]
+end
+
+function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVector
+    marginals = Vector{Float64}(undef, num_examples(data))
+    
+    v, start_idx = nothing, 1
+    map(data) do d
+        v = marginal_all(circuit, d, v)
+        v_len = size(v, 1)
+        @inbounds @views marginals[start_idx: start_idx + v_len - 1] .= v[:, end]
+        start_idx += v_len
+    end
+    
+    marginals
 end
 
 """

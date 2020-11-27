@@ -74,7 +74,7 @@ end
                       missing true false missing; 
                       missing missing missing missing; 
                       false missing missing missing])
-    batched_data_marg = batch(data_marg, 1)
+    batched_data_marg = batch(data_marg, 1; shuffle = false)
     
     data_marg = DataFrame([false false false false; 
                       false true true false; 
@@ -104,6 +104,9 @@ end
     @test marginal_log_likelihood_avg(prob_circuit, batched_data_marg) ≈ sum(log.(true_prob)) / 7
     @test marginal_log_likelihood(prob_circuit, batched_data_marg_w) ≈ sum(log.(true_prob)) * 0.6
     @test marginal_log_likelihood_avg(prob_circuit, batched_data_marg_w) ≈ sum(log.(true_prob)) / 7
+    
+    mar = marginal(prob_circuit, batched_data_marg)
+    @test true_prob ≈ exp.(mar) atol=1e-7
 end
 
 @testset "Marginal flows" begin
