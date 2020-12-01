@@ -384,3 +384,17 @@ end
     params = estimate_parameters(r, bag_dfb; pseudocount = 2.0)
     @test all(abs.(params[1] .- params[2]) .< 1e-6)
 end
+
+@testset "Uniform parameters tests" begin
+    r = fully_factorized_circuit(ProbCircuit, 2)
+    
+    uniform_parameters(r)
+    @test all(.≈(exp.(r.children[1].children[1].log_probs), [0.5, 0.5], atol = 1e-6))
+    @test all(.≈(exp.(r.children[1].children[2].log_probs), [0.5, 0.5], atol = 1e-6))
+    
+    uniform_parameters(r; perturbation = 0.1)
+    @test all(exp.(r.children[1].children[1].log_probs) .> 0.9 / (0.9 + 1.1))
+    @test all(exp.(r.children[1].children[1].log_probs) .< 1.1 / (0.9 + 1.1))
+    @test all(exp.(r.children[1].children[2].log_probs) .> 0.9 / (0.9 + 1.1))
+    @test all(exp.(r.children[1].children[2].log_probs) .< 1.1 / (0.9 + 1.1))
+end
