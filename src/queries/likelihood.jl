@@ -5,114 +5,62 @@ export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 """
 Compute the likelihood of the PC given each individual instance in the data
 """
-function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = false)
-    log_likelihood_per_instance_single_model(pc, data; use_gpu)
-end
 function log_likelihood_per_instance(spc::SharedProbCircuit, data; use_gpu::Bool = false)
-    get_single_model_ll(component_idx::Integer) = begin
-        log_likelihood_per_instance_single_model(spc, data; use_gpu, component_idx)
+    ll_per_instance = zeros(Float64, num_examples(data))
+    v, f = nothing, nothing
+    for component_idx = 1 : num_components(spc)
+        bc = ParamBitCircuit(spc, data; component_idx)
+        ll, v, f = log_likelihood_per_instance(bc, data, v, f; use_gpu)
+        ll = isgpu(ll) ? to_cpu(ll) : ll
+        @inbounds @views ll_per_instance[:] .= ll_per_instance[:] .+ ll[:]
     end
     
-    mapreduce(get_single_model_ll, +, [1:num_components(spc);]) ./ num_components(spc)
-end
-function log_likelihood_per_instance_single_model(pc::ProbCircuit, data; use_gpu::Bool = false, component_idx::Integer = 0)
-    @assert isbinarydata(data) "Probabilistic circuit likelihoods are for binary data only"
-    if pc isa SharedProbCircuit
-        bc = ParamBitCircuit(pc, data; component_idx)
-    else
-        bc = ParamBitCircuit(pc, data)
-    end
-    if isgpu(data)
-        use_gpu = true
-    end
-    if use_gpu
-        log_likelihood_per_instance_gpu(to_gpu(bc), to_gpu(data))
-    else
-        log_likelihood_per_instance_cpu(bc, data)
-    end
-end
-
-function log_likelihood_per_instance_cpu(bc, data)
-    ll::Vector{Float64} = zeros(Float64, num_examples(data))
-    ll_lock::Threads.ReentrantLock = Threads.ReentrantLock()
+    @inbounds @views ll_per_instance[:] .= ll_per_instance[:] ./ num_components(spc)
     
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child, weights)
-        if !single_child
-            lock(ll_lock) do # TODO: move lock to inner loop? change to atomic float?
-                for i = 1:size(flows,1)
-                    @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
-                    first_true_bit = trailing_zeros(edge_flow)+1
-                    last_true_bit = 64-leading_zeros(edge_flow)
-                    @simd for j = first_true_bit:last_true_bit
-                        ex_id = ((i-1) << 6) + j
-                        if get_bit(edge_flow, j)
-                            @inbounds ll[ex_id] += bc.params[element]
-                        end
-                    end
-                end
-            end
+    ll_per_instance
+end
+function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = false)
+    if isweighted(data)
+        data, weights = split_sample_weights(data)
+    end
+    bc = ParamBitCircuit(pc, data)
+    
+    if isbatched(data)
+        v, f = nothing, nothing
+        lls = map(data) do d
+            ll, v, f = log_likelihood_per_instance(bc, d; use_gpu)
+            
+            ll
         end
-        nothing
-    end
-
-    v, _ = satisfies_flows(bc.bitcircuit, data; on_edge)
-    
-    # when the example is outside of the support, give 0 likelihood 
-    in_support = AbstractBitVector(v[:,end], num_examples(data))
-    ll[.! in_support] .= -Inf
-
-    return ll
-end
-
-function log_likelihood_per_instance_gpu(bc, data)
-    params_device = CUDA.cudaconvert(bc.params)
-    ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
-    ll_device = CUDA.cudaconvert(ll)
         
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weights)
-        if !single_child
-            first_true_bit = 1+trailing_zeros(edge_flow)
-            last_true_bit = 64-leading_zeros(edge_flow)
-            for j = first_true_bit:last_true_bit
-                ex_id = ((chunk_id-1) << 6) + j
-                if get_bit(edge_flow, j)
-                    CUDA.@atomic ll_device[ex_id] += params_device[element]
-                end
-            end
-        end
-        nothing
+        ll = cat(lls...; dim = 1)
+    else
+        ll, v, f = log_likelihood_per_instance(bc, data; use_gpu)
     end
     
-    v, f = satisfies_flows(bc.bitcircuit, data; on_edge)
-    CUDA.unsafe_free!(f) # save the GC some effort
-
-    # when the example is outside of the support, give 0 likelihood 
-    # lazy programmer: do the conversion to a Vector{Bool} on CPU 
-    #   so that CUDA.jl can build a quick kernel
-    # TODO: write a function to do this conversion on GPU directly
-    in_support = AbstractBitVector(to_cpu(v[:,end]), num_examples(data))
-    in_support = to_gpu(convert(Vector{Bool}, in_support))
-    ll2 = map((x,s) -> s ? x : -Inf, ll, in_support)
-    CUDA.unsafe_free!(v) # save the GC some effort
-    CUDA.unsafe_free!(ll) # save the GC some effort
+    if use_gpu
+        CUDA.unsafe_free!(v) # save the GC some effort
+        CUDA.unsafe_free!(f) # save the GC some effort
+    end
     
-    return ll2
+    isgpu(ll) ? to_cpu(ll) : ll
 end
-
-
-function log_likelihood_per_instance_reuse(bc::ParamBitCircuit, data, reuse_v, reuse_f; use_gpu::Bool = false)
-    @assert isbinarydata(data) "Probabilistic circuit likelihoods are for binary data only"
+function log_likelihood_per_instance(bc::ParamBitCircuit, data, reuse_v = nothing, reuse_f = nothing; 
+                                     use_gpu::Bool = false)
+    @assert isbinarydata(data) || isfpdata(data) "Probabilistic circuit likelihoods are for binary/float data only"
     if isgpu(data)
         use_gpu = true
     end
     if use_gpu
-        log_likelihood_per_instance_reuse_gpu(to_gpu(bc), to_gpu(data), reuse_v, reuse_f)
+        ll, v, f = log_likelihood_per_instance_gpu(to_gpu(bc), to_gpu(data), reuse_v, reuse_f)
     else
-        log_likelihood_per_instance_reuse_cpu(bc, data, reuse_v, reuse_f)
+        ll, v, f = log_likelihood_per_instance_cpu(bc, data, reuse_v, reuse_f)
     end
+    
+    ll, v, f
 end
 
-function log_likelihood_per_instance_reuse_cpu(bc, data, reuse_v, reuse_f)
+function log_likelihood_per_instance_cpu(bc, data, reuse_v = nothing, reuse_f = nothing)
     ll::Vector{Float64} = zeros(Float64, num_examples(data))
     ll_lock::Threads.ReentrantLock = Threads.ReentrantLock()
     
@@ -129,6 +77,17 @@ function log_likelihood_per_instance_reuse_cpu(bc, data, reuse_v, reuse_f)
                             @inbounds ll[ex_id] += bc.params[element]
                         end
                     end
+                end
+            end
+        end
+        nothing
+    end
+    @inline function on_edge(flows, values::Matrix{<:AbstractFloat}, prime, sub, element, grandpa, single_child, weights)
+        if !single_child
+            lock(ll_lock) do # TODO: move lock to inner loop? change to atomic float?
+                for i = 1:size(flows,1)
+                    @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
+                    @inbounds ll[i] += bc.params[element] * edge_flow
                 end
             end
         end
@@ -137,14 +96,21 @@ function log_likelihood_per_instance_reuse_cpu(bc, data, reuse_v, reuse_f)
 
     v, f = satisfies_flows(bc.bitcircuit, data, reuse_v, reuse_f; on_edge)
     
-    # when the example is outside of the support, give 0 likelihood 
-    in_support = AbstractBitVector(v[:,end], num_examples(data))
-    ll[.! in_support] .= -Inf
+    if isbinarydata(data)
+        # when the example is outside of the support, give 0 likelihood 
+        in_support = AbstractBitVector(v[:,end], num_examples(data))
+        ll[.! in_support] .= -Inf
+    else
+        @assert isfpdata(data)
+        
+        @inbounds @views in_support = v[:,end]
+        ll[in_support .< 1e-8] .= -Inf
+    end
 
     return ll, v, f
 end
 
-function log_likelihood_per_instance_reuse_gpu(bc, data, reuse_v, reuse_f)
+function log_likelihood_per_instance_gpu(bc, data, reuse_v = nothing, reuse_f = nothing)
     params_device = CUDA.cudaconvert(bc.params)
     ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
     ll_device = CUDA.cudaconvert(ll)
@@ -162,15 +128,28 @@ function log_likelihood_per_instance_reuse_gpu(bc, data, reuse_v, reuse_f)
         end
         nothing
     end
+    @inline function on_edge(flows, values, prime, sub, element, grandpa, sample_idx, edge_flow::AbstractFloat, 
+                             single_child, weights)
+        if !single_child
+            c::Float64 = edge_flow * params_device[element]
+            CUDA.@atomic ll_device[sample_idx] += c
+        end
+        nothing
+    end
     
     v, f = satisfies_flows(bc.bitcircuit, data, reuse_v, reuse_f; on_edge)
 
-    # when the example is outside of the support, give 0 likelihood 
-    # lazy programmer: do the conversion to a Vector{Bool} on CPU 
-    #   so that CUDA.jl can build a quick kernel
-    # TODO: write a function to do this conversion on GPU directly
-    in_support = AbstractBitVector(to_cpu(v[:,end]), num_examples(data))
-    in_support = to_gpu(convert(Vector{Bool}, in_support))
+    if isbinarydata(data)
+        # when the example is outside of the support, give 0 likelihood 
+        # lazy programmer: do the conversion to a Vector{Bool} on CPU 
+        #   so that CUDA.jl can build a quick kernel
+        # TODO: write a function to do this conversion on GPU directly
+        in_support = AbstractBitVector(to_cpu(v[:,end]), num_examples(data))
+        in_support = to_gpu(convert(Vector{Bool}, in_support))
+    else
+        @assert isfpdata(data)
+        @inbounds @views in_support = v[:,end] .> 1e-8
+    end
     ll2 = map((x,s) -> s ? x : -Inf, ll, in_support)
     
     CUDA.unsafe_free!(ll) # save the GC some effort
@@ -209,9 +188,7 @@ log_likelihood(pc, data, weights::AbstractArray; use_gpu::Bool = false) = begin
         weights = to_cpu(weights)
     end
     likelihoods = log_likelihood_per_instance(pc, data; use_gpu)
-    if isgpu(likelihoods)
-        likelihoods = to_cpu(likelihoods)
-    end
+    likelihoods = isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods
     mapreduce(*, +, likelihoods, weights)
 end
 log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
@@ -239,7 +216,7 @@ log_likelihood_batched(pc, data::Array{DataFrame}; use_gpu::Bool = false, compon
         
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance_reuse(pbc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f; use_gpu)
             if isgpu(likelihoods)
                 likelihoods = to_cpu(likelihoods)
             end
@@ -252,7 +229,7 @@ log_likelihood_batched(pc, data::Array{DataFrame}; use_gpu::Bool = false, compon
     else
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance_reuse(pbc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f; use_gpu)
             total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
         end
     end
