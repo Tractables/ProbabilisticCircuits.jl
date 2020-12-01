@@ -5,7 +5,7 @@ using DataFrames
 using CUDA
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
-    EPS = 1e-5;
+    EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True expectation brute force
     true_exp = zeros(COUNT, CLASSES)
@@ -43,12 +43,12 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
             @test true_exp[i,j] ≈ bit_exps_batch2[i,j] atol= EPS;
         end
     end
-
+    
     # Compute BitCircuit Expectations (GPU)
     if CUDA.functional()
         data_gpu = to_gpu(data);
         bit_exps_gpu, fvalues, gvalues, pbc_gpu = ExpectationBit(pc, lc, data_gpu; return_aux=true)
-        bit_exps_gpu_2 = ExpectationBit(pbc_gpu, pc, lc, data_gpu, fvalues, gvalues; return_aux=false)
+        bit_exps_gpu_2 = ExpectationBit(pbc_gpu, pc, lc, data_gpu, fvalues, gvalues; return_aux=false)a
         for i = 1:COUNT
             for j = 1:CLASSES
                 @test true_exp[i,j] ≈ bit_exps_gpu[i,j] atol= EPS;
