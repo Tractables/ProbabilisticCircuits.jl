@@ -415,8 +415,9 @@ end
 Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false, 
-                                reuse_v = nothing, reuse_f = nothing, exp_update_factor = 0.0)
+                                use_sample_weights::Bool = true, use_gpu::Bool = false, reuse::Bool = false,
+                                reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
+                                exp_update_factor = 0.0)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -430,42 +431,48 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
     elseif use_gpu && !isgpu(data)
         data = to_gpu(data)
     end
+    
+    if reuse_counts === nothing
+        reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+    end
+            
     params = if use_gpu
         if !isgpu(data)
             data = to_gpu(data)
         end
         if use_sample_weights
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, reuse_v, reuse_f)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, reuse, reuse_v, reuse_f, reuse_counts)
         else
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; reuse_v, reuse_f)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; reuse, reuse_v, reuse_f, reuse_counts)
         end
     else
         if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse_v, reuse_f)
+            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse, reuse_v, reuse_f, reuse_counts)
         else
-            estimate_parameters_cpu(pbc, data, pseudocount; reuse_v, reuse_f)
+            estimate_parameters_cpu(pbc, data, pseudocount; reuse, reuse_v, reuse_f, reuse_counts)
         end
     end
-    if reuse_v !== nothing && reuse_f !== nothing
-        params, v, f = params
+    if reuse
+        params, v, f, reuse_counts = params
     end
     
     estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
     
-    if reuse_v !== nothing && reuse_f !== nothing
-        params, v, f
+    if reuse
+        params, v, f, reuse_counts
     else
         params
     end
 end
 
-function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, 
-                                 reuse_v = nothing, reuse_f = nothing)
+function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, reuse::Bool = false,
+                                 reuse_v = nothing, reuse_f = nothing, 
+                                 reuse_counts = (nothing, nothing, nothing, nothing, nothing))
     # `data` is batched?
     data_batched = isbatched(data)
     
     # no need to synchronize, since each computation is unique to a decision node
-    node_counts::Vector{Float64} = Vector{Float64}(undef, num_nodes(pbc.bitcircuit))
+    node_counts::Vector{Float64} = similar!(reuse_counts[1], Vector{Float64}, num_nodes(pbc.bitcircuit))
     @inbounds @views @. @avx node_counts .= typemin(eltype(node_counts)) # log(0)
     
     # rescale pseudocount using the average weight of samples
@@ -480,22 +487,21 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
     bc = pbc.bitcircuit
     params = pbc.params
     
-    edge_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
-    parent_node_counts::Vector{Float64} = zeros(Float64, num_elements(bc))
+    edge_counts::Vector{Float64} = similar!(reuse_counts[2], Vector{Float64}, num_elements(bc))
+    parent_node_counts::Vector{Float64} = similar!(reuse_counts[3], Vector{Float64}, num_elements(bc))
+    @inbounds @views edge_counts[:] .= zero(Float64)
+    @inbounds @views parent_node_counts[:] .= zero(Float64)
     
     # Buffer to save some allocations
-    if data_batched
-        buffer = Vector{Float64}(undef, num_examples(data[1]))
-    else
-        buffer = Vector{Float64}(undef, num_examples(data))
-    end
+    buffer::Vector{Float64} = similar!(reuse_counts[4], Vector{Float64}, 
+        data_batched ? num_examples(data[1]) : num_examples(data))
     
     # Pre-compute log(weights) to save computation time
     if weights !== nothing
-        if data_batched
-            log_weights = Vector{Float64}(undef, num_examples(data[1]))
-        else
-            log_weights = Vector{Float64}(undef, num_examples(data))
+        log_weights::Vector{Float64} = similar!(reuse_counts[5], Vector{Float64}, 
+            data_batched ? num_examples(data[1]) : num_examples(data))
+        
+        if !data_batched
             @inbounds @views @avx log_weights .= log.(weights)
         end
     else
@@ -600,15 +606,16 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
         @inbounds params[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
     end
 
-    if reuse_v !== nothing && reuse_f !== nothing
-        params, v, f # Also return the allocated vars v and f for future reuse
+    if reuse
+        # Also return the allocated vars v, f, counts for future reuse
+        params, v, f, (node_counts, edge_counts, parent_node_counts, buffer, log_weights)
     else
         params # a.k.a. log_probs
     end
 end
 
-function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, 
-                                 reuse_v = nothing, reuse_f = nothing)
+function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, reuse::Bool = false,
+                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = (nothing, nothing))
     # `data` is batched?
     data_batched = isbatched(data)
     
@@ -626,12 +633,14 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     end
     
     bc = pbc.bitcircuit
-    node_counts::CuVector{Float64} = CUDA.zeros(Float64, num_nodes(bc))
-    edge_counts::CuVector{Float64} = CUDA.zeros(Float64, num_elements(bc))
+    node_counts::CuVector{Float64} = similar!(reuse_counts[1], CuVector{Float64}, num_nodes(bc))
+    edge_counts::CuVector{Float64} = similar!(reuse_counts[2], CuVector{Float64}, num_elements(bc))
+    @inbounds @views node_counts[:] .= zero(Float64)
+    @inbounds @views edge_counts[:] .= zero(Float64)
     # need to manually cudaconvert closure variables
     node_counts_device = CUDA.cudaconvert(node_counts)
     edge_counts_device = CUDA.cudaconvert(edge_counts)
-    
+        
     @inline function on_node(flows, values, dec_id, chunk_id, flow, weight::Nothing)
         c::Float64 = exp(flow) # cast for @atomic to be happy
         CUDA.@atomic node_counts_device[dec_id] += c
@@ -682,9 +691,11 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     end
 
     # Only free the memory if the reuse memory is not provided
-    if reuse_v === nothing || reuse_f === nothing
+    if !reuse
         CUDA.unsafe_free!(v) # save the GC some effort
         CUDA.unsafe_free!(f) # save the GC some effort
+        CUDA.unsafe_free!(node_counts) # save the GC some effort
+        CUDA.unsafe_free!(edge_counts) # save the GC some effort
     end
 
     # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
@@ -694,8 +705,9 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
                     ./ (parent_counts .+ pseudocount))
     
-    if reuse_v !== nothing && reuse_f !== nothing
-        to_cpu(params), v, f # Also return the allocated vars v and f for future reuse
+    if reuse
+        # Also return the allocated vars v, f, counts for future reuse
+        to_cpu(params), v, f, (node_counts, edge_counts)
     else
         to_cpu(params) # a.k.a. log_probs
     end
