@@ -48,7 +48,7 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
     if CUDA.functional()
         data_gpu = to_gpu(data);
         bit_exps_gpu, fvalues, gvalues, pbc_gpu = ExpectationBit(pc, lc, data_gpu; return_aux=true)
-        bit_exps_gpu_2 = ExpectationBit(pbc_gpu, pc, lc, data_gpu, fvalues, gvalues; return_aux=false)a
+        bit_exps_gpu_2 = ExpectationBit(pbc_gpu, pc, lc, data_gpu, fvalues, gvalues; return_aux=false)
         for i = 1:COUNT
             for j = 1:CLASSES
                 @test true_exp[i,j] ≈ bit_exps_gpu[i,j] atol= EPS;
