@@ -1,6 +1,6 @@
 export estimate_parameters, uniform_parameters, estimate_parameters_em
 
-using StatsFuns: logsumexp
+using StatsFuns: logsumexp, logaddexp
 using CUDA
 using LoopVectorization
 
@@ -63,6 +63,8 @@ function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::
 end
 
 function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
+    log_exp_factor = log(exp_update_factor)
+    log_1_exp_factor = log(1.0 - exp_update_factor)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
@@ -71,7 +73,7 @@ function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, componen
                 id = (pn.data::⋁NodeIds).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
-                @inbounds @views pn.log_probs[:, component_idx] .= exp_update_factor .* pn.log_probs[:, component_idx] .+ (1.0 - exp_update_factor) .* params[els_start:els_end]
+                @inbounds @views pn.log_probs[:, component_idx] .= logaddexp.(log_exp_factor .+ pn.log_probs[:, component_idx], log_1_exp_factor .+ params[els_start:els_end])
                 @assert isapprox(sum(exp.(pn.log_probs[:, component_idx])), 1.0, atol=1e-3) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
                 pn.log_probs[:, component_idx] .-= logsumexp(pn.log_probs[:, component_idx]) # normalize away any leftover error
             end
@@ -80,6 +82,8 @@ function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, componen
     nothing
 end
 function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
+    log_exp_factor = log(exp_update_factor)
+    log_1_exp_factor = log(1.0 - exp_update_factor)
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
@@ -88,7 +92,7 @@ function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_fac
                 id = (pn.data::⋁NodeIds).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
-                @inbounds @views pn.log_probs .= exp_update_factor .* pn.log_probs .+ (1.0 - exp_update_factor) .* params[els_start:els_end]
+                @inbounds @views pn.log_probs .= logaddexp.(log_exp_factor .+ pn.log_probs, log_1_exp_factor .+ params[els_start:els_end])
                 @assert isapprox(sum(exp.(pn.log_probs)), 1.0, atol=1e-3) "Parameters do not sum to one locally: $(sum(exp.(pn.log_probs))); $(pn.log_probs)"
                 pn.log_probs .-= logsumexp(pn.log_probs) # normalize away any leftover error
             end
