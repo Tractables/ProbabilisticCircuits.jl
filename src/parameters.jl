@@ -513,11 +513,11 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
 
     @inline function on_node(flows, values, dec_id, weights::Nothing)
         @inbounds @views @. @avx buffer = flows[:, dec_id]
-        node_counts[dec_id] = logsumexp(node_counts[dec_id], logsumexp(buffer))
+        node_counts[dec_id] = logaddexp(node_counts[dec_id], logsumexp(buffer))
     end
     @inline function on_node(flows, values, dec_id, weights)
         @inbounds @views @. @avx buffer = flows[:, dec_id] + log_weights[:]
-        node_counts[dec_id] = logsumexp(node_counts[dec_id], logsumexp(buffer))
+        node_counts[dec_id] = logaddexp(node_counts[dec_id], logsumexp(buffer))
     end
 
     @inline function estimate(element, decision, edge_count)
