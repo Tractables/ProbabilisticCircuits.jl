@@ -411,7 +411,8 @@ end
 Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false, update_per_batch::Bool = false)
+                                use_sample_weights::Bool = true, use_gpu::Bool = false, 
+                                reuse_v = nothing, reuse_f = nothing)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -430,22 +431,32 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
             data = to_gpu(data)
         end
         if use_sample_weights
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, update_per_batch)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, reuse_v, reuse_f)
         else
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; update_per_batch)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; reuse_v, reuse_f)
         end
     else
         if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights, update_per_batch)
+            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse_v, reuse_f)
         else
-            estimate_parameters_cpu(pbc, data, pseudocount; update_per_batch)
+            estimate_parameters_cpu(pbc, data, pseudocount; reuse_v, reuse_f)
         end
     end
+    if reuse_v !== nothing && reuse_f !== nothing
+        params, v, f = params
+    end
+    
     estimate_parameters_cached!(pc, pbc.bitcircuit, params)
-    params
+    
+    if reuse_v !== nothing && reuse_f !== nothing
+        params, v, f
+    else
+        params
+    end
 end
 
-function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, update_per_batch::Bool = false)
+function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, 
+                                 reuse_v = nothing, reuse_f = nothing)
     # `data` is batched?
     data_batched = isbatched(data)
     
@@ -528,20 +539,10 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
     end
-    
-    function update_parameters(reset)
-        @simd for i = 1 : num_elements(bc)
-            @inbounds params[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
-        end
-        if reset
-            @inbounds @views edge_counts[:] .= 0.0
-            @inbounds @views parent_node_counts[:] .= 0.0
-        end
-    end
 
     if data_batched
         if weights !== nothing
-            v, f = nothing, nothing
+            v, f = reuse_v, reuse_f
             for idx = 1 : length(data)
                 d = data[idx]
                 w = weights[idx]
@@ -567,13 +568,9 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
                 end
 
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
-                
-                if update_per_batch
-                    update_parameters(true)
-                end
             end
         else
-            v, f = nothing, nothing
+            v, f = reuse_v, reuse_f
             for idx = 1 : length(data)
                 d = data[idx]
                 
@@ -589,22 +586,25 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
                 end
                 
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = nothing)
-                
-                if update_per_batch
-                    update_parameters(true)
-                end
             end
         end
     else
-        v, f = marginal_flows(pbc, data; on_node, on_edge, weights)
+        v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
     
-    update_parameters(false)
+    @simd for i = 1 : num_elements(bc)
+        @inbounds params[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+    end
 
-    params # a.k.a. log_probs
+    if reuse_v !== nothing && reuse_f !== nothing
+        params, v, f # Also return the allocated vars v and f for future reuse
+    else
+        params # a.k.a. log_probs
+    end
 end
 
-function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, update_per_batch::Bool = false)
+function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, 
+                                 reuse_v = nothing, reuse_f = nothing)
     # `data` is batched?
     data_batched = isbatched(data)
     
@@ -649,26 +649,9 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
             CUDA.@atomic edge_counts_device[element] += c
         end
     end
-    
-    function update_parameters(update_to_pbc)
-        # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
-        @inbounds parents = bc.elements[1,:]
-        @inbounds parent_counts = node_counts[parents]
-        @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
-        params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
-                        ./ (parent_counts .+ pseudocount))
-        
-        if update_to_pbc
-            @inbounds @views pbc.params[:] .= params[:]
-            @inbounds @views node_counts[:] .= 0.0
-            @inbounds @views edge_counts[:] .= 0.0
-        end
-        
-        params
-    end
 
     if data_batched
-        v, f = nothing, nothing
+        v, f = reuse_v, reuse_f
         if weights != nothing
             map(zip(data, weights)) do (d, w)
                 if w != nothing
@@ -676,19 +659,11 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
                 end
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
                 
-                if update_per_batch
-                    update_parameters(true)
-                end
-                
                 nothing # Return nothing to save some time
             end
         else
             map(data) do d
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = nothing)
-                
-                if update_per_batch
-                    update_parameters(true)
-                end
                 
                 nothing # Return nothing to save some time
             end
@@ -699,13 +674,25 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         if weights != nothing
             weights = to_gpu(weights)
         end
-        v, f = marginal_flows(pbc, data; on_node, on_edge, weights)
+        v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
 
-    CUDA.unsafe_free!(v) # save the GC some effort
-    CUDA.unsafe_free!(f) # save the GC some effort
+    # Only free the memory if the reuse memory is not provided
+    if reuse_v === nothing || reuse_f === nothing
+        CUDA.unsafe_free!(v) # save the GC some effort
+        CUDA.unsafe_free!(f) # save the GC some effort
+    end
 
-    params = update_parameters(false)
+    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+    @inbounds parents = bc.elements[1,:]
+    @inbounds parent_counts = node_counts[parents]
+    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                    ./ (parent_counts .+ pseudocount))
     
-    return to_cpu(params)
+    if reuse_v !== nothing && reuse_f !== nothing
+        to_cpu(params), v, f # Also return the allocated vars v and f for future reuse
+    else
+        to_cpu(params) # a.k.a. log_probs
+    end
 end
