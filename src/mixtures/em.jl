@@ -52,13 +52,13 @@ function clustering(data, mix_num::Int64; maxiter=200)::Vector
         return [data]
     end
     data = Matrix(data)
-    R = kmeans(data, mix_num; maxiter=maxiter)
+    R = kmeans(data', mix_num; maxiter=maxiter)
     @assert nclusters(R) == mix_num
     a = assignments(R)
 
     clustered_data = Vector()
     for k in 1 : mix_num
-        push!(clustered_data, DataFrame(data[:, findall(x -> x == k, a)]'))
+        push!(clustered_data, DataFrame(data[findall(x -> x == k, a), :]))
     end
 
     return clustered_data
