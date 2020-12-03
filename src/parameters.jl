@@ -498,7 +498,7 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
     
     # Pre-compute log(weights) to save computation time
     if weights !== nothing
-        log_weights::Vector{Float64} = similar!(reuse_counts[5], Vector{Float64}, 
+        log_weights = similar!(reuse_counts[5], Vector{Float64}, 
             data_batched ? num_examples(data[1]) : num_examples(data))
         
         if !data_batched
@@ -690,6 +690,13 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
 
+    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+    @inbounds parents = bc.elements[1,:]
+    @inbounds parent_counts = node_counts[parents]
+    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                    ./ (parent_counts .+ pseudocount))
+    
     # Only free the memory if the reuse memory is not provided
     if !reuse
         CUDA.unsafe_free!(v) # save the GC some effort
@@ -697,13 +704,6 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         CUDA.unsafe_free!(node_counts) # save the GC some effort
         CUDA.unsafe_free!(edge_counts) # save the GC some effort
     end
-
-    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
-    @inbounds parents = bc.elements[1,:]
-    @inbounds parent_counts = node_counts[parents]
-    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
-    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
-                    ./ (parent_counts .+ pseudocount))
     
     if reuse
         # Also return the allocated vars v, f, counts for future reuse
