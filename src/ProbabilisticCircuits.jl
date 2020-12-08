@@ -13,6 +13,9 @@ export pos_literals, neg_literals
 include("Utils/Utils.jl")
 @reexport using .Utils
 
+include("FactorGraph/factor_graph.jl")
+include("FactorGraph/fg_compile.jl") 
+
 include("abstract_prob_nodes.jl")
 include("plain_prob_nodes.jl")
 include("structured_prob_nodes.jl")
