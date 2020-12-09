@@ -14,7 +14,9 @@ zoo_lc(name, num_classes) =
     load_logistic_circuit(zoo_lc_file(name), num_classes)
 
 zoo_clt_file(name) = 
-    artifact"circuit_model_zoo" * "/Circuit-Model-Zoo-0.1.2/clts/$name"
+    # artifact"circuit_model_zoo/" * "Circuit-Model-Zoo-0.1.3" * "/clts/$name"
+    artifact"circuit_model_zoo" * LogicCircuits.LoadSave.zoo_version * "/clts/$name"
+    
 
 zoo_clt(name) = 
     parse_clt(zoo_clt_file(name))
