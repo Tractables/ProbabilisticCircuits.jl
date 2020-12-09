@@ -1,4 +1,4 @@
-export estimate_parameters, uniform_parameters, estimate_parameters_em
+export estimate_parameters, uniform_parameters, estimate_parameters_em, estimate_parameters_cached!
 
 using StatsFuns: logsumexp, logaddexp
 using CUDA
@@ -81,9 +81,18 @@ function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, componen
     end
     nothing
 end
+function estimate_parameters_cached!(pc::ProbCircuit, pbc; exp_update_factor = 0.0)
+    if isgpu(pbc)
+        pbc = to_cpu(pbc)
+    end
+    bc = pbc.bitcircuit
+    params = pbc.params
+    estimate_parameters_cached!(pc, bc, params; exp_update_factor)
+end
 function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
     log_exp_factor = log(exp_update_factor)
     log_1_exp_factor = log(1.0 - exp_update_factor)
+    
     foreach_reset(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
@@ -98,6 +107,7 @@ function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_fac
             end
         end
     end
+    
     nothing
 end
 
@@ -415,9 +425,13 @@ end
 Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false, reuse::Bool = false,
-                                reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
-                                exp_update_factor = 0.0)
+                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                exp_update_factor = 0.0, update_per_batch::Bool = false)
+    if update_per_batch && isbatched(data)
+        estimate_parameters_em_per_batch(pc, data; pseudocount, use_sample_weights, use_gpu, 
+                                         exp_update_factor)
+    end
+    
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -432,37 +446,105 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
         data = to_gpu(data)
     end
     
-    if reuse_counts === nothing
-        reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
-    end
-            
     params = if use_gpu
         if !isgpu(data)
             data = to_gpu(data)
         end
         if use_sample_weights
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, reuse, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
         else
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; reuse, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
         end
     else
         if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_cpu(pbc, data, pseudocount; weights)
         else
-            estimate_parameters_cpu(pbc, data, pseudocount; reuse, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_cpu(pbc, data, pseudocount)
         end
-    end
-    if reuse
-        params, v, f, reuse_counts = params
     end
     
     estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
     
-    if reuse
-        params, v, f, reuse_counts
-    else
-        params
+    params
+end
+function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, 
+                                          use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                          exp_update_factor = 0.0)
+    if isgpu(data)
+        use_gpu = true
+    elseif use_gpu && !isgpu(data)
+        data = to_gpu(data)
     end
+    
+    pbc = ParamBitCircuit(pc, data; reset=false)
+    if use_gpu
+        pbc = to_gpu(pbc)
+    end
+    
+    reuse_v, reuse_f = nothing, nothing
+    reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+    
+    for idx = 1 : length(data)
+        pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em(pbc, data[idx]; pseudocount, use_gpu, reuse_v, reuse_f, reuse_counts, exp_update_factor)
+    end
+    
+    estimate_parameters_cached!(pc, pbc)
+end
+function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, 
+                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
+                                exp_update_factor = 0.0)
+    if isweighted(data)
+        # `data' is weighted according to its `weight' column
+        data, weights = split_sample_weights(data)
+    else
+        use_sample_weights = false
+    end
+    
+    if isgpu(data)
+        use_gpu = true
+    elseif use_gpu && !isgpu(data)
+        data = to_gpu(data)
+    end
+    
+    if reuse_counts === nothing
+        reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+    end
+    
+    params, v, f, reuse_counts = if use_gpu
+        if !isgpu(pbc)
+            pbc.bitcircuit = to_gpu(pbc.bitcircuit)
+            pbc.params = to_gpu(pbc.params)
+        end
+        if use_sample_weights
+            estimate_parameters_gpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts)
+        else
+            estimate_parameters_gpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts)
+        end
+    else
+        if use_sample_weights
+            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts)
+        else
+            estimate_parameters_cpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts)
+        end
+    end
+    
+    # Update the parameters to `pbc`
+    if use_gpu # GPU
+        tempparam = Vector{Float64}(undef, length(params))
+        tempparam .= to_cpu(params)
+        @inbounds @views pbc.params .+= log(exp_update_factor)
+        @inbounds @views params .+= log(1.0 - exp_update_factor)
+        delta = @inbounds @views @. CUDA.ifelse(pbc.params == params, CUDA.zero(params), CUDA.abs(pbc.params - params))
+        @inbounds @views @. pbc.params = CUDA.max(pbc.params, params) + CUDA.log1p(CUDA.exp(-delta))
+        
+        CUDA.unsafe_free!(params)
+        CUDA.unsafe_free!(delta)
+    else # CPU
+        @inbounds @views pbc.params = logaddexp.(pbc.params .+ log(exp_update_factor), params .+ log(1.0 - exp_update_factor))
+    end
+    
+    pbc, v, f, reuse_counts
 end
 
 function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, reuse::Bool = false,
@@ -602,15 +684,21 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
         v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
     
+    # `edge_counts` now becomes "params"
     @simd for i = 1 : num_elements(bc)
-        @inbounds params[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+        num_els = num_elements(bc.nodes, bc.elements[1, i])
+        if num_els == 1
+            @inbounds edge_counts[i] = zero(eltype(edge_counts)) # log(1)
+        else
+            @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+        end
     end
 
     if reuse
         # Also return the allocated vars v, f, counts for future reuse
-        params, v, f, (node_counts, edge_counts, parent_node_counts, buffer, log_weights)
+        edge_counts, v, f, (node_counts, edge_counts, parent_node_counts, buffer, log_weights)
     else
-        params # a.k.a. log_probs
+        edge_counts # a.k.a. log_probs
     end
 end
 
@@ -687,6 +775,7 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         if weights != nothing
             weights = to_gpu(weights)
         end
+        
         v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
 
@@ -696,6 +785,11 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
     params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
                     ./ (parent_counts .+ pseudocount))
+    params = @inbounds @views @. ifelse(parent_elcount == 1, zero(params), params)
+    
+    CUDA.unsafe_free!(parents)
+    CUDA.unsafe_free!(parent_counts)
+    CUDA.unsafe_free!(parent_elcount)
     
     # Only free the memory if the reuse memory is not provided
     if !reuse
@@ -707,7 +801,7 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     
     if reuse
         # Also return the allocated vars v, f, counts for future reuse
-        to_cpu(params), v, f, (node_counts, edge_counts)
+        params, v, f, (node_counts, edge_counts)
     else
         to_cpu(params) # a.k.a. log_probs
     end

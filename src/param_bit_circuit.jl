@@ -1,7 +1,7 @@
 export ParamBitCircuit
 
 "A `BitCircuit` with parameters attached to the elements"
-struct ParamBitCircuit{V,M,W}
+mutable struct ParamBitCircuit{V,M,W}
     bitcircuit::BitCircuit{V,M}
     params::W
 end
