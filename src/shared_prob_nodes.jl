@@ -73,6 +73,10 @@ import LogicCircuits: children # make available for extension
 
 "How many components are mixed together in this shared circuit?"
 @inline num_components(n::SharedSumNode) = size(n.log_probs,2)
+@inline num_components(n::SharedMulNode) = begin
+    @assert length(n.children) > 0 "Invalid SharedMulNode (it has no child node)."
+    num_components(n.children[1])
+end
 
 #####################
 # constructors and conversions

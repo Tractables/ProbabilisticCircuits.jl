@@ -1,7 +1,10 @@
-export entropy, conditional_entropy, mutual_information, set_mutual_information
+export pairwise_marginals, mutual_information, set_mutual_information
+
 using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
+using CUDA: CUDA, CuMatrix, CuVector, CuArray
+
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
 mutable struct DisCache
@@ -15,11 +18,16 @@ DisCache(num) = DisCache(Array{Float64}(undef, num, num, 4), Array{Float64}(unde
 #####################
 # Methods for pairwise and marginal distribution
 #####################
-@inline get_parameters(bm, α, w=nothing) = size(bm)[2], issomething(w) ? sum(w) : size(bm)[1], convert(Matrix{Float64}, bm), convert(Matrix{Float64}, .!bm)
 
+#TODO: give a better name; make this the default `pairwise_marginals` for all binary data on CPU?
 function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pairwise=true, marginal=true))
+    
     # parameters
-    D, N, m, notm = get_parameters(bm, α, w)
+    D = size(bm)[2]
+    N = issomething(w) ? sum(w) : size(bm)[1]
+    m = convert(Matrix{Float64}, bm)
+    notm = convert(Matrix{Float64}, .!bm)
+
     dis_cache = DisCache(D)
     base = N + 4 * α
     w = isnothing(w) ? ones(Float64, N) : w
@@ -38,6 +46,85 @@ function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pa
         dis_cache.marginal[:, 2] = (sum(m .* w, dims=1).+ 2 * α) / base
     end
     dis_cache
+end
+
+"Compute an array giving all pairwise marginals estimated on empirical (weighted) data"
+function pairwise_marginals(data::Matrix, weights::Vector, num_cats = maximum(data); pseudocount = 1.0)
+    
+    @assert minimum(data) > 0 "Categorical data labels are assumed to be indexed starting 1"
+    num_vars = size(data,2)
+    pair_margs = Array{Float32}(undef, num_vars, num_vars, num_cats, num_cats)
+    Z = sum(weights) + pseudocount
+    single_smooth = pseudocount / num_cats
+    pair_smooth = single_smooth / num_cats
+    
+    for i = 1:num_vars 
+        Threads.@threads for j = 1:num_vars # note: multithreading needs to be on inner loop for thread-safe copying across diagonal
+            if i<=j
+                if i!=j
+                    @inbounds pair_margs[i,j,:,:] .= pair_smooth
+                else
+                    @inbounds pair_margs[i,j,:,:] .= zero(eltype(pair_margs))
+                    for l = 1:num_cats
+                        @inbounds pair_margs[i,j,l,l] = single_smooth
+                    end
+                end
+                @simd for k = 1:size(data,1) # @avx here gives incorrect results
+                    @inbounds pair_margs[i,j,data[k,i],data[k,j]] += weights[k]
+                end
+                @inbounds pair_margs[i,j,:,:] ./= Z
+            else
+                @inbounds pair_margs[i,j,:,:] .= (@view pair_margs[j,i,:,:])' 
+            end
+            nothing
+        end
+    end
+
+    return pair_margs
+end
+
+function pairwise_marginals(data::CuMatrix, weights::CuVector, num_cats = maximum(data); pseudocount = 1.0)
+    
+    @assert minimum(data) > 0 "Categorical data labels are assumed to be indexed starting 1"
+    num_vars = size(data,2)
+    pair_margs = CuArray{Float32}(undef, num_vars, num_vars, num_cats, num_cats)
+    Z = sum(weights) + pseudocount
+    single_smooth = pseudocount / num_cats
+    pair_smooth = single_smooth / num_cats
+    
+    data_device = CUDA.cudaconvert(data)
+    weights_device = CUDA.cudaconvert(weights)
+    pair_margs_device = CUDA.cudaconvert(pair_margs)
+
+    var_indices = CuArray(1:num_vars)
+    CUDA.@sync begin
+        broadcast(var_indices, var_indices') do i,j
+            if i <= j
+                if i!=j
+                    @inbounds pair_margs_device[i,j,:,:] .= pair_smooth
+                else
+                    @inbounds pair_margs_device[i,j,:,:] .= zero(Float32)
+                    for l = 1:num_cats
+                        @inbounds pair_margs_device[i,j,l,l] = single_smooth
+                    end
+                end
+                for k = 1:size(data_device,1)
+                    pair_margs_device[i,j,data_device[k,i],data_device[k,j]] += weights_device[k]
+                end
+            end
+            nothing
+        end
+        pair_margs ./= Z
+        broadcast(var_indices, var_indices') do i,j
+            if i > j
+                for l = 1:num_cats, m = 1:num_cats
+                    @inbounds pair_margs_device[i,j,l,m] = pair_margs_device[j,i,m,l] 
+                end
+            end
+            nothing
+        end
+    end
+    return pair_margs
 end
 
 #####################
@@ -77,59 +164,4 @@ function set_mutual_information(mi::Matrix, sets::AbstractVector{<:AbstractVecto
         pmi[i, j] = pmi[j, i] = mean(mi[sets[i], sets[j]])
     end
     return pmi
-end
-
-#####################
-# Entropy
-#####################
-
-function entropy(dis_cache::DisCache)
-    D = dimension(dis_cache)
-    px_log_px = @. xlogx(dis_cache.marginal)
-    - dropdims(sum(px_log_px; dims=2); dims=2)
-end
-
-function entropy(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
-    dis_cache = cache_distributions(bm, w; α=α, flag=(pairwise=true, marginal=true))
-    return (dis_cache, entropy(dis_cache))
-end
-
-function sum_entropy_given_x(bm::AbstractMatrix{<:Bool}, x, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)::Float64
-    @assert x <= size(bm)[2]
-    vars = [1 : x-1; x+1 : size(bm)[2]]
-    indexes_left = bm[:,x].== 0
-    indexes_right = bm[:,x] .== 1
-    w1 = sum(Float64.(indexes_left))
-    w2 = sum(Float64.(indexes_right))
-    w1, w2 = w1 / (w1 + w2), w2 / (w1 + w2)
-    subm_left = @view bm[indexes_left, vars]
-    subm_right = @view bm[indexes_right, vars]
-    
-    w_left = issomething(w) ? (@view w[indexes_left]) : nothing
-    w_right = issomething(w) ? (@view w[indexes_right]) : nothing
-
-    w1 * sum(entropy(subm_left, w_left; α=α)[2]) + w2 * sum(entropy(subm_right, w_right; α=α)[2])
-end
-
-function conditional_entropy(dis_cache::DisCache)
-    D = dimension(dis_cache)
-    pxy_log_pxy = @. xlogx(dis_cache.pairwise)
-    pxy = dis_cache.pairwise
-    log_px = log.(dis_cache.marginal)
-    
-    pxy_log_px = Array{Float64}(undef, D, D, 4)
-    pxy_log_px[:, :, 1] = view(pxy, :, :, 1) .* view(log_px, :, 1)
-    pxy_log_px[:, :, 2] = view(pxy, :, :, 2) .* view(log_px, :, 1)
-    pxy_log_px[:, :, 3] = view(pxy, :, :, 3) .* view(log_px, :, 2)
-    pxy_log_px[:, :, 4] = view(pxy, :, :, 4) .* view(log_px, :, 2)
-    h_y_given_x = - dropdims(sum(pxy_log_pxy - pxy_log_px; dims=3); dims=3)
-end
-
-function conditional_entropy(bm::AbstractMatrix{<:Bool}, w::Union{Nothing, AbstractVector{<:AbstractFloat}}=nothing; α)
-    dis_cache = cache_distributions(bm, w; α=α)
-    return (dis_cache, conditional_entropy(dis_cache))
-end
-
-function set_conditional_entropy(ce::Matrix{<:Float64})
-    dropdims(sum(ce; dims=2); dims=2)
 end

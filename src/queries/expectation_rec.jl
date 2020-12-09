@@ -1,8 +1,9 @@
 export Expectation, Moment
 
+const ExpFloat = Float32
 
-ExpCacheDict = Dict{Pair{ProbCircuit, LogisticCircuit}, Array{Float64, 2}}
-MomentCacheDict = Dict{Tuple{ProbCircuit, LogisticCircuit, Int64}, Array{Float64, 2}}
+ExpCacheDict = Dict{Pair{ProbCircuit, LogisticCircuit}, Array{ExpFloat, 2}}
+MomentCacheDict = Dict{Tuple{ProbCircuit, LogisticCircuit, Int64}, Array{ExpFloat, 2}}
 
 struct ExpectationCache 
     f::ExpCacheDict
@@ -66,7 +67,7 @@ function Moment(pc::ProbCircuit, lc::LogisticCircuit, data, moment::Int)
     # 2. Moment w.r.t. P(x_m, x_o)
     cache = MomentCache()
     biases = lc.thetas
-    results_unnormalized = zeros(num_examples(data), num_classes(lc))
+    results_unnormalized = zeros(ExpFloat, num_examples(data), num_classes(lc))
     
     for z = 0:moment-1  
         results_unnormalized .+= choose(moment, z) .* (biases .^ (z)) .* transpose(moment_g(pc, children(lc)[1], data, moment - z, cache))
@@ -88,11 +89,11 @@ end
 
 function exp_f(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
-        value = zeros(1 , num_examples(data) )
-        pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
+        value = zeros(ExpFloat, 1 , num_examples(data) )
+        @inline pthetas(i) = ExpFloat.(exp(n.log_probs[i])) #[exp(n.log_probs[i]) for i in 1:num_children(n)]
         @fastmath @simd for i in 1:num_children(n)
             @simd for j in 1:num_children(m)
-                value .+= (pthetas[i] .* exp_f(children(n)[i], children(m)[j], data, cache))
+                value .+= (pthetas(i) .* exp_f(children(n)[i], children(m)[j], data, cache))
             end
         end
         return value
@@ -101,29 +102,30 @@ end
 
 function exp_f(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
-        value = ones(1 , num_examples(data) )
-        @fastmath for (i,j) in zip(children(n), children(m))
-            value .*= exp_f(i, j, data, cache)
-        end
-        return value
-        # exp_f(children(n)[1], children(m)[1], data, cache) .* exp_f(children(n)[2], children(m)[2], data, cache)
+        # value = ones(ExpFloat, 1 , num_examples(data) )
+        # @fastmath for (i,j) in zip(children(n), children(m))
+        #     value .*= exp_f(i, j, data, cache)
+        # end
+        # return value
+        @fastmath @inbounds exp_f(children(n)[1], children(m)[1], data, cache) .* exp_f(children(n)[2], children(m)[2], data, cache)
     end
+    # @fastmath @inbounds exp_f(children(n)[1], children(m)[1], data, cache) .* exp_f(children(n)[2], children(m)[2], data, cache)
 end
 
 
 @inline function exp_f(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteralNode, data, cache::Union{ExpectationCache, MomentCache})
     @inbounds get!(cache.f, Pair(n, m)) do
-        value = zeros(1 , num_examples(data) )
+        value = zeros(ExpFloat, 1 , num_examples(data) )
         var = lit2var(literal(m))
         X = data
         if ispositive(n) && ispositive(m) 
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 1 ] .= 1.0 # positive observations
-            value[1, .!isequal.(X[:, var], 0)] .= 1.0 # positive or missing observations
+            value[1, .!isequal.(X[:, var], 0)] .= ExpFloat(1.0) # positive or missing observations
         elseif isnegative(n) && isnegative(m)
             # value[1, X[:, var] .== -1 ] .= 1.0  # missing observation always agrees
             # value[1, X[:, var] .== 0 ] .= 1.0 # negative observations
-            value[1, .!isequal.(X[:, var], 1)] .= 1.0 # negative or missing observations
+            value[1, .!isequal.(X[:, var], 1)] .= ExpFloat(1.0) # negative or missing observations
         end
         return value
     end
@@ -147,7 +149,7 @@ end
 end
 
 # function exp_g(n::Prob⋀, m::Logistic⋀Node, data, cache::ExpectationCache)
-#     value = zeros(classes(m) , num_examples(data))
+#     value = zeros(ExpFloat, classes(m) , num_examples(data))
 #     @fastmath for (i,j) in zip(children(n), children(m))
 #         value .+= exp_fg(i, j, data, cache)
 #     end
@@ -158,12 +160,12 @@ end
 
 function exp_fg(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
-        value = zeros(num_classes(m) , num_examples(data) )
-        pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
+        value = zeros(ExpFloat, num_classes(m) , num_examples(data) )
+        @inline pthetas(i) = ExpFloat.(exp(n.log_probs[i])) #pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
         @fastmath @simd for i in 1:num_children(n)
             for j in 1:num_children(m)
-                value .+= (pthetas[i] .* m.thetas[j,:]) .* exp_f(children(n)[i], children(m)[j], data, cache)
-                value .+= pthetas[i] .* exp_fg(children(n)[i], children(m)[j], data, cache)
+                value .+= (pthetas(i) .* ExpFloat.(m.thetas[j,:])) .* exp_f(children(n)[i], children(m)[j], data, cache)
+                value .+= pthetas(i) .* exp_fg(children(n)[i], children(m)[j], data, cache)
             end
         end
         return value
@@ -177,6 +179,8 @@ function exp_fg(n::Union{PlainMulNode, StructMulNode}, m::Logistic⋀Node, data,
         value .+= exp_f(children(n)[2], children(m)[2], data, cache) .* exp_fg(children(n)[1], children(m)[1], data, cache)
         return value
     end
+    # @fastmath @inbounds exp_f(children(n)[1], children(m)[1], data, cache) .* exp_fg(children(n)[2], children(m)[2], data, cache) 
+    #     .+ exp_f(children(n)[2], children(m)[2], data, cache) .* exp_fg(children(n)[1], children(m)[1], data, cache)     
 end
 
 
@@ -185,13 +189,13 @@ Has to be a Logistic⋁Node with only one child, which is a leaf node
 """
 @inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::Logistic⋁Node, data, cache::ExpectationCache)
     @inbounds get!(cache.fg, Pair(n, m)) do
-        m.thetas[1,:] .* exp_f(n, m, data, cache)
+        ExpFloat.(m.thetas[1,:]) .* exp_f(n, m, data, cache)
     end
 end
 
 @inline function exp_fg(n::Union{PlainProbLiteralNode, StructProbLiteralNode}, m::LogisticLiteralNode, data, cache::ExpectationCache)
     #dont know how many classes, boradcasting does the job
-    zeros(1 , num_examples(data)) 
+    zeros(ExpFloat, 1 , num_examples(data)) 
 end
 
 #######################################################################
@@ -213,7 +217,7 @@ function moment_fg(n::Union{PlainSumNode, StructSumNode}, m::Logistic⋁Node, da
     end
 
     get!(cache.fg, (n, m, moment)) do
-        value = zeros(num_classes(m) , num_examples(data) )
+        value = zeros(ExpFloat, num_classes(m) , num_examples(data) )
         pthetas = [exp(n.log_probs[i]) for i in 1:num_children(n)]
         @fastmath @simd for i in 1:num_children(n)
             for j in 1:num_children(m)
@@ -237,7 +241,7 @@ end
     if moment == 0
         exp_f(n, m, data, cache)
     else
-        zeros(1, num_examples(data))
+        zeros(ExpFloat, 1, num_examples(data))
     end
 end
 

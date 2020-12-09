@@ -2,10 +2,10 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
-
+using CUDA
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
-    EPS = 1e-5;
+    EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True expectation brute force
     true_exp = zeros(COUNT, CLASSES)
@@ -34,10 +34,33 @@ function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data
             @test true_exp[i,j] ≈ calc_exp_2[i,j] atol= EPS;
         end
     end
+    # Compute BitCircuit Expectations (CPU)
+    bit_exps, fvalues, gvalues, pbc_cpu = ExpectationBit(pc, lc, data; return_aux=true)
+    bit_exps_batch2 = ExpectationBit(pbc_cpu, pc, lc, data, fvalues, gvalues; return_aux=false)
+    for i = 1:COUNT
+        for j = 1:CLASSES
+            @test true_exp[i,j] ≈ bit_exps[i,j] atol= EPS;
+            @test true_exp[i,j] ≈ bit_exps_batch2[i,j] atol= EPS;
+        end
+    end
+    
+    # Compute BitCircuit Expectations (GPU)
+    if CUDA.functional()
+        data_gpu = to_gpu(data);
+        bit_exps_gpu, fvalues, gvalues, pbc_gpu = ExpectationBit(pc, lc, data_gpu; return_aux=true)
+        bit_exps_gpu_2 = ExpectationBit(pbc_gpu, pc, lc, data_gpu, fvalues, gvalues; return_aux=false)
+        for i = 1:COUNT
+            for j = 1:CLASSES
+                @test true_exp[i,j] ≈ bit_exps_gpu[i,j] atol= EPS;
+                @test true_exp[i,j] ≈ bit_exps_gpu_2[i,j] atol= EPS;
+            end
+        end
+    end
+
 end
 
 function test_moment_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int, moment::Int)
-    EPS = 1e-5;
+    EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True moment brute force
     true_mom = zeros(COUNT, CLASSES)
@@ -84,7 +107,8 @@ end
             missing missing missing 1;
             missing missing missing 0;
             ])
-
+            
+    data = DataFrame(map(x -> (ismissing(x) ? missing : Bool(x)) , Matrix(data)))
     test_expectation_brute_force(pc, lc, data, CLASSES)
 
     # Big circuit (15 Var)

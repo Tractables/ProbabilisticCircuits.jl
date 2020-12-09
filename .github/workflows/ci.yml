@@ -1,0 +1,42 @@
+name: Unit Tests 
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: 
+  pull_request:
+  push:
+  workflow_dispatch:
+
+
+env:
+  DATADEPS_ALWAYS_ACCEPT: 1
+  JIVE_PROCS: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: 1.5
+
+      # Runs a single command using the runners shell
+      - name: Unit Tests
+        run: |
+          julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
+          julia --project --check-bounds=yes --depwarn=yes -e 'import Pkg; Pkg.test(; coverage=true)'
+      
+      - name: Docs Build
+        env:
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+        run: |
+          sudo apt-get -qq update
+          sudo apt install -y pdf2svg texlive-latex-base texlive-binaries texlive-pictures texlive-latex-extra texlive-luatex    
+          luatex -v
+          pdflatex -v
+          julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
+          julia --project=docs/ docs/make.jl
+

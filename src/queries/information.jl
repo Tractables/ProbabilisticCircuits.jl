@@ -1,4 +1,4 @@
-export kl_divergence
+export kl_divergence, entropy
 
 const KLDCache = Dict{Tuple{ProbCircuit,ProbCircuit}, Float64}
 
@@ -6,7 +6,6 @@ const KLDCache = Dict{Tuple{ProbCircuit,ProbCircuit}, Float64}
 Calculate entropy of the distribution of the input pc."
 """
 
-import ..Utils: entropy
 function entropy(pc_node::StructSumNode, pc_entropy_cache::Dict{ProbCircuit, Float64}=Dict{ProbCircuit, Float64}())::Float64
     if pc_node in keys(pc_entropy_cache)
         return pc_entropy_cache[pc_node]

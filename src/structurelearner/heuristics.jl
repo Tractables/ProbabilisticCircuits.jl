@@ -41,8 +41,14 @@ function vRand(vars::Vector{Var})
 end
 
 function heuristic_loss(circuit::LogicCircuit, train_x; pick_edge="eFlow", pick_var="vMI")
-    candidates, scope = split_candidates(circuit)
-    values, flows = satisfies_flows(circuit, train_x)
+    if isweighted(train_x)
+        train_x, weights = split_sample_weights(train_x)
+    else
+        weights = nothing
+    end
+    
+    candidates, variable_scope = split_candidates(circuit)
+    values, flows = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here
     if pick_edge == "eFlow"
         edge, flow = eFlow(values, flows, candidates)
     elseif pick_edge == "eRand"
@@ -52,8 +58,7 @@ function heuristic_loss(circuit::LogicCircuit, train_x; pick_edge="eFlow", pick_
     end
 
     or, and = edge
-    lits = collect(Set{Lit}(scope[and]))
-    vars =  Var.(intersect(filter(l -> l > 0, lits), - filter(l -> l < 0, lits)))
+    vars = Var.(collect(variable_scope[and]))
 
     if pick_var == "vMI"
         var, score = vMI(values, flows, edge, vars, train_x)

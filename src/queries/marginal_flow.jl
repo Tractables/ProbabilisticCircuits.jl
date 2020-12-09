@@ -37,17 +37,35 @@ marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
 marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
     marginal(root, DataFrame(reshape(data, 1, :)))[1]
 
-marginal(circuit::ProbCircuit, data::DataFrame) =
+marginal(circuit::ProbCircuit, data::Union{DataFrame, Array{DataFrame}}) =
     marginal(same_device(ParamBitCircuit(circuit, data), data) , data)
 
 function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
-    marginal_all(circuit,data)[:,end]
+    marginal_all(circuit, data)[:,end]
+end
+
+function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVector
+    if isgpu(data)
+        marginals = CuVector{Float64}(undef, num_examples(data))
+    else
+        marginals = Vector{Float64}(undef, num_examples(data))
+    end
+    
+    v, start_idx = nothing, 1
+    map(data) do d
+        v = marginal_all(circuit, d, v)
+        v_len = size(v, 1)
+        @inbounds @views marginals[start_idx: start_idx + v_len - 1] .= v[:, end]
+        start_idx += v_len
+    end
+    
+    isgpu(data) ? convert(Array{Float64, 1}, to_cpu(marginals)) : marginals
 end
 
 """
     MAR(pc, data)
 
-Computes Marginal log likelhood of data.  
+Computes Marginal log likelhood of data. See docs for `marginal`.
 """
 const MAR = marginal
 
@@ -77,6 +95,49 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     end
     mapreduce(*, +, likelihoods, weights)
 end
+marginal_log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    if use_gpu
+        data = to_gpu(data)
+    end
+    
+    pbc = ParamBitCircuit(pc, data)
+    
+    total_ll::Float64 = 0.0
+    if isweighted(data)
+        data, weights = split_sample_weights(data)
+        
+        if use_gpu
+            data = to_gpu(data)
+        end
+        
+        v = nothing
+        for idx = 1 : length(data)
+            v = marginal_all(pbc, data[idx], v)
+            likelihoods = v[:,end]
+            if isgpu(likelihoods)
+                likelihoods = to_cpu(likelihoods)
+            end
+            w = weights[idx]
+            if isgpu(w)
+                w = to_cpu(w)
+            end
+            total_ll += mapreduce(*, +, likelihoods, w)
+        end
+    else
+        v = nothing
+        for idx = 1 : length(data)
+            v = marginal_all(pbc, data[idx], v)
+            likelihoods = v[:,end]
+            total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
+        end
+    end
+    
+    if use_gpu
+        CUDA.unsafe_free!(v) # save the GC some effort
+    end
+    
+    total_ll
+end
 
 """
 Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
@@ -97,6 +158,24 @@ marginal_log_likelihood_avg(pc, data, weights) = begin
         weights = to_cpu(weights)
     end
     marginal_log_likelihood(pc, data, weights)/sum(weights)
+end
+marginal_log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+    total_ll = marginal_log_likelihood(pc, data; use_gpu = use_gpu)
+    
+    if isweighted(data)
+        data, weights = split_sample_weights(data)
+        
+        total_weights = 0.0
+        for idx = 1 : length(weights)
+            total_weights += sum(isgpu(weights[idx]) ? to_cpu(weights[idx]) : weights[idx])
+        end
+        
+        avg_ll = total_ll / total_weights
+    else
+        avg_ll = total_ll / num_examples(data)
+    end
+    
+    avg_ll
 end
 
 #####################
@@ -184,6 +263,7 @@ end
 
 "Compute marginals on the GPU"
 function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix;  dec_per_thread = 8, log2_threads_per_block = 8)
+    circuit = to_gpu(circuit)
     bc = circuit.bitcircuit
     CUDA.@sync for layer in bc.layers[2:end]
         num_examples = size(values, 1)
@@ -443,6 +523,6 @@ end
     ifelse(isnan(x), typemin(n_down), x)
 end
 @inline function compute_marg_edge_flow(p_up, s_up, n_up, n_down, θ, weight)
-    x = p_up + s_up - n_up + n_down + θ + log(weight)
+    x = p_up + s_up - n_up + n_down + θ
     ifelse(isnan(x), typemin(n_down), x)
 end
