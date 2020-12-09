@@ -10,7 +10,7 @@ on:
 
 env:
   DATADEPS_ALWAYS_ACCEPT: 1
-  JIVE_PROCS: 2
+  JIVE_PROCS: 1
 
 jobs:
   build:
