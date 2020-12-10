@@ -3,10 +3,8 @@ using ProbabilisticCircuits
 using LogicCircuits
 using Pkg.Artifacts
 
-const zoo_version = "/Circuit-Model-Zoo-0.1.2"
 fg_file(name) =
-    artifact"circuit_model_zoo" * zoo_version * "/fgs/$name"
-
+    artifact"circuit_model_zoo" * LogicCircuits.LoadSave.zoo_version * "/fgs/$name"
 
 @testset "Load small fg and test forward pass" begin
     file = fg_file("asia.uai")
