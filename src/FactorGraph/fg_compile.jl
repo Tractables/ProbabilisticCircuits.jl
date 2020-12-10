@@ -1,4 +1,15 @@
-export compile_factor_graph, fg_to_cnf, wmc_chavira, get_varprob
+export compile_factor_graph, 
+    fg_to_cnf, 
+    wmc_chavira, 
+    get_varprob,
+    zoo_fg_file
+
+using Pkg.Artifacts
+
+# Might want to move this to LoadSave later
+zoo_fg_file(name) =
+    artifact"circuit_model_zoo" * LogicCircuits.LoadSave.zoo_version * "/fgs/$name"
+
 
 """
     wmc_chavira(root::LogicCircuit; varprob::Function)::Float
