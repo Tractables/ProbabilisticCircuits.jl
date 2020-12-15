@@ -7,7 +7,7 @@ using Pkg.Artifacts
     file = zoo_fg_file("asia.uai")
     fg = fromUAI(file)
     @test length(fg.vars) == 8
-    @test legnth(fg.facs) == 8
+    @test length(fg.facs) == 8
     circuit1, var_lits, fac_lits = compile_factor_graph(fg)
     circuit2 = PlainLogicCircuit(circuit1)
     circuit3 = smooth(circuit2)
