@@ -2,7 +2,9 @@ export compile_factor_graph,
     fg_to_cnf, 
     wmc_chavira, 
     get_varprob,
-    zoo_fg_file
+    zoo_fg_file,
+    time_compilation,
+    time_compilation_cnf
 
 using Pkg.Artifacts
 
@@ -53,8 +55,9 @@ end
 
 function biject_cnf(a, b)
     # Here we assume that A is a list of literals and b is a literal
-    c = b | disjoin(map(x -> !x, a))
-    c & conjoin(map(x -> !b | x, a))
+    clause1 = vcat(b, map(x -> negate(x), a))
+    clauses = map(x -> [negate(b), x], a)
+    vcat([clause1], clauses)
 end
 
 function fg_to_cnf(fg::FactorGraph)
@@ -72,22 +75,23 @@ function fg_to_cnf(fg::FactorGraph)
 
     # Create lits for varnodes
     var_lits = Dict(v => [PlainLiteralNode(nextSDDVar()) for i = 1:v.dim] for v in fg.vars)
-    println(var_lits)
 
     # lits for factor nodes
     fac_lits = Dict(f => Dict(k => PlainLiteralNode(nextSDDVar()) for k in keys(f.factor)) for f in fg.facs)
-    println(fac_lits)
 
     @assert total_lits == curr
 
-    # Start CNF with true
-    c = PlainTrueNode()
+    # Our cnf is just going to be a list of lists
+    cnf = Vector{Vector{PlainLiteralNode}}()
 
     # Compile indicator CNFs
     for varnode in fg.vars
         for i = 2:varnode.dim
             for j = 1:i-1
-                c = c & (!var_lits[varnode][i] | !var_lits[varnode][j])
+                clause1 = [negate(var_lits[varnode][i]), negate(var_lits[varnode][j])]
+                push!(cnf, clause1)
+                clause2 = [var_lits[varnode][i], var_lits[varnode][j]]
+                push!(cnf, clause2)
             end
         end
     end
@@ -96,13 +100,13 @@ function fg_to_cnf(fg::FactorGraph)
     for facnode in fg.facs
         for config in keys(facnode.factor)
             fc = [var_lits[varnode][assignment] for (assignment, varnode) in zip(config, facnode.neighbs)]
-            c = c & biject_cnf(fc, fac_lits[facnode][config])
+            append!(cnf, biject_cnf(fc, fac_lits[facnode][config]))
         end
     end
-    compile(mgr, c)
+    conjoin(map(x -> disjoin(x), cnf))
 end
 
-function compile_factor_graph(fg::FactorGraph)
+function compile_factor_graph(fg::FactorGraph, vtr=nothing)
     curr = 0
     # So we can get ids for each
     function nextSDDVar()
@@ -110,20 +114,18 @@ function compile_factor_graph(fg::FactorGraph)
         return curr
     end
 
-    # Use a balanced vtree for now
-    total_lits = sum(v.dim for v in fg.vars) + sum(length(keys(f.factor)) for f in fg.facs)
-    vtr = PlainVtree(total_lits, :balanced)
-    mgr = SddMgr(vtr) 
+    if vtr === nothing
+        # Use a balanced vtree for now
+        total_lits = sum(v.dim for v in fg.vars) + sum(length(keys(f.factor)) for f in fg.facs)
+        vtr = PlainVtree(total_lits, :balanced)
+    end
+    mgr = SddMgr(vtr)
 
     # Create lits for varnodes
     var_lits = Dict(v => [compile(mgr, Lit(nextSDDVar())) for i = 1:v.dim] for v in fg.vars)
-    println(var_lits)
 
     # lits for factor nodes
     fac_lits = Dict(f => Dict(k => compile(mgr, Lit(nextSDDVar())) for k in keys(f.factor)) for f in fg.facs)
-    println(fac_lits)
-
-    @assert total_lits == curr
 
     # Begin compilation
     c = compile(mgr, true)
@@ -149,4 +151,14 @@ function compile_factor_graph(fg::FactorGraph)
         end
     end
     c, var_lits, fac_lits
+end
+
+function time_compilation(fg, vtr)
+    @time compile_factor_graph(fg, vtr)
+end
+
+function time_compilation_cnf(fg, vtr)
+    mgr = SddMgr(vtr) 
+    cnf = fg_to_cnf(fg)
+    @time compile(mgr, cnf)
 end
