@@ -8,6 +8,7 @@ Learn structure of a single structured decomposable circuit
 function learn_circuit(train_x; 
         pick_edge="eFlow", pick_var="vMI", depth=1, 
         pseudocount=1.0,
+        entropy_reg=0.0,
         sanity_check=true,
         maxiter=100,
         seed=nothing,
@@ -17,7 +18,7 @@ function learn_circuit(train_x;
     pc, vtree = learn_chow_liu_tree_circuit(train_x)
     
     learn_circuit(train_x, pc, vtree; pick_edge, pick_var, depth, pseudocount, sanity_check, 
-                  maxiter, seed, return_vtree)
+                  maxiter, seed, return_vtree, entropy_reg)
 end
 function learn_circuit(train_x, pc, vtree;
         pick_edge="eFlow", pick_var="vMI", depth=1, 
@@ -28,7 +29,8 @@ function learn_circuit(train_x, pc, vtree;
         return_vtree=false,
         batch_size=0,
         splitting_data=nothing,
-        use_gpu=false)
+        use_gpu=false,
+        entropy_reg=0.0)
 
     if seed !== nothing
         Random.seed!(seed)
@@ -41,9 +43,9 @@ function learn_circuit(train_x, pc, vtree;
     pc_split_step(circuit) = begin
         c::ProbCircuit, = split_step(circuit; loss=loss, depth=depth, sanity_check=sanity_check)
         if batch_size > 0
-            estimate_parameters(c, batch(train_x, batch_size); pseudocount, use_gpu)
+            estimate_parameters(c, batch(train_x, batch_size); pseudocount, use_gpu, entropy_reg)
         else
-            estimate_parameters(c, train_x; pseudocount, use_gpu)
+            estimate_parameters(c, train_x; pseudocount, use_gpu, entropy_reg)
         end
         return c, missing
     end
