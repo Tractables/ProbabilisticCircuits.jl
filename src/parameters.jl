@@ -1,4 +1,5 @@
-export estimate_parameters, uniform_parameters, estimate_parameters_em, estimate_parameters_cached!
+export estimate_parameters, uniform_parameters, estimate_parameters_em, estimate_parameters_cached!, 
+       apply_entropy_reg
 
 using StatsFuns: logsumexp, logaddexp
 using CUDA
@@ -14,8 +15,14 @@ bagging support: If `pc` is a SharedProbCircuit and data is an array of DataFram
   dataset.
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = false)
-    estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu)
+                             use_sample_weights::Bool = true, use_gpu::Bool = false, entropy_reg::Float64 = 0.0)
+    params = estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu)
+    
+    if entropy_reg > 1e-9
+        apply_entropy_reg(pc; alpha = entropy_reg)
+    end
+    
+    params
 end
 function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
                              use_sample_weights::Bool = true, use_gpu::Bool = false)
@@ -805,4 +812,34 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     else
         to_cpu(params) # a.k.a. log_probs
     end
+end
+
+"""
+    apply_entropy_reg(pc::ProbCircuit; alpha::Float64)::Nothing
+
+Add entropy regularization to a deterministic (see LogicCircuits.isdeterministic) probabilistic
+circuit. `alpha` is a hyperparameter that balances the weights between the likelihood and the 
+entropy: \argmax_{\theta} L(\theta) = ll_mean(\theta) + alpha * entropy(\theta).
+"""
+function apply_entropy_reg(pc::ProbCircuit; alpha::Float64)::Nothing
+    p = Vector{Float64}(undef, 0) # For reuse
+    p_exp_logprob = Vector{Float64}(undef, 0) # For reuse
+    
+    update_params(n::ProbCircuit) = begin
+        if is⋁gate(n) && length(children(n)) > 1
+            resize!(p, length(n.log_probs))
+            resize!(p_exp_logprob, length(n.log_probs))
+            @inbounds @views p .= exp.(n.log_probs)
+            for _ = 1 : 3
+                y = sum(alpha .* n.log_probs .- p .* exp.(-n.log_probs)) / length(n.log_probs)
+                for _ = 1 : 4
+                    @inbounds @views p_exp_logprob .= p .* exp.(-n.log_probs)
+                    @inbounds @views n.log_probs .+= (p_exp_logprob .- alpha .* n.log_probs .+ y) ./ (p_exp_logprob .+ alpha)
+                    @inbounds @views n.log_probs .-= logsumexp(n.log_probs) # Project the parameters back to its valid space
+                end
+            end
+        end
+    end
+    
+    foreach_down(update_params, pc)
 end

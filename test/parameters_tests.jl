@@ -398,3 +398,20 @@ end
     @test all(exp.(r.children[1].children[2].log_probs) .> 0.9 / (0.9 + 1.1))
     @test all(exp.(r.children[1].children[2].log_probs) .< 1.1 / (0.9 + 1.1))
 end
+
+@testset "Entropy regularization tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    params = estimate_parameters(r,dfb; pseudocount=1.0)
+    
+    apply_entropy_reg(r; alpha = 0.0)
+    
+    @test ParamBitCircuit(r, dfb).params ≈ params
+    
+    apply_entropy_reg(r; alpha = 0.1)
+    
+    @test ParamBitCircuit(r, dfb).params ≈ [-0.4877614252570465, -0.9519162004649182,
+                                            -0.4877614252570465, -0.9519162004649182,
+                                            0.0]
+end
