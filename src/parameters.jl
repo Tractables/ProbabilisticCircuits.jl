@@ -818,7 +818,7 @@ function apply_entropy_reg_gpu(bc::BitCircuit; log_params, node_counts,
             @inbounds @views p .= exp.(log_params[child_ele_start: child_ele_end])
             @inbounds @views log_probs .= log_params[child_ele_start: child_ele_end]
             
-            @inbounds beta = entropy_reg * exp(logsumexp(node_log_probs[i], log(total_data_counts / node_counts[i])))
+            @inbounds beta = entropy_reg * exp(logaddexp(node_log_probs[i], log(total_data_counts / node_counts[i])))
             
             for _ = 1 : 3
                 y = sum(beta .* log_probs .- p .* exp.(-log_probs)) / num_eles
