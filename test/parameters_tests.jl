@@ -403,15 +403,15 @@ end
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    params = estimate_parameters(r,dfb; pseudocount=1.0)
-    
-    apply_entropy_reg(r; alpha = 0.0)
-    
-    @test ParamBitCircuit(r, dfb).params ≈ params
-    
-    apply_entropy_reg(r; alpha = 0.1)
-    
-    @test ParamBitCircuit(r, dfb).params ≈ [-0.4877614252570465, -0.9519162004649182,
-                                            -0.4877614252570465, -0.9519162004649182,
-                                            0.0]
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
+    @test params ≈ [-0.4271133071407059 -1.056673046095233 -0.4271133071407059 -1.056673046095233 0.0]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
+    @test params ≈ [-0.5376284027717648 -0.8773872244012818 -0.5376284027717648 -0.8773872244012818 0.0]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
+    @test params ≈ [-0.638989210398663 -0.7504070293776252 -0.638989210398663 -0.7504070293776252 0.0]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
+    @test params ≈ [-0.6632778284297002 -0.7239362528128577 -0.6632778284297002 -0.7239362528128577 0.0]
 end

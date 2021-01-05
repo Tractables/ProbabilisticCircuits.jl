@@ -1,7 +1,7 @@
-export estimate_parameters, uniform_parameters, estimate_parameters_em, estimate_parameters_cached!, 
-       apply_entropy_reg
+export estimate_parameters, uniform_parameters, estimate_parameters_em, estimate_parameters_cached!
 
-using StatsFuns: logsumexp, logaddexp
+using LogicCircuits: num_nodes
+using StatsFuns: logsumexp, logaddexp, logsubexp
 using CUDA
 using LoopVectorization
 
@@ -16,25 +16,20 @@ bagging support: If `pc` is a SharedProbCircuit and data is an array of DataFram
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
                              use_sample_weights::Bool = true, use_gpu::Bool = false, entropy_reg::Float64 = 0.0)
-    params = estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu)
-    
-    if entropy_reg > 1e-9
-        apply_entropy_reg(pc; alpha = entropy_reg)
-    end
-    
-    params
+    estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu, entropy_reg)
 end
 function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = false)
+                             use_sample_weights::Bool = true, use_gpu::Bool = false, entropy_reg::Float64 = 0.0)
     @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
     
     map(1 : num_components(spc)) do component_idx
-        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, use_sample_weights, use_gpu, component_idx)
+        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, use_sample_weights, use_gpu, 
+                                           component_idx, entropy_reg)
     end
 end
 function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
                                             use_sample_weights::Bool = true, use_gpu::Bool = false,
-                                            component_idx::Integer = 0)
+                                            component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -55,9 +50,9 @@ function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::
         end
     else
         if use_sample_weights
-            estimate_parameters_cpu(bc, data, pseudocount; weights)
+            estimate_parameters_cpu(bc, data, pseudocount; weights, entropy_reg)
         else
-            estimate_parameters_cpu(bc, data, pseudocount)
+            estimate_parameters_cpu(bc, data, pseudocount; entropy_reg)
         end
     end
     
@@ -118,7 +113,7 @@ function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_fac
     nothing
 end
 
-function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = nothing)
+function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = nothing, entropy_reg::Float64 = 0.0)
     # no need to synchronize, since each computation is unique to a decision node
     if weights === nothing && isbinarydata(data)
         node_counts = Vector{UInt}(undef, num_nodes(bc))
@@ -126,6 +121,7 @@ function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = no
         node_counts = Vector{Float64}(undef, num_nodes(bc))
     end
     
+    # Batch the data for a cleaner parameter learning pipeline
     if !isbatched(data)
         data = [data]
         if weights !== nothing
@@ -226,11 +222,17 @@ function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = no
     for i = 1 : num_elements(bc)
         @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
     end
-
-    edge_counts # a.k.a. log_params
+    
+    # Entropy regularization
+    if entropy_reg > 1e-8
+        total_data_counts = (weights === nothing) ? Float64(num_examples(data)) : mapreduce(sum, +, weights)
+        apply_entropy_reg(bc; log_params = edge_counts, parent_node_counts, total_data_counts, entropy_reg)
+    else
+        edge_counts # a.k.a. log_params
+    end
 end
 
-function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = nothing)
+function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = nothing, entropy_reg::Float64 = 0.0)
     # rescale pseudocount using the average weight of samples
     if weights !== nothing
         if isbatched(data)
@@ -731,14 +733,59 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
 end
 
 """
-    apply_entropy_reg(pc::ProbCircuit; alpha::Float64)::Nothing
-
 Add entropy regularization to a deterministic (see LogicCircuits.isdeterministic) probabilistic
 circuit. `alpha` is a hyperparameter that balances the weights between the likelihood and the 
 entropy: \argmax_{\theta} L(\theta) = ll_mean(\theta) + alpha * entropy(\theta).
 """
-function apply_entropy_reg(pc::ProbCircuit; alpha::Float64)::Nothing
+function apply_entropy_reg(bc::BitCircuit; log_params::Vector{Float64}, parent_node_counts::Vector{Float64}, 
+                           total_data_counts::Float64, entropy_reg::Float64 = 0.0)::Vector{Float64}
     p = Vector{Float64}(undef, 0) # For reuse
+    log_probs = Vector{Float64}(undef, 0) # For reuse
+    p_exp_logprob = Vector{Float64}(undef, 0) # For reuse
+    
+    node_log_probs = Vector{Float64}(undef, num_nodes(bc)) # Probability of each decision/sum node
+    @inbounds @views node_log_probs .= -Inf
+    @inbounds node_log_probs[end] = 0.0
+    
+    for i = num_nodes(bc) : -1 : 1 # Traverse the circuit top-down
+        @inbounds child_ele_start = bc.nodes[1,i]
+        @inbounds child_ele_end = bc.nodes[2,i]
+        num_eles = child_ele_end - child_ele_start + 1
+        
+        if num_eles > 1 # No need to do anything if the decision node has 1 child.
+            resize!(p, num_eles)
+            resize!(log_probs, num_eles)
+            resize!(p_exp_logprob, num_eles)
+            @inbounds @views p .= exp.(log_params[child_ele_start: child_ele_end])
+            @inbounds @views log_probs .= log_params[child_ele_start: child_ele_end]
+            
+            @inbounds beta = entropy_reg * exp(logsumexp(node_log_probs[i], log(total_data_counts / parent_node_counts[child_ele_start])))
+            
+            for _ = 1 : 3
+                y = sum(beta .* log_probs .- p .* exp.(-log_probs)) / num_eles
+                for _ = 1 : 4
+                    @inbounds @views p_exp_logprob .= p .* exp.(-log_probs)
+                    @inbounds @views log_probs .+= (p_exp_logprob .- beta .* log_probs .+ y) ./ (p_exp_logprob .+ beta)
+                    @inbounds @views log_probs .-= logsumexp(log_probs) # Project the parameters back to its valid space
+                end
+            end
+            
+            # Update parameters
+            @inbounds @views log_params[child_ele_start: child_ele_end] .= log_probs
+            
+            # Update child nodes' log_prob
+            for child_ele_id = child_ele_start : child_ele_end
+                prime_idx = bc.elements[2, child_ele_id]
+                sub_idx = bc.elements[3, child_ele_id]
+                node_log_probs[prime_idx] = logaddexp(node_log_probs[prime_idx], node_log_probs[i] + log_params[child_ele_id])
+                node_log_probs[sub_idx] = logaddexp(node_log_probs[sub_idx], node_log_probs[i] + log_params[child_ele_id])
+            end
+        end
+    end
+    
+    log_params
+    
+    #=p = Vector{Float64}(undef, 0) # For reuse
     p_exp_logprob = Vector{Float64}(undef, 0) # For reuse
     
     update_params(n::ProbCircuit) = begin
@@ -757,5 +804,5 @@ function apply_entropy_reg(pc::ProbCircuit; alpha::Float64)::Nothing
         end
     end
     
-    foreach_down(update_params, pc)
+    foreach_down(update_params, pc)=#
 end
