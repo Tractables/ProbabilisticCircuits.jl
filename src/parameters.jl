@@ -357,46 +357,46 @@ Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, 
                                 use_sample_weights::Bool = true, use_gpu::Bool = false,
-                                exp_update_factor = 0.0, update_per_batch::Bool = false)
+                                exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
     if update_per_batch && isbatched(data)
         estimate_parameters_em_per_batch(pc, data; pseudocount, use_sample_weights, use_gpu, 
                                          exp_update_factor)
-    end
-    
-    if isweighted(data)
-        # `data' is weighted according to its `weight' column
-        data, weights = split_sample_weights(data)
     else
-        use_sample_weights = false
-    end
-    
-    pbc = ParamBitCircuit(pc, data; reset=false)
-    if isgpu(data)
-        use_gpu = true
-    elseif use_gpu && !isgpu(data)
-        data = to_gpu(data)
-    end
-    
-    params = if use_gpu
-        if !isgpu(data)
+        if isweighted(data)
+            # `data' is weighted according to its `weight' column
+            data, weights = split_sample_weights(data)
+        else
+            use_sample_weights = false
+        end
+
+        pbc = ParamBitCircuit(pc, data; reset=false)
+        if isgpu(data)
+            use_gpu = true
+        elseif use_gpu && !isgpu(data)
             data = to_gpu(data)
         end
-        if use_sample_weights
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
+
+        params = if use_gpu
+            if !isgpu(data)
+                data = to_gpu(data)
+            end
+            if use_sample_weights
+                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
+            else
+                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+            end
         else
-            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+            if use_sample_weights
+                estimate_parameters_cpu(pbc, data, pseudocount; weights)
+            else
+                estimate_parameters_cpu(pbc, data, pseudocount)
+            end
         end
-    else
-        if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights)
-        else
-            estimate_parameters_cpu(pbc, data, pseudocount)
-        end
+
+        estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
+
+        params
     end
-    
-    estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
-    
-    params
 end
 function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, 
                                           use_sample_weights::Bool = true, use_gpu::Bool = false,
@@ -420,6 +420,8 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
     end
     
     estimate_parameters_cached!(pc, pbc)
+    
+    pbc.params
 end
 function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, 
                                 use_sample_weights::Bool = true, use_gpu::Bool = false,
