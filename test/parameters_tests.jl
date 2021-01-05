@@ -404,14 +404,30 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
-    @test params ≈ [-0.4271133071407059 -1.056673046095233 -0.4271133071407059 -1.056673046095233 0.0]
+    @test params ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233, 0.0]
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
-    @test params ≈ [-0.5376284027717648 -0.8773872244012818 -0.5376284027717648 -0.8773872244012818 0.0]
+    @test params ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818, 0.0]
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
-    @test params ≈ [-0.638989210398663 -0.7504070293776252 -0.638989210398663 -0.7504070293776252 0.0]
+    @test params ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252, 0.0]
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
-    @test params ≈ [-0.6632778284297002 -0.7239362528128577 -0.6632778284297002 -0.7239362528128577 0.0]
+    @test params ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577, 0.0]
+    
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
+    params = convert(Vector{Float64}, params)
+    @test params[1:4] ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
+    params = convert(Vector{Float64}, params)
+    @test params[1:4] ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
+    params = convert(Vector{Float64}, params)
+    @test params[1:4] ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252]
+
+    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
+    params = convert(Vector{Float64}, params)
+    @test params[1:4] ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577]
 end
