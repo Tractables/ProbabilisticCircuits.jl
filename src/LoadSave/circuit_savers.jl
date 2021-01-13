@@ -76,9 +76,9 @@ function psdd_header()
 end
 
 "Save a circuit to PSDD file format"
-function save_as_psdd(name::String, circuit::ProbCircuit, vtree::PlainVtree)
+function save_as_psdd(file::Union{String, IO}, circuit::ProbCircuit, vtree::PlainVtree)
     # TODO add method isstructured
-    @assert endswith(name, ".psdd")
+    file isa String && @assert endswith(file, ".psdd")
     node2id = get_node2id(circuit)
     vtree2id = get_vtree2id(vtree)
     formatlines = Vector{CircuitFormatLine}()
@@ -87,7 +87,7 @@ function save_as_psdd(name::String, circuit::ProbCircuit, vtree::PlainVtree)
     for n in filter(n -> !is⋀gate(n), circuit)
         push!(formatlines, decompile(n, node2id, vtree2id))
     end
-    save_lines(name, formatlines)
+    save_lines(file, formatlines)
 end
 
 function lc_header()
