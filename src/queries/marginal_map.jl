@@ -31,24 +31,30 @@ function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{
             if num_children(root) == 1
                 mcache[root] = mcache[root.children[1]] + params(root)[1]
             else
-                # If we have 2 children, check their implied literals:
-                impl1 = impl_lits[root.children[1]]
-                impl2 = impl_lits[root.children[2]]
-                # First, we'll compute the set of variables that appear as a 
-                # positive implied literal on one side, and a negative implied literal on the other
-                neg_impl2 = BitSet(map(x -> -x, collect(impl2)))
-                decided_lits = intersect(impl1, neg_impl2)
-                decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
-                # Now check if there's any overlap between these vars and the query
-                if isempty(intersect(decided_vars, query_vars))
-                    # If there isn't, we're taking a sum
-                    mcache[root] = mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
-                else
-                    # If there is we're taking a max
+                # If we have 2 children, check if associated:
+                if associated_with(root, query_vars, impl_lits)
+                    # If it is, we're taking a max
                     mcache[root] = mapreduce((c,p) -> mcache[c] + p, max, root.children, params(root))
+                else
+                    # If it isn't, we're taking a sum
+                    mcache[root] = mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
                 end
             end
         end
     end
     mcache
+end
+
+"Check if a given sum node is associated with any query variables"
+
+function associated_with(n::ProbCircuit, query_vars::BitSet, impl_lits)
+    impl1 = impl_lits[n.children[1]]
+    impl2 = impl_lits[n.children[2]]
+    # First, we'll compute the set of variables that appear as a 
+    # positive implied literal on one side, and a negative implied literal on the other
+    neg_impl2 = BitSet(map(x -> -x, collect(impl2)))
+    decided_lits = intersect(impl1, neg_impl2)
+    decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
+    # Now check if there's any overlap between these vars and the query
+    return !isempty(intersect(decided_vars, query_vars))
 end
