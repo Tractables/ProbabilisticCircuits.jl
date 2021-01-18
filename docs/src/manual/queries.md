@@ -24,13 +24,22 @@ println("dataset with $(num_features(data)) features and $(num_examples(data)) e
 
 ## Full Evidence (EVI)
 
-EVI refers to computing the probability when full evidence is given, i.e. when ``x`` is fully oberserved, the output is ``p(x)``. We can use [`EVI`](@ref) method to compute ``\log{p(x)}``:
+EVI refers to computing the probability when full evidence is given, i.e. when ``x`` is fully observed, the output is ``p(x)``. We can use [`EVI`](@ref) method to compute ``\log{p(x)}``:
 
 ```@example queries
 probs = EVI(pc, data);
 probs[1:3]
 ```
 
+Computing the [`EVI`](@ref) of a mixture of circuits works the same way. You may either pass weights for the weighted mixture probability, or pass a component index to individually evaluate each component.
+
+```@example queries
+mix, mix_weights, _ = learn_strudel(data; num_mix = 10, init_maxiter = 10, em_maxiter = 100)
+# This computes the weighted probability
+probs = EVI(mix, data, mix_weights);
+# Alternatively, we may want to compute the probability of a single component
+c_prob = EVI(mix, data; component_idx = 1);
+```
 
 ## Partial Evidence (MAR)
 
@@ -69,6 +78,14 @@ probs_evi = EVI(pc, data);
 probs_mar ≈ probs_evi
 ```
 
+Just like [`EVI`](@ref), [`MAR`](@ref) works the same way for mixtures.
+
+```@example queries
+# Full weighted marginal probability
+probs_mar = MAR(mix, data, mix_weights);
+# Individual component's marginal probability
+c_probs_mar = MAR(mix, data; component_idx = 1)
+```
 
 ## Conditionals (CON)
 
