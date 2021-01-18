@@ -24,6 +24,7 @@ end
     marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}})
     marginal(circuit::ProbCircuit, data::DataFrame)
     marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
+    marginal(circuit::SharedProbCircuit, data::DataFrame, weights::Union{AbstractArray, Nothing}; component_idx)
     
 Evaluate marginals of the circuit bottom-up for given input(s).
 
@@ -42,6 +43,23 @@ marginal(circuit::ProbCircuit, data::Union{DataFrame, Array{DataFrame}}) =
 
 function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
     marginal_all(circuit, data)[:,end]
+end
+
+function marginal(circuit::SharedProbCircuit, data::DataFrame, weights::Union{AbstractArray, Nothing} = nothing; component_idx = 0)::AbstractVector
+    if component_idx == 0
+        @assert !isnothing(weights) "Missing weights for weighting mixture probabilities."
+        @assert length(weights) == num_components(circuit) "Weights must have same dimension as number of components."
+    else
+        return MAR(ParamBitCircuit(circuit, data; component_idx = component_idx), data)
+    end
+    if weights isa AbstractVector weights = reshape(weights, (1, length(weights))) end
+    n = length(weights)
+    lls = Array{Float64, 2}(undef, num_examples(data), n)
+    for i in 1:n
+        pbc = ParamBitCircuit(circuit, data; component_idx = i)
+        lls[:,i] .= MAR(pbc, data)
+    end
+    return logsumexp(lls .+ log.(weights), 2)
 end
 
 function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVector
