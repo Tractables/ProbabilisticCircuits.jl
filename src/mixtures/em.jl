@@ -1,10 +1,10 @@
-export one_step_em, 
-    component_weights_per_example, 
-    initial_weights, 
+export one_step_em,
+    component_weights_per_example,
+    initial_weights,
     clustering,
-    log_likelihood_per_instance_per_component, 
-    estimate_parameters_cached, 
-    learn_circuit_mixture, 
+    log_likelihood_per_instance_per_component,
+    estimate_parameters_cached,
+    learn_circuit_mixture,
     learn_strudel
 
 using Statistics: mean
@@ -67,13 +67,13 @@ end
 
 function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::DataFrame, values::Matrix{UInt64}, flows::Matrix{UInt64})
     @assert isbinarydata(data) "Can only calculate EVI on Bool data"
-    
+
     N = num_examples(data)
     num_mix = num_components(pc)
     log_likelihoods = zeros(Float64, N, num_mix)
     indices = init_array(Bool, N)::BitVector
-    
-    
+
+
     ll(n::SharedProbCircuit) = ()
     ll(n::SharedSumNode) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
@@ -90,7 +90,7 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::
     log_likelihoods
 end
 
-function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64}, 
+function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64},
         values::Matrix{UInt64}, flows::Matrix{UInt64}; pseudocount::Float64)
     N = size(example_weights, 1)
     foreach(pc) do pn
@@ -119,12 +119,14 @@ See "Strudel: Learning Structured-Decomposable Probabilistic Circuits. [arxiv.or
 """
 function learn_strudel(train_x; num_mix = 5,
     pseudocount=1.0,
-    init_maxiter = 10, 
-    em_maxiter = 20)
+    init_maxiter = 10,
+    em_maxiter = 20,
+    verbose = true)
 
-    pc = learn_circuit(train_x, maxiter=init_maxiter)
-    learn_circuit_mixture(pc, train_x; num_mix = num_mix, pseudocount= pseudocount, em_maxiter=em_maxiter)
-end  
+    pc = learn_circuit(train_x; maxiter = init_maxiter, verbose = verbose)
+    learn_circuit_mixture(pc, train_x; num_mix = num_mix, pseudocount = pseudocount,
+                          em_maxiter = em_maxiter, verbose = verbose)
+end
 
 
 """
@@ -135,7 +137,8 @@ Given a circuit, learns a mixture of structure decomposable circuits based on th
 function learn_circuit_mixture(pc, data;
         num_mix=5,
         pseudocount=1.0,
-        em_maxiter=20)
+        em_maxiter=20,
+        verbose = true)
 
     spc = compile(SharedProbCircuit, pc, num_mix)
     values, flows = satisfies_flows(spc, data)
@@ -146,7 +149,7 @@ function learn_circuit_mixture(pc, data;
     for iter in 1 : em_maxiter
         @assert isapprox(sum(component_weights), 1.0; atol=1e-10)
         lls, component_weights = one_step_em(spc, data, values, flows, component_weights; pseudocount=pseudocount)
-        println("EM Iteration $iter/$em_maxiter. Log likelihood $(mean(lls))")
+        verbose && println("EM Iteration $iter/$em_maxiter. Log likelihood $(mean(lls))")
     end
     spc, component_weights, lls
 end
