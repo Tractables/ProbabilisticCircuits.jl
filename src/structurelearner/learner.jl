@@ -12,13 +12,14 @@ function learn_circuit(train_x;
         sanity_check=true,
         maxiter=100,
         seed=nothing,
-        return_vtree=false)
+        return_vtree=false,
+        verbose=true)
     
     # Initial Structure
     pc, vtree = learn_chow_liu_tree_circuit(train_x)
     
     learn_circuit(train_x, pc, vtree; pick_edge, pick_var, depth, pseudocount, sanity_check, 
-                  maxiter, seed, return_vtree, entropy_reg)
+                  maxiter, seed, return_vtree, entropy_reg, verbose)
 end
 function learn_circuit(train_x, pc, vtree;
         pick_edge="eFlow", pick_var="vMI", depth=1, 
@@ -30,7 +31,8 @@ function learn_circuit(train_x, pc, vtree;
         batch_size=0,
         splitting_data=nothing,
         use_gpu=false,
-        entropy_reg=0.0)
+        entropy_reg=0.0,
+        verbose=true)
 
     if seed !== nothing
         Random.seed!(seed)
@@ -41,7 +43,9 @@ function learn_circuit(train_x, pc, vtree;
                                    pick_edge=pick_edge, pick_var=pick_var)
     
     pc_split_step(circuit) = begin
-        c::ProbCircuit, = split_step(circuit; loss=loss, depth=depth, sanity_check=sanity_check)
+        r = split_step(circuit; loss=loss, depth=depth, sanity_check=sanity_check)
+        if isnothing(r) return nothing end
+        c, = r
         if batch_size > 0
             estimate_parameters(c, batch(train_x, batch_size); pseudocount, use_gpu, entropy_reg)
         else
@@ -57,14 +61,14 @@ function learn_circuit(train_x, pc, vtree;
         else
             ll = log_likelihood_avg(circuit, train_x; use_gpu)
         end
-        println("Iteration $iter/$maxiter. LogLikelihood = $(ll); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
+        verbose && println("Iteration $iter/$maxiter. LogLikelihood = $(ll); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
         iter += 1
         false
     end
     log_per_iter(pc)
     pc = struct_learn(pc; 
         primitives=[pc_split_step], kwargs=Dict(pc_split_step=>()), 
-        maxiter=maxiter, stop=log_per_iter)
+        maxiter=maxiter, stop=log_per_iter, verbose=verbose)
 
     if return_vtree
         pc, vtree
