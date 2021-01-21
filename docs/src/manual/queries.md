@@ -39,6 +39,7 @@ mix, mix_weights, _ = learn_strudel(data; num_mix = 10, init_maxiter = 10, em_ma
 probs = EVI(mix, data, mix_weights);
 # Alternatively, we may want to compute the probability of a single component
 c_prob = EVI(mix, data; component_idx = 1);
+c_prob[1:3]
 ```
 
 ## Partial Evidence (MAR)
@@ -84,7 +85,8 @@ Just like [`EVI`](@ref), [`MAR`](@ref) works the same way for mixtures.
 # Full weighted marginal probability
 probs_mar = MAR(mix, data, mix_weights);
 # Individual component's marginal probability
-c_probs_mar = MAR(mix, data; component_idx = 1)
+c_probs_mar = MAR(mix, data; component_idx = 1);
+c_probs_mar[1:3]
 ```
 
 ## Conditionals (CON)
