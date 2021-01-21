@@ -10,6 +10,51 @@ using StatsFuns: logaddexp
 # Everything to do with search based marginal map computation
 
 # 
+function edge_bounds(root::ProbCircuit, query_vars::BitSet)
+    impl_lits = implied_literals(root)
+    mcache = forward_bounds(root, query_vars)
+    tcache = DefaultDict{ProbCircuit, Float32}(0.0)
+    tcache[root] = 0
+    rcache = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float32}(0.0)
+    rcache[root] = mcache[root]
+    edge_bounds_rec(root, query_vars, impl_lits, mcache, tcache, rcache)
+end
+
+
+function edge_bounds_rec(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache,
+    tcache::Dict{ProbCircuit, Float32},
+    rcache::Dict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float32})
+    if isleaf(root)
+        return rcache
+    end
+    for (c, param) in zip(root.children, params(root))
+        if is⋁gate(root)
+            if associated_with(root, query_vars, impl_lits)
+                rcache[(root, c)] = rcache[root] + tcache[root] * (param * exp(mcache[c]) - exp(mcache[root]))
+            else
+                rcache[(root, c)] = rcache[root]
+            end
+            if mcache[c] > -Inf
+                if tcache[c] == 0
+                    tcache[c] = exp(param) * tcache[root]
+                else
+                    tcache[c] = min(tcache[c], exp(param) * tcache[root])
+                end
+            end
+            rcache[c] = max(rcache[c], rcache[(root, c)])
+        else
+            rcache[(root, c)] = rcache[root]
+            if tcache[c] == 0
+                tcache[c] = tcache[root]
+            else
+                tcache[c] = min(tcache[c], tcache[root])
+            end
+            rcache[c] = max(rcache[c], rcache[(root, c)])
+        end
+    end
+end
+
+
 function forward_bounds(root::ProbCircuit, query_vars::BitSet) 
     impl_lits = implied_literals(root)
     forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits)
@@ -34,6 +79,7 @@ function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{
                 # If we have 2 children, check if associated:
                 if associated_with(root, query_vars, impl_lits)
                     # If it is, we're taking a max
+                    
                     mcache[root] = mapreduce((c,p) -> mcache[c] + p, max, root.children, params(root))
                 else
                     # If it isn't, we're taking a sum
