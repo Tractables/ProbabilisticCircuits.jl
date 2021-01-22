@@ -1,7 +1,8 @@
-export forward_bounds
+export forward_bounds, edge_bounds
 
 using LogicCircuits
 using StatsFuns: logaddexp
+using DataStructures: DefaultDict
 
 #####################
 # Circuit Marginal Map
@@ -13,36 +14,42 @@ using StatsFuns: logaddexp
 function edge_bounds(root::ProbCircuit, query_vars::BitSet)
     impl_lits = implied_literals(root)
     mcache = forward_bounds(root, query_vars)
-    tcache = DefaultDict{ProbCircuit, Float32}(0.0)
-    tcache[root] = 0
-    rcache = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float32}(0.0)
-    rcache[root] = mcache[root]
-    edge_bounds_rec(root, query_vars, impl_lits, mcache, tcache, rcache)
+    tcache = DefaultDict{ProbCircuit, Float64}(0.0)
+    tcache[root] = 1.0
+    rcache = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64}(0.0)
+    rcache[root] = exp(mcache[root])
+    foreach_down(x -> edge_bounds_fn(x, query_vars, impl_lits, mcache, tcache, rcache), root)
+    rcache
 end
 
 
-function edge_bounds_rec(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache,
-    tcache::Dict{ProbCircuit, Float32},
-    rcache::Dict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float32})
+function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache,
+    tcache::DefaultDict{ProbCircuit, Float64, Float64},
+    rcache::DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64, Float64})
     if isleaf(root)
-        return rcache
+        return 
     end
-    for (c, param) in zip(root.children, params(root))
-        if is⋁gate(root)
-            if associated_with(root, query_vars, impl_lits)
-                rcache[(root, c)] = rcache[root] + tcache[root] * (param * exp(mcache[c]) - exp(mcache[root]))
+    if tcache[root] == 0.0
+        return
+    end
+    if is⋁gate(root)
+        for (c, param) in zip(root.children, params(root))
+            if num_children(root) == 2 && associated_with(root, query_vars, impl_lits)
+                @show rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
             else
                 rcache[(root, c)] = rcache[root]
             end
             if mcache[c] > -Inf
-                if tcache[c] == 0
+                if tcache[c] == 0 
                     tcache[c] = exp(param) * tcache[root]
                 else
                     tcache[c] = min(tcache[c], exp(param) * tcache[root])
                 end
             end
             rcache[c] = max(rcache[c], rcache[(root, c)])
-        else
+        end
+    else
+        for c in root.children
             rcache[(root, c)] = rcache[root]
             if tcache[c] == 0
                 tcache[c] = tcache[root]
