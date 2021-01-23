@@ -218,16 +218,16 @@ function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = no
         end
     end
     
-    # Reuse `edge_counts` to store log_params to save space and time.
-    for i = 1 : num_elements(bc)
-        @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
-    end
-    
     # Entropy regularization
     if entropy_reg > 1e-8
         total_data_counts = (weights === nothing) ? Float64(num_examples(data)) : mapreduce(sum, +, weights)
-        apply_entropy_reg_cpu(bc; log_params = edge_counts, parent_node_counts, total_data_counts, entropy_reg)
+        apply_entropy_reg_cpu(bc; log_params = edge_counts, edge_counts, total_data_counts, pseudocount, entropy_reg)
     else
+        # Reuse `edge_counts` to store log_params to save space and time.
+        for i = 1 : num_elements(bc)
+            @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+        end
+        
         edge_counts # a.k.a. log_params
     end
 end
@@ -315,19 +315,19 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
     
     CUDA.unsafe_free!(v) # save the GC some effort
     CUDA.unsafe_free!(f) # save the GC some effort
-
-    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
-    @inbounds parents = bc.elements[1,:]
-    @inbounds parent_counts = node_counts[parents]
-    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
-    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
-                    ./ (parent_counts .+ pseudocount))
     
     # Entropy regularization
     if entropy_reg > 1e-8
         total_data_counts = (weights === nothing) ? Float64(num_examples(data)) : mapreduce(sum, +, weights)
-        apply_entropy_reg_gpu(bc; log_params = params, node_counts = node_counts, total_data_counts, entropy_reg)
+        apply_entropy_reg_gpu(bc; log_params = edge_counts, edge_counts, total_data_counts, pseudocount, entropy_reg)
     else
+        # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+        @inbounds parents = bc.elements[1,:]
+        @inbounds parent_counts = node_counts[parents]
+        @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+        params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                        ./ (parent_counts .+ pseudocount))
+        
         to_cpu(params)
     end
 end
@@ -745,9 +745,10 @@ Add entropy regularization to a deterministic (see LogicCircuits.isdeterministic
 circuit. `alpha` is a hyperparameter that balances the weights between the likelihood and the 
 entropy: \argmax_{\theta} L(\theta) = ll_mean(\theta) + alpha * entropy(\theta).
 """
-function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, parent_node_counts::Vector{Float64}, 
-                           total_data_counts::Float64, entropy_reg::Float64 = 0.0)::Vector{Float64}
-    p = Vector{Float64}(undef, 0) # For reuse
+function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, edge_counts::Vector{Float64}, 
+                               total_data_counts::Float64, pseudocount::Float64 = 0.1, 
+                               entropy_reg::Float64 = 0.0)::Vector{Float64}
+    a = Vector{Float64}(undef, 0) # For reuse
     log_probs = Vector{Float64}(undef, 0) # For reuse
     p_exp_logprob = Vector{Float64}(undef, 0) # For reuse
     
@@ -761,28 +762,31 @@ function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, pare
         num_eles = child_ele_end - child_ele_start + 1
         
         if num_eles > 1 # No need to do anything if the decision node has 1 child.
-            resize!(p, num_eles)
+            resize!(a, num_eles)
             resize!(log_probs, num_eles)
             resize!(p_exp_logprob, num_eles)
-            @inbounds @views p .= exp.(log_params[child_ele_start: child_ele_end])
-            @inbounds @views log_probs .= log_params[child_ele_start: child_ele_end]
             
-            @inbounds beta = entropy_reg * exp(logaddexp(node_log_probs[i], log(total_data_counts / parent_node_counts[child_ele_start])))
-            beta = isnan(beta) ? 10.0 : min(beta, 10.0)
+            @inbounds @views a .= edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles)
+            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts))
+            
+            @inbounds @views log_probs .= log.(edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles))
+            @inbounds @views log_probs .-= logsumexp(log_probs)
             
             for _ = 1 : 3
-                y = sum(beta .* log_probs .- p .* exp.(-log_probs)) / num_eles
+                y = sum(b .* log_probs .- a .* exp.(-log_probs)) / num_eles
                 for _ = 1 : 4
-                    @inbounds @views p_exp_logprob .= p .* exp.(-log_probs)
-                    @inbounds @views log_probs .+= (p_exp_logprob .- beta .* log_probs .+ y) ./ (p_exp_logprob .+ beta)
+                    @inbounds @views p_exp_logprob .= a .* exp.(-log_probs)
+                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b)
                     @inbounds @views log_probs .-= logsumexp(log_probs) # Project the parameters back to its valid space
                 end
             end
             
             # Update parameters
             @inbounds @views log_params[child_ele_start: child_ele_end] .= log_probs
-            
-            # Update child nodes' log_prob
+        end
+        
+        # Update child nodes' log_prob
+        if child_ele_start >= 1
             for child_ele_id = child_ele_start : child_ele_end
                 prime_idx = bc.elements[2, child_ele_id]
                 sub_idx = bc.elements[3, child_ele_id]
@@ -794,14 +798,14 @@ function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, pare
     
     log_params
 end
-function apply_entropy_reg_gpu(bc::BitCircuit; log_params, node_counts, 
-                               total_data_counts::Float64, entropy_reg::Float64 = 0.0)
+function apply_entropy_reg_gpu(bc::BitCircuit; log_params, edge_counts, 
+                               total_data_counts::Float64, pseudocount::Float64 = 0.1, entropy_reg::Float64 = 0.0)
     # TODO: if this is performance-critical, consider change to native GPU code
     log_params = to_cpu(log_params)
-    node_counts = to_cpu(node_counts)
+    edge_counts = to_cpu(edge_counts)
     bc = to_cpu(bc)
     
-    p = Vector{Float64}(undef, 0) # For reuse
+    a = Vector{Float64}(undef, 0) # For reuse
     log_probs = Vector{Float64}(undef, 0) # For reuse
     p_exp_logprob = Vector{Float64}(undef, 0) # For reuse
     
@@ -815,28 +819,31 @@ function apply_entropy_reg_gpu(bc::BitCircuit; log_params, node_counts,
         num_eles = child_ele_end - child_ele_start + 1
         
         if num_eles > 1 # No need to do anything if the decision node has 1 child.
-            resize!(p, num_eles)
+            resize!(a, num_eles)
             resize!(log_probs, num_eles)
             resize!(p_exp_logprob, num_eles)
-            @inbounds @views p .= exp.(log_params[child_ele_start: child_ele_end])
-            @inbounds @views log_probs .= log_params[child_ele_start: child_ele_end]
             
-            @inbounds beta = entropy_reg * exp(logaddexp(node_log_probs[i], log(total_data_counts / node_counts[i])))
-            beta = isnan(beta) ? 10.0 : min(beta, 10.0)
+            @inbounds @views a .= edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles)
+            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts))
+            
+            @inbounds @views log_probs .= log.(edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles))
+            @inbounds @views log_probs .-= logsumexp(log_probs)
             
             for _ = 1 : 3
-                y = sum(beta .* log_probs .- p .* exp.(-log_probs)) / num_eles
+                y = sum(b .* log_probs .- a .* exp.(-log_probs)) / num_eles
                 for _ = 1 : 4
-                    @inbounds @views p_exp_logprob .= p .* exp.(-log_probs)
-                    @inbounds @views log_probs .+= (p_exp_logprob .- beta .* log_probs .+ y) ./ (p_exp_logprob .+ beta)
+                    @inbounds @views p_exp_logprob .= a .* exp.(-log_probs)
+                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b)
                     @inbounds @views log_probs .-= logsumexp(log_probs) # Project the parameters back to its valid space
                 end
             end
             
             # Update parameters
             @inbounds @views log_params[child_ele_start: child_ele_end] .= log_probs
-            
-            # Update child nodes' log_prob
+        end
+        
+        # Update child nodes' log_prob
+        if child_ele_start >= 1
             for child_ele_id = child_ele_start : child_ele_end
                 prime_idx = bc.elements[2, child_ele_id]
                 sub_idx = bc.elements[3, child_ele_id]

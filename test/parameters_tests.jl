@@ -404,32 +404,32 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
-    @test params ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233, 0.0]
+    @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
-    @test params ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818, 0.0]
+    @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
-    @test params ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252, 0.0]
+    @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
-    @test params ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577, 0.0]
+    @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233]
+        @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818]
+        @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252]
+        @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577]
+        @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end
 end

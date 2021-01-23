@@ -47,7 +47,7 @@ function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = fals
             ll
         end
         
-        ll = cat(lls...; dim = 1)
+        ll = cat(lls...; dims = 1)
     else
         ll, v, f = log_likelihood_per_instance(bc, data; use_gpu)
     end
