@@ -1,8 +1,9 @@
-export forward_bounds, edge_bounds
+export forward_bounds, edge_bounds, prune_mpe
 
 using LogicCircuits
 using StatsFuns: logaddexp
 using DataStructures: DefaultDict
+using DataFrames: DataFrame
 
 #####################
 # Circuit Marginal Map
@@ -35,7 +36,7 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache
     if is⋁gate(root)
         for (c, param) in zip(root.children, params(root))
             if num_children(root) == 2 && associated_with(root, query_vars, impl_lits)
-                @show rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
+                rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
             else
                 rcache[(root, c)] = rcache[root]
             end
@@ -110,4 +111,19 @@ function associated_with(n::ProbCircuit, query_vars::BitSet, impl_lits)
     decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
     # Now check if there's any overlap between these vars and the query
     return !isempty(intersect(decided_vars, query_vars))
+end
+
+"Find edges to prune using MPE state reduced to query variables"
+
+function prune_mpe(n::ProbCircuit, query_vars::BitSet)
+    # First get the mpe state reduced to query variables, then the threshold
+    data_marg = DataFrame(repeat([missing], 1, num_variables(n)))
+    map, mappr = MAP(n, data_marg)
+    l = collect(transpose([i in query_vars ? map[i][1] : missing for i in 1:num_variables(n)]))
+    df = DataFrame(l)
+    @show thresh = exp(MAR(n, df)[1])
+
+    rcache = edge_bounds(n, query_vars)
+    bounds_list = collect(rcache)
+    filter(x -> isa(x[1], Tuple) && x[2] < thresh, bounds_list)
 end
