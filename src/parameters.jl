@@ -355,12 +355,12 @@ end
 """
 Expectation maximization parameter learning given missing data
 """
-function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, 
+function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
                                 use_sample_weights::Bool = true, use_gpu::Bool = false,
                                 exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
     if update_per_batch && isbatched(data)
-        estimate_parameters_em_per_batch(pc, data; pseudocount, use_sample_weights, use_gpu, 
-                                         exp_update_factor)
+        estimate_parameters_em_per_batch(pc, data; pseudocount, entropy_reg,
+                                         use_sample_weights, use_gpu, exp_update_factor)
     else
         if isweighted(data)
             # `data' is weighted according to its `weight' column
@@ -381,15 +381,15 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
                 data = to_gpu(data)
             end
             if use_sample_weights
-                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights)
+                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, entropy_reg)
             else
-                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount)
+                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; entropy_reg)
             end
         else
             if use_sample_weights
-                estimate_parameters_cpu(pbc, data, pseudocount; weights)
+                estimate_parameters_cpu(pbc, data, pseudocount; weights, entropy_reg)
             else
-                estimate_parameters_cpu(pbc, data, pseudocount)
+                estimate_parameters_cpu(pbc, data, pseudocount; entropy_reg)
             end
         end
 
@@ -398,9 +398,8 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64,
         params
     end
 end
-function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, 
-                                          use_sample_weights::Bool = true, use_gpu::Bool = false,
-                                          exp_update_factor = 0.0)
+function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
+                                          use_sample_weights::Bool = true, use_gpu::Bool = false, exp_update_factor = 0.0)
     if isgpu(data)
         use_gpu = true
     elseif use_gpu && !isgpu(data)
@@ -416,14 +415,16 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
     reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
     
     for idx = 1 : length(data)
-        pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em(pbc, data[idx]; pseudocount, use_gpu, reuse_v, reuse_f, reuse_counts, exp_update_factor)
+        pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em(pbc, data[idx]; pseudocount, entropy_reg,
+                                                                     use_gpu, reuse_v, reuse_f, reuse_counts, 
+                                                                     exp_update_factor)
     end
     
     estimate_parameters_cached!(pc, pbc)
     
     pbc.params
 end
-function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, 
+function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
                                 use_sample_weights::Bool = true, use_gpu::Bool = false,
                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
                                 exp_update_factor = 0.0)
@@ -450,15 +451,15 @@ function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64
             pbc.params = to_gpu(pbc.params)
         end
         if use_sample_weights
-            estimate_parameters_gpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_gpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
         else
-            estimate_parameters_gpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_gpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
         end
     else
         if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
         else
-            estimate_parameters_cpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts)
+            estimate_parameters_cpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
         end
     end
     
@@ -482,7 +483,7 @@ end
 
 function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, reuse::Bool = false,
                                  reuse_v = nothing, reuse_f = nothing, 
-                                 reuse_counts = (nothing, nothing, nothing, nothing, nothing))
+                                 reuse_counts = (nothing, nothing, nothing, nothing, nothing), entropy_reg::Float64 = 0.0)
     # `data` is batched?
     data_batched = isbatched(data)
     
@@ -617,16 +618,22 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
         v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
     
-    # `edge_counts` now becomes "params"
-    @simd for i = 1 : num_elements(bc)
-        num_els = num_elements(bc.nodes, bc.elements[1, i])
-        if num_els == 1
-            @inbounds edge_counts[i] = zero(eltype(edge_counts)) # log(1)
-        else
-            @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+    if entropy_reg > 1e-8
+        total_data_counts = (weights === nothing) ? Float64(num_examples(data)) : mapreduce(sum, +, weights)
+        edge_counts = apply_entropy_reg_cpu(bc; log_params = edge_counts, edge_counts, total_data_counts, 
+                                            pseudocount, entropy_reg)
+    else
+        # `edge_counts` now becomes "params"
+        @simd for i = 1 : num_elements(bc)
+            num_els = num_elements(bc.nodes, bc.elements[1, i])
+            if num_els == 1
+                @inbounds edge_counts[i] = zero(eltype(edge_counts)) # log(1)
+            else
+                @inbounds edge_counts[i] = log((edge_counts[i] + pseudocount / num_elements(bc.nodes, bc.elements[1, i])) / (parent_node_counts[i] + pseudocount))
+            end
         end
     end
-
+    
     if reuse
         # Also return the allocated vars v, f, counts for future reuse
         edge_counts, v, f, (node_counts, edge_counts, parent_node_counts, buffer, log_weights)
@@ -636,7 +643,8 @@ function estimate_parameters_cpu(pbc::ParamBitCircuit, data, pseudocount; weight
 end
 
 function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weights = nothing, reuse::Bool = false,
-                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = (nothing, nothing))
+                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = (nothing, nothing), 
+                                 entropy_reg::Float64 = 0.0)
     # `data` is batched?
     data_batched = isbatched(data)
     
@@ -712,17 +720,22 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
         v, f = marginal_flows(pbc, data, reuse_v, reuse_f; on_node, on_edge, weights)
     end
 
-    # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
-    @inbounds parents = bc.elements[1,:]
-    @inbounds parent_counts = node_counts[parents]
-    @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
-    params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
-                    ./ (parent_counts .+ pseudocount))
-    params = @inbounds @views @. ifelse(parent_elcount == 1, zero(params), params)
-    
-    CUDA.unsafe_free!(parents)
-    CUDA.unsafe_free!(parent_counts)
-    CUDA.unsafe_free!(parent_elcount)
+    if entropy_reg > 1e-8
+        total_data_counts = (weights === nothing) ? Float64(num_examples(data)) : mapreduce(sum, +, weights)
+        params = apply_entropy_reg_gpu(bc; log_params = edge_counts, edge_counts, total_data_counts, pseudocount, entropy_reg)
+    else
+        # TODO: reinstate simpler implementation once https://github.com/JuliaGPU/GPUArrays.jl/issues/313 is fixed and released
+        @inbounds parents = bc.elements[1,:]
+        @inbounds parent_counts = node_counts[parents]
+        @inbounds parent_elcount = bc.nodes[2,parents] .- bc.nodes[1,parents] .+ 1 
+        params = log.((edge_counts .+ (pseudocount ./ parent_elcount)) 
+                        ./ (parent_counts .+ pseudocount))
+        params = @inbounds @views @. ifelse(parent_elcount == 1, zero(params), params)
+        
+        CUDA.unsafe_free!(parents)
+        CUDA.unsafe_free!(parent_counts)
+        CUDA.unsafe_free!(parent_elcount)
+    end
     
     # Only free the memory if the reuse memory is not provided
     if !reuse
@@ -734,7 +747,11 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
     
     if reuse
         # Also return the allocated vars v, f, counts for future reuse
-        params, v, f, (node_counts, edge_counts)
+        if !isgpu(params)
+            to_gpu(params), v, f, (node_counts, edge_counts)
+        else
+            params, v, f, (node_counts, edge_counts)
+        end
     else
         to_cpu(params) # a.k.a. log_probs
     end
@@ -767,7 +784,7 @@ function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, edge
             resize!(p_exp_logprob, num_eles)
             
             @inbounds @views a .= edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles)
-            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts))
+            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts + pseudocount))
             
             @inbounds @views log_probs .= log.(edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles))
             @inbounds @views log_probs .-= logsumexp(log_probs)
@@ -824,7 +841,7 @@ function apply_entropy_reg_gpu(bc::BitCircuit; log_params, edge_counts,
             resize!(p_exp_logprob, num_eles)
             
             @inbounds @views a .= edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles)
-            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts))
+            @inbounds b = entropy_reg * exp(node_log_probs[i] + log(total_data_counts + pseudocount))
             
             @inbounds @views log_probs .= log.(edge_counts[child_ele_start: child_ele_end] .+ (pseudocount / num_eles))
             @inbounds @views log_probs .-= logsumexp(log_probs)

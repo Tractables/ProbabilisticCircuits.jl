@@ -433,3 +433,38 @@ end
         @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end
 end
+
+@testset "EM Entropy regularization tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
+    @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
+    @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
+    @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
+    @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
+    
+    if CUDA.functional()
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
+    end
+end
