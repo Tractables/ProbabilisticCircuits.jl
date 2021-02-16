@@ -120,5 +120,27 @@ using DataFrames: DataFrame
     @test num_parameters_node(r1) == num_parameters_node(r)
     @test isempty(intersect(linearize(r1),linearize(r)))
 
-
+    # Convert tests
+    function apply_test_cnf(n_vars::Int, cnf_path::String)
+        vtree = Vtree(n_vars, :random)
+        println("Compiling...")
+        sdd = compile(SddMgr(vtree), zoo_cnf(cnf_path))
+        @test num_variables(sdd) == n_vars
+        println("Converting...")
+        psdd = convert(StructProbCircuit, sdd)
+        @test num_variables(psdd) == n_vars
+        @test issmooth(psdd)
+        @test isdecomposable(psdd)
+        @test isdeterministic(psdd)
+        @test respects_vtree(psdd, vtree)
+        data = DataFrame(convert(BitMatrix, rand(Bool, 100, n_vars)))
+        println("Testing data...")
+        @test all(sdd(data) .== (EVI(psdd, data) .!=  -Inf))
+        nothing
+    end
+    apply_test_cnf(17, "easy/C17_mince.cnf")
+    apply_test_cnf(15, "easy/majority_mince.cnf")
+    apply_test_cnf(21, "easy/b1_mince.cnf")
+    apply_test_cnf(20, "easy/cm152a_mince.cnf")
 end
+
