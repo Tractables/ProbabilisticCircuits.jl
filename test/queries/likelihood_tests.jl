@@ -2,6 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames: DataFrame
+using Suppressor
 
 include("../helper/gpu.jl")
 
@@ -43,8 +44,9 @@ include("../helper/gpu.jl")
         EVI(alltrue, d)
     end
 
+    # Test Sturdel EVI
     samples, _ = sample(prob_circuit, 100000)
-    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
+    @suppress_out mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
                                     init_maxiter = 20, em_maxiter = 100)
     mix_calc_prob = exp.(EVI(mix, data, weights))
 
