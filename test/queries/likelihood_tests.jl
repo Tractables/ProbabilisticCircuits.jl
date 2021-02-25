@@ -55,7 +55,7 @@ include("../helper/gpu.jl")
     @test 1 ≈ sum(mix_calc_prob_all) atol = 0.1
 
     cpu_gpu_agree_approx(data_all) do d
-        EVI(mix, weights, d)
+        EVI(mix, d, weights)
     end
 end
 
