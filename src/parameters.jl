@@ -793,7 +793,7 @@ function apply_entropy_reg_cpu(bc::BitCircuit; log_params::Vector{Float64}, edge
                 y = sum(b .* log_probs .- a .* exp.(-log_probs)) / num_eles
                 for _ = 1 : 4
                     @inbounds @views p_exp_logprob .= a .* exp.(-log_probs)
-                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b)
+                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b .+ 1e-4)
                     @inbounds @views log_probs .-= logsumexp(log_probs) # Project the parameters back to its valid space
                 end
             end
@@ -850,7 +850,7 @@ function apply_entropy_reg_gpu(bc::BitCircuit; log_params, edge_counts,
                 y = sum(b .* log_probs .- a .* exp.(-log_probs)) / num_eles
                 for _ = 1 : 4
                     @inbounds @views p_exp_logprob .= a .* exp.(-log_probs)
-                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b)
+                    @inbounds @views log_probs .+= (p_exp_logprob .- b .* log_probs .+ y) ./ (p_exp_logprob .+ b .+ 1e-4)
                     @inbounds @views log_probs .-= logsumexp(log_probs) # Project the parameters back to its valid space
                 end
             end
