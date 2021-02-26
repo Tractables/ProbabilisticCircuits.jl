@@ -40,16 +40,31 @@ function vRand(vars::Vector{Var})
     return Var(rand(vars))
 end
 
-function heuristic_loss(circuit::LogicCircuit, train_x; pick_edge="eFlow", pick_var="vMI")
+function heuristic_loss(circuit::LogicCircuit, train_x; 
+                                    pick_edge = "eFlow", 
+                                    pick_var = "vMI",
+                                    miss_data::Bool = false
+                                    )
     if isweighted(train_x)
         train_x, weights = split_sample_weights(train_x)
     else
         weights = nothing
     end
 
+
+    @assert !(miss_data && pick_var=="vMI") "Cannot use vMI for picking vars for missing data. Use vRand instead."
+
     candidates, variable_scope = split_candidates(circuit)
     if isempty(candidates) return nothing end
-    values, flows = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here
+
+    if miss_data
+        # Have to use marginal flows when have missing data
+        values, flows = marginal_flows(circuit, train_x; weights = nothing) # Do not use samples weights here 
+    else
+        # Satisfies Flows much faster than marginal flows
+        values, flows = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here    
+    end
+    
     if pick_edge == "eFlow"
         edge, flow = eFlow(values, flows, candidates)
     elseif pick_edge == "eRand"

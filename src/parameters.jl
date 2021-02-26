@@ -427,7 +427,8 @@ end
 function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
                                 use_sample_weights::Bool = true, use_gpu::Bool = false,
                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
-                                exp_update_factor = 0.0)
+                                exp_update_factor = 0.0
+                               )
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
