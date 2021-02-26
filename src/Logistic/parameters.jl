@@ -1,7 +1,6 @@
 export learn_parameters, to_onehot
 
 using CUDA
-using LoopVectorization: @avx, vifelse
 
 """
 LogisticCircuit Parameter learning through gradient descents
@@ -49,9 +48,9 @@ function update_parameters_cpu(bc, data, labels, cl, step_size)
     
     @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(params_lock) do # TODO: move lock to inner loop?
-            @avx for i = 1:size(flows, 1)
+            @simd for i = 1:size(flows, 1) # adding @avx here might give incorrect results
                 @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
-                edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
+                edge_flow = ifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
                 for class = 1:nc
                     @inbounds bc.parames[element, class] -= (cl[i, class] - labels[i, class]) * edge_flow * step_size
                 end
