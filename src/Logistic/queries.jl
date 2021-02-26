@@ -1,7 +1,7 @@
 export class_likelihood_per_instance, class_weights_per_instance
 
 using CUDA
-using LoopVectorization: @avx, vifelse
+using LoopVectorization: @avx
 
 
 """
@@ -59,9 +59,9 @@ function class_weights_per_instance_cpu(bc, data)
 
     @inline function on_edge_float(flows, values, prime, sub, element, grandpa, single_child, weights)
         lock(cw_lock) do # TODO: move lock to inner loop?
-            @avx for i = 1:size(flows, 1)
+            @simd for i = 1:size(flows, 1) # adding @avx here might give incorrect results
                 @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
-                edge_flow = vifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
+                edge_flow = ifelse(isfinite(edge_flow), edge_flow, zero(eltype(flows)))
                 for class = 1:nc
                     @inbounds cw[i, class] += edge_flow * bc.params[element, class]
                 end
