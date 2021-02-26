@@ -24,6 +24,7 @@ include("logistic_nodes.jl")
 include("param_bit_circuit.jl")
 include("param_bit_circuit_pair.jl")
 include("parameters.jl")
+include("gradient_based_learning.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
