@@ -367,6 +367,25 @@ end
     end
 end
 
+@testset "EM update per batch tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    batched_dfb = batch(dfb, 1)
+    
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    uniform_parameters(r)
+    params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true)
+    @test params[5] ≈ 0.0
+    
+    if CUDA.functional()
+        
+        uniform_parameters(r)
+        params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true, use_gpu = true)
+        @test to_cpu(params)[5] ≈ 0.0
+
+    end
+end
+
 @testset "Bagging tests" begin
     # Binary dataset
     dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
