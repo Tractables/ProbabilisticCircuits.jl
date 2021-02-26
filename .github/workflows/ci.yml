@@ -29,6 +29,10 @@ jobs:
           julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
           julia --project --check-bounds=yes --depwarn=yes -e 'import Pkg; Pkg.test(; coverage=true)'
       
+      - name: Codecov Upload
+        run: |
+          julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());'
+
       - name: Docs Build
         env:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

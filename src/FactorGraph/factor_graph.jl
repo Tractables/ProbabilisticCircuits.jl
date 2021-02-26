@@ -47,8 +47,8 @@ function fromUAI(filename)
         # Create the indices for the map
         neighb_cards = map(x -> varNodes[x].dim, neighbs[fac_ind])
         num_fac_entries = reduce(*, neighb_cards)
-        @show neighbs[fac_ind]
-        @show neighb_cards
+        # @show neighbs[fac_ind]
+        # @show neighb_cards
         labels = reshape(permutedims(collect(Base.product([1:n for n in (neighb_cards)]...)), reverse(1:length(neighb_cards))), num_fac_entries)
         # Convert tuples to arrays
         labels = map(x -> [x...], labels)
