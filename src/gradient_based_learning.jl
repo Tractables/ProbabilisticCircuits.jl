@@ -5,20 +5,20 @@ using StatsFuns: logaddexp
 using CUDA
 
 function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false)
+                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                reuse_values = nothing, reuse_flows = nothing,
+                                reuse = (nothing, nothing))
     # Construct the low-level circuit representation
     pbc = ParamBitCircuit(pc, data; reset=false)
     if use_gpu
         pbc = to_gpu(pbc)
     end
     
-    # Variables for reuse
-    
-    
     # Main training loop
     @assert isbatched(data)
     for idx = 1 : length(data)
-        sgd_parameter_learning(pbc, data[idx]; lr, use_sample_weights, use_gpu)
+        sgd_parameter_learning(pbc, data[idx]; lr, use_sample_weights, use_gpu,
+                               reuse_values, reuse_flows, reuse)
     end
     
     # Store the updated parameters back to `pc`
@@ -61,15 +61,15 @@ function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01,
         end
 
         if use_sample_weights
-            sgd_parameter_learning_gpu(pbc, data; lr, weights)
+            sgd_parameter_learning_gpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
         else
-            sgd_parameter_learning_gpu(pbc, data; lr)
+            sgd_parameter_learning_gpu(pbc, data; lr, reuse_values, reuse_flows, reuse)
         end
     else
         if use_sample_weights
-            sgd_parameter_learning_cpu(pbc, data; lr, weights)
+            sgd_parameter_learning_cpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
         else
-            sgd_parameter_learning_cpu(pbc, data; lr)
+            sgd_parameter_learning_cpu(pbc, data; lr, reuse_values, reuse_flows, reuse)
         end
     end
     
