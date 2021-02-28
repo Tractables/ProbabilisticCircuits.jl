@@ -46,8 +46,8 @@ include("../helper/gpu.jl")
 
     # Test Sturdel EVI
     samples, _ = sample(prob_circuit, 100000)
-    mix, weights, _ = @suppress_out learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
-                                    init_maxiter = 20, em_maxiter = 100)
+    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
+                                    init_maxiter = 20, em_maxiter = 100, verbose = false)
     mix_calc_prob = exp.(EVI(mix, data, weights))
 
     @test true_prob ≈ mix_calc_prob atol = 0.1
