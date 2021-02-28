@@ -46,4 +46,8 @@ using Suppressor
     @test num_parameters(pc3) == 60
     @test num_nodes(pc3) == 88
     @test log_likelihood_avg(pc3, data) ≈ -3.0466585640216746 atol=1e-6
+
+    # Test when there are more iterations than candidates.
+    data = DataFrame(convert(BitArray, rand(Bool, 100, 4)))
+    @test_nowarn pc = learn_circuit(data; maxiter = 100, verbose = false)
 end
