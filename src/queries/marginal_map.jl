@@ -1,9 +1,10 @@
-export forward_bounds, edge_bounds, prune_mpe, do_pruning, rep_mpe_pruning
+export forward_bounds, edge_bounds, prune_mpe, 
+    do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult
 
 using LogicCircuits
 using StatsFuns: logaddexp
 using DataStructures: DefaultDict
-using DataFrames: DataFrame
+using DataFrames
 
 #####################
 # Circuit Marginal Map
@@ -36,7 +37,11 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache
     if is⋁gate(root)
         for (c, param) in zip(root.children, params(root))
             if num_children(root) >= 2 && associated_with_mult(root, query_vars, impl_lits)
-                rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
+                if(abs(exp(param) * exp(mcache[c]) - exp(mcache[root])) > 1e-7)
+                    rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
+                else
+                    rcache[(root, c)] = rcache[root]
+                end
             else
                 rcache[(root, c)] = rcache[root]
             end
@@ -65,20 +70,23 @@ end
 
 function forward_bounds(root::ProbCircuit, query_vars::BitSet) 
     impl_lits = implied_literals(root)
-    forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits)
+    counters = Dict("max" => 0, "sum" => 0)
+    ret = forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits, counters)
+    @show counters
+    ret
 end
 
 
-function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{ProbCircuit, Float32}, impl_lits)
+function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{ProbCircuit, Float32}, impl_lits, counters)
     if isleaf(root)
         mcache[root] = 0.0
     elseif isinner(root)
         for c in root.children
             if !haskey(mcache, c)
-                forward_bounds_rec(c, query_vars, mcache, impl_lits)
+                forward_bounds_rec(c, query_vars, mcache, impl_lits, counters)
             end
         end
-        if is⋀gate(root) # Make sure we haven't already visited the child
+        if is⋀gate(root) 
             mcache[root] = mapreduce(c -> mcache[c], +, root.children)
         else
             # @assert(num_children(root) <= 2)
@@ -88,10 +96,13 @@ function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{
             else
                 # If we have 2 children, check if associated:
                 if associated_with_mult(root, query_vars, impl_lits)
+                    # Max node
+                    counters["max"] = counters["max"] + 1 
                     # If it is, we're taking a max
                     mcache[root] = mapreduce((c,p) -> mcache[c] + p, max, root.children, params(root))
                 else
                     # If it isn't, we're taking a sum
+                    counters["sum"] = counters["sum"] + 1
                     # @show params(root)
                     mcache[root] = mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
                     # mcache[root] = logsumexp()mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
@@ -124,16 +135,16 @@ function associated_with_mult(n::ProbCircuit, query_vars::BitSet, impl_lits)
     neg_impl = [BitSet(map(x -> -x, collect(imp))) for imp in impl]
     # Checking all pairs
     for i in 1:num_children(n)
-        for j in i:num_children(n)
+        for j in (i+1):num_children(n)
             decided_lits = intersect(impl[i], neg_impl[j])
             decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
-            if !isempty(intersect(decided_vars, query_vars))
-                # If we're overlapping with queries, return true
-                return true
+            if isempty(intersect(decided_vars, query_vars))
+                # If they don't differ in a max variable, not associated
+                return false
             end
         end
     end
-    false
+    true
 end
 
 "Find edges to prune using MPE state reduced to query variables"
@@ -148,7 +159,7 @@ function prune_mpe(n::ProbCircuit, query_vars::BitSet)
 
     rcache = edge_bounds(n, query_vars)
     bounds_list = collect(rcache)
-    map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh, bounds_list))
+    map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh - 1e-7, bounds_list))
     # filter(x -> isa(x[1], Tuple) && x[2] < thresh, bounds_list)
 end
 
@@ -184,4 +195,27 @@ function prune_fn(n, to_prune)
         # Leaf nodes just use themselves, fine to reuse in new circuit
         n.data = n
     end
+end
+
+"Generate a list of (parent, child) pairs representing edges"
+
+function gen_edges(root)
+    edges = []
+    foreach(root) do n
+        if isinner(n)
+            edges = vcat(edges, map(x -> (n, x), children(n)))
+        end
+    end
+    edges
+end
+
+"Manually compute the marginal map probability by brute force"
+
+function brute_force_mmap(root, query_vars)
+    quer_data_all = generate_data_all(length(query_vars))
+    result = DataFrame(missings(Bool, 1 << length(query_vars), num_variables(root)))
+    result[:, collect(query_vars)] = quer_data_all
+    @show result
+    @show MAR(root, result)
+    reduce(max, MAR(root, result))
 end
