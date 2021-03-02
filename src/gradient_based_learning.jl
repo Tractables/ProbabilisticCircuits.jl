@@ -55,12 +55,11 @@ function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01,
             pbc.bitcircuit = to_gpu(pbc.bitcircuit)
             pbc.params = to_gpu(pbc.params)
         end
-        
-        if !isgpu(weights)
-            weights = to_gpu(weights)
-        end
 
         if use_sample_weights
+            if !isgpu(weights)
+                weights = to_gpu(weights)
+            end
             sgd_parameter_learning_gpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
         else
             sgd_parameter_learning_gpu(pbc, data; lr, reuse_values, reuse_flows, reuse)
@@ -296,11 +295,12 @@ function apply_gradients_gpu(pbc::ParamBitCircuit, param_grads::CuVector; lr::Fl
     CUDA.@sync for layer in Iterators.reverse(bc.layers)
         num_threads = 2^min(ceil(Int, 2.0 * log2(length(layer))), 8)
         num_blocks = 2^ceil(Int, log2(length(layer)^2 / num_threads))
-        @cuda threads=num_threads blocks=num_blocks apply_gradients_cuda(layer, bc.nodes, param_grads, pbc.params, lr::Float64)
+        @cuda threads=num_threads blocks=num_blocks apply_gradients_cuda(layer, bc.nodes, param_grads, pbc.params, 
+                                                                         log(lr)::Float64)
     end
 end
 
-function apply_gradients_cuda(layer, nodes, param_grads, params, lr::Float64)
+function apply_gradients_cuda(layer, nodes, param_grads, params, log_lr::Float64)
     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride_x = blockDim().x * gridDim().x
     
@@ -317,7 +317,7 @@ function apply_gradients_cuda(layer, nodes, param_grads, params, lr::Float64)
             end
             sum_params = -Inf
             @inbounds for ele_id = ele_start_id : ele_end_id
-                params[ele_id] = logsumexp_cuda(params[ele_id], lr + param_grads[ele_id] - sum_grads)
+                params[ele_id] = logsumexp_cuda(params[ele_id], log_lr + param_grads[ele_id] - sum_grads)
                 sum_params = logsumexp_cuda(sum_params, params[ele_id])
             end
             @inbounds for ele_id = ele_start_id : ele_end_id

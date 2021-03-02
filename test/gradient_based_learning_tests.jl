@@ -13,16 +13,16 @@ using CUDA: CUDA
     wdfb = batch(wdfb, 2);
     
     params = nothing
-    for i = 1 : 100
-        params = sgd_parameter_learning(r, wdfb; lr = 0.001)
+    for i = 1 : 200
+        params = sgd_parameter_learning(r, wdfb; lr = 0.01)
     end
-    @test exp.(params) ≈ [0.5, 0.5, 0.5, 0.5, 1.0]
+    @test exp.(params) ≈ [0.5, 0.5, 0.5, 0.5, 1.0] atol = 0.1
     
     if CUDA.functional()
         params = nothing
-        for i = 1 : 100
-            params = sgd_parameter_learning(r, wdfb; lr = 0.001)
+        for i = 1 : 200
+            params = sgd_parameter_learning(r, wdfb; lr = 0.01)
         end
-        @test to_cpu(exp.(params)) ≈ [0.5, 0.5, 0.5, 0.5, 1.0]
+        @test to_cpu(exp.(params)) ≈ [0.5, 0.5, 0.5, 0.5, 1.0] atol = 0.1
     end
 end
