@@ -182,7 +182,7 @@ function backprop_flows_down_layers_cpu(pbc::ParamBitCircuit, log_grads::Vector,
                     end
                     # Compute gradient only once
                     if sib_id > dec_id
-                        param_grads[par] = logsumexp(flows[:, grandpa] + values[:, dec_id] + values[:, sib_id])
+                        param_grads[par] = sum(exp.(flows[:, grandpa] + values[:, dec_id] + values[:, sib_id]))
                     end
                 end
             end
@@ -201,13 +201,13 @@ function apply_gradients_cpu(pbc::ParamBitCircuit, param_grads::Vector; lr::Floa
                 ele_start_id = nodes[1, dec_id]
                 ele_end_id = nodes[2, dec_id]
                 
-                sum_grads = -Inf
+                sum_grads = 0.0
                 @inbounds for ele_id = ele_start_id : ele_end_id
-                    sum_grads = logaddexp(sum_grads, param_grads[ele_id])
+                    sum_grads += param_grads[ele_id]
                 end
                 sum_params = -Inf
                 @inbounds for ele_id = ele_start_id : ele_end_id
-                    params[ele_id] = logaddexp(params[ele_id], lr + param_grads[ele_id] - sum_grads)
+                    params[ele_id] += lr * param_grads[ele_id] / sum_grads
                     sum_params = logaddexp(sum_params, params[ele_id])
                 end
                 @inbounds for ele_id = ele_start_id : ele_end_id
@@ -277,8 +277,8 @@ function backprop_flows_down_layers_cuda(layer, nodes, elements, parents, params
                         
                         # Compute gradient only once
                         if sib_id > dec_id
-                            grad = g_flow + d_value + s_value
-                            CUDA.@atomic param_grads[par] += logsumexp_cuda(param_grads[par], grad) - ifelse(param_grads[par] == 0, zero(eltype(flows)), param_grads[par])
+                            grad::Float64 = CUDA.exp(g_flow + d_value + s_value)
+                            CUDA.@atomic param_grads[par] += grad
                         end
                     end
                 end
@@ -296,11 +296,11 @@ function apply_gradients_gpu(pbc::ParamBitCircuit, param_grads::CuVector; lr::Fl
         num_threads = 2^min(ceil(Int, 2.0 * log2(length(layer))), 8)
         num_blocks = 2^ceil(Int, log2(length(layer)^2 / num_threads))
         @cuda threads=num_threads blocks=num_blocks apply_gradients_cuda(layer, bc.nodes, param_grads, pbc.params, 
-                                                                         log(lr)::Float64)
+                                                                         lr::Float64)
     end
 end
 
-function apply_gradients_cuda(layer, nodes, param_grads, params, log_lr::Float64)
+function apply_gradients_cuda(layer, nodes, param_grads, params, lr::Float64)
     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride_x = blockDim().x * gridDim().x
     
@@ -310,14 +310,14 @@ function apply_gradients_cuda(layer, nodes, param_grads, params, log_lr::Float64
         if !single_child
             ele_start_id = nodes[1, dec_id]
             ele_end_id = nodes[2, dec_id]
-            
-            sum_grads = typemin(eltype(param_grads))
+
+            sum_grads = zero(eltype(param_grads))
             @inbounds for ele_id = ele_start_id : ele_end_id
-                sum_grads = logsumexp_cuda(sum_grads, param_grads[ele_id])
+                sum_grads += param_grads[ele_id]
             end
             sum_params = -Inf
             @inbounds for ele_id = ele_start_id : ele_end_id
-                params[ele_id] = logsumexp_cuda(params[ele_id], log_lr + param_grads[ele_id] - sum_grads)
+                params[ele_id] += lr * param_grads[ele_id] / sum_grads
                 sum_params = logsumexp_cuda(sum_params, params[ele_id])
             end
             @inbounds for ele_id = ele_start_id : ele_end_id
