@@ -2,6 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
+using Random
 using Suppressor
 
 @testset "prob circuit structure learn tests" begin
@@ -50,4 +51,14 @@ using Suppressor
     # Test when there are more iterations than candidates.
     data = DataFrame(convert(BitArray, rand(Bool, 100, 4)))
     @test_nowarn pc = learn_circuit(data; maxiter = 100, verbose = false)
+end
+
+
+@testset "learn from missing data tests" begin
+    # Test for learning from missing data
+    Random.seed!(10007) # Fix Seed for the test
+    data = DataFrame(convert(BitArray, rand(Bool, 200, 15)))
+    data_miss = make_missing_mcar(data; keep_prob=0.9)
+
+    pc_miss = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
 end

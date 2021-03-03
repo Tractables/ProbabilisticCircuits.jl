@@ -49,7 +49,7 @@ In this case we have some missing values. Let ``x^o`` denote the observed featur
 The good news is that given a **smooth** and **decomposable** PC, the marginal can be computed exactly and in linear time to the size of the PC.
 
 
-First, we randomly make some features go `missing`:
+First, we randomly make some features go `missing` (you can also use `make_missing_mcar` from LogicCircuits library):
 
 ```@example queries
 using DataFrames
