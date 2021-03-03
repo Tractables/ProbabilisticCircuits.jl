@@ -139,7 +139,7 @@ using DataFrames: DataFrame
         nothing
     end
     apply_test_cnf(17, "easy/C17_mince.cnf")
-    apply_test_cnf(15, "easy/majority_mince.cnf")
+    apply_test_cnf(14, "easy/majority_mince.cnf")
     apply_test_cnf(21, "easy/b1_mince.cnf")
     apply_test_cnf(20, "easy/cm152a_mince.cnf")
 end

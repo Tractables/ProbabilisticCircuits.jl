@@ -136,73 +136,11 @@ function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::LogicCircui
 end
 
 function Base.convert(::Type{<:StructProbCircuit}, sdd::Sdd)::StructProbCircuit
-    L = Dict{Int32, StructProbLiteralNode}()
-    visited = Dict{Sdd, StructProbCircuit}()
-    Sc_sdd = variables_by_node(sdd)
-    ⊤_node = SddTrueNode(false, nothing)
-    function get_lit(l::Int32, V::Vtree, L::Dict{Int32, StructProbLiteralNode})::StructProbLiteralNode
-      if !haskey(L, l)
-        node = StructProbLiteralNode(l, V)
-        L[l] = node
-        return node
-      end
-      return L[l]
-    end
-    function passdown(S::Sdd, V::Vtree, ignore::Bool = false)::StructProbCircuit
-        if !ignore && haskey(visited, S) return visited[S] end
-        if S isa SddTrueNode
-            Sc = variables(V)
-            if length(Sc) == 1
-                l = convert(Int32, first(Sc))
-                return StructSumNode([get_lit(l, V, L), get_lit(-l, V, L)], V)
-            end
-            # Fully factorize.
-            left, right = passdown(S, V.left, true), passdown(S, V.right, true)
-            return StructSumNode([StructMulNode(left, right, V)], V)
-        elseif S isa SddLiteralNode
-            l = S.literal
-            Sc = variables(V)
-            if length(Sc) == 1 return get_lit(l, V, L) end
-            v = abs(l)
-            left = passdown(v ∈ variables(V.left) ? S : ⊤_node, V.left, true)
-            right = passdown(v ∈ variables(V.right) ? S : ⊤_node, V.right, true)
-            return StructSumNode([StructMulNode(left, right, V)], V)
-        end
-        # Else, disjunction node.
-        ch = Vector{StructProbCircuit}()
-        for c ∈ S.children
-            if c.sub isa SddFalseNode continue end
-            if haskey(visited, c)
-                push!(ch, visited[c])
-                continue
-            end
-            p = passdown(c.prime, V.left)
-            # Corner case for when SDD is not smooth on the left. Add missing variables.
-            if !(V.left isa PlainVtreeLeafNode)
-                if V.left.left isa PlainVtreeLeafNode && V.left.left.var ∉ variables(vtree(p))
-                    p = StructSumNode([StructMulNode(passdown(⊤_node, V.left.left, true), p, V.left)], V.left)
-                end; if V.left.right isa PlainVtreeLeafNode && V.left.right.var ∉ variables(vtree(p))
-                    p = StructSumNode([StructMulNode(p, passdown(⊤_node, V.left.right, true), V.left)], V.left)
-                end
-            end
-            s = passdown(c.sub, V.right)
-            # Corner case for when SDD is not smooth on the right. Add missing variables.
-            if !(V.right isa PlainVtreeLeafNode)
-                if V.right.left isa PlainVtreeLeafNode && V.right.left.var ∉ variables(vtree(s))
-                    s = StructSumNode([StructMulNode(passdown(⊤_node, V.right.left, true), s, V.right)], V.right)
-                end; if V.right.right isa PlainVtreeLeafNode && V.right.right.var ∉ variables(vtree(s))
-                    s = StructSumNode([StructMulNode(s, passdown(⊤_node, V.right.right, true), V.right)], V.right)
-                end
-            end
-            e = StructMulNode(p, s, V)
-            visited[c] = e
-            push!(ch, e)
-        end
-        sum = StructSumNode(ch, V)
-        visited[S] = sum
-        return sum
-    end
-    return passdown(sdd, Vtree(sdd.vtree))
+    lc = LogicCircuit(sdd)
+    plc = propagate_constants(lc, remove_unary=true)
+    structplc = compile(StructLogicCircuit, vtree(sdd), plc)
+    sstructplc = smooth(structplc)
+    compile(StructProbCircuit, sstructplc)
 end
 
 function fully_factorized_circuit(::Type{<:ProbCircuit}, vtree::Vtree)
