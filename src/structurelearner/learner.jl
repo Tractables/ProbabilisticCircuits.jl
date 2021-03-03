@@ -82,9 +82,11 @@ function learn_circuit(train_x, pc, vtree;
     if has_missing
         estimate_parameters_func = estimate_parameters_em
         likelihood_avg_func = marginal_log_likelihood_avg
+        LogLikelihood_str = "Marginal LogLikelihood"
     else
         estimate_parameters_func = estimate_parameters
         likelihood_avg_func = log_likelihood_avg
+        LogLikelihood_str = "LogLikelihood"
     end
 
 
@@ -115,7 +117,7 @@ function learn_circuit(train_x, pc, vtree;
         else
             ll = likelihood_avg_func(circuit, train_x; use_gpu)
         end
-        verbose && println("Iteration $iter/$maxiter. LogLikelihood = $(ll); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
+        verbose && println("Iteration $iter/$maxiter. $(LogLikelihood_str) = $(ll); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
         iter += 1
         
         if !isnothing(max_circuit_nodes) && num_nodes(circuit) > max_circuit_nodes
