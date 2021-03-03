@@ -40,8 +40,8 @@ using Suppressor
             @test all(sum(exp.(n.log_probs), dims=1) .≈ 1.0)
         end
     end
-    @test_nowarn @suppress_out learn_circuit_mixture(pc, data; num_mix=1, em_maxiter=2)
-    @test_nowarn @suppress_out learn_circuit_mixture(pc, data; num_mix=num_mix, em_maxiter=2)
+    @test_nowarn learn_circuit_mixture(pc, data; num_mix=1, em_maxiter=2, verbose = false)
+    @test_nowarn learn_circuit_mixture(pc, data; num_mix=num_mix, em_maxiter=2, verbose = false)
 
-    @test_nowarn @suppress_out learn_strudel(data; num_mix = num_mix, init_maxiter = 2, em_maxiter = 2)
+    @test_nowarn learn_strudel(data; num_mix = num_mix, init_maxiter = 2, em_maxiter = 2, verbose = false)
 end
