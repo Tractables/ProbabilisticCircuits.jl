@@ -2,11 +2,9 @@
 
 In this section we provide few learning scenarios for circuits. In general, learning tasks for PCs can be separted into two categories: parameter learning and structure learning.
 
-
 ## Learn a Circuit
 
 You can use [`learn_circuit`](@ref) to learn a probabilistic circuit from the data (both parameter and structure learning).
-
 
 ```@example learning
 using LogicCircuits
@@ -17,6 +15,18 @@ pc = learn_circuit(train_x; maxiter=100);
 
 "PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters. " *  
 "Train log-likelihood is $(log_likelihood_avg(pc, train_x))"
+```
+
+## Learning a circuit from missing data
+
+You can use [`learn_circuit_miss`](@ref) to learn a probabilistic circuit from missing data, i.e. some feature could be missing for each data point.
+
+```@example learning
+train_x_miss = make_missing_mcar(train_x; keep_prob=0.9)
+pc = learn_circuit_miss(train_x_miss; maxiter=100);
+
+"PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters. " *  
+"Train marginal-log-likelihood is $(marginal_log_likelihood_avg(pc, train_x))"
 ```
 
 ## Learn a mixture of circuits

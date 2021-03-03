@@ -29,7 +29,10 @@ end
 
 
 """
-Learn structure of a single structured decomposable circuit from missing data
+Learn structure of a single structured decomposable circuit from missing data. 
+
+Missing feature are denoted by `missing`. 
+Median Imputation is used by default for initial structure (set `impute_method` for other options).
 """
 function learn_circuit_miss(train_x; 
         impute_method::Symbol=:median,
