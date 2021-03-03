@@ -42,7 +42,7 @@ using Suppressor
         @test log_likelihood_avg(pc, data) ≈ -1.8636799873410004 atol=1e-6
     end
 
-    pc3 = @suppress_out learn_circuit(data, maxiter=10)
+    pc3 = learn_circuit(data; maxiter=10, verbose = false)
     test_pc_property(pc3, vtree(pc3), data)
     @test num_parameters(pc3) == 60
     @test num_nodes(pc3) == 88
