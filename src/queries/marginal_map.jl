@@ -176,6 +176,7 @@ end
 "Preform the actual pruning. Note this will always return a plain logic circuit"
 
 function do_pruning(n::PlainProbCircuit, to_prune)
+    clear_data(n)
     foreach(x -> prune_fn(x, to_prune), n)
     n.data
 end
