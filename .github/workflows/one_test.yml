@@ -6,6 +6,7 @@ on:
       testFile:
         description: 'Relative path to test file'     
         required: true
+        default: 'test/structurelearner/learner_tests.jl'
 
 env:
   DATADEPS_ALWAYS_ACCEPT: 1
