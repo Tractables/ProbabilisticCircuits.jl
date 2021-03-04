@@ -1,12 +1,11 @@
-name: Sepcific Unit Test
+name: Specific Unit Test
 
 on: 
   workflow_dispatch:
-    testFile:
-      description: 'Relative path to test file'     
-      required: true
-      default: 'test/gradient_based_learning_tests.jl'
-
+    inputs:
+      testFile:
+        description: 'Relative path to test file'     
+        required: true
 
 env:
   DATADEPS_ALWAYS_ACCEPT: 1
