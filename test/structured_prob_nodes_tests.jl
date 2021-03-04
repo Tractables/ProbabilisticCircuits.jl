@@ -122,20 +122,19 @@ using DataFrames: DataFrame
 
     # Convert tests
     function apply_test_cnf(n_vars::Int, cnf_path::String)
-        vtree = Vtree(n_vars, :random)
-        println("Compiling...")
-        sdd = compile(SddMgr(vtree), zoo_cnf(cnf_path))
-        @test num_variables(sdd) == n_vars
-        println("Converting...")
-        psdd = convert(StructProbCircuit, sdd)
-        @test num_variables(psdd) == n_vars
-        @test issmooth(psdd)
-        @test isdecomposable(psdd)
-        @test isdeterministic(psdd)
-        @test respects_vtree(psdd, vtree)
-        data = DataFrame(convert(BitMatrix, rand(Bool, 100, n_vars)))
-        println("Testing data...")
-        @test all(sdd(data) .== (EVI(psdd, data) .!=  -Inf))
+        for i in 1:10
+            vtree = Vtree(n_vars, :random)
+            sdd = compile(SddMgr(vtree), zoo_cnf(cnf_path))
+            @test num_variables(sdd) == n_vars
+            psdd = convert(StructProbCircuit, sdd)
+            @test num_variables(psdd) == n_vars
+            @test issmooth(psdd)
+            @test isdecomposable(psdd)
+            @test isdeterministic(psdd)
+            @test respects_vtree(psdd, vtree)
+            data = DataFrame(convert(BitMatrix, rand(Bool, 100, n_vars)))
+            @test all(sdd(data) .== (EVI(psdd, data) .!=  -Inf))
+        end
         nothing
     end
     apply_test_cnf(17, "easy/C17_mince.cnf")
