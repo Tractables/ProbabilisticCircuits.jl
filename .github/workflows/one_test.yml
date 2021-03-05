@@ -25,5 +25,6 @@ jobs:
       - name: Unit Tests
         run: |
           julia -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(name="ProbabilisticCircuits")); Pkg.instantiate(); Pkg.build();'
+          julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
           julia --project=test --check-bounds=yes --depwarn=yes ${{ github.event.inputs.testFile }}
       
