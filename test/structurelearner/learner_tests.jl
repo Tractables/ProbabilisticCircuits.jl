@@ -62,6 +62,8 @@ end
 
     @test_nowarn pc_miss = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
 
-    data_miss_gpu = to_gpu(data_miss)
-    @test_nowarn pc_miss_gpu = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
+    if CUDA.functional()
+        data_miss_gpu = to_gpu(data_miss)
+        @test_nowarn pc_miss_gpu = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
+    end
 end
