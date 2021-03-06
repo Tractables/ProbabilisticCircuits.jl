@@ -4,6 +4,7 @@ using ProbabilisticCircuits
 using DataFrames
 using Random
 using Suppressor
+using CUDA
 
 @testset "prob circuit structure learn tests" begin
     function test_pc_property(pc, vtree1, train_x)
