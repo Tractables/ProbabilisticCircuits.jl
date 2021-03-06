@@ -207,7 +207,7 @@ function apply_gradients_cpu(pbc::ParamBitCircuit, param_grads::Vector; lr::Floa
                 end
                 sum_params = -Inf
                 @inbounds for ele_id = ele_start_id : ele_end_id
-                    params[ele_id] += lr * param_grads[ele_id] / sum_grads
+                    params[ele_id] += lr * param_grads[ele_id] / (sum_grads + 1e-8)
                     sum_params = logaddexp(sum_params, params[ele_id])
                 end
                 @inbounds for ele_id = ele_start_id : ele_end_id
@@ -317,7 +317,7 @@ function apply_gradients_cuda(layer, nodes, param_grads, params, lr::Float64)
             end
             sum_params = -Inf
             @inbounds for ele_id = ele_start_id : ele_end_id
-                params[ele_id] += lr * param_grads[ele_id] / sum_grads
+                params[ele_id] += lr * param_grads[ele_id] / (sum_grads + 1e-8)
                 sum_params = logsumexp_cuda(sum_params, params[ele_id])
             end
             @inbounds for ele_id = ele_start_id : ele_end_id
