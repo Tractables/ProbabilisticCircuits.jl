@@ -20,9 +20,9 @@ probs = EVI(mix, data, mix_weights);
 # Alternatively, we may want to compute the probability of a single component
 c_prob = EVI(mix, data; component_idx = 1);
 c_prob[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float64,1}:
- -39.17173343003587
- -17.660452514215713
- -38.13255372372872</pre><h2 id="Partial-Evidence-(MAR)"><a class="docs-heading-anchor" href="#Partial-Evidence-(MAR)">Partial Evidence (MAR)</a><a id="Partial-Evidence-(MAR)-1"></a><a class="docs-heading-anchor-permalink" href="#Partial-Evidence-(MAR)" title="Permalink"></a></h2><p>In this case we have some missing values. Let <span>$x^o$</span> denote the observed features, and <span>$x^m$</span> the missing features. We would like to compute <span>$p(x^o)$</span> which is defined as <span>$p(x^o) = \sum_{x^m} p(x^o, x^m)$</span>. Of course, computing this directly by summing over all possible ways to fill the missing values is not tractable. </p><p>The good news is that given a <strong>smooth</strong> and <strong>decomposable</strong> PC, the marginal can be computed exactly and in linear time to the size of the PC.</p><p>First, we randomly make some features go <code>missing</code> (you can also use <code>make_missing_mcar</code> from LogicCircuits library):</p><pre><code class="language-julia">using DataFrames
+ -18.518386568062333
+ -28.941617300526083
+ -39.19139988156547</pre><h2 id="Partial-Evidence-(MAR)"><a class="docs-heading-anchor" href="#Partial-Evidence-(MAR)">Partial Evidence (MAR)</a><a id="Partial-Evidence-(MAR)-1"></a><a class="docs-heading-anchor-permalink" href="#Partial-Evidence-(MAR)" title="Permalink"></a></h2><p>In this case we have some missing values. Let <span>$x^o$</span> denote the observed features, and <span>$x^m$</span> the missing features. We would like to compute <span>$p(x^o)$</span> which is defined as <span>$p(x^o) = \sum_{x^m} p(x^o, x^m)$</span>. Of course, computing this directly by summing over all possible ways to fill the missing values is not tractable. </p><p>The good news is that given a <strong>smooth</strong> and <strong>decomposable</strong> PC, the marginal can be computed exactly and in linear time to the size of the PC.</p><p>First, we randomly make some features go <code>missing</code> (you can also use <code>make_missing_mcar</code> from LogicCircuits library):</p><pre><code class="language-julia">using DataFrames
 function make_missing(d::DataFrame;keep_prob=0.8)
     m = missings(Bool, num_examples(d), num_features(d))
     flag = rand(num_examples(d), num_features(d)) .&lt;= keep_prob
@@ -31,9 +31,9 @@ function make_missing(d::DataFrame;keep_prob=0.8)
 end;
 data_miss = make_missing(data[1:1000,:]);</code></pre><p>Now, we can use <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAR"><code>MAR</code></a> to compute the marginal queries:</p><pre><code class="language-julia">probs = MAR(pc, data_miss);
 probs[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
-  -6.570068
- -13.05201
- -23.150185</pre><p>Note that <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAR"><code>MAR</code></a> can also be used to compute probabilisties even if all data is observed, in fact it should give the same results as <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.EVI"><code>EVI</code></a>. However, if we know all features are observed, we suggest using EVI as its faster in general.</p><pre><code class="language-julia">probs_mar = MAR(pc, data);
+  -7.3566
+ -11.993689
+ -22.818785</pre><p>Note that <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAR"><code>MAR</code></a> can also be used to compute probabilisties even if all data is observed, in fact it should give the same results as <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.EVI"><code>EVI</code></a>. However, if we know all features are observed, we suggest using EVI as its faster in general.</p><pre><code class="language-julia">probs_mar = MAR(pc, data);
 probs_evi = EVI(pc, data);
 
 probs_mar ≈ probs_evi</code></pre><pre class="documenter-example-output">true</pre><p>Just like <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.EVI"><code>EVI</code></a>, <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAR"><code>MAR</code></a> works the same way for mixtures.</p><pre><code class="language-julia"># Full weighted marginal probability
@@ -41,25 +41,25 @@ probs_mar = MAR(mix, data, mix_weights);
 # Individual component&#39;s marginal probability
 c_probs_mar = MAR(mix, data; component_idx = 1);
 c_probs_mar[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
- -39.171734
- -17.660456
- -38.132553</pre><h2 id="Conditionals-(CON)"><a class="docs-heading-anchor" href="#Conditionals-(CON)">Conditionals (CON)</a><a id="Conditionals-(CON)-1"></a><a class="docs-heading-anchor-permalink" href="#Conditionals-(CON)" title="Permalink"></a></h2><p>In this case, given observed features <span>$x^o$</span>, we would like to compute <span>$p(Q \mid x^o)$</span>, where <span>$Q$</span> is a subset of features disjoint with <span>$x^o$</span>.  We can use Bayes rule to compute conditionals as two seperate MAR queries as follows:</p><p class="math-container">\[p(q \mid x^o) = \cfrac{p(q, x^o)}{p(x^o)}\]</p><p>Currently, this has to be done manually by the user. We plan to add a simple API for this case in the future.</p><h2 id="Maximum-a-posteriori-(MAP,-MPE)"><a class="docs-heading-anchor" href="#Maximum-a-posteriori-(MAP,-MPE)">Maximum a posteriori (MAP, MPE)</a><a id="Maximum-a-posteriori-(MAP,-MPE)-1"></a><a class="docs-heading-anchor-permalink" href="#Maximum-a-posteriori-(MAP,-MPE)" title="Permalink"></a></h2><p>In this case, given the observed features <span>$x^o$</span> the goal is to fill out the missing features in a way that <span>$p(x^m, x^o)$</span> is maximized.</p><p>We can use the <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAP"><code>MAP</code></a> method to compute MAP, which outputs the states that maximize the probability and the log-likelihoods of each state.</p><pre><code class="language-julia">data_miss = make_missing(data,keep_prob=0.5);
+ -18.518387
+ -28.941618
+ -39.1914</pre><h2 id="Conditionals-(CON)"><a class="docs-heading-anchor" href="#Conditionals-(CON)">Conditionals (CON)</a><a id="Conditionals-(CON)-1"></a><a class="docs-heading-anchor-permalink" href="#Conditionals-(CON)" title="Permalink"></a></h2><p>In this case, given observed features <span>$x^o$</span>, we would like to compute <span>$p(Q \mid x^o)$</span>, where <span>$Q$</span> is a subset of features disjoint with <span>$x^o$</span>.  We can use Bayes rule to compute conditionals as two seperate MAR queries as follows:</p><p class="math-container">\[p(q \mid x^o) = \cfrac{p(q, x^o)}{p(x^o)}\]</p><p>Currently, this has to be done manually by the user. We plan to add a simple API for this case in the future.</p><h2 id="Maximum-a-posteriori-(MAP,-MPE)"><a class="docs-heading-anchor" href="#Maximum-a-posteriori-(MAP,-MPE)">Maximum a posteriori (MAP, MPE)</a><a id="Maximum-a-posteriori-(MAP,-MPE)-1"></a><a class="docs-heading-anchor-permalink" href="#Maximum-a-posteriori-(MAP,-MPE)" title="Permalink"></a></h2><p>In this case, given the observed features <span>$x^o$</span> the goal is to fill out the missing features in a way that <span>$p(x^m, x^o)$</span> is maximized.</p><p>We can use the <a href="../../api/internals/probabilistic_circuits/#ProbabilisticCircuits.MAP"><code>MAP</code></a> method to compute MAP, which outputs the states that maximize the probability and the log-likelihoods of each state.</p><pre><code class="language-julia">data_miss = make_missing(data,keep_prob=0.5);
 states, probs = MAP(pc, data_miss);
 probs[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
-  -7.5333886
- -15.533342
- -21.893454</pre><h2 id="Sampling"><a class="docs-heading-anchor" href="#Sampling">Sampling</a><a id="Sampling-1"></a><a class="docs-heading-anchor-permalink" href="#Sampling" title="Permalink"></a></h2><p>We can also sample from the distrubtion <span>$p(x)$</span> defined by a Probabilistic Circuit. You can use <a href="../../api/public/#ProbabilisticCircuits.sample"><code>sample</code></a> to achieve this task.</p><pre><code class="language-julia">samples, lls = sample(pc, 100);
+  -5.7305627
+ -15.9894495
+ -18.34061</pre><h2 id="Sampling"><a class="docs-heading-anchor" href="#Sampling">Sampling</a><a id="Sampling-1"></a><a class="docs-heading-anchor-permalink" href="#Sampling" title="Permalink"></a></h2><p>We can also sample from the distrubtion <span>$p(x)$</span> defined by a Probabilistic Circuit. You can use <a href="../../api/public/#ProbabilisticCircuits.sample"><code>sample</code></a> to achieve this task.</p><pre><code class="language-julia">samples, lls = sample(pc, 100);
 lls[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
- -16.760998
-  -4.15188
-  -4.615326</pre><p>Additionally, we can do conditional samples <span>$x \sim p(x \mid x^o)$</span>, where <span>$x^o$</span> are the observed features (<span>$x^o \subseteq x$</span>), and could be any arbitrary subset of features.</p><pre><code class="language-julia">#3 random evidences for the examples
+ -3.570612
+ -3.5404594
+ -6.1428127</pre><p>Additionally, we can do conditional samples <span>$x \sim p(x \mid x^o)$</span>, where <span>$x^o$</span> are the observed features (<span>$x^o \subseteq x$</span>), and could be any arbitrary subset of features.</p><pre><code class="language-julia">#3 random evidences for the examples
 evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))))
 
 samples, lls = sample(pc, 3, evidence);
 lls</code></pre><pre class="documenter-example-output">3×2 Array{Float32,2}:
- -51.0585  -63.8762
- -53.7839  -60.4783
- -62.4856  -64.4365</pre><h2 id="Expected-Prediction-(EXP)"><a class="docs-heading-anchor" href="#Expected-Prediction-(EXP)">Expected Prediction (EXP)</a><a id="Expected-Prediction-(EXP)-1"></a><a class="docs-heading-anchor-permalink" href="#Expected-Prediction-(EXP)" title="Permalink"></a></h2><p>Expected Prediction (EXP) is the task of taking expectation of a discrimintative model w.r.t a generative model conditioned on evidemce (subset of features observed).</p><p><span>$\mathbb{E}_{x^m \sim p(x^m \mid x^o)} [ f(x^o x^m) ]$</span></p><p>In the case where <span>$f$</span> and <span>$p$</span> are circuit, and some structural constrains for the pair, we can do this expectation and higher moments tractably.  You can use <a href="../../api/public/#ProbabilisticCircuits.Expectation"><code>Expectation</code></a> and <a href="../../api/public/#ProbabilisticCircuits.Moment"><code>Moment</code></a> to compute the expectations.</p><pre><code class="language-julia">using DataFrames
+ -55.189   -56.6816
+ -53.6386  -55.9766
+ -62.1607  -55.3485</pre><h2 id="Expected-Prediction-(EXP)"><a class="docs-heading-anchor" href="#Expected-Prediction-(EXP)">Expected Prediction (EXP)</a><a id="Expected-Prediction-(EXP)-1"></a><a class="docs-heading-anchor-permalink" href="#Expected-Prediction-(EXP)" title="Permalink"></a></h2><p>Expected Prediction (EXP) is the task of taking expectation of a discrimintative model w.r.t a generative model conditioned on evidemce (subset of features observed).</p><p><span>$\mathbb{E}_{x^m \sim p(x^m \mid x^o)} [ f(x^o x^m) ]$</span></p><p>In the case where <span>$f$</span> and <span>$p$</span> are circuit, and some structural constrains for the pair, we can do this expectation and higher moments tractably.  You can use <a href="../../api/public/#ProbabilisticCircuits.Expectation"><code>Expectation</code></a> and <a href="../../api/public/#ProbabilisticCircuits.Moment"><code>Moment</code></a> to compute the expectations.</p><pre><code class="language-julia">using DataFrames
 
 pc = zoo_psdd(&quot;insurance.psdd&quot;)
 rc = zoo_lc(&quot;insurance.circuit&quot;, 1)
@@ -71,14 +71,14 @@ data = make_missing(DataFrame(data));
 exps, exp_cache = Expectation(pc, rc, data)
 
 exps[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
- 41981.207
- 12303.656
- 12120.688</pre><pre><code class="language-julia">second_moments, moment_cache = Moment(pc, rc, data, 2);
+ 25576.387
+  7482.8784
+ 12365.554</pre><pre><code class="language-julia">second_moments, moment_cache = Moment(pc, rc, data, 2);
 exps[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
- 41981.207
- 12303.656
- 12120.688</pre><pre><code class="language-julia">stds = sqrt.( second_moments - exps.^2 );
+ 25576.387
+  7482.8784
+ 12365.554</pre><pre><code class="language-julia">stds = sqrt.( second_moments - exps.^2 );
 stds[1:3]</code></pre><pre class="documenter-example-output">3-element Array{Float32,1}:
- 4346.791
- 1000.66376
- 3718.7139</pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../demo/">« Quick Demo</a><a class="docs-footer-nextpage" href="../learning/">Learning »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Monday 8 March 2021 06:29">Monday 8 March 2021</span>. Using Julia version 1.5.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+  942.5752
+ 4394.851
+ 2111.1438</pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../demo/">« Quick Demo</a><a class="docs-footer-nextpage" href="../learning/">Learning »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 9 March 2021 03:00">Tuesday 9 March 2021</span>. Using Julia version 1.5.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
