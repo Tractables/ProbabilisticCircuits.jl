@@ -44,7 +44,8 @@ function learn_circuit_miss(train_x;
         seed=nothing,
         return_vtree=false,
         verbose=true,
-        max_circuit_nodes=nothing)
+        max_circuit_nodes=nothing,
+        max_learning_time=nothing)
     
     # Initial Structure
     train_x_impute = impute(train_x; method=impute_method)
@@ -57,6 +58,7 @@ function learn_circuit_miss(train_x;
                   depth, pseudocount, sanity_check, 
                   maxiter, seed, return_vtree, entropy_reg,
                   max_circuit_nodes, verbose,
+                  max_learning_time,
                   has_missing=true)
 end
 
@@ -75,6 +77,7 @@ function learn_circuit(train_x, pc, vtree;
         entropy_reg=0.0,
         verbose=true,
         max_circuit_nodes=nothing,
+        max_learning_time=nothing, # in seconds
         has_missing::Bool=false
         )
 
@@ -101,6 +104,7 @@ function learn_circuit(train_x, pc, vtree;
                                     pick_var=pick_var,
                                     miss_data=has_missing)
     
+    init_time_sec = time()                                     
 
     pc_split_step(circuit) = begin
         r = split_step(circuit; loss=loss, depth=depth, sanity_check=sanity_check)
@@ -124,7 +128,13 @@ function learn_circuit(train_x, pc, vtree;
         iter += 1
         
         if !isnothing(max_circuit_nodes) && num_nodes(circuit) > max_circuit_nodes
-            epoch_printer("Stopping early, circuit node count ($(num_nodes(circuit))) is above max threshold $(max_circuit_nodes).");
+            verbose && println("Stopping early, circuit node count ($(num_nodes(circuit))) is above max threshold $(max_circuit_nodes).");
+            return true; # stop
+        end
+
+        total_time_taken = time() - init_time_sec
+        if !isnothing(max_learning_time) && total_time_taken > max_learning_time
+            verbose && println("Stopping early, time limit reached ($(max_learning_time)) is above max threshold $(max_learning_time).");
             return true; # stop
         end
 
