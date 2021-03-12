@@ -135,7 +135,7 @@ function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::LogicCircui
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, StructProbCircuit)
 end
 
-function Base.convert(::Type{<:StructProbCircuit}, sdd::Sdd)::StructProbCircuit
+function compile(::Type{<:StructProbCircuit}, sdd::Sdd)::StructProbCircuit
     lc = LogicCircuit(sdd)
     plc = propagate_constants(lc, remove_unary=true)
     structplc = compile(StructLogicCircuit, vtree(sdd), plc)
