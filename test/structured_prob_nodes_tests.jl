@@ -126,7 +126,7 @@ using DataFrames: DataFrame
             vtree = Vtree(n_vars, :random)
             sdd = compile(SddMgr(vtree), zoo_cnf(cnf_path))
             @test num_variables(sdd) == n_vars
-            psdd = convert(StructProbCircuit, sdd)
+            psdd = compile(StructProbCircuit, sdd)
             @test num_variables(psdd) == n_vars
             @test issmooth(psdd)
             @test isdecomposable(psdd)
