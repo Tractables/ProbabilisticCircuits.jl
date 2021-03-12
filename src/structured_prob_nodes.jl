@@ -135,6 +135,14 @@ function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::LogicCircui
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, StructProbCircuit)
 end
 
+function compile(::Type{<:StructProbCircuit}, sdd::Sdd)::StructProbCircuit
+    lc = LogicCircuit(sdd)
+    plc = propagate_constants(lc, remove_unary=true)
+    structplc = compile(StructLogicCircuit, vtree(sdd), plc)
+    sstructplc = smooth(structplc)
+    compile(StructProbCircuit, sstructplc)
+end
+
 function fully_factorized_circuit(::Type{<:ProbCircuit}, vtree::Vtree)
     ff_logic_circuit = fully_factorized_circuit(PlainStructLogicCircuit, vtree)
     compile(StructProbCircuit, vtree, ff_logic_circuit)
