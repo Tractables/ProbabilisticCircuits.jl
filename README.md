@@ -2,6 +2,8 @@
 EditURL = "<unknown>/docs/src/README.jl"
 ```
 
+<!-- src Generate README.md by running `using Literate; Literate.markdown("docs/README.jl", "."; documenter=false, credit=false, execute=true)` -->
+
 <img align="right" width="180px" src="https://avatars.githubusercontent.com/u/58918144?s=200&v=4">
 
 <!-- DO NOT EDIT README.md directly, instead edit docs/README.jl and generate the markdown-->
