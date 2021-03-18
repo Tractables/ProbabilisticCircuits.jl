@@ -40,6 +40,10 @@ add LogicCircuits#master
 add ProbabilisticCircuits#master
 ```
 
+### Optional Dependencies
+We use `Requires.jl` to make some of our rarely used dependencies optional, so they do not automatically get installed.  Currently, `BlossomV.jl` is the only such dependency due to its rare ussage and issues with Windows. This means if you get an error related to `BlossomV.jl`, you can fix that by adding BlossomV to your project using `Pkg.add`.
+
+
 ### Testing
 
 If you are installing the latest commit, we recommend running the test suite to make sure everything is in order, to do that run:
