@@ -1,9 +1,3 @@
-```@meta
-EditURL = "<unknown>/docs/src/README.jl"
-```
-
-<!-- src Generate README.md by running `using Literate; Literate.markdown("docs/README.jl", "."; documenter=false, credit=false, execute=true)` -->
-
 <img align="right" width="180px" src="https://avatars.githubusercontent.com/u/58918144?s=200&v=4">
 
 <!-- DO NOT EDIT README.md directly, instead edit docs/README.jl and generate the markdown-->
@@ -11,6 +5,16 @@ EditURL = "<unknown>/docs/src/README.jl"
 # Probabilistic<wbr>Circuits<wbr>.jl
 
 [![Unit Tests](https://github.com/Juice-jl/ProbabilisticCircuits.jl/workflows/Unit%20Tests/badge.svg)](https://github.com/Juice-jl/ProbabilisticCircuits.jl/actions?query=workflow%3A%22Unit+Tests%22+branch%3Amaster)  [![codecov](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl) [![](https://img.shields.io/badge/docs-stable-green.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/dev)
+
+## Example usage
+
+```julia
+include("docs/src/usage.jl")
+```
+
+```
+0.011999999f0
+```
 
 ## Installation
 
