@@ -125,7 +125,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.050691083 seconds.
+Learning the parameters on a CPU took 0.050775984 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -136,8 +136,10 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.027487305 seconds.
+Learning the parameters on a GPU took 0.147290093 seconds.
 ```
+
+Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
 
 After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
 
