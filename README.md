@@ -8,6 +8,7 @@
 
 ## Example usage
 
+
 Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows. We also need [LogicCircuits](https://github.com/Juice-jl/LogicCircuits.jl) for some basic functionalities.
 
 ```julia
@@ -16,7 +17,7 @@ using LogicCircuits, ProbabilisticCircuits
 
 ### Reasoning with manually constructed circuits
 
-We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes the following Naive Bayes (NB) distribution over them: Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain).
+We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes the following Naive Bayes (NB) distribution over them: `Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain)`.
 
 ```julia
 rain, rainbow, wet = pos_literals(ProbCircuit, 3)
@@ -25,7 +26,7 @@ rain_neg = (0.2 * rainbow + 0.8 * (-rainbow)) * (0.3 * wet + 0.7 * (-wet)) # Pr(
 circuit = 0.4 * (rain * rain_pos) + 0.6 * ((-rain) * rain_neg); # Pr(rain, rainbow, wet)
 ```
 
-Just like any probability distributions, we can evaluate the probabilistic circuit on various inputs. Note that since log probabilities are used in ProbCircuit for numerical stability, we need to take exponent to get the probabilities.
+Just like any probability distribution, we can evaluate the probabilistic circuit on various inputs. Note that since log probabilities are used in ProbCircuit for numerical stability, we need to take exponent to get the probabilities.
 
 ```julia
 exp(circuit(true, true, true)) # Pr(rain=1, rainbow=1, wet=1)
@@ -125,7 +126,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.231752347 seconds.
+Learning the parameters on a CPU took 0.049759528 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -136,7 +137,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.163713883 seconds.
+Learning the parameters on a GPU took 0.179552029 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
@@ -144,12 +145,12 @@ Note that the insignificant speedup is due to the fact that the circuit is too s
 After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
 
 ```julia
-avg_ll = log_likelihood_avg(circuit, test_data; use_gpu = true)
+avg_ll = log_likelihood_avg(circuit, test_data)
 print("The average test data log-likelihood is $(avg_ll).")
 ```
 
 ```
-The average test data log-likelihood is -137.59309172113925.
+The average test data log-likelihood is -137.59309172113964.
 ```
 
 Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
@@ -158,14 +159,14 @@ ProbabilisticCircuits.jl also offers functionalities for learning the circuit st
 
 ```julia
 circuit_strudel = learn_circuit(train_data; maxiter = 100, verbose = false)
-avg_ll = log_likelihood_avg(circuit_strudel, test_data; use_gpu = true)
+avg_ll = log_likelihood_avg(circuit_strudel, test_data)
 print("The learned circuit contains $(num_edges(circuit)) edges and $(num_parameters(circuit)) parameters.\n")
 print("The average test data log-likelihood is $(avg_ll).")
 ```
 
 ```
 The learned circuit contains 11280 edges and 5364 parameters.
-The average test data log-likelihood is -134.98600316031514.
+The average test data log-likelihood is -134.9860031603151.
 ```
 
 ## Installation
