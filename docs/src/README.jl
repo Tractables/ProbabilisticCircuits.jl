@@ -10,7 +10,7 @@
 
 # ## Example usage
 
-include("docs/src/usage.jl")
+include("usage.jl")
 
 # ## Installation
 
