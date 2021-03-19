@@ -8,17 +8,15 @@
 
 ## Example usage
 
-### Quick Tutorial
-
-Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows.
+Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows. We also need [LogicCircuits](https://github.com/Juice-jl/LogicCircuits.jl) for some basic functionalities.
 
 ```julia
-using ProbabilisticCircuits
+using LogicCircuits, ProbabilisticCircuits
 ```
 
 ### Reasoning with manually constructed circuits
 
-We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes the following Naive Bayes distribution over them: Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain).
+We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes the following Naive Bayes (NB) distribution over them: Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain).
 
 ```julia
 rain, rainbow, wet = pos_literals(ProbCircuit, 3)
@@ -31,7 +29,13 @@ Just like any probability distributions, we can evaluate the probabilistic circu
 
 ```julia
 exp(circuit(true, true, true)) # Pr(rain=1, rainbow=1, wet=1)
+```
 
+```
+0.252f0
+```
+
+```julia
 exp(circuit(true, false, false)) # Pr(rain=1, rainbow=0, wet=0)
 ```
 
@@ -40,6 +44,26 @@ exp(circuit(true, false, false)) # Pr(rain=1, rainbow=0, wet=0)
 ```
 
 From the above examples, we see that it is less likely to rain if we do not see rainbows and the streets are not wet.
+
+The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following questions requre *decomposability* and *determinism*, which is already satisfied by construction:
+
+```julia
+isdecomposable(circuit) && isdeterministic(circuit)
+```
+
+```
+true
+```
+
+Decomposability allows us to compute marginal probabilities given partial evidence efficiently (linear time w.r.t. the circuit size). For example, we want to ask the probability of observing rainbows. That is, we want to marginalize out the variables rain and wet. This can be done by evaluating the circuit with partial evidence:
+
+```julia
+exp(circuit(missing, true, missing)) # Pr(rainbow=1)
+```
+
+```
+0.39999998f0
+```
 
 ## Installation
 
