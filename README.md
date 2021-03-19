@@ -125,7 +125,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.050775984 seconds.
+Learning the parameters on a CPU took 0.231752347 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -136,7 +136,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.147290093 seconds.
+Learning the parameters on a GPU took 0.163713883 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
@@ -144,17 +144,29 @@ Note that the insignificant speedup is due to the fact that the circuit is too s
 After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
 
 ```julia
-avg_ll = log_likelihood_avg(circuit, batch(test_data, 1024); use_gpu = true)
+avg_ll = log_likelihood_avg(circuit, test_data; use_gpu = true)
 print("The average test data log-likelihood is $(avg_ll).")
 ```
 
 ```
-The average test data log-likelihood is -137.5930917211396.
+The average test data log-likelihood is -137.59309172113925.
 ```
 
 Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
 
 ProbabilisticCircuits.jl also offers functionalities for learning the circuit structure and parameters simultaneously. For example, the Strudel structure learning algorithm is implemented natively in the package, and can be used with a few lines of code:
+
+```julia
+circuit_strudel = learn_circuit(train_data; maxiter = 100, verbose = false)
+avg_ll = log_likelihood_avg(circuit_strudel, test_data; use_gpu = true)
+print("The learned circuit contains $(num_edges(circuit)) edges and $(num_parameters(circuit)) parameters.\n")
+print("The average test data log-likelihood is $(avg_ll).")
+```
+
+```
+The learned circuit contains 11280 edges and 5364 parameters.
+The average test data log-likelihood is -134.98600316031514.
+```
 
 ## Installation
 
