@@ -45,7 +45,7 @@ exp(circuit(true, false, false)) # Pr(rain=1, rainbow=0, wet=0)
 
 From the above examples, we see that it is less likely to rain if we do not see rainbows and the streets are not wet.
 
-The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following questions requre *decomposability* and *determinism*, which is already satisfied by construction:
+The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following queries require *decomposability* and *determinism*, which is already satisfied by construction:
 
 ```julia
 isdecomposable(circuit) && isdeterministic(circuit)
@@ -79,15 +79,74 @@ If we are additionally supplied with the structural property *determinism*, we c
 
 ```julia
 assignments, log_prob = MAP(circuit, [missing, missing, missing])
-println("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3]), with probability $(exp(log_prob))")
+print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3])), with probability $(exp(log_prob)).")
 ```
 
 ```
-The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false, with probability 0.336
-
+The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false), with probability 0.336.
 ```
 
 ### Learning probabilistic circuits from data
+
+ProbabilisticCircuits.jl offers various parameter learning and structure learning algorithms. It further support mini-batch learning on both CPUs and GPUs, which makes learning large models from large datasets very efficient.
+
+We use the binarized MNIST dataset to demonstrate example probabilistic circuit learning functionalities.
+
+```julia
+train_data, valid_data, test_data = twenty_datasets("binarized_mnist");
+```
+
+We start with learning the parameters of a *decomposable* and *deterministic* probabilistic circuit. We first load the structure of the circuit from file:
+
+```julia
+circuit = zoo_psdd("mnist.psdd")
+print("The loaded circuit contains $(num_edges(circuit)) edges and $(num_parameters(circuit)) parameters.")
+```
+
+```
+The loaded circuit contains 11280 edges and 5364 parameters.
+```
+
+```julia
+print("Structural properties of the circuit: decomposability: $(isdecomposable(circuit)), determinism: $(isdeterministic(circuit)).")
+```
+
+```
+Structural properties of the circuit: decomposability: true, determinism: true.
+```
+
+Given that the circuit is decomposable and deterministic, the maximum likelihood estimation (MLE) of its parameters is in closed-form. That is, we can learn the MLE parameters deterministically:
+
+```julia
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
+print("Learning the parameters on a CPU took $(t) seconds.")
+```
+
+```
+Learning the parameters on a CPU took 5.668351961 seconds.
+```
+
+Optionally, we can use mini-batch learning on GPUs to speedup the learning process:
+
+```julia
+t = @elapsed estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true)
+print("Learning the parameters on a GPU took $(t) seconds.")
+```
+
+```
+Learning the parameters on a GPU took 17.264386502 seconds.
+```
+
+After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
+
+```julia
+avg_ll = log_likelihood_avg(circuit, batch(test_data, 1024); use_gpu = true)
+print("The average test data log-likelihood is $(avg_ll).")
+```
+
+```
+The average test data log-likelihood is -137.5930917211395.
+```
 
 ## Installation
 

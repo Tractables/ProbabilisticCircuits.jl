@@ -32,3 +32,27 @@ print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(a
 
 # ### Learning probabilistic circuits from data
 
+# ProbabilisticCircuits.jl offers various parameter learning and structure learning algorithms. It further support mini-batch learning on both CPUs and GPUs, which makes learning large models from large datasets very efficient.
+
+# We use the binarized MNIST dataset to demonstrate example probabilistic circuit learning functionalities.
+train_data, valid_data, test_data = twenty_datasets("binarized_mnist");
+
+# We start with learning the parameters of a *decomposable* and *deterministic* probabilistic circuit. We first load the structure of the circuit from file:
+circuit = zoo_psdd("mnist.psdd")
+print("The loaded circuit contains $(num_edges(circuit)) edges and $(num_parameters(circuit)) parameters.")
+#-
+print("Structural properties of the circuit: decomposability: $(isdecomposable(circuit)), determinism: $(isdeterministic(circuit)).")
+
+# Given that the circuit is decomposable and deterministic, the maximum likelihood estimation (MLE) of its parameters is in closed-form. That is, we can learn the MLE parameters deterministically:
+estimate_parameters(circuit, train_data; pseudocount = 0.1) #src
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
+print("Learning the parameters on a CPU took $(t) seconds.")
+
+# Optionally, we can use mini-batch learning on GPUs to speedup the learning process:
+estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true) #src
+t = @elapsed estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true)
+print("Learning the parameters on a GPU took $(t) seconds.")
+
+# After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
+avg_ll = log_likelihood_avg(circuit, batch(test_data, 1024); use_gpu = true)
+print("The average test data log-likelihood is $(avg_ll).")
