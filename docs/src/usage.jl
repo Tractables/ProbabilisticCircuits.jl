@@ -34,7 +34,7 @@ print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(a
 
 # ### Building complex circuit structures
 
-
+# ProbabilisticCircuits.jl provides tools to compile classic Probabilistic Graphical Models (PGMs) and Tractable Probabilistic Models (TPMs) into probabilistic circuits efficiently. TBD..
 
 # ### Learning probabilistic circuits from data
 
