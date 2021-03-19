@@ -30,6 +30,10 @@ exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbo
 assignments, log_prob = MAP(circuit, [missing, missing, missing])
 print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3])), with probability $(exp(log_prob)).")
 
+# ### Building complex circuit structures
+
+
+
 # ### Learning probabilistic circuits from data
 
 # ProbabilisticCircuits.jl offers various parameter learning and structure learning algorithms. It further support mini-batch learning on both CPUs and GPUs, which makes learning large models from large datasets very efficient.
@@ -44,15 +48,21 @@ print("The loaded circuit contains $(num_edges(circuit)) edges and $(num_paramet
 print("Structural properties of the circuit: decomposability: $(isdecomposable(circuit)), determinism: $(isdeterministic(circuit)).")
 
 # Given that the circuit is decomposable and deterministic, the maximum likelihood estimation (MLE) of its parameters is in closed-form. That is, we can learn the MLE parameters deterministically:
-estimate_parameters(circuit, train_data; pseudocount = 0.1) #src
+estimate_parameters(circuit, train_data; pseudocount = 0.1) #hide
 t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a CPU took $(t) seconds.")
 
-# Optionally, we can use mini-batch learning on GPUs to speedup the learning process:
-estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true) #src
-t = @elapsed estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true)
+# Optionally, we can use GPUs to speedup the learning process:
+estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true) #hide
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true)
 print("Learning the parameters on a GPU took $(t) seconds.")
+
+# Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
 
 # After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
 avg_ll = log_likelihood_avg(circuit, batch(test_data, 1024); use_gpu = true)
 print("The average test data log-likelihood is $(avg_ll).")
+
+# Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
+
+# ProbabilisticCircuits.jl also offers functionalities for learning the circuit structure and parameters simultaneously. For example, the Strudel structure learning algorithm is implemented natively in the package, and can be used with a few lines of code:

@@ -86,6 +86,8 @@ print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(a
 The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false), with probability 0.336.
 ```
 
+### Building complex circuit structures
+
 ### Learning probabilistic circuits from data
 
 ProbabilisticCircuits.jl offers various parameter learning and structure learning algorithms. It further support mini-batch learning on both CPUs and GPUs, which makes learning large models from large datasets very efficient.
@@ -123,18 +125,18 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 5.668351961 seconds.
+Learning the parameters on a CPU took 0.050691083 seconds.
 ```
 
-Optionally, we can use mini-batch learning on GPUs to speedup the learning process:
+Optionally, we can use GPUs to speedup the learning process:
 
 ```julia
-t = @elapsed estimate_parameters(circuit, batch(train_data, 1024); pseudocount = 0.1, use_gpu = true)
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true)
 print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 17.264386502 seconds.
+Learning the parameters on a GPU took 0.027487305 seconds.
 ```
 
 After the learning process, we can evaluate the model on the validation/test dataset. Here we use average log-likelihood per sample as the metric (we again utilize GPUs for efficiency):
@@ -145,8 +147,12 @@ print("The average test data log-likelihood is $(avg_ll).")
 ```
 
 ```
-The average test data log-likelihood is -137.5930917211395.
+The average test data log-likelihood is -137.5930917211396.
 ```
+
+Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
+
+ProbabilisticCircuits.jl also offers functionalities for learning the circuit structure and parameters simultaneously. For example, the Strudel structure learning algorithm is implemented natively in the package, and can be used with a few lines of code:
 
 ## Installation
 
