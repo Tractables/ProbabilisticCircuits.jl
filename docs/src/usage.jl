@@ -17,7 +17,7 @@ exp(circuit(true, false, false)) # Pr(rain=1, rainbow=0, wet=0)
 
 # From the above examples, we see that it is less likely to rain if we do not see rainbows and the streets are not wet.
 
-# The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following questions requre *decomposability* and *determinism*, which is already satisfied by construction:
+# The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following queries require *decomposability* and *determinism*, which is already satisfied by construction:
 isdecomposable(circuit) && isdeterministic(circuit)
 
 # Decomposability allows us to compute marginal probabilities given partial evidence efficiently (linear time w.r.t. the circuit size). For example, we want to ask the probability of observing rainbows. That is, we want to marginalize out the variables rain and wet. This can be done by evaluating the circuit with partial evidence:
@@ -28,7 +28,7 @@ exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbo
 
 # If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) query of the distribution:
 assignments, log_prob = MAP(circuit, [missing, missing, missing])
-print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3]), with probability $(exp(log_prob)).")
+print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3])), with probability $(exp(log_prob)).")
 
 # ### Learning probabilistic circuits from data
 
