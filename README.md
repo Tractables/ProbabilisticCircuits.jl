@@ -65,6 +65,16 @@ exp(circuit(missing, true, missing)) # Pr(rainbow=1)
 0.39999998f0
 ```
 
+Being able to compute marginals immediately offers the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
+
+```julia
+exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbow=1, wet=1)
+```
+
+```
+0.87500006f0
+```
+
 ## Installation
 
 To install the latest stable release, run:

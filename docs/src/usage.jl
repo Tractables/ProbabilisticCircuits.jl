@@ -22,3 +22,8 @@ isdecomposable(circuit) && isdeterministic(circuit)
 
 # Decomposability allows us to compute marginal probabilities given partial evidence efficiently (linear time w.r.t. the circuit size). For example, we want to ask the probability of observing rainbows. That is, we want to marginalize out the variables rain and wet. This can be done by evaluating the circuit with partial evidence:
 exp(circuit(missing, true, missing)) # Pr(rainbow=1)
+
+# Being able to compute marginals immediately offers the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
+exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbow=1, wet=1)
+
+# If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) 
