@@ -75,6 +75,20 @@ exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbo
 0.87500006f0
 ```
 
+If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) query of the distribution:
+
+```julia
+assignments, log_prob = MAP(circuit, [missing, missing, missing])
+println("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3]), with probability $(exp(log_prob))")
+```
+
+```
+The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false, with probability 0.336
+
+```
+
+### Learning probabilistic circuits from data
+
 ## Installation
 
 To install the latest stable release, run:

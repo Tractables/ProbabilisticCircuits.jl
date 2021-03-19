@@ -26,4 +26,8 @@ exp(circuit(missing, true, missing)) # Pr(rainbow=1)
 # Being able to compute marginals immediately offers the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
 exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbow=1, wet=1)
 
-# If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) 
+# If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) query of the distribution:
+assignments, log_prob = MAP(circuit, [missing, missing, missing])
+println("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3]), with probability $(exp(log_prob))")
+
+# ### Learning probabilistic circuits from data
