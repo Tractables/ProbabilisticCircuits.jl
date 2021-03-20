@@ -34,7 +34,10 @@ print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(a
 
 # ### Building complex circuit structures
 
-# ProbabilisticCircuits.jl provides tools to compile classic Probabilistic Graphical Models (PGMs) and Tractable Probabilistic Models (TPMs) into probabilistic circuits efficiently. TBD..
+# ProbabilisticCircuits.jl provides tools to compile classic Probabilistic Graphical Models (PGMs) and Tractable Probabilistic Models (TPMs) into probabilistic circuits efficiently. For example, we can compile a factor graph (FG) into a probabilistic circuit with one line of code:
+fg = fromUAI(zoo_fg_file("asia.uai")) # Load example factor graph
+fg_circuit = ProbCircuit(compile_factor_graph(fg)[1]) # Compile the FG to a PC
+print("`fg_circuit` contains $(num_edges(fg_circuit)) edges and $(num_parameters(fg_circuit)) parameters.")
 
 # ### Learning probabilistic circuits from data
 

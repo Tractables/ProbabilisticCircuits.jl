@@ -66,7 +66,7 @@ exp(circuit(missing, true, missing)) # Pr(rainbow=1)
 0.39999998f0
 ```
 
-Being able to compute marginals immediately offers the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
+Being able to compute marginals immediately provides the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
 
 ```julia
 exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbow=1, wet=1)
@@ -88,6 +88,18 @@ The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false), wit
 ```
 
 ### Building complex circuit structures
+
+ProbabilisticCircuits.jl provides tools to compile classic Probabilistic Graphical Models (PGMs) and Tractable Probabilistic Models (TPMs) into probabilistic circuits efficiently. For example, we can compile a factor graph (FG) into a probabilistic circuit with one line of code:
+
+```julia
+fg = fromUAI(zoo_fg_file("asia.uai")) # Load example factor graph
+fg_circuit = ProbCircuit(compile_factor_graph(fg)[1]) # Compile the FG to a PC
+print("`fg_circuit` contains $(num_edges(fg_circuit)) edges and $(num_parameters(fg_circuit)) parameters.")
+```
+
+```
+`fg_circuit` contains 2554 edges and 320 parameters.
+```
 
 ### Learning probabilistic circuits from data
 
@@ -126,7 +138,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.049759528 seconds.
+Learning the parameters on a CPU took 0.122423548 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -137,7 +149,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.179552029 seconds.
+Learning the parameters on a GPU took 0.114147217 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
