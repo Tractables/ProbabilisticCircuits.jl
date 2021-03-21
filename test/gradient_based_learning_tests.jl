@@ -3,12 +3,14 @@ using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames: DataFrame
 using CUDA: CUDA
+using Random
 
 @testset "Gradient-based learning tests" begin
     dfb = DataFrame(BitMatrix([true true; false false]))
     weights = DataFrame(weight = [2.0, 2.0])
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    Random.seed!(123)
     uniform_parameters(r; perturbation = 0.4)
     wdfb = batch(wdfb, 2);
     
