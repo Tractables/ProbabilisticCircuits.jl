@@ -9,6 +9,9 @@ using Reexport
 using LogicCircuits
 # only reexport selectively from LogicCircuits
 export pos_literals, neg_literals
+# circuit queries
+export issmooth, isdecomposable, isstruct_decomposable, 
+       isdeterministic, iscanonical
 
 include("Utils/Utils.jl")
 @reexport using .Utils
