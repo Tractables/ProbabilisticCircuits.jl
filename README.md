@@ -11,10 +11,10 @@ This package provides functionalities for learning/constructing probabilistic ci
 ## Example usage
 
 
-Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows. We also need [LogicCircuits](https://github.com/Juice-jl/LogicCircuits.jl) for some basic functionalities.
+Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows.
 
 ```julia
-using LogicCircuits, ProbabilisticCircuits
+using ProbabilisticCircuits
 ```
 
 ### Reasoning with manually constructed circuits
@@ -142,7 +142,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.061214227 seconds.
+Learning the parameters on a CPU took 0.058961158 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -153,7 +153,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.028524963 seconds.
+Learning the parameters on a GPU took 0.037705118 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.

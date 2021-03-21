@@ -12,6 +12,10 @@ export pos_literals, neg_literals
 # circuit queries
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
+# circuit status
+export num_edges, num_parameters
+# datasets
+export twenty_datasets
 
 include("Utils/Utils.jl")
 @reexport using .Utils
