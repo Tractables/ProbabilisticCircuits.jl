@@ -50,4 +50,11 @@ include("structurelearner/vtree_learner.jl")
 include("LoadSave/LoadSave.jl")
 @reexport using .LoadSave
 
+using Requires
+
+function __init__()
+    # optional dependency
+    @require BlossomV = "6c721016-9dae-5d90-abf6-67daaccb2332" include("structurelearner/vtree_learner_blossomv.jl")
+end
+
 end
