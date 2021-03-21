@@ -6,6 +6,8 @@
 
 [![Unit Tests](https://github.com/Juice-jl/ProbabilisticCircuits.jl/workflows/Unit%20Tests/badge.svg)](https://github.com/Juice-jl/ProbabilisticCircuits.jl/actions?query=workflow%3A%22Unit+Tests%22+branch%3Amaster)  [![codecov](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Juice-jl/ProbabilisticCircuits.jl) [![](https://img.shields.io/badge/docs-stable-green.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://juice-jl.github.io/ProbabilisticCircuits.jl/dev)
 
+This package provides functionalities for learning/constructing probabilistic circuits and using them to compute various probabilistic queries. It is part of the [Juice package](https://github.com/Juice-jl) (Julia Circuit Empanada).
+
 ## Example usage
 
 
@@ -17,7 +19,7 @@ using LogicCircuits, ProbabilisticCircuits
 
 ### Reasoning with manually constructed circuits
 
-We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes the following Naive Bayes (NB) distribution over them: `Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain)`.
+We begin by creating three positive literals (boolean variables) and manually construct a probabilistic circuit that encodes a Naive Bayes (NB) distribution with the following form: `Pr(rain, rainbow, wet) = Pr(rain) * Pr(rainbow|rain) * Pr(wet|rain)`.
 
 ```julia
 rain, rainbow, wet = pos_literals(ProbCircuit, 3)
@@ -26,7 +28,7 @@ rain_neg = (0.2 * rainbow + 0.8 * (-rainbow)) * (0.3 * wet + 0.7 * (-wet)) # Pr(
 circuit = 0.4 * (rain * rain_pos) + 0.6 * ((-rain) * rain_neg); # Pr(rain, rainbow, wet)
 ```
 
-Just like any probability distribution, we can evaluate the probabilistic circuit on various inputs. Note that since log probabilities are used in ProbCircuit for numerical stability, we need to take exponent to get the probabilities.
+Just like any probability distribution, we can evaluate the probabilistic circuit on various inputs. Note that since log probabilities are used in probabilistic circuits for numerical stability, we need to take exponent of the evaluation output to get the probabilities.
 
 ```julia
 exp(circuit(true, true, true)) # Pr(rain=1, rainbow=1, wet=1)
@@ -46,7 +48,7 @@ exp(circuit(true, false, false)) # Pr(rain=1, rainbow=0, wet=0)
 
 From the above examples, we see that it is less likely to rain if we do not see rainbows and the streets are not wet.
 
-The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which represent a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following queries require *decomposability* and *determinism*, which is already satisfied by construction:
+The purpose of this package is to offer a unified tool for efficient learning and inference (i.e., answering probabilistic queries such as marginals and MAP) over probabilistic circuits, which subsume a large class of tractable probabilistic models. We first use the above manually constructed circuit to demonstrate several queries that can be answered efficiently. Similar to [logic circuits](https://github.com/Juice-jl/LogicCircuits.jl), answering the following queries require *decomposability* and *determinism*, which is already satisfied by construction:
 
 ```julia
 isdecomposable(circuit) && isdeterministic(circuit)
@@ -66,7 +68,7 @@ exp(circuit(missing, true, missing)) # Pr(rainbow=1)
 0.39999998f0
 ```
 
-Being able to compute marginals immediately provides the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
+Being able to compute marginals immediately offers the ability to compute conditional probabilities. For example, to compute the probability of raining given rainbow=1 and wet=1, we simply take the quotient of Pr(rain=1, rainbow=1, wet=1) and Pr(rainbow=1, wet=1):
 
 ```julia
 exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbow=1, wet=1)
@@ -76,7 +78,7 @@ exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbo
 0.87500006f0
 ```
 
-If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we want to compute the maximum a posteriori (MAP) query of the distribution:
+If we are additionally supplied with the structural property *determinism*, we can answer some more advanced queries. For example, we can to compute the maximum a posteriori (MAP) query of the distribution:
 
 ```julia
 assignments, log_prob = MAP(circuit, [missing, missing, missing])
@@ -86,6 +88,8 @@ print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(a
 ```
 The MAP assignment of the circuit is (rain=false, rainbow=false, wet=false), with probability 0.336.
 ```
+
+Besides the above examples, ProbabilisticCircuits.jl provides functionalities for a wide variety of queries, which are detailed in [this manual](https://juice-jl.github.io/ProbabilisticCircuits.jl/stable/manual/queries/).
 
 ### Building complex circuit structures
 
@@ -138,7 +142,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.122423548 seconds.
+Learning the parameters on a CPU took 0.061214227 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -149,7 +153,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.114147217 seconds.
+Learning the parameters on a GPU took 0.028524963 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
