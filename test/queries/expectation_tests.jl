@@ -3,8 +3,10 @@ using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
 using CUDA
+using Random
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
+    Random.seed!(124)
     EPS = 1e-4;
     COUNT = size(data)[1]
     # Compute True expectation brute force

@@ -1,8 +1,8 @@
 using CUDA #hide
 
-# Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows. We also need [LogicCircuits](https://github.com/Juice-jl/LogicCircuits.jl) for some basic functionalities.
+# Assuming that the ProbabilisticCircuits Julia package has been installed with `julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'`, we can start using it as follows.
 
-using LogicCircuits, ProbabilisticCircuits
+using ProbabilisticCircuits
 
 # ### Reasoning with manually constructed circuits
 
