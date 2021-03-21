@@ -33,14 +33,14 @@ jobs:
         run: |
           julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());'
 
-      - name: Docs Build
-        env:
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run: |
-          sudo apt-get -qq update
-          sudo apt install -y pdf2svg texlive-latex-base texlive-binaries texlive-pictures texlive-latex-extra texlive-luatex    
-          luatex -v
-          pdflatex -v
-          julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
-          julia --project=docs/ docs/make.jl
+      # - name: Docs Build
+      #   env:
+      #     DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      #   run: |
+      #     sudo apt-get -qq update
+      #     sudo apt install -y pdf2svg texlive-latex-base texlive-binaries texlive-pictures texlive-latex-extra texlive-luatex    
+      #     luatex -v
+      #     pdflatex -v
+      #     julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
+      #     julia --project=docs/ docs/make.jl
 
