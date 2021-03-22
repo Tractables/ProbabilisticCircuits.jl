@@ -142,7 +142,7 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a CPU took 0.058961158 seconds.
+Learning the parameters on a CPU took 0.243524592 seconds.
 ```
 
 Optionally, we can use GPUs to speedup the learning process:
@@ -153,7 +153,7 @@ print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
 ```
-Learning the parameters on a GPU took 0.037705118 seconds.
+Learning the parameters on a GPU took 0.032219275 seconds.
 ```
 
 Note that the insignificant speedup is due to the fact that the circuit is too small to make full use of the GPU. For large circuits the speedup could be at least ~10x.
@@ -184,23 +184,6 @@ print("The average test data log-likelihood is $(avg_ll).")
 The learned circuit contains 11280 edges and 5364 parameters.
 The average test data log-likelihood is -134.9860031603151.
 ```
-
-## Installation
-
-To install the latest stable release, run:
-
-```julia
-julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'
-```
-
-To install from the latest commits of the package (recommented to also use latest commits of `LogicCircuits.jl`), run:
-
-```julia
-julia -e 'using Pkg; Pkg.add([PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl.git"),PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git")])'
-```
-
-This will automatically install all dependencies described in `Project.toml`.
-The first time you run `using ProbabilisticCircuits` in Julia, it will precompile the package and all its dependencies.
 
 ## Testing
 
