@@ -205,7 +205,7 @@ log_likelihood(pc, data, weights::AbstractArray; use_gpu::Bool = false) = begin
     likelihoods = isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods
     mapreduce(*, +, likelihoods, weights)
 end
-log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+log_likelihood(pc, data::Vector{DataFrame}; use_gpu::Bool = false) = begin
     if pc isa SharedProbCircuit
         total_ll = 0.0
         for component_idx = 1 : num_components(pc)
@@ -216,7 +216,7 @@ log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
         log_likelihood_batched(pc, data; use_gpu)
     end
 end
-log_likelihood_batched(pc, data::Array{DataFrame}; use_gpu::Bool = false, component_idx::Integer = 0) = begin
+log_likelihood_batched(pc, data::Vector{DataFrame}; use_gpu::Bool = false, component_idx::Integer = 0) = begin
     # mapreduce(d -> log_likelihood(pc, d; use_gpu), +, data)
     if pc isa SharedProbCircuit
         pbc = ParamBitCircuit(pc, data; component_idx)
@@ -278,7 +278,7 @@ log_likelihood_avg(pc, data, weights; use_gpu::Bool = false) = begin
     end
     log_likelihood(pc, data, weights; use_gpu) / sum(weights)
 end
-log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+log_likelihood_avg(pc, data::Vector{DataFrame}; use_gpu::Bool = false) = begin
     if isweighted(data)
         weights = get_weights(data)
         if isgpu(weights)

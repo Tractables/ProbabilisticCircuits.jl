@@ -38,7 +38,7 @@ marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
 marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
     marginal(root, DataFrame(reshape(data, 1, :)))[1]
 
-marginal(circuit::ProbCircuit, data::Union{DataFrame, Array{DataFrame}}) =
+marginal(circuit::ProbCircuit, data::Union{DataFrame, Vector{DataFrame}}) =
     marginal(same_device(ParamBitCircuit(circuit, data), data) , data)
 
 function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
@@ -62,7 +62,7 @@ function marginal(circuit::SharedProbCircuit, data::DataFrame, weights::Union{Ab
     return logsumexp(lls .+ log.(weights), 2)
 end
 
-function marginal(circuit::ParamBitCircuit, data::Array{DataFrame})::AbstractVector
+function marginal(circuit::ParamBitCircuit, data::Vector{DataFrame})::AbstractVector
     if isgpu(data)
         marginals = CuVector{Float64}(undef, num_examples(data))
     else
@@ -119,7 +119,7 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     end
     mapreduce(*, +, likelihoods, weights)
 end
-marginal_log_likelihood(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+marginal_log_likelihood(pc, data::Vector{DataFrame}; use_gpu::Bool = false) = begin
     if use_gpu
         data = to_gpu(data)
     end
@@ -186,7 +186,7 @@ marginal_log_likelihood_avg(pc, data, weights) = begin
     marginal_log_likelihood(pc, data, weights)/sum(weights)
 end
 
-marginal_log_likelihood_avg(pc, data::Array{DataFrame}; use_gpu::Bool = false) = begin
+marginal_log_likelihood_avg(pc, data::Vector{DataFrame}; use_gpu::Bool = false) = begin
     total_ll = marginal_log_likelihood(pc, data; use_gpu = use_gpu)
     
     if isweighted(data)

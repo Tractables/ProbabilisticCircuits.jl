@@ -35,8 +35,8 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     
@@ -77,8 +77,8 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     
@@ -126,15 +126,15 @@ end
     # Batched weighted binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
     
     # Weighted binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     # Binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
@@ -312,8 +312,8 @@ end
     @test all(paras1 .≈ paras2)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
-    weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -391,7 +391,7 @@ end
     dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
-    bag_dfb = Array{DataFrame}(undef, 2)
+    bag_dfb = Vector{DataFrame}(undef, 2)
     bag_dfb[1] = dfb[[2, 1, 3, 4], :]
     bag_dfb[2] = dfb[[4, 3, 2, 1], :]
     
