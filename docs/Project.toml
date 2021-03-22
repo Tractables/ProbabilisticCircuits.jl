@@ -8,6 +8,8 @@ PGFPlots = "3b7a836e-365b-5785-a47d-02c71176b4aa"
 PGFPlotsX = "8314cec4-20b6-5062-9cdb-752b83310925"
 TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 TikzPictures = "37f6aa50-8035-52d0-81c2-5a1d08754b2d"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 
 [compat]
 Documenter = "0.25"
