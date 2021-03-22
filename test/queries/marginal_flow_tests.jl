@@ -104,8 +104,8 @@ end
                       missing true false missing;
                       missing missing missing missing;
                       false missing missing missing])
-    weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6])
-    data_marg_w = add_sample_weights(data_marg, weights)
+    weights = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+    data_marg_w = weigh_samples(data_marg, weights)
     batched_data_marg_w = batch(data_marg_w, 1)
 
     true_prob = [0.07; 0.03; 0.13999999999999999;
