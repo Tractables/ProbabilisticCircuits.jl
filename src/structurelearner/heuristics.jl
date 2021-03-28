@@ -62,7 +62,7 @@ function heuristic_loss(circuit::LogicCircuit, train_x;
         values, flows = marginal_flows(circuit, train_x; weights = nothing) # Do not use samples weights here 
     else
         # Satisfies Flows much faster than marginal flows
-        values, flows = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here    
+        values, flows, node2id = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here    
     end
     
     if pick_edge == "eFlow"

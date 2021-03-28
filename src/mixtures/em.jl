@@ -141,7 +141,7 @@ function learn_circuit_mixture(pc, data;
         verbose = true)
 
     spc = compile(SharedProbCircuit, pc, num_mix)
-    values, flows = satisfies_flows(spc, data)
+    values, flows, node2id = satisfies_flows(spc, data)
     component_weights = reshape(initial_weights(data, num_mix), 1, num_mix)
     estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows; pseudocount=pseudocount)
 

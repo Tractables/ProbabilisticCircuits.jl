@@ -139,8 +139,8 @@ end
 
         data_f = CUDA.@allowscalar Float64.(data)
 
-        _, f1 = satisfies_flows(prob_circuit, data_f)
-        _, f2 = marginal_flows(prob_circuit, data)
+        _, f1, _ = satisfies_flows(prob_circuit, data_f)
+        _, f2, _ = marginal_flows(prob_circuit, data)
 
         # note: while downward pass flows should be the same,
         # the upward pass is *not* supposed to be the same (parameters used vs not)
