@@ -81,7 +81,7 @@ struct ParamBitCircuitPair{V,M, WPC, WLC}
     lc_params::WLC
 end
 
-function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, Float=Float32)
+function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; Float=Float32)
     pc_thetas::Vector{Float} = Vector{Float}()
     lc_thetas::Vector{Vector{Float}} = Vector{Vector{Float}}()
 
@@ -116,8 +116,8 @@ function ParamBitCircuitPair(pc::ProbCircuit, lc::LogisticCircuit; reset=true, F
         nothing
     end
 
-    pc_bit = BitCircuit(pc, num_variables(pc); reset=reset, on_decision=pc_on_decision)
-    lc_bit = BitCircuit(lc, num_variables(pc); reset=reset, on_decision=lc_on_decision)
+    pc_bit = BitCircuit(pc, num_variables(pc); on_decision=pc_on_decision)
+    lc_bit = BitCircuit(lc, num_variables(pc); on_decision=lc_on_decision)
     bcp = BitCircuitPair(pc, lc; on_sum_callback = pbc_callback, pc_cache, lc_cache)
     
     lc_thetas_reshaped = permutedims(hcat(lc_thetas...), (2, 1))

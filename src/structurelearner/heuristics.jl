@@ -4,9 +4,9 @@ export heuristic_loss
 """
 Pick the edge with maximum flow
 """
-function eFlow(values, flows, candidates::Vector{Tuple{Node, Node}})
+function eFlow(values, flows, candidates::Vector{Tuple{Node, Node}}, node2id)
     edge2flows = map(candidates) do (or, and)
-        count_downflow(values, flows, nothing, or, and)
+        count_downflow(values, flows, nothing, or, and, node2id)
     end
     (max_flow, max_edge_id) = findmax(edge2flows)
     candidates[max_edge_id], max_flow
@@ -15,8 +15,8 @@ end
 """
 Pick the variable with maximum sum of mutual information
 """
-function vMI(values, flows, edge, vars::Vector{Var}, train_x)
-    examples_id = downflow_all(values, flows, num_examples(train_x), edge...)
+function vMI(values, flows, edge, vars::Vector{Var}, train_x, node2id)
+    examples_id = downflow_all(values, flows, num_examples(train_x), edge..., node2id)
     sub_matrix = train_x[examples_id, vars]
     (_, mi) = mutual_information(sub_matrix; α=1.0)
     mi[diagind(mi)] .= 0
@@ -59,14 +59,14 @@ function heuristic_loss(circuit::LogicCircuit, train_x;
 
     if miss_data
         # Have to use marginal flows when have missing data
-        values, flows = marginal_flows(circuit, train_x; weights = nothing) # Do not use samples weights here 
+        values, flows, node2id = marginal_flows(circuit, train_x; weights = nothing) # Do not use samples weights here 
     else
         # Satisfies Flows much faster than marginal flows
         values, flows, node2id = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here    
     end
     
     if pick_edge == "eFlow"
-        edge, flow = eFlow(values, flows, candidates)
+        edge, flow = eFlow(values, flows, candidates, node2id)
     elseif pick_edge == "eRand"
         edge = eRand(candidates)
     else
@@ -77,7 +77,7 @@ function heuristic_loss(circuit::LogicCircuit, train_x;
     vars = Var.(collect(variable_scope[and]))
 
     if pick_var == "vMI"
-        var, score = vMI(values, flows, edge, vars, train_x)
+        var, score = vMI(values, flows, edge, vars, train_x, node2id)
     elseif pick_var == "vRand"
         var = vRand(vars)
     else

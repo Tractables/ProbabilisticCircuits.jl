@@ -406,7 +406,7 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
         data = to_gpu(data)
     end
     
-    pbc = ParamBitCircuit(pc, data; reset=false)
+    pbc = ParamBitCircuit(pc, data)
     if use_gpu
         pbc = to_gpu(pbc)
     end

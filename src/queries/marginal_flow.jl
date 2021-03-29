@@ -334,8 +334,9 @@ end
 "Compute the marginal and flow of each node"
 function marginal_flows(circuit::ProbCircuit, data, 
     reuse_values=nothing, reuse_flows=nothing; on_node=noop, on_edge=noop, weights=nothing) 
-    bc = same_device(ParamBitCircuit(circuit, data), data)
-    marginal_flows(bc, data, reuse_values, reuse_flows; on_node, on_edge, weights)
+    pbc = same_device(ParamBitCircuit(circuit, data), data)
+    v, f = marginal_flows(pbc, data, reuse_values, reuse_flows; on_node, on_edge, weights)
+    v, f, pbc.bitcircuit.node2id
 end
 
 function marginal_flows(circuit::ParamBitCircuit, data, 

@@ -157,14 +157,14 @@ end
     CUDA.functional() && test_flows(to_gpu(data_full))
 
     cpu_gpu_agree_approx(data_full) do d
-        _, f = marginal_flows(prob_circuit, d)
+        _, f, _ = marginal_flows(prob_circuit, d)
         f[:,3:end] # ignore true and false leaf
     end
 
     # Validating one example with missing features done by hand
     data_partial = DataFrame([missing true missing true;])
     prob_circuit = zoo_psdd("little_4var.psdd");
-    _, f = marginal_flows(prob_circuit, data_partial)
+    _, f, _ = marginal_flows(prob_circuit, data_partial)
     f = exp.(f)
 
     @test f[end] ≈ 1.0
