@@ -23,11 +23,8 @@ abstract type SharedProbInnerNode <: SharedProbCircuit end
 """
 A shared probabilistic literal node
 """
-mutable struct SharedProbLiteralNode <: SharedProbLeafNode
+struct SharedProbLiteralNode <: SharedProbLeafNode
     literal::Lit
-    data
-    counter::UInt32
-    SharedProbLiteralNode(l) = new(l, nothing, 0)
 end
 
 """
@@ -35,9 +32,6 @@ A shared probabilistic multiplcation node
 """
 mutable struct SharedMulNode <: SharedProbInnerNode
     children::Vector{<:SharedProbCircuit}
-    data
-    counter::UInt32
-    SharedMulNode(children) = new(children, nothing, 0)
 end
 
 """
@@ -46,10 +40,8 @@ A shared probabilistic summation node
 mutable struct SharedSumNode <: SharedProbInnerNode
     children::Vector{<:SharedProbCircuit}
     log_probs::Matrix{Float64}
-    data
-    counter::UInt32
     SharedSumNode(children, n_mixture) = begin
-        new(children, log.(ones(Float64, length(children), n_mixture) / length(children)), nothing, 0)
+        new(children, log.(ones(Float64, length(children), n_mixture) / length(children)))
     end
 end
 

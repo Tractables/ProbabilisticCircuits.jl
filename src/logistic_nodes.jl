@@ -24,13 +24,8 @@ abstract type LogisticInnerNode <: LogisticCircuit end
 """
 A logistic literal node
 """
-mutable struct LogisticLiteralNode <: LogisticLeafNode
+struct LogisticLiteralNode <: LogisticLeafNode
     literal::Lit
-    data
-    counter::UInt32
-    LogisticLiteralNode(l) = begin 
-        new(l, nothing, 0)
-    end
 end
 
 """
@@ -38,10 +33,8 @@ A logistic conjunction node (And node)
 """
 mutable struct Logistic⋀Node <: LogisticInnerNode
     children::Vector{<:LogisticCircuit}
-    data
-    counter::UInt32
     Logistic⋀Node(children) = begin
-        new(convert(Vector{LogisticCircuit}, children), nothing, 0)
+        new(convert(Vector{LogisticCircuit}, children))
     end
 end
 
@@ -51,10 +44,8 @@ A logistic disjunction node (Or node)
 mutable struct Logistic⋁Node <: LogisticInnerNode
     children::Vector{<:LogisticCircuit}
     thetas::Matrix{Float32}
-    data
-    counter::UInt32
     Logistic⋁Node(children, class::Int) = begin
-        new(convert(Vector{LogisticCircuit}, children), init_array(Float32, length(children), class), nothing, 0)
+        new(convert(Vector{LogisticCircuit}, children), init_array(Float32, length(children), class))
     end
 end
 
