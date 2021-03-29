@@ -8,7 +8,7 @@ include("helper/plain_logic_circuits.jl")
 
     c1 = little_3var()
 
-    @test isdisjoint(linearize(ProbCircuit(c1)), linearize(ProbCircuit(c1)))
+    @test all(isleaf, intersect(linearize(ProbCircuit(c1)), linearize(ProbCircuit(c1))))
     
     p1 = ProbCircuit(c1)
     lit3 = children(children(p1)[1])[1]

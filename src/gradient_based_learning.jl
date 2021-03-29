@@ -9,7 +9,7 @@ function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01,
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     # Construct the low-level circuit representation
-    pbc = ParamBitCircuit(pc, data; reset=false)
+    pbc = ParamBitCircuit(pc, data)
     if use_gpu
         pbc = to_gpu(pbc)
     end

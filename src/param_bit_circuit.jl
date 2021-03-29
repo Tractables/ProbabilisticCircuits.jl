@@ -6,7 +6,7 @@ mutable struct ParamBitCircuit{V,M,W}
     params::W
 end
 
-function ParamBitCircuit(pc::ProbCircuit, data; reset=true)
+function ParamBitCircuit(pc::ProbCircuit, data)
     logprobs::Vector{Float64} = Vector{Float64}()
     sizehint!(logprobs, num_edges(pc))
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
@@ -18,11 +18,11 @@ function ParamBitCircuit(pc::ProbCircuit, data; reset=true)
             append!(logprobs, n.log_probs)
         end
     end
-    bc = BitCircuit(pc, data; reset=reset, on_decision)
+    bc = BitCircuit(pc, data; on_decision)
     ParamBitCircuit(bc, logprobs)
 end
 
-function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
+function ParamBitCircuit(lc::LogisticCircuit, nc, data)
     thetas::Vector{Vector{Float32}} = Vector{Vector{Float32}}()
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
         if isnothing(n)
@@ -37,11 +37,11 @@ function ParamBitCircuit(lc::LogisticCircuit, nc, data; reset=true)
             end
         end
     end
-    bc = BitCircuit(lc, data; reset=reset, on_decision)
+    bc = BitCircuit(lc, data; on_decision)
     ParamBitCircuit(bc, permutedims(hcat(thetas...), (2, 1)))
 end
 
-function ParamBitCircuit(spc::SharedProbCircuit, data; component_idx, reset = true)
+function ParamBitCircuit(spc::SharedProbCircuit, data; component_idx)
     logprobs::Vector{Float64} = Vector{Float64}()
     sizehint!(logprobs, num_edges(spc))
     on_decision(n, cs, layer_id, decision_id, first_element, last_element) = begin
@@ -53,7 +53,7 @@ function ParamBitCircuit(spc::SharedProbCircuit, data; component_idx, reset = tr
             append!(logprobs, n.log_probs[:, component_idx])
         end
     end
-    bc = BitCircuit(spc, data; reset=reset, on_decision)
+    bc = BitCircuit(spc, data; on_decision)
     ParamBitCircuit(bc, logprobs)
 end
 

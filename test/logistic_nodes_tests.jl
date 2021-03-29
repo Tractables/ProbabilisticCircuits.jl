@@ -8,7 +8,7 @@ include("helper/plain_logic_circuits.jl")
 
     c1 = little_3var()
     classes = 2
-    @test isdisjoint(linearize(LogisticCircuit(c1, classes)), linearize(LogisticCircuit(c1, classes)))
+    @test all(isleaf, intersect(linearize(LogisticCircuit(c1, classes)), linearize(LogisticCircuit(c1, classes))))
     p1 = LogisticCircuit(c1, classes)
     lit3 = children(children(p1)[1])[1]
 

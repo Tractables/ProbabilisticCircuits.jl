@@ -38,7 +38,7 @@ function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::
     end
     
     @assert isbinarydata(data) || isfpdata(data) "Probabilistic circuit parameter estimation for binary/floating point data only"
-    bc = BitCircuit(pc, data; reset=false)
+    bc = BitCircuit(pc, data)
     if isgpu(data)
         use_gpu = true
     end
@@ -67,12 +67,12 @@ end
 function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
     log_exp_factor = log(exp_update_factor)
     log_1_exp_factor = log(1.0 - exp_update_factor)
-    foreach_reset(pc) do pn
+    foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
                 pn.log_probs[:, component_idx] .= zero(Float64)
             else
-                id = (pn.data::⋁NodeIds).node_id
+                id = (bc.node2id[pn]::⋁NodeIds).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_probs[:, component_idx] .= logaddexp.(log_exp_factor .+ pn.log_probs[:, component_idx], log_1_exp_factor .+ params[els_start:els_end])
@@ -95,12 +95,12 @@ function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_fac
     log_exp_factor = log(exp_update_factor)
     log_1_exp_factor = log(1.0 - exp_update_factor)
     
-    foreach_reset(pc) do pn
+    foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
                 pn.log_probs .= zero(Float64)
             else
-                id = (pn.data::⋁NodeIds).node_id
+                id = (bc.node2id[pn]::⋁NodeIds).node_id
                 @inbounds els_start = bc.nodes[1,id]
                 @inbounds els_end = bc.nodes[2,id]
                 @inbounds @views pn.log_probs .= logaddexp.(log_exp_factor .+ pn.log_probs, log_1_exp_factor .+ params[els_start:els_end])
@@ -369,7 +369,7 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, ent
             use_sample_weights = false
         end
 
-        pbc = ParamBitCircuit(pc, data; reset=false)
+        pbc = ParamBitCircuit(pc, data)
         if isgpu(data)
             use_gpu = true
         elseif use_gpu && !isgpu(data)
@@ -406,7 +406,7 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
         data = to_gpu(data)
     end
     
-    pbc = ParamBitCircuit(pc, data; reset=false)
+    pbc = ParamBitCircuit(pc, data)
     if use_gpu
         pbc = to_gpu(pbc)
     end
