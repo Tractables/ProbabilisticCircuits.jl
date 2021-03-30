@@ -193,7 +193,7 @@ function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = no
     @inline function on_edge(flows, values::Matrix{<:AbstractFloat}, prime, sub, element, grandpa, single_child, weights::Nothing)
         if !single_child
             edge_count = sum(1:size(flows,1)) do i
-                values[i, prime] * values[i, sub] * flows[i, grandpa]
+                values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
             end
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
@@ -201,7 +201,7 @@ function estimate_parameters_cpu(bc::BitCircuit, data, pseudocount; weights = no
     @inline function on_edge(flows, values::Matrix{<:AbstractFloat}, prime, sub, element, grandpa, single_child, weights)
         if !single_child
             edge_count = sum(1:size(flows,1)) do i
-                values[i, prime] * values[i, sub] * flows[i, grandpa] * weights[i]
+                values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa] * weights[i]
             end
             estimate(element, grandpa, edge_count)
         end # no need to estimate single child params, they are always prob 1
