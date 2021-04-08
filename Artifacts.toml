@@ -7,10 +7,10 @@ lazy = true
     sha256 = "5d66a95037e44010502ad28ec8d6dc26f46947dc88e962633b7de54e614b1a47"
 
 [circuit_model_zoo]
-git-tree-sha1 = "af581f4a7ca5e29685f8d67843e0120302ead3ab"
+git-tree-sha1 = "da3d69f5377dd553820971d19fa68e6b8476b64d"
 lazy = true
 
  [[circuit_model_zoo.download]]
-    url = "https://github.com/UCLA-StarAI/Circuit-Model-Zoo/archive/v0.1.4.tar.gz"
-    sha256 = "ec6ea6649364ec0e1305fea3afc3a2dcb3dd40d4d54626e85499a47a07a436b4"
+    url = "https://github.com/UCLA-StarAI/Circuit-Model-Zoo/archive/v0.1.6.tar.gz"
+    sha256 = "65a3c6d3659e8d8753684598835017f607239982088bcc47d8f6c2a299ccbbb1"
 

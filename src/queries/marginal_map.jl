@@ -1,5 +1,6 @@
 export forward_bounds, edge_bounds, prune_mpe, 
-    do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult
+    do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult,
+    add_and_split, remove_unary_gates
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -219,4 +220,44 @@ function brute_force_mmap(root, query_vars)
     @show result
     @show MAR(root, result)
     reduce(max, MAR(root, result))
+end
+
+"Add a unary parent node and then split on a variable"
+
+function add_and_split(root, var)
+    new_and = PlainMulNode([root])
+    new_root = PlainSumNode([new_and])
+    df = DataFrame(missings(Bool, 1, num_variables(root)))
+    df[1, var] = true
+    @show df
+    pos_mar = MAR(root, df)
+    split_root = split(new_root, (new_root, new_and), Var(var), callback=fix_params)[1]
+    split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
+    remove_unary_gates(split_root)
+end
+
+"Function to pass to condition so that it maintains parameters"
+function fix_params(new_n, n, kept)
+    total_prob = reduce(logaddexp, n.log_probs[kept])
+    new_n.log_probs = map(x -> x - total_prob, n.log_probs[kept])
+end
+
+"Return an equivalent circuit without and nodes with single children"
+
+function remove_unary_gates(root::PlainProbCircuit)
+    f_con(n) = n
+    f_lit(n) = n
+    f_a(n, cn) = begin 
+        if issingle(cn) 
+            cn[1]
+        else
+            multiply([cn...], reuse=n)
+        end
+    end
+    f_o(n, cn) = begin 
+        ret = summate([cn...], reuse=n)
+        ret.log_probs = n.log_probs
+        ret
+    end
+    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
