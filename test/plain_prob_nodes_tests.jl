@@ -51,3 +51,9 @@ include("helper/plain_logic_circuits.jl")
     @test num_children(v1[1] * v2[1] * v3[1]) == 3
     @test num_children(v1[1] + v2[1] + v3[1]) == 3
 end
+
+@testset "probabilistic circuit transformations" begin
+    prob_circ = zoo_psdd("nltcs.clt.psdd")
+    split_circ = split(prob_circ, (prob_circ, prob_circ.children[1]), Var(10))
+    
+end

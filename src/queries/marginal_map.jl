@@ -1,6 +1,6 @@
 export forward_bounds, edge_bounds, prune_mpe, 
     do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult,
-    add_and_split, remove_unary_gates
+    add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -230,7 +230,7 @@ function add_and_split(root, var)
     df = DataFrame(missings(Bool, 1, num_variables(root)))
     df[1, var] = true
     @show df
-    pos_mar = MAR(root, df)
+    @show pos_mar = MAR(root, df)
     split_root = split(new_root, (new_root, new_and), Var(var), callback=fix_params)[1]
     split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
     remove_unary_gates(split_root)
@@ -240,6 +240,20 @@ end
 function fix_params(new_n, n, kept)
     total_prob = reduce(logaddexp, n.log_probs[kept])
     new_n.log_probs = map(x -> x - total_prob, n.log_probs[kept])
+end
+
+"Normalize params"
+function normalize_params(root)
+    f_con(n) = n
+    f_lit(n) = n
+    f_a(n, cn) = multiply([cn...])
+    f_o(n, cn) = begin
+        ret = summate([cn...])
+        total_prob = reduce(logaddexp, n.log_probs)
+        ret.log_probs = map(x -> x - total_prob, n.log_probs)
+        ret
+    end
+    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
 "Return an equivalent circuit without and nodes with single children"
@@ -260,4 +274,24 @@ function remove_unary_gates(root::PlainProbCircuit)
         ret
     end
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
+end
+
+function pc_condition(root::PlainProbCircuit, var)
+    condition(root, var2lit(var), callback=fix_params)
+    # condition(root, var2lit(var))
+end
+
+function get_margs(root, num_vars, vars, cond, norm=true)
+    quer_data_all = generate_data_all(length(vars))
+    result = DataFrame(missings(Bool, 1 << length(vars), num_vars))
+    result[:, vars] = quer_data_all
+    if length(cond) > 0
+        result[:, cond] = true
+    end
+    result
+    mars = MAR(root, result)
+    if norm
+        mars = mars .- reduce(logaddexp, mars)
+    end
+    mars
 end
