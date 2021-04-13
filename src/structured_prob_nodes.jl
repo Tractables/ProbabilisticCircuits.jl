@@ -19,11 +19,9 @@ abstract type StructProbInnerNode <: StructProbCircuit end
 mutable struct StructProbLiteralNode <: StructProbLeafNode
     literal::Lit
     vtree::Vtree
-    data
-    counter::UInt32
     StructProbLiteralNode(l,v) = begin
         @assert lit2var(l) ∈ v 
-        new(l, v, nothing, 0)
+        new(l, v)
     end
 end
 
@@ -32,13 +30,11 @@ mutable struct StructMulNode <: StructProbInnerNode
     prime::StructProbCircuit
     sub::StructProbCircuit
     vtree::Vtree
-    data
-    counter::UInt32
     StructMulNode(p,s,v) = begin
         @assert isinner(v) "Structured conjunctions must respect inner vtree node"
         @assert varsubset_left(vtree(p),v) "$p does not go left in $v"
         @assert varsubset_right(vtree(s),v) "$s does not go right in $v"
-        new(p,s, v, nothing, 0)
+        new(p,s, v)
     end
 end
 
@@ -47,10 +43,8 @@ mutable struct StructSumNode <: StructProbInnerNode
     children::Vector{StructProbCircuit}
     log_probs::Vector{Float64}
     vtree::Vtree # could be leaf or inner
-    data
-    counter::UInt32
     StructSumNode(c, v) = 
-        new(c, log.(ones(Float64, length(c)) / length(c)), v, nothing, 0)
+        new(c, log.(ones(Float64, length(c)) / length(c)), v)
 end
 
 #####################
@@ -133,6 +127,14 @@ function compile(::Type{<:StructProbCircuit}, vtree::Vtree, circuit::LogicCircui
     f_a(n, cns) = multiply(cns...) # note: this will use the LCA as vtree node
     f_o(n, cns) = summate(cns) # note: this will use the LCA as vtree node
     foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, StructProbCircuit)
+end
+
+function compile(::Type{<:StructProbCircuit}, sdd::Sdd)::StructProbCircuit
+    lc = LogicCircuit(sdd)
+    plc = propagate_constants(lc, remove_unary=true)
+    structplc = compile(StructLogicCircuit, vtree(sdd), plc)
+    sstructplc = smooth(structplc)
+    compile(StructProbCircuit, sstructplc)
 end
 
 function fully_factorized_circuit(::Type{<:ProbCircuit}, vtree::Vtree)

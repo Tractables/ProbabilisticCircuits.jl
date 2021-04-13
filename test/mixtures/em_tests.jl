@@ -24,24 +24,23 @@ using Suppressor
     pc = fully_factorized_circuit(ProbCircuit, num_v)
     estimate_parameters(pc, data; pseudocount=1.0)
     spc = compile(SharedProbCircuit, pc, num_mix)
-    values, flows = satisfies_flows(spc, data)
-    ll0 = log_likelihood_per_instance_per_component(spc, data, values, flows)
+    values, flows, node2id = satisfies_flows(spc, data)
+    ll0 = log_likelihood_per_instance_per_component(spc, data, values, flows, node2id)
     ll = log_likelihood_per_instance(pc, data)
     @test all(ll .≈ ll0)
     w = [0.1 0.2 0.7;]
-    ll1, w = one_step_em(spc, data, values, flows, w;pseudocount=1.0)
+    ll1, w = one_step_em(spc, data, values, flows, node2id, w;pseudocount=1.0)
     @test sum(ll1) ≈ sum(ll)
-    ll2, w = one_step_em(spc, data, values, flows, w;pseudocount=1.0)
-    ll3, w = one_step_em(spc, data, values, flows, w;pseudocount=1.0)
+    ll2, w = one_step_em(spc, data, values, flows, node2id, w;pseudocount=1.0)
+    ll3, w = one_step_em(spc, data, values, flows, node2id, w;pseudocount=1.0)
     @test sum(ll3) > sum(ll2)
-    reset_counter(spc)
     foreach(spc) do n
         if n isa SharedSumNode
             @test all(sum(exp.(n.log_probs), dims=1) .≈ 1.0)
         end
     end
-    @test_nowarn @suppress_out learn_circuit_mixture(pc, data; num_mix=1, em_maxiter=2)
-    @test_nowarn @suppress_out learn_circuit_mixture(pc, data; num_mix=num_mix, em_maxiter=2)
+    @test_nowarn learn_circuit_mixture(pc, data; num_mix=1, em_maxiter=2, verbose = false)
+    @test_nowarn learn_circuit_mixture(pc, data; num_mix=num_mix, em_maxiter=2, verbose = false)
 
-    @test_nowarn @suppress_out learn_strudel(data; num_mix = num_mix, init_maxiter = 2, em_maxiter = 2)
+    @test_nowarn learn_strudel(data; num_mix = num_mix, init_maxiter = 2, em_maxiter = 2, verbose = false)
 end

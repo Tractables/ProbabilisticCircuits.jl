@@ -1,10 +1,10 @@
-export one_step_em, 
-    component_weights_per_example, 
-    initial_weights, 
+export one_step_em,
+    component_weights_per_example,
+    initial_weights,
     clustering,
-    log_likelihood_per_instance_per_component, 
-    estimate_parameters_cached, 
-    learn_circuit_mixture, 
+    log_likelihood_per_instance_per_component,
+    estimate_parameters_cached,
+    learn_circuit_mixture,
     learn_strudel
 
 using Statistics: mean
@@ -12,9 +12,9 @@ using LinearAlgebra: normalize!
 using Clustering: kmeans, nclusters, assignments
 using DataFrames
 
-function one_step_em(spc, data, values, flows, component_weights; pseudocount)
+function one_step_em(spc, data, values, flows, node2id, component_weights; pseudocount)
     # E step
-    lls = log_likelihood_per_instance_per_component(spc, data, values, flows)
+    lls = log_likelihood_per_instance_per_component(spc, data, values, flows, node2id)
     lls .+= log.(component_weights)
 
     example_weights = component_weights_per_example(lls)
@@ -22,7 +22,7 @@ function one_step_em(spc, data, values, flows, component_weights; pseudocount)
     normalize!(component_weights, 1.0)
 
     # M step
-    estimate_parameters_cached(spc, example_weights, values, flows; pseudocount=pseudocount)
+    estimate_parameters_cached(spc, example_weights, values, flows, node2id; pseudocount=pseudocount)
     logsumexp(lls, 2), component_weights
 end
 
@@ -65,22 +65,22 @@ function clustering(data, mix_num::Int64; maxiter=200)::Vector
 end
 
 
-function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::DataFrame, values::Matrix{UInt64}, flows::Matrix{UInt64})
+function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::DataFrame, values::Matrix{UInt64}, flows::Matrix{UInt64}, node2id)
     @assert isbinarydata(data) "Can only calculate EVI on Bool data"
-    
+
     N = num_examples(data)
     num_mix = num_components(pc)
     log_likelihoods = zeros(Float64, N, num_mix)
     indices = init_array(Bool, N)::BitVector
-    
-    
+
+
     ll(n::SharedProbCircuit) = ()
     ll(n::SharedSumNode) = begin
         if num_children(n) != 1 # other nodes have no effect on likelihood
             for i in 1 : num_children(n)
                 c = children(n)[i]
                 log_theta = reshape(n.log_probs[i, :], 1, num_mix)
-                indices = downflow_all(values, flows, N, n, c)
+                indices = downflow_all(values, flows, N, n, c, node2id)
                 view(log_likelihoods, indices::BitVector, :) .+=  log_theta
             end
          end
@@ -90,17 +90,17 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::
     log_likelihoods
 end
 
-function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64}, 
-        values::Matrix{UInt64}, flows::Matrix{UInt64}; pseudocount::Float64)
+function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64},
+        values::Matrix{UInt64}, flows::Matrix{UInt64}, node2id; pseudocount::Float64)
     N = size(example_weights, 1)
     foreach(pc) do pn
         if is⋁gate(pn)
             if num_children(pn) == 1
                 pn.log_probs .= 0.0
             else
-                smoothed_flow = Float64.(sum(example_weights[downflow_all(values, flows, N, pn), :], dims=1)) .+ pseudocount
+                smoothed_flow = Float64.(sum(example_weights[downflow_all(values, flows, N, pn, node2id), :], dims=1)) .+ pseudocount
                 uniform_pseudocount = pseudocount / num_children(pn)
-                children_flows = vcat(map(c -> sum(example_weights[downflow_all(values, flows, N, pn, c), :], dims=1), children(pn))...)
+                children_flows = vcat(map(c -> sum(example_weights[downflow_all(values, flows, N, pn, c, node2id), :], dims=1), children(pn))...)
                 @. pn.log_probs = log((children_flows + uniform_pseudocount) / smoothed_flow)
                 @assert all(sum(exp.(pn.log_probs), dims=1) .≈ 1.0) "Parameters do not sum to one locally"
                 # normalize away any leftover error
@@ -119,12 +119,14 @@ See "Strudel: Learning Structured-Decomposable Probabilistic Circuits. [arxiv.or
 """
 function learn_strudel(train_x; num_mix = 5,
     pseudocount=1.0,
-    init_maxiter = 10, 
-    em_maxiter = 20)
+    init_maxiter = 10,
+    em_maxiter = 20,
+    verbose = true)
 
-    pc = learn_circuit(train_x, maxiter=init_maxiter)
-    learn_circuit_mixture(pc, train_x; num_mix = num_mix, pseudocount= pseudocount, em_maxiter=em_maxiter)
-end  
+    pc = learn_circuit(train_x; maxiter = init_maxiter, verbose = verbose)
+    learn_circuit_mixture(pc, train_x; num_mix = num_mix, pseudocount = pseudocount,
+                          em_maxiter = em_maxiter, verbose = verbose)
+end
 
 
 """
@@ -135,18 +137,19 @@ Given a circuit, learns a mixture of structure decomposable circuits based on th
 function learn_circuit_mixture(pc, data;
         num_mix=5,
         pseudocount=1.0,
-        em_maxiter=20)
+        em_maxiter=20,
+        verbose = true)
 
     spc = compile(SharedProbCircuit, pc, num_mix)
-    values, flows = satisfies_flows(spc, data)
+    values, flows, node2id = satisfies_flows(spc, data)
     component_weights = reshape(initial_weights(data, num_mix), 1, num_mix)
-    estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows; pseudocount=pseudocount)
+    estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows, node2id; pseudocount=pseudocount)
 
     lls = nothing
     for iter in 1 : em_maxiter
         @assert isapprox(sum(component_weights), 1.0; atol=1e-10)
-        lls, component_weights = one_step_em(spc, data, values, flows, component_weights; pseudocount=pseudocount)
-        println("EM Iteration $iter/$em_maxiter. Log likelihood $(mean(lls))")
+        lls, component_weights = one_step_em(spc, data, values, flows, node2id, component_weights; pseudocount=pseudocount)
+        verbose && println("EM Iteration $iter/$em_maxiter. Log likelihood $(mean(lls))")
     end
     spc, component_weights, lls
 end

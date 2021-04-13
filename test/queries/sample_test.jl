@@ -34,7 +34,7 @@ end
 
     loglikelihoods = EVI(pc, worlds)
 
-    Nsamples = 2_0000
+    Nsamples = 50_000
 
     samples, _ = sample(pc, Nsamples; rng)
     histogram_matches_likelihood(samples, worlds, loglikelihoods)

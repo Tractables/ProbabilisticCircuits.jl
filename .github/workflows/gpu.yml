@@ -1,0 +1,29 @@
+name: Unit Tests GPU
+
+on: 
+  workflow_dispatch:
+
+env:
+  DATADEPS_ALWAYS_ACCEPT: 1
+  JIVE_PROCS: 1
+
+jobs:
+  build:
+    runs-on: [self-hosted, gpu]
+
+    steps:
+      
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: 1.5
+
+      # Runs a single command using the runners shell
+      - name: Unit Tests
+        run: |
+          julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
+          julia --project --check-bounds=yes --depwarn=yes -e 'import Pkg; Pkg.test(; coverage=true)'
+          
+      - name: Codecov Upload
+        run: |
+          julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder());'

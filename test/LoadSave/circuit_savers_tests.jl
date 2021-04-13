@@ -33,6 +33,17 @@ end
         circuit2, vtree2 = load_struct_prob_circuit("$tmp/temp.psdd", "$tmp/temp.vtree")
         test_equal(circuit, circuit2)
 
+        f_c, f_v = open("$tmp/temp.psdd", "r"), open("$tmp/temp.vtree", "r")
+        circuit2, _ = load_struct_prob_circuit(f_c, f_v)
+        test_equal(circuit, circuit2)
+        close(f_c); close(f_v)
+
+        f = open("$tmp/temp.psdd", "w")
+        @test_nowarn save_as_psdd(f, circuit, vtree)
+        close(f)
+        circuit2, _ = load_struct_prob_circuit("$tmp/temp.psdd", "$tmp/temp.vtree")
+        test_equal(circuit, circuit2)
+
         # save and load as .sdd
         @test_nowarn save_circuit("$tmp/temp.sdd", PlainStructLogicCircuit(circuit), vtree)
         @test_nowarn save_vtree("$tmp/temp.vtree", vtree)

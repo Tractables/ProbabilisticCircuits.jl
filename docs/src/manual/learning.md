@@ -1,12 +1,10 @@
 # [Learning](@id man-learning)
 
-In this section we provide few learning scenarios for circuits. In general, learning tasks for PCs can be separted into two categories: paramter learning and structure learning.
-
+In this section we provide few learning scenarios for circuits. In general, learning tasks for PCs can be separted into two categories: parameter learning and structure learning.
 
 ## Learn a Circuit
 
-You can use [`learn_circuit`](@ref) to learn a probabilistic circuit from the data (both paramter and structure learning).
-
+You can use [`learn_circuit`](@ref) to learn a probabilistic circuit from the data (both parameter and structure learning).
 
 ```@example learning
 using LogicCircuits
@@ -17,6 +15,18 @@ pc = learn_circuit(train_x; maxiter=100);
 
 "PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters. " *  
 "Train log-likelihood is $(log_likelihood_avg(pc, train_x))"
+```
+
+## Learning a circuit from missing data
+
+You can use [`learn_circuit_miss`](@ref) to learn a probabilistic circuit from missing data, i.e. some feature could be missing for each data point.
+
+```@example learning
+train_x_miss = make_missing_mcar(train_x; keep_prob=0.9)
+pc = learn_circuit_miss(train_x_miss; maxiter=100);
+
+"PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters. " *  
+"Train marginal-log-likelihood is $(marginal_log_likelihood_avg(pc, train_x))"
 ```
 
 ## Learn a mixture of circuits
@@ -38,11 +48,11 @@ spc, component_weights, lls = learn_strudel(train_x; num_mix = 10, init_maxiter 
 
 ## Misc Options
 
-In this sections, we provide options to have more control in learning circuits. For example, what if we only want to do paramter learning.
+In this sections, we provide options to have more control in learning circuits. For example, what if we only want to do parameter learning.
 
-### Paramter Learning
+### Parameter Learning
 
-Given a fixed structure for the PC, the goal of paramter learning is to estimate the parameters so that likelihood is maximized.
+Given a fixed structure for the PC, the goal of parameter learning is to estimate the parameters so that likelihood is maximized.
 
 First, initliaze PC structure with a balanced vtree represneting a fully factorized distribution:
 
@@ -76,7 +86,7 @@ pc, vtree = learn_chow_liu_tree_circuit(train_x)
 
 There are several different approaches in structure learning. Currently we support the following approach:
 
-1. Choose an initial structure and learn paramters
+1. Choose an initial structure and learn parameters
 2. Perform Greedy search for a bigger and better structure by doing operations such as split and clone.
 3. Repeat step 2 until satisfied or time limit reached
 

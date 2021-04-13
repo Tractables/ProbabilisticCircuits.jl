@@ -2,7 +2,9 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
+using Random
 using Suppressor
+using CUDA
 
 @testset "prob circuit structure learn tests" begin
     function test_pc_property(pc, vtree1, train_x)
@@ -41,9 +43,28 @@ using Suppressor
         @test log_likelihood_avg(pc, data) ≈ -1.8636799873410004 atol=1e-6
     end
 
-    pc3 = @suppress_out learn_circuit(data, maxiter=10)
+    pc3 = learn_circuit(data; maxiter=10, verbose = false)
     test_pc_property(pc3, vtree(pc3), data)
     @test num_parameters(pc3) == 60
     @test num_nodes(pc3) == 88
     @test log_likelihood_avg(pc3, data) ≈ -3.0466585640216746 atol=1e-6
+
+    # Test when there are more iterations than candidates.
+    data = DataFrame(convert(BitArray, rand(Bool, 100, 4)))
+    @test_nowarn pc = learn_circuit(data; maxiter = 100, verbose = false)
+end
+
+
+@testset "learn from missing data tests" begin
+    # Test for learning from missing data
+    Random.seed!(10007) # Fix Seed for the test
+    data = DataFrame(convert(BitArray, rand(Bool, 200, 15)))
+    data_miss = make_missing_mcar(data; keep_prob=0.9)
+
+    @test_broken pc_miss = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
+
+    if CUDA.functional()
+        data_miss_gpu = to_gpu(data_miss)
+        @test_broken pc_miss_gpu = learn_circuit_miss(data_miss; maxiter=30, verbose=false)
+    end
 end

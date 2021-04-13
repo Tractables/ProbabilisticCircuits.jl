@@ -1,0 +1,33 @@
+name: Specific Unit Test
+
+on: 
+  workflow_dispatch:
+    inputs:
+      testFile:
+        description: 'Relative path to test file'     
+        required: true
+        default: 'test/structurelearner/learner_tests.jl'
+
+env:
+  DATADEPS_ALWAYS_ACCEPT: 1
+  JIVE_PROCS: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: 1.5
+
+      # Runs a single command using the runners shell
+      - name: Unit Tests
+        run: |
+          pwd
+          git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+          julia -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.develop(PackageSpec(path=".")); Pkg.instantiate(); Pkg.build();'
+          julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits"));  Pkg.develop(PackageSpec(path=".")); Pkg.instantiate(); Pkg.build();'
+          julia --project=test --check-bounds=yes --depwarn=yes ${{ github.event.inputs.testFile }}
+      

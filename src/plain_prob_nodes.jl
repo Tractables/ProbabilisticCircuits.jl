@@ -16,20 +16,15 @@ abstract type PlainProbLeafNode <: PlainProbCircuit end
 abstract type PlainProbInnerNode <: PlainProbCircuit end
 
 "A probabilistic literal node"
-mutable struct PlainProbLiteralNode <: PlainProbLeafNode
+struct PlainProbLiteralNode <: PlainProbLeafNode
     literal::Lit
-    data
-    counter::UInt32
-    PlainProbLiteralNode(l) = new(l, nothing, 0)
 end
 
 "A probabilistic conjunction node (multiplication node)"
 mutable struct PlainMulNode <: PlainProbInnerNode
     children::Vector{PlainProbCircuit}
-    data
-    counter::UInt32
     PlainMulNode(children) = begin
-        new(convert(Vector{PlainProbCircuit}, children), nothing, 0)
+        new(convert(Vector{PlainProbCircuit}, children))
     end
 end
 
@@ -37,10 +32,8 @@ end
 mutable struct PlainSumNode <: PlainProbInnerNode
     children::Vector{PlainProbCircuit}
     log_probs::Vector{Float64}
-    data
-    counter::UInt32
     PlainSumNode(c) = begin
-        new(c, log.(ones(Float64, length(c)) / length(c)), nothing, 0)
+        new(c, log.(ones(Float64, length(c)) / length(c)))
     end
 end
 

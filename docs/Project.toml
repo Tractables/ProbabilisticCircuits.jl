@@ -1,8 +1,10 @@
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterLaTeX = "cd674d7a-5f81-5cf3-af33-235ef1834b99"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 LogicCircuits = "a7847b3b-b7f1-4dd5-83c3-60e0aa0f8599"
 PGFPlots = "3b7a836e-365b-5785-a47d-02c71176b4aa"
 PGFPlotsX = "8314cec4-20b6-5062-9cdb-752b83310925"

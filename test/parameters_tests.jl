@@ -35,8 +35,8 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     
@@ -77,8 +77,8 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true]))
     
@@ -126,15 +126,15 @@ end
     # Batched weighted binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
     
     # Weighted binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
-    weights = DataFrame(weight = [0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     
     # Binary dataset
     dfb = DataFrame(BitMatrix([true false; true true; false false]))
@@ -312,8 +312,8 @@ end
     @test all(paras1 .≈ paras2)
     
     dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
-    weights = DataFrame(weight = [0.6, 0.6, 0.6, 0.6])
-    wdfb = add_sample_weights(dfb, weights)
+    weights = [0.6, 0.6, 0.6, 0.6]
+    wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -367,12 +367,31 @@ end
     end
 end
 
+@testset "EM update per batch tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    batched_dfb = batch(dfb, 1)
+    
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    uniform_parameters(r)
+    params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true)
+    @test params[5] ≈ 0.0
+    
+    if CUDA.functional()
+        
+        uniform_parameters(r)
+        params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true, use_gpu = true)
+        @test to_cpu(params)[5] ≈ 0.0
+
+    end
+end
+
 @testset "Bagging tests" begin
     # Binary dataset
     dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
-    bag_dfb = Array{DataFrame}(undef, 2)
+    bag_dfb = Vector{DataFrame}(undef, 2)
     bag_dfb[1] = dfb[[2, 1, 3, 4], :]
     bag_dfb[2] = dfb[[4, 3, 2, 1], :]
     
@@ -404,32 +423,67 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
-    @test params ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233, 0.0]
+    @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
-    @test params ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818, 0.0]
+    @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
-    @test params ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252, 0.0]
+    @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
-    @test params ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577, 0.0]
+    @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.4271133071407059, -1.056673046095233, -0.4271133071407059, -1.056673046095233]
+        @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.5376284027717648, -0.8773872244012818, -0.5376284027717648, -0.8773872244012818]
+        @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.638989210398663, -0.7504070293776252, -0.638989210398663, -0.7504070293776252]
+        @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
         params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
         params = convert(Vector{Float64}, params)
-        @test params[1:4] ≈ [-0.6632778284297002, -0.7239362528128577, -0.6632778284297002, -0.7239362528128577]
+        @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
+    end
+end
+
+@testset "EM Entropy regularization tests" begin
+    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
+    
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
+    @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
+    @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
+    @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
+
+    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
+    @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
+    
+    if CUDA.functional()
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
+
+        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
+        params = convert(Vector{Float64}, params)
+        @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end
 end

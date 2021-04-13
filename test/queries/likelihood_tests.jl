@@ -2,6 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames: DataFrame
+using Suppressor
 
 include("../helper/gpu.jl")
 
@@ -43,13 +44,26 @@ include("../helper/gpu.jl")
         EVI(alltrue, d)
     end
 
+    # Test Sturdel EVI
+    samples, _ = sample(prob_circuit, 100000)
+    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
+                                    init_maxiter = 20, em_maxiter = 100, verbose = false)
+    mix_calc_prob = exp.(EVI(mix, data, weights))
+
+    @test true_prob ≈ mix_calc_prob atol = 0.1
+    mix_calc_prob_all = exp.(EVI(mix, data_all))
+    @test 1 ≈ sum(mix_calc_prob_all) atol = 0.1
+
+    cpu_gpu_agree_approx(data_all) do d
+        EVI(mix, d, weights)
+    end
 end
 
 @testset "Bagging models' likelihood" begin
     dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
-    bag_dfb = Array{DataFrame}(undef, 2)
+    bag_dfb = Vector{DataFrame}(undef, 2)
     bag_dfb[1] = dfb[[2, 1, 3, 4], :]
     bag_dfb[2] = dfb[[4, 3, 2, 1], :]
     

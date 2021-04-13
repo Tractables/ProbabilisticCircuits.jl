@@ -56,10 +56,18 @@ Only do this for when the repo is in stable position, and we have decent amount 
 The example is for Circuit Model Zoo, but should work for others:
 
 1. Push new updates to [UCLA-StarAI/Circuit-Model-Zoo](https://github.com/UCLA-StarAI/Circuit-Model-Zoo)
-2. Do a [new release](https://github.com/UCLA-StarAI/Circuit-Model-Zoo/releases).
+2. Do a [new zoo release](https://github.com/UCLA-StarAI/Circuit-Model-Zoo/releases).
 3. Update the `LogicCircuits.jl`'s `Artifact.toml` file with new git tag and hash. Example commit can be found [here](https://github.com/Juice-jl/LogicCircuits.jl/commit/1cd3fda02fa7bd82d1fa02898ee404edce0d7b14).
 4. Do the same for `ProbabilisticCircuits.jl`'s `Artifact.toml` file. Example commit [here](https://github.com/Juice-jl/ProbabilisticCircuits.jl/commit/da7d3678b5f2254e60229632f74cc619505e2b2d).
+5. Note that for each Artifact.toml, 2 things need to change: `git-tree-sha1` and `sha256`.
+6. Update the `const zoo_version = "/Circuit-Model-Zoo-0.1.4"` inside LogicCircuits.jl to the new zoo version. No changes needed in ProbabilisticCircuits since it uses the same constant.
 
 ### Question: How to get the hashes:
-1. `git-tree-sha1`. I thought it was the commit hash but that did not work. Instead can run the tests and then it gives you error with correct hash and you can update the hash based on that.
-2. `sha256`. Download the release file '*.tar.gz' and compute its SHA256 with any method you like and the replace the value.
+
+Download the new Zoo release from Github. Now you can use the following code snippet to get the hashes (check the [julia Artifact page](https://julialang.github.io/Pkg.jl/dev/artifacts/) for latest instructions):
+```
+using Tar, Inflate, SHA
+filename = "socrates.tar.gz"
+println("sha256: ", bytes2hex(open(sha256, filename)))
+println("git-tree-sha1: ", Tar.tree_hash(IOBuffer(inflate_gzip(filename))))
+```
