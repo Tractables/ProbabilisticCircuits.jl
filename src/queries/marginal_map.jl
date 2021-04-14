@@ -1,6 +1,6 @@
 export forward_bounds, edge_bounds, prune_mpe, 
     do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult,
-    add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params
+    add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params, bottomup_renorm_params
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -215,8 +215,9 @@ end
 
 function brute_force_mmap(root, query_vars)
     quer_data_all = generate_data_all(length(query_vars))
+    qda = convert(Matrix, quer_data_all)
     result = DataFrame(missings(Bool, 1 << length(query_vars), num_variables(root)))
-    result[:, collect(query_vars)] = quer_data_all
+    result[:, collect(query_vars)] = qda
     @show result
     @show MAR(root, result)
     reduce(max, MAR(root, result))
@@ -231,15 +232,21 @@ function add_and_split(root, var)
     df[1, var] = true
     @show df
     @show pos_mar = MAR(root, df)
-    split_root = split(new_root, (new_root, new_and), Var(var), callback=fix_params)[1]
+    split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params)[1]
+    bottomup_renorm_params(split_root)
     split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
     remove_unary_gates(split_root)
 end
 
-"Function to pass to condition so that it maintains parameters"
+"Function to pass to condition so that it maintains and normalizes parameters"
 function fix_params(new_n, n, kept)
     total_prob = reduce(logaddexp, n.log_probs[kept])
     new_n.log_probs = map(x -> x - total_prob, n.log_probs[kept])
+end
+
+"Function to pass to condition so that it maintains parameters"
+function keep_params(new_n, n, kept)
+    new_n.log_probs = n.log_probs[kept]
 end
 
 "Normalize params"
@@ -256,13 +263,29 @@ function normalize_params(root)
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
+"Do a bottom up pass to renormalize parameters, correctly propagating
+This follows algorithm 1 from 'On Theoretical Properties of Sum-Product Networks'"
+function bottomup_renorm_params(root)
+    f_con(_) = 0.0
+    f_lit(_) = 0.0
+    f_a(_, cn) = sum(cn)
+    f_o(n, cn) = begin
+        n.log_probs = n.log_probs .+ cn
+        alpha = reduce(logaddexp, n.log_probs)
+        n.log_probs = n.log_probs .- alpha
+        alpha
+    end
+    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Float64)
+    root
+end
+
 "Return an equivalent circuit without and nodes with single children"
 
 function remove_unary_gates(root::PlainProbCircuit)
     f_con(n) = n
     f_lit(n) = n
     f_a(n, cn) = begin 
-        if issingle(cn) 
+        if length(cn) == 1 
             cn[1]
         else
             multiply([cn...], reuse=n)
@@ -277,16 +300,17 @@ function remove_unary_gates(root::PlainProbCircuit)
 end
 
 function pc_condition(root::PlainProbCircuit, var)
-    condition(root, var2lit(var), callback=fix_params)
+    conjoin(root, var2lit(var), callback=keep_params)
     # condition(root, var2lit(var))
 end
 
 function get_margs(root, num_vars, vars, cond, norm=true)
-    quer_data_all = generate_data_all(length(vars))
-    result = DataFrame(missings(Bool, 1 << length(vars), num_vars))
-    result[:, vars] = quer_data_all
+    @show quer_data_all = generate_data_all(length(vars))
+    @show qda = convert(Matrix, quer_data_all)
+    @show result = DataFrame(missings(Bool, 1 << length(vars), num_vars))
+    @show result[:, vars] = qda
     if length(cond) > 0
-        result[:, cond] = true
+        result[:, cond] .= true
     end
     result
     mars = MAR(root, result)

@@ -41,6 +41,10 @@ num_edges(ccond_circ.children[2].children[2])
 @show get_margs(ccond_circ.children[2].children[2].children[2], 8, [8], [])
 @show get_margs(prob_circ.children[2].children[2], 8, [8], [3,5])
 @show get_margs(ccond_circ.children[2].children[2], 8, [8], [])
+norm_ccond_circ = bottomup_renorm_params(ccond_circ)
+@show get_margs(norm_ccond_circ.children[2].children[2], 8, [8], [])
+
+map(x -> reduce(logaddexp, x.log_probs), sum_nodes(norm_ccond_circ))
 
 ccond_circ.children[2].children[2].children[1].children
 ccond_circ.log_probs
