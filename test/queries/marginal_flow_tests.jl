@@ -47,7 +47,9 @@ include("../helper/gpu.jl")
 
     function test_complete_mar(circ, data, weights = nothing, atol = 1e-6)
         r1 = isnothing(weights) ? EVI(circ, data) : EVI(circ, data, weights)
+        @test isgpu(data) == isgpu(r1)
         r2 = isnothing(weights) ? MAR(circ, data) : MAR(circ, data, weights)
+        @test isgpu(data) == isgpu(r2)
         @test r1 ≈ r2 atol = atol
     end
 

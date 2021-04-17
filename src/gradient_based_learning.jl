@@ -5,7 +5,7 @@ using StatsFuns: logaddexp
 using CUDA
 
 function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     # Construct the low-level circuit representation
@@ -27,7 +27,7 @@ function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01,
     pbc.params
 end
 function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     # Extract weights from dataset
