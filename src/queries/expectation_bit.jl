@@ -19,9 +19,7 @@ See: On Tractable Computation of Expected Predictions [arxiv.org/abs/1910.02182]
 function ExpectationBit(pc::ProbCircuit, lc::LogisticCircuit, data; return_aux = false)
     # children(lc)[1]: Currently root of LC's are for bias values and not a real sum node, so should be skipped.
     pbc = ParamBitCircuitPair(pc, children(lc)[1]);
-    if isgpu(data)
-        pbc = to_gpu(pbc)
-    end
+    pbc = same_device(pbc, data)
     ExpectationBit(pbc, pc, lc, data; return_aux);
 end
 
