@@ -15,7 +15,8 @@ using DataFrames
 
 # 
 function edge_bounds(root::ProbCircuit, query_vars::BitSet)
-    impl_lits = implied_literals(root)
+    impl_lits = Dict()
+    implied_literals(root, impl_lits)
     mcache = forward_bounds(root, query_vars)
     tcache = DefaultDict{ProbCircuit, Float64}(0.0)
     tcache[root] = 1.0
@@ -70,7 +71,8 @@ end
 
 
 function forward_bounds(root::ProbCircuit, query_vars::BitSet) 
-    impl_lits = implied_literals(root)
+    impl_lits = Dict()
+    implied_literals(root, impl_lits)
     counters = Dict("max" => 0, "sum" => 0)
     ret = forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits, counters)
     @show counters
@@ -233,9 +235,9 @@ function add_and_split(root, var)
     @show df
     @show pos_mar = MAR(root, df)
     split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params)[1]
-    bottomup_renorm_params(split_root)
     split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
-    remove_unary_gates(split_root)
+    bottomup_renorm_params(split_root)
+    split_root = remove_unary_gates(split_root)
 end
 
 "Function to pass to condition so that it maintains and normalizes parameters"
@@ -312,7 +314,7 @@ function get_margs(root, num_vars, vars, cond, norm=true)
     if length(cond) > 0
         result[:, cond] .= true
     end
-    result
+    @show result
     mars = MAR(root, result)
     if norm
         mars = mars .- reduce(logaddexp, mars)
