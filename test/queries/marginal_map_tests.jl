@@ -21,16 +21,26 @@ using StatsBase
     @test fwd_mmap ≈ -1.059872 atol=1e-6
 end
 
+@testset "conditioning" begin
+    prob_circ = zoo_psdd("asia.uai.psdd")
+    pc = pc_condition(prob_circ, Var(3), Var(4), Var(7))
+    pc_cond = pc_condition(pc, Var(1), Var(8))
+    @test get_margs(pc_cond, 8, [2,5], []) ≈ get_margs(pc, 8, [2,5], [1,8]) atol = 1e-6
+end
+
+
 @testset "splitting" begin
     prob_circ = zoo_psdd("asia.uai.psdd")
     
     for i in 1:5
-        @show quer = BitSet(StatsBase.sample(1:8, 2, replace=false))
+        @show quer = BitSet(StatsBase.sample(1:8, 4, replace=false))
+        qc = map(x -> Var(x), collect(quer))
         mmap = brute_force_mmap(prob_circ, quer)
-        split_circ = add_and_split(prob_circ, Var(collect(quer)[1]))
-        split_circ2 = add_and_split(split_circ, Var(collect(quer)[2]))
+        split_circ = add_and_split(prob_circ, qc[1])
+        split_circ2 = add_and_split(split_circ, qc[2])
         new_mmap = brute_force_mmap(split_circ2, quer)
-        @test forward_bounds(split_circ2, quer)[split_circ2] ≈ mmap atol=1e-6
+        # @test forward_bounds(split_circ2, quer)[split_circ2] ≈ mmap atol=1e-6
         @test mmap ≈ new_mmap atol=1e-6
+        @test get_margs(prob_circ, 8, [qc[3], qc[4]], []) ≈ get_margs(split_circ, 8, [qc[3], qc[4]], []) atol=1e-6
     end
 end

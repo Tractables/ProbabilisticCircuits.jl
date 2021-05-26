@@ -234,9 +234,9 @@ function add_and_split(root, var)
     df[1, var] = true
     @show df
     @show pos_mar = MAR(root, df)
-    split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params)[1]
+    split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params, keep_unary=true)[1]
     split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
-    bottomup_renorm_params(split_root)
+    split_root = bottomup_renorm_params(split_root)
     split_root = remove_unary_gates(split_root)
 end
 
@@ -301,20 +301,22 @@ function remove_unary_gates(root::PlainProbCircuit)
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
+pc_condition(root::PlainProbCircuit, var1, var2, var3...) = pc_condition(pc_condition(root, var1), var2, var3...)
+
 function pc_condition(root::PlainProbCircuit, var)
-    conjoin(root, var2lit(var), callback=keep_params)
+    conjoin(root, var2lit(var), callback=keep_params, keep_unary=true)
     # condition(root, var2lit(var))
 end
 
 function get_margs(root, num_vars, vars, cond, norm=true)
-    @show quer_data_all = generate_data_all(length(vars))
-    @show qda = convert(Matrix, quer_data_all)
-    @show result = DataFrame(missings(Bool, 1 << length(vars), num_vars))
-    @show result[:, vars] = qda
+    quer_data_all = generate_data_all(length(vars))
+    qda = convert(Matrix, quer_data_all)
+    result = DataFrame(missings(Bool, 1 << length(vars), num_vars))
+    result[:, vars] = qda
     if length(cond) > 0
         result[:, cond] .= true
     end
-    @show result
+    result
     mars = MAR(root, result)
     if norm
         mars = mars .- reduce(logaddexp, mars)

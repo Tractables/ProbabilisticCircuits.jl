@@ -6,6 +6,11 @@ using StatsFuns: logaddexp
 
 prob_circ = load_prob_circuit("/home/tal/Documents/Circuit-Model-Zoo/psdds/asia.uai.psdd")
 quer = BitSet([2,5])
+pc = pc_condition(prob_circ, Var(3), Var(4), Var(7))
+get_margs(pc, 8, [2,5], [1,8])
+pc_cond = pc_condition(pc, Var(1), Var(8))
+get_margs(pc_cond, 8, [2,5], [])
+
 
 cond_circ = pc_condition(prob_circ, Var(1))
 ccond_circ = pc_condition(cond_circ, Var(8))
