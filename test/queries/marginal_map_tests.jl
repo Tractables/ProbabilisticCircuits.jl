@@ -40,7 +40,7 @@ end
         split_circ2 = add_and_split(split_circ, qc[2])
         new_mmap = brute_force_mmap(split_circ2, quer)
         # @test forward_bounds(split_circ2, quer)[split_circ2] ≈ mmap atol=1e-6
-        @test mmap ≈ new_mmap atol=1e-6
-        @test get_margs(prob_circ, 8, [qc[3], qc[4]], []) ≈ get_margs(split_circ, 8, [qc[3], qc[4]], []) atol=1e-6
+        @test mmap ≈ new_mmap atol=1e-5
+        @test get_margs(prob_circ, 8, [qc[3], qc[4]], []) ≈ get_margs(split_circ, 8, [qc[3], qc[4]], []) atol=1e-5
     end
 end

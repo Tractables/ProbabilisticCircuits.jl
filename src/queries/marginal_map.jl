@@ -235,7 +235,7 @@ function add_and_split(root, var)
     @show df
     @show pos_mar = MAR(root, df)
     split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params, keep_unary=true)[1]
-    split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
+    # split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
     split_root = bottomup_renorm_params(split_root)
     split_root = remove_unary_gates(split_root)
 end
