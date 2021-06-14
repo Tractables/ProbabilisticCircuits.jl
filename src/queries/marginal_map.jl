@@ -1,11 +1,13 @@
 export forward_bounds, edge_bounds, prune_mpe, 
     do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult,
-    add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params, bottomup_renorm_params
+    add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params, bottomup_renorm_params,
+    map_mpe_random
 
 using LogicCircuits
 using StatsFuns: logaddexp
 using DataStructures: DefaultDict
 using DataFrames
+using Random
 
 #####################
 # Circuit Marginal Map
@@ -75,7 +77,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet)
     implied_literals(root, impl_lits)
     counters = Dict("max" => 0, "sum" => 0)
     ret = forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits, counters)
-    @show counters
+    # @show counters
     ret
 end
 
@@ -154,16 +156,26 @@ end
 
 function prune_mpe(n::ProbCircuit, query_vars::BitSet)
     # First get the mpe state reduced to query variables, then the threshold
-    data_marg = DataFrame(repeat([missing], 1, num_variables(n)))
-    mp, mappr = MAP(n, data_marg)
-    l = collect(transpose([i in query_vars ? mp[i][1] : missing for i in 1:num_variables(n)]))
-    df = DataFrame(l)
-    @show thresh = exp(MAR(n, df)[1])
+    # data_marg = DataFrame(repeat([missing], 1, num_variables(n)))
+    # mp, mappr = MAP(n, data_marg)
+    # [i in query_vars ? mp[!, i][1] : missing for i in 1:num_variables(n)]
+    # l = collect(transpose([i in query_vars ? mp[!, i][1] : missing for i in 1:num_variables(n)]))
+    # df = DataFrame(l)
+    @show thresh = mmap_reduced_mpe_state(n, query_vars)
 
     rcache = edge_bounds(n, query_vars)
     bounds_list = collect(rcache)
-    map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh - 1e-7, bounds_list))
+    map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh - 1e-9, bounds_list))
     # filter(x -> isa(x[1], Tuple) && x[2] < thresh, bounds_list)
+end
+
+function mmap_reduced_mpe_state(n::ProbCircuit, query_vars::BitSet)
+    data_marg = DataFrame(repeat([missing], 1, num_variables(n)))
+    mp, mappr = MAP(n, data_marg)
+    [i in query_vars ? mp[!, i][1] : missing for i in 1:num_variables(n)]
+    l = collect(transpose([i in query_vars ? mp[!, i][1] : missing for i in 1:num_variables(n)]))
+    df = DataFrame(l)
+    exp(MAR(n, df)[1])
 end
 
 function rep_mpe_pruning(n::PlainProbCircuit, query_vars::BitSet, num_reps)
@@ -178,26 +190,26 @@ end
 
 "Preform the actual pruning. Note this will always return a plain logic circuit"
 
-function do_pruning(n::PlainProbCircuit, to_prune)
-    clear_data(n)
-    foreach(x -> prune_fn(x, to_prune), n)
-    n.data
+function do_pruning(n, to_prune)
+    cache = Dict()
+    foreach(x -> prune_fn(x, to_prune, cache), n)
+    cache[n]
 end
 
-function prune_fn(n, to_prune)
+function prune_fn(n, to_prune, cache)
     if isinner(n)
         # Find children we are keeping
         inds = findall(x -> (n, x) ∉ to_prune, n.children)
         if is⋁gate(n)
-            del_n = PlainSumNode(map(x -> x.data, n.children[inds]))
+            del_n = PlainSumNode(map(x -> cache[x], n.children[inds]))
             del_n.log_probs = n.log_probs[inds]
         else
-            del_n = PlainMulNode(map(x -> x.data, n.children[inds]))
+            del_n = PlainMulNode(map(x -> cache[x], n.children[inds]))
         end
-        n.data = del_n
+        cache[n] = del_n
     else
         # Leaf nodes just use themselves, fine to reuse in new circuit
-        n.data = n
+        cache[n] = n
     end
 end
 
@@ -232,12 +244,22 @@ function add_and_split(root, var)
     new_root = PlainSumNode([new_and])
     df = DataFrame(missings(Bool, 1, num_variables(root)))
     df[1, var] = true
-    @show df
-    @show pos_mar = MAR(root, df)
+    # @show df
+    # @show pos_mar = MAR(root, df)
+    
     split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params, keep_unary=true)[1]
-    # split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
+        # split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
+    data_marg = DataFrame(repeat([missing], 1, num_variables(root)))
+    mp, mappr = MAP(root, data_marg)
+    @show mappr
     split_root = bottomup_renorm_params(split_root)
+    mp, mappr = MAP(root, data_marg)
+    @show mappr
+
     split_root = remove_unary_gates(split_root)
+    mp, mappr = MAP(root, data_marg)
+    @show mappr
+    split_root
 end
 
 "Function to pass to condition so that it maintains and normalizes parameters"
@@ -322,4 +344,30 @@ function get_margs(root, num_vars, vars, cond, norm=true)
         mars = mars .- reduce(logaddexp, mars)
     end
     mars
+end
+
+function map_mpe_random(root, quer)
+    splittable = copy(collect(quer))
+    while true
+        println("Forward bound at root: $(forward_bounds(root, quer)[root])")
+        println("MPE: $(log(mmap_reduced_mpe_state(root, quer)))")
+        data_marg = DataFrame(repeat([missing], 1, num_variables(root)))
+        mp, mappr = MAP(root, data_marg)
+        @show mappr
+
+        split_ind = rand(1:length(splittable))
+        to_split = splittable[split_ind]
+        println("Starting with $(num_edges(root)) edges and $(num_nodes(root)) nodes.")
+        root = rep_mpe_pruning(root, quer, 1)
+        println("Pruning gives $(num_edges(root)) edges and $(num_nodes(root)) nodes.")
+        println("Forward bound at root: $(forward_bounds(root, quer)[root])")
+        println("MPE: $(log(mmap_reduced_mpe_state(root, quer)))")
+        data_marg = DataFrame(repeat([missing], 1, num_variables(root)))
+        mp, mappr = MAP(root, data_marg)
+        @show mappr
+
+        root = add_and_split(root, to_split)
+        println("Splitting on $(to_split) gives $(num_edges(root)) edges and $(num_nodes(root)) nodes.")
+        deleteat!(splittable, split_ind)
+    end
 end

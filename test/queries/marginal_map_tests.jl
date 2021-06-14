@@ -36,11 +36,18 @@ end
         @show quer = BitSet(StatsBase.sample(1:8, 4, replace=false))
         qc = map(x -> Var(x), collect(quer))
         mmap = brute_force_mmap(prob_circ, quer)
+        data_marg = DataFrame(repeat([missing], 1, num_variables(prob_circ)))
+        _, mpe = MAP(prob_circ, data_marg)
+
         split_circ = add_and_split(prob_circ, qc[1])
         split_circ2 = add_and_split(split_circ, qc[2])
         new_mmap = brute_force_mmap(split_circ2, quer)
+        data_marg = DataFrame(repeat([missing], 1, num_variables(split_circ2)))
+        _, new_mpe = MAP(prob_circ, data_marg)
+
         # @test forward_bounds(split_circ2, quer)[split_circ2] ≈ mmap atol=1e-6
         @test mmap ≈ new_mmap atol=1e-5
+        @test mpe ≈ new_mpe atol=1e-5
         @test get_margs(prob_circ, 8, [qc[3], qc[4]], []) ≈ get_margs(split_circ, 8, [qc[3], qc[4]], []) atol=1e-5
     end
 end
