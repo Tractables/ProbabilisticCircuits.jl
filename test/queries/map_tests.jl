@@ -63,3 +63,13 @@ include("../helper/gpu.jl")
     end
 
 end
+
+@testset "MAP upward pass" begin
+    a,b = pos_literals(ProbCircuit, 2)
+    circuit = 0.6 * (a * (.5 * b + .5 * -b)) + .4 * (-a * (0.9 * b + .1 * -b))
+    data_marg = DataFrame([missing missing])
+    map, mappr = MAP(circuit, data_marg)
+    data_marg = DataFrame([true true; true false; false true; false false])
+    mar = MAR(circuit, data_marg)
+    @test all(mar .> mappr .- 1e-6)
+end
