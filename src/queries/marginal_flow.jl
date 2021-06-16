@@ -1,7 +1,7 @@
 using StatsFuns: logsumexp, log1pexp
 
 using CUDA: CUDA, @cuda
-using DataFrames: DataFrame
+using DataFrames: DataFrame, Tables
 using LoopVectorization: @avx
 using LogicCircuits: balance_threads, BitCircuit
 
@@ -36,7 +36,7 @@ marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
     marginal(root, collect(Union{Bool,Missing}, data))
 
 marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
-    marginal(root, DataFrame(reshape(data, 1, :)))[1]
+    marginal(root, DataFrame(Tables.table(reshape(data, 1, :))))[1]
 
 marginal(circuit::ProbCircuit, data::Union{DataFrame, Vector{DataFrame}}) =
     marginal(same_device(ParamBitCircuit(circuit, data), data) , data)
