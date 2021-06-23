@@ -120,11 +120,17 @@ Samples a PSDD from a BDD `ϕ` and vtree `V` with at most `k` elements in each d
 @inline function sample_psdd(ϕ::Diagram, V::Vtree, k::Integer, D::DataFrame;
         opts::SamplingOpts = full, randomize_weights::Bool = false, pseudocount::Real = 1.0,
         fact_on_⊤::Bool = false, ⊤_k::Integer = k, p_mr::Real = 0.5, always_compress::Bool = false,
-        always_merge::Bool = false, merge_branch::Real = 0.0)::StructProbCircuit
+        always_merge::Bool = false, merge_branch::Real = 0.0, maxiter::Integer = 0)::StructProbCircuit
     memo = Dict{Tuple{Vtree, Diagram}, StructSumNode}()
     C = sample_psdd_r(ϕ, V, k, Dict{Int32, StructProbLiteralNode}(), randomize_weights, opts,
                       fact_on_⊤, ⊤_k, p_mr, always_compress, always_merge, memo, merge_branch > 0.0,
                       merge_branch, false, false)
+    if maxiter > 0
+        # Optionally grow the circuit by Strudel.
+        loss(x) = heuristic_loss(x, D)
+        C = struct_learn(C; primitives = [split_step], kwargs = Dict(split_step => (loss = loss,)),
+                         maxiter, verbose = false)
+    end
     !randomize_weights && estimate_parameters(C, D; pseudocount)
     return C
 end
