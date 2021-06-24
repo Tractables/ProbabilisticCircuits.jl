@@ -1,3 +1,5 @@
+export Ensemble, ensemble_sample_psdd, sample_vtree
+
 using ThreadPools
 
 """Split `X` into two partitions `A` and `B`, where `A` is a Bernoulli sample of each element in
@@ -25,7 +27,6 @@ function sample_vtree(n::Int, p::Float64)::Vtree
     end
     return p < 0 ? Vtree(n, :random) : passdown(shuffle!(collect(1:n)))
 end
-export sample_vtree
 
 "Weighted ensemble of probabilistic circuits."
 mutable struct Ensemble{T <: ProbCircuit}
@@ -70,7 +71,6 @@ function ensemble_sample_psdd(n::Integer, ϕ::Diagram, k::Int, D::DataFrame; vtr
     @assert strategy == :uniform "Unrecognized ensemble strategy."
     return E
 end
-export ensemble_sample_psdd
 
 "Learns the weights of the Ensemble by the likelihood value of data `D`."
 function learn_ensemble_llw!(E::Ensemble{T}, D::DataFrame)::Ensemble{T} where T <: ProbCircuit

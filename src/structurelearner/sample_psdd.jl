@@ -1,3 +1,5 @@
+export sample_psdd
+
 using StatsFuns
 using BinaryDecisionDiagrams: Diagram, BinaryDecisionDiagrams
 const BDD = BinaryDecisionDiagrams
@@ -134,7 +136,6 @@ Samples a PSDD from a BDD `ϕ` and vtree `V` with at most `k` elements in each d
     !randomize_weights && estimate_parameters(C, D; pseudocount)
     return C
 end
-export sample_psdd
 
 function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, StructProbLiteralNode},
         randomize_weights::Bool, opts::SamplingOpts, fact_on_⊤::Bool, ⊤_k::Integer, p_mr::Real,

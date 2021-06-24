@@ -1,3 +1,5 @@
+export BayesModelComb, bmc_sample_psdd
+
 using Distributions: Dirichlet
 
 "Bayesian Model Combination."
@@ -46,7 +48,6 @@ function bmc_sample_psdd(n::Integer, ϕ::Diagram, k::Integer, D::DataFrame, q::I
     LL .= LL ./ sum(LL)
     return BayesModelComb(E, log.(LL))
 end
-export bmc_sample_psdd
 
 function weighted_query(B::BayesModelComb{T}, D::DataFrame, f::Function; kwargs...)::Vector{Float64} where T <: ProbCircuit
     n, m = nrow(D), length(B.E)
