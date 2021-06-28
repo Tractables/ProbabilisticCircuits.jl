@@ -3,7 +3,7 @@ using ProbabilisticCircuits
 using DataFrames
 using BinaryDecisionDiagrams: Diagram, BinaryDecisionDiagrams
 const BDD = BinaryDecisionDiagrams
-import LogicCircuits: Vtree
+import LogicCircuits: Vtree, respects_vtree
 
 @testset "SamplePSDD tests" begin
     # Set up a logic constraint ϕ as a BDD and scope size n. Sample m PSDDs.
@@ -23,6 +23,14 @@ import LogicCircuits: Vtree
         end
         T = DataFrame(M)
         for i ∈ 1:m
+            # Test smoothness.
+            @test issmooth(C[i])
+            # Test decomposability.
+            @test isdecomposable(C[i])
+            # Test determinism.
+            @test isdeterministic(C[i])
+            # Tests if respects vtree.
+            @test respects_vtree(C[i], C[i].vtree)
             # Test consistency.
             @test (EVI(C[i], T) .> -Inf) == ϕ.(eachrow(M))
             # Test probabilities.

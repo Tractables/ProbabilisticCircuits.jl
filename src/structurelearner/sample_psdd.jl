@@ -147,11 +147,11 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
         if merge_this && (merge_branch_pr > rand()) && haskey(repeats, r_p) return repeats[r_p] end
     end
     if isleaf(V)
-        v, v64 = convert(Int32, V.var), convert(Int, V.var)
+        v = convert(Int32, V.var)
         if v ∈ ϕ
             if BDD.is_lit(ϕ) return get_lit(BDD.to_lit(ϕ), V, leaves) end
-            if BDD.is_⊤(ϕ|v64) return get_lit(v, V, leaves) end
-            if BDD.is_⊤(ϕ|-v64) return get_lit(-v, V, leaves) end
+            if BDD.is_⊤(ϕ|v) return get_lit(v, V, leaves) end
+            if BDD.is_⊤(ϕ|-v) return get_lit(-v, V, leaves) end
             S = StructSumNode([get_lit(v, V, leaves), get_lit(-v, V, leaves)], V)
             if merge_branch repeats[r_p] = S end
             if randomize_weights S.log_probs = random_weights(2) end
