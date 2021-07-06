@@ -1,6 +1,7 @@
 export BayesModelComb, bmc_sample_psdd
 
 using Distributions: Dirichlet
+using ..Utils: sample_vtree
 
 "Bayesian Model Combination."
 mutable struct BayesModelComb{T <: ProbCircuit}

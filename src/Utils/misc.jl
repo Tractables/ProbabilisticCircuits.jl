@@ -1,6 +1,6 @@
 export to_long_mi, logsumexp_cuda,
     pop_cuda!, push_cuda!, all_empty, length_cuda,
-    generate_all, generate_data_all
+    generate_all, generate_data_all, kfold
 
 using DataFrames
 using CUDA: CUDA
@@ -122,4 +122,35 @@ function generate_data_all(N::Int)
         );
     end
     DataFrame(data_all, :auto)
+end
+
+#####################
+# K-fold partitioning
+#####################
+
+"Returns a(n index) partitioning a la k-fold."
+function kfold(n::Int, p::Int)::Vector{Tuple{UnitRange, Vector{Int}}}
+    F = Vector{Tuple{UnitRange, Vector{Int}}}(undef, p)
+    j = s = 1
+    k = n÷p
+    for i ∈ 1:n%p
+        if s > 1
+            I = collect(1:s-1)
+            if s+k < n append!(I, s+k+1:n) end
+        else I = collect(s+k+1:n) end
+        F[j] = (s:s+k, I)
+        s += k+1
+        j += 1
+    end
+    k = n÷p-1
+    for i ∈ 1:p-n%p
+        if s > 1
+            I = collect(1:s-1)
+            if s+k < n append!(I, s+k+1:n) end
+        else I = collect(s+k+1:n) end
+        F[j] = (s:s+k, I)
+        s += k+1
+        j += 1
+    end
+    return F
 end

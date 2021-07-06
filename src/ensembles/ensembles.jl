@@ -1,32 +1,7 @@
 export Ensemble, ensemble_sample_psdd, sample_vtree
 
+using ..Utils: sample_vtree, kfold
 using ThreadPools
-
-"""Split `X` into two partitions `A` and `B`, where `A` is a Bernoulli sample of each element in
-`X` with probability `p` and `B=X∖A`. Guarantees at least one element in `A` and `B`."""
-function bernoulli_partition(X::Vector{Int}, p::Float64)::Tuple{Vector{Int}, Vector{Int}}
-    n = length(X)
-    a = rand(1:n)
-    b = ((rand(0:n-2)+a)%n)+1
-    A, B = Int[X[a]], Int[X[b]]
-    for (i, x) ∈ enumerate(X)
-        if i == a continue end
-        if i == b continue end
-        if rand() > p push!(B, x)
-        else push!(A, x) end
-    end
-    return A, B
-end
-
-"Samples a Vtree with a right bias of `p`. If `p<0`, then uniformly sample vtrees."
-function sample_vtree(n::Int, p::Float64)::Vtree
-    passdown(x::Int)::Vtree = PlainVtreeLeafNode(x)
-    function passdown(X::Vector{Int})::Vtree
-        R, L = bernoulli_partition(X, p)
-        return Vtree(passdown(length(L) == 1 ? L[1] : L), passdown(length(R) == 1 ? R[1] : R))
-    end
-    return p < 0 ? Vtree(n, :random) : passdown(shuffle!(collect(1:n)))
-end
 
 "Weighted ensemble of probabilistic circuits."
 mutable struct Ensemble{T <: ProbCircuit}
@@ -108,33 +83,6 @@ function learn_ensemble_em!(E::Ensemble{T}, D::DataFrame; maxiter::Integer = 100
         verbose && println("EM Iteration ", j, "/", maxiter, ". Log likelihood ", sum(ll))
     end
     return E
-end
-
-"Returns a(n index) partitioning a la k-fold."
-function kfold(n::Int, p::Int)::Vector{Tuple{UnitRange, Vector{Int}}}
-    F = Vector{Tuple{UnitRange, Vector{Int}}}(undef, p)
-    j = s = 1
-    k = n÷p
-    for i ∈ 1:n%p
-        if s > 1
-            I = collect(1:s-1)
-            if s+k < n append!(I, s+k+1:n) end
-        else I = collect(s+k+1:n) end
-        F[j] = (s:s+k, I)
-        s += k+1
-        j += 1
-    end
-    k = n÷p-1
-    for i ∈ 1:p-n%p
-        if s > 1
-            I = collect(1:s-1)
-            if s+k < n append!(I, s+k+1:n) end
-        else I = collect(s+k+1:n) end
-        F[j] = (s:s+k, I)
-        s += k+1
-        j += 1
-    end
-    return F
 end
 
 "Learns the weights of the Ensemble by Stacking, with `k` as the number of folds in k-fold."
