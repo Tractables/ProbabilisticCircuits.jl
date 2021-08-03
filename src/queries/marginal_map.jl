@@ -1,7 +1,7 @@
 export forward_bounds, edge_bounds, prune_mpe, 
     do_pruning, rep_mpe_pruning, gen_edges, brute_force_mmap, associated_with_mult,
     add_and_split, remove_unary_gates, pc_condition, get_margs, normalize_params, bottomup_renorm_params,
-    map_mpe_random
+    map_mpe_random, keep_params
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -77,7 +77,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet)
     implied_literals(root, impl_lits)
     counters = Dict("max" => 0, "sum" => 0)
     ret = forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits, counters)
-    # @show counters
+    @show counters
     ret
 end
 
@@ -239,22 +239,24 @@ end
 
 "Add a unary parent node and then split on a variable"
 
-function add_and_split(root, var)
+function add_and_split(root, var, quer)
     new_and = PlainMulNode([root])
     new_root = PlainSumNode([new_and])
     df = DataFrame(missings(Bool, 1, num_variables(root)))
     df[1, var] = true
     # @show df
-    # @show pos_mar = MAR(root, df)
+    pos_mar = MAR(root, df)
     
     split_root = split(new_root, (new_root, new_and), Var(var), callback=keep_params, keep_unary=true)[1]
-        # split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
+    split_root.log_probs = [pos_mar[1], log(1-exp(pos_mar[1]))]
     data_marg = DataFrame(repeat([missing], 1, num_variables(root)))
     mp, mappr = MAP(root, data_marg)
     @show mappr
-    split_root = bottomup_renorm_params(split_root)
+    # println("Forward bound at root (post split): $(forward_bounds(root, quer)[root])")
+    # split_root = bottomup_renorm_params(split_root)
     mp, mappr = MAP(root, data_marg)
     @show mappr
+    println("Forward bound at root (post renorm): $(forward_bounds(root, quer)[root])")
 
     split_root = remove_unary_gates(split_root)
     mp, mappr = MAP(root, data_marg)
@@ -262,30 +264,12 @@ function add_and_split(root, var)
     split_root
 end
 
-"Function to pass to condition so that it maintains and normalizes parameters"
-function fix_params(new_n, n, kept)
-    total_prob = reduce(logaddexp, n.log_probs[kept])
-    new_n.log_probs = map(x -> x - total_prob, n.log_probs[kept])
-end
 
 "Function to pass to condition so that it maintains parameters"
 function keep_params(new_n, n, kept)
     new_n.log_probs = n.log_probs[kept]
 end
 
-"Normalize params"
-function normalize_params(root)
-    f_con(n) = n
-    f_lit(n) = n
-    f_a(n, cn) = multiply([cn...])
-    f_o(n, cn) = begin
-        ret = summate([cn...])
-        total_prob = reduce(logaddexp, n.log_probs)
-        ret.log_probs = map(x -> x - total_prob, n.log_probs)
-        ret
-    end
-    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
-end
 
 "Do a bottom up pass to renormalize parameters, correctly propagating
 This follows algorithm 1 from 'On Theoretical Properties of Sum-Product Networks'"
@@ -366,7 +350,7 @@ function map_mpe_random(root, quer)
         mp, mappr = MAP(root, data_marg)
         @show mappr
 
-        root = add_and_split(root, to_split)
+        root = add_and_split(root, to_split, quer) # TODO: remove quer from add and split arguments
         println("Splitting on $(to_split) gives $(num_edges(root)) edges and $(num_nodes(root)) nodes.")
         deleteat!(splittable, split_ind)
     end
