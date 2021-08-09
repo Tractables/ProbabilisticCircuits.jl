@@ -15,11 +15,11 @@ bagging support: If `pc` is a SharedProbCircuit and data is an array of DataFram
   dataset.
 """
 function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = false, entropy_reg::Float64 = 0.0)
+                             use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), entropy_reg::Float64 = 0.0)
     estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu, entropy_reg)
 end
 function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = false, entropy_reg::Float64 = 0.0)
+                             use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), entropy_reg::Float64 = 0.0)
     @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
     
     map(1 : num_components(spc)) do component_idx
@@ -28,7 +28,7 @@ function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
     end
 end
 function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
-                                            use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                            use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                             component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
     if isweighted(data)
         # `data' is weighted according to its `weight' column
@@ -364,7 +364,7 @@ end
 Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
     if update_per_batch && isbatched(data)
         estimate_parameters_em_per_batch(pc, data; pseudocount, entropy_reg,
@@ -407,7 +407,7 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, ent
     end
 end
 function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                          use_sample_weights::Bool = true, use_gpu::Bool = false, exp_update_factor = 0.0)
+                                          use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), exp_update_factor = 0.0)
     if isgpu(data)
         use_gpu = true
     elseif use_gpu && !isgpu(data)
@@ -433,7 +433,7 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
     pbc.params
 end
 function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                use_sample_weights::Bool = true, use_gpu::Bool = false,
+                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
                                 exp_update_factor = 0.0
                                )
