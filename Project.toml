@@ -29,7 +29,7 @@ TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 [compat]
 CUDA = "2, 3.0"
 Clustering = "0.14"
-DataFrames = "0.21, 0.22"
+DataFrames = "0.21, 0.22, 1"
 DataStructures = "0.17, 0.18"
 LightGraphs = "1.3"
 LogicCircuits = "0.2.3"
