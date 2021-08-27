@@ -53,11 +53,12 @@ First, we randomly make some features go `missing` (you can also use `make_missi
 
 ```@example queries
 using DataFrames
-function make_missing(d::DataFrame;keep_prob=0.8)
+using Tables
+function make_missing(d::DataFrame; keep_prob=0.8)
     m = missings(Bool, num_examples(d), num_features(d))
     flag = rand(num_examples(d), num_features(d)) .<= keep_prob
-    m[flag] .= Matrix(d)[flag]
-    DataFrame(m)
+    m[flag] .= Tables.matrix(d)[flag]
+    DataFrame(m, :auto)
 end;
 data_miss = make_missing(data[1:1000,:]);
 nothing #hide
@@ -125,7 +126,7 @@ Additionally, we can do conditional samples ``x \sim p(x \mid x^o)``, where ``x^
 
 ```@example queries
 #3 random evidences for the examples
-evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))))
+evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))), :auto)
 
 samples, lls = sample(pc, 3, evidence);
 lls
@@ -148,7 +149,7 @@ rc = zoo_lc("insurance.circuit", 1)
 
 # Using samples from circuit for the example; replace with real data
 data, _ = sample(pc, 10);
-data = make_missing(DataFrame(data));
+data = make_missing(DataFrame(data, :auto));
 
 exps, exp_cache = Expectation(pc, rc, data)
 
