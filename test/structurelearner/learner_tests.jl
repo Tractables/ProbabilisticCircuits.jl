@@ -26,7 +26,7 @@ using CUDA
     data = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
                         1 1 1 1 1 1 1 1 1 1;
                         0 0 0 0 0 0 0 0 0 0;
-                        0 1 1 0 1 0 0 1 0 1]))
+                        0 1 1 0 1 0 0 1 0 1]), :auto)
 
     @test_throws "Unknown type of strategy" learn_chow_liu_tree_circuit(data; 
         pseudocount=0.0, algo_kwargs=(α=0.0, clt_root="graph_center"), vtree_kwargs=(vtree_mode="",))
@@ -50,7 +50,7 @@ using CUDA
     @test log_likelihood_avg(pc3, data) ≈ -3.0466585640216746 atol=1e-6
 
     # Test when there are more iterations than candidates.
-    data = DataFrame(convert(BitArray, rand(Bool, 100, 4)))
+    data = DataFrame(convert(BitArray, rand(Bool, 100, 4)), :auto)
     @test_nowarn pc = learn_circuit(data; maxiter = 100, verbose = false)
 end
 
@@ -58,7 +58,7 @@ end
 @testset "learn from missing data tests" begin
     # Test for learning from missing data
     Random.seed!(10007) # Fix Seed for the test
-    data = DataFrame(convert(BitArray, rand(Bool, 200, 15)))
+    data = DataFrame(convert(BitArray, rand(Bool, 200, 15)), :auto)
     data_miss = make_missing_mcar(data; keep_prob=0.9)
 
     @test_broken pc_miss = learn_circuit_miss(data_miss; maxiter=30, verbose=false)

@@ -7,7 +7,7 @@ using DataFrames
     data = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
             1 1 1 1 1 1 1 1 1 1;
             0 0 0 0 0 0 0 0 0 0;
-            0 1 1 0 1 0 0 1 0 1]))
+            0 1 1 0 1 0 0 1 0 1]), :auto)
     pc1, vtree1 = learn_chow_liu_tree_circuit(data)
     @test_throws Exception heuristic_loss(pc1, data;pick_edge="", pick_var="")
     @test_throws Exception heuristic_loss(pc1, data;pick_edge="eFlow", pick_var="")

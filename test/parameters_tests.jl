@@ -7,7 +7,7 @@ using CUDA: CUDA
 @testset "MLE tests" begin
     
     # Binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     estimate_parameters(r,dfb; pseudocount=1.0)
@@ -31,14 +31,14 @@ end
 
 @testset "Weighted MLE tests" begin
     # Binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
     weights = [0.6, 0.6, 0.6]
     wdfb = weigh_samples(dfb, weights)
     
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     
     estimate_parameters(r,wdfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
@@ -73,14 +73,14 @@ end
 
 @testset "Batched MLE tests" begin
     # Binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     # Weighted binary dataset
     weights = [0.6, 0.6, 0.6]
     wdfb = weigh_samples(dfb, weights)
     
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     
     # Batched dataset
     batched_wdfb = batch(wdfb, 1)
@@ -119,25 +119,25 @@ end
 
 @testset "Soft MLE test" begin
     # Batched binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = DataFrame(BitMatrix([true false; true true; false false]), :auto)
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
     batched_dfb = batch(dfb, 1)
     
     # Batched weighted binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = DataFrame(BitMatrix([true false; true true; false false]), :auto)
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
     weights = [0.6, 0.6, 0.6]
     wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
     
     # Weighted binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = DataFrame(BitMatrix([true false; true true; false false]), :auto)
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
     weights = [0.6, 0.6, 0.6]
     wdfb = weigh_samples(dfb, weights)
     
     # Binary dataset
-    dfb = DataFrame(BitMatrix([true false; true true; false false]))
+    dfb = DataFrame(BitMatrix([true false; true true; false false]), :auto)
     dfb = soften(dfb, 0.001; scale_by_marginal = false)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -195,7 +195,7 @@ end
 end
 
 @testset "EM tests" begin
-    data = DataFrame([true missing])
+    data = DataFrame([true missing], :auto)
     vtree2 = PlainVtree(2, :balanced)
     pc = fully_factorized_circuit(StructProbCircuit, vtree2).children[1]
     uniform_parameters(pc)
@@ -205,7 +205,7 @@ end
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
 
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     uniform_parameters(r)
     estimate_parameters(r,dfb; pseudocount=1.0)
@@ -228,7 +228,7 @@ end
         
         @test all(paras1 .≈ paras2)
         
-        data = DataFrame([true missing; false missing])
+        data = DataFrame([true missing; false missing], :auto)
         r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
         
         uniform_parameters(r)
@@ -244,7 +244,7 @@ end
 end
 
 @testset "Weighted EM tests" begin
-    data = DataFrame([true missing])
+    data = DataFrame([true missing], :auto)
     weights = DataFrame(weight = [1.0])
     wdata = hcat(data, weights)
     
@@ -257,7 +257,7 @@ end
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
 
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     weights = DataFrame(weight = [0.6, 0.6, 0.6])
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -280,7 +280,7 @@ end
         
         @test all(paras1 .≈ paras2)
         
-        data = DataFrame([true missing; false missing])
+        data = DataFrame([true missing; false missing], :auto)
         weights = DataFrame(weight = [0.6, 0.6])
         wdata = hcat(data, weights)
         r = fully_factorized_circuit(ProbCircuit, num_features(wdata))
@@ -298,7 +298,7 @@ end
 end
 
 @testset "Batched EM tests" begin
-    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]), :auto)
     batched_dfb = batch(dfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -311,7 +311,7 @@ end
     paras2 = ParamBitCircuit(r, dfb).params
     @test all(paras1 .≈ paras2)
     
-    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]), :auto)
     weights = [0.6, 0.6, 0.6, 0.6]
     wdfb = weigh_samples(dfb, weights)
     batched_wdfb = batch(wdfb, 1)
@@ -351,7 +351,7 @@ end
         
         @test all(paras1 .≈ paras2)
         
-        data = DataFrame([true missing; false missing])
+        data = DataFrame([true missing; false missing], :auto)
         r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
         batched_data = batch(data, 1)
         
@@ -368,7 +368,7 @@ end
 end
 
 @testset "EM update per batch tests" begin
-    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true; true true]), :auto)
     batched_dfb = batch(dfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
@@ -388,7 +388,7 @@ end
 
 @testset "Bagging tests" begin
     # Binary dataset
-    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
+    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
     bag_dfb = Vector{DataFrame}(undef, 2)
@@ -419,7 +419,7 @@ end
 end
 
 @testset "Entropy regularization tests" begin
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
@@ -454,7 +454,7 @@ end
 end
 
 @testset "EM Entropy regularization tests" begin
-    dfb = DataFrame(BitMatrix([true false; true true; false true]))
+    dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);

@@ -108,7 +108,7 @@ function generate_all(row::Vector)
             result[mask+1,:] = cur
         end
     end
-    DataFrame(result)
+    DataFrame(result, :auto)
 end
 
 """
@@ -121,5 +121,5 @@ function generate_data_all(N::Int)
             transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
         );
     end
-    DataFrame(data_all)
+    DataFrame(data_all, :auto)
 end

@@ -27,7 +27,7 @@ sample(pc::ProbCircuit, num_samples, inputs::Union{Bool,Missing}...;
 
 function sample(pc::ProbCircuit, num_samples, inputs::AbstractVector{Union{Bool,Missing}}; 
                 rng = default_rng(), gpu=false)
-    data = DataFrame(reshape(inputs, 1, :))
+    data = DataFrame(reshape(inputs, 1, :), :auto)
     data = gpu ? to_gpu(data) : data
     states, prs = sample(pc, num_samples, data; rng)
     return states[:,1,:], prs[:,1]
