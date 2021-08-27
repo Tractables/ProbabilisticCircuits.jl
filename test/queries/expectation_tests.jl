@@ -4,6 +4,7 @@ using ProbabilisticCircuits
 using DataFrames
 using CUDA
 using Random
+using Tables
 
 function test_expectation_brute_force(pc::ProbCircuit, lc::LogisticCircuit, data, CLASSES::Int)
     Random.seed!(124)
@@ -109,9 +110,9 @@ end
             missing missing 0 1;
             missing missing missing 1;
             missing missing missing 0;
-            ])
+            ], :auto)
             
-    data = DataFrame(map(x -> (ismissing(x) ? missing : Bool(x)) , Matrix(data)))
+    data = DataFrame(map(x -> (ismissing(x) ? missing : Bool(x)) , Tables.matrix(data)), :auto)
     test_expectation_brute_force(pc, lc, data, CLASSES)
 
     # Big circuit (15 Var)
@@ -123,7 +124,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = DataFrame(rand( (missing,true,false), (COUNT, N) ))
+    data = DataFrame(rand( (missing,true,false), (COUNT, N) ), :auto)
     
     test_expectation_brute_force(pc, lc, data, CLASSES)
 end
@@ -139,7 +140,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = DataFrame(rand( (missing,true,false), (COUNT, N) ))
+    data = DataFrame(rand( (missing,true,false), (COUNT, N) ), :auto)
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
     test_moment_brute_force(pc, lc, data, CLASSES, 2)
@@ -157,7 +158,7 @@ end
 
     pc = zoo_psdd(psdd_file);
     lc = zoo_lc(logistic_file, CLASSES);
-    data = DataFrame(rand( (missing,true,false), (COUNT, N) ))
+    data = DataFrame(rand( (missing,true,false), (COUNT, N) ), :auto)
 
     test_moment_brute_force(pc, lc, data, CLASSES, 1)
     test_moment_brute_force(pc, lc, data, CLASSES, 2)

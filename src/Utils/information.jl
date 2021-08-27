@@ -4,6 +4,7 @@ using Statistics
 using StatsFuns: xlogx, xlogy
 using LogicCircuits: issomething
 using CUDA: CUDA, CuMatrix, CuVector, CuArray
+using Tables
 
 
 "Cache pairwise / marginal distribution for all variables in one dataset"
@@ -25,8 +26,8 @@ function cache_distributions(bm, w::Union{Nothing, Vector}=nothing; α, flag=(pa
     # parameters
     D = size(bm)[2]
     N = issomething(w) ? sum(w) : size(bm)[1]
-    m = convert(Matrix{Float64}, bm)
-    notm = convert(Matrix{Float64}, .!bm)
+    m = Matrix{Float64}(Tables.matrix(bm))
+    notm = Matrix{Float64}(Tables.matrix(.!bm))
 
     dis_cache = DisCache(D)
     base = N + 4 * α

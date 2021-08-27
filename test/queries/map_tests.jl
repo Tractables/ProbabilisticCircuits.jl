@@ -9,7 +9,7 @@ include("../helper/gpu.jl")
 @testset "MAP regression test" begin
     a,b = pos_literals(ProbCircuit, 2)
     circuit = 0.6 * (a * (.5 * b + .5 * -b)) + .4 * (-a * (0.9 * b + .1 * -b))
-    no_data = DataFrame(Union{Bool,Missing}[missing missing])
+    no_data = DataFrame(Union{Bool,Missing}[missing missing], :auto)
     maps, mappr = MAP(circuit, no_data)
     @test mappr[1] ≈ log(0.4 * 0.9)
     @test maps[1,1] == false && maps[1,2] == true
@@ -30,7 +30,7 @@ include("../helper/gpu.jl")
         map_prob(circuit, d)
     end
     
-    complete_states = DataFrame([true true; true false; false true; false false])
+    complete_states = DataFrame([true true; true false; false true; false false], :auto)
     mar = MAR(circuit, complete_states)
     @test all(mappr .> mar .- 1e-6)
 end
@@ -56,7 +56,7 @@ end
                       false false false missing; 
                       missing true false missing; 
                       missing missing missing missing; 
-                      false missing missing missing])
+                      false missing missing missing], :auto)
 
     map, mappr = MAP(prob_circuit, data_marg)
 

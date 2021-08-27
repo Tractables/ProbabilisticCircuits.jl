@@ -21,7 +21,7 @@ max_a_posteriori(root::ProbCircuit, data::Union{Bool,Missing}...) =
     max_a_posteriori(root, collect(Union{Bool,Missing}, data))
 
 max_a_posteriori(root::ProbCircuit, data::Union{Vector{<:Union{Bool,Missing}},CuVector{UInt8}}) = begin
-    map, prob = max_a_posteriori(root, DataFrame(reshape(data, 1, :)))
+    map, prob = max_a_posteriori(root, DataFrame(reshape(data, 1, :), :auto))
     example(map, 1), prob[1]
 end
     
@@ -66,7 +66,7 @@ map_prob(root::ProbCircuit, data::Union{Real,Missing}...) =
     map_prob(root, collect(Union{Bool,Missing}, data))
 
 map_prob(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
-    map_prob(root, DataFrame(reshape(data, 1, :)))[1]
+    map_prob(root, DataFrame(reshape(data, 1, :), :auto))[1]
 
 map_prob(circuit::ProbCircuit, data::DataFrame) =
     map_prob(same_device(ParamBitCircuit(circuit, data), data) , data)
@@ -204,7 +204,7 @@ function map_down(pbc, data, values::Array)
     Threads.@threads for ex_id = 1:size(state,1)
         map_rec(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), ex_id, num_nodes(pbc), values, state)
     end
-    df = DataFrame(state)
+    df = DataFrame(state, :auto)
     mapcols!(c -> BitVector(c), df)
     return df
 end
@@ -235,7 +235,7 @@ function map_down(pbc, data, values::CuArray)
         @cuda threads=num_threads blocks=num_blocks map_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, stack)
     end
     # do the conversion to a CuBitVector on the CPU...
-    df = DataFrame(to_cpu(state))
+    df = DataFrame(to_cpu(state), :auto)
     mapcols!(c -> to_gpu(BitVector(c)), df)
     return df
 end

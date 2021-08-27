@@ -40,7 +40,7 @@ using DataFrames: DataFrame
     input = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
                 1 1 1 1 1 1 1 1 1 1;
                 0 0 0 0 0 0 0 0 0 0;
-                0 1 1 0 1 0 0 1 0 1]))
+                0 1 1 0 1 0 0 1 0 1]), :auto)
     @test satisfies(f,input) == BitVector([1,1,1,1])
 
     plainf = PlainLogicCircuit(f) 
@@ -132,7 +132,7 @@ using DataFrames: DataFrame
             @test isdecomposable(psdd)
             @test isdeterministic(psdd)
             @test respects_vtree(psdd, vtree)
-            data = DataFrame(convert(BitMatrix, rand(Bool, 100, n_vars)))
+            data = DataFrame(convert(BitMatrix, rand(Bool, 100, n_vars)), :auto)
             @test all(sdd(data) .== (EVI(psdd, data) .!=  -Inf))
         end
         nothing

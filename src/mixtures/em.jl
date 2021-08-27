@@ -58,7 +58,7 @@ function clustering(data, mix_num::Int64; maxiter=200)::Vector
 
     clustered_data = Vector()
     for k in 1 : mix_num
-        push!(clustered_data, DataFrame(data[findall(x -> x == k, a), :]))
+        push!(clustered_data, DataFrame(data[findall(x -> x == k, a), :], :auto))
     end
 
     return clustered_data
