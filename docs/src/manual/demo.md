@@ -3,7 +3,7 @@
 
 In this section, we provide quick code snippets to get started with ProbabilisticCircuits and provide basic understanding of them. PCs are represented as a computational graphs that define a joint probability distribution as recursive mixtures (sum units) and factorizations (product units) of simpler distributions (input units).
 
-Generally, we learn structure and paramters of circuit from data. Alternatively, we can also specify circuits in code. For example, the following snippet defines a circuit depending on 3 random variables. The `literals` function returns the input units of the circuit, in this case we get 6 different units (3 for positive literals, and 3 for negative literlas).  You can use `*` and `+` operators to build a circuits.
+Generally, we learn structure and parameters of circuit from data. Alternatively, we can also specify circuits in code. For example, the following snippet defines a circuit depending on 3 random variables. The `literals` function returns the input units of the circuit, in this case we get 6 different units (3 for positive literals, and 3 for negative literlas).  You can use `*` and `+` operators to build a circuits.
 
 ```@example demo
 using LogicCircuits;
@@ -18,7 +18,7 @@ pc = 0.3 * (X1[1] *
 nothing # hide
 ```
 
-We can also plot circuits using `plot(pc)` to see the computation graph (structure and paramters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. 
+We can also plot circuits using `plot(pc)` to see the computation graph (structure and parameters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. 
 
 ```@example demo
 using TikzPictures  # workaround
@@ -55,7 +55,7 @@ num_edges(pc)
 num_parameters(pc)
 ```
 
-In the case that we have literals as input units, PCs can also be thought of as adding paramters to a LogicCircuit to define a distribution (See `LogicCircuit.jl` docs for more details). To get the corresponding logical formula, we can:
+In the case that we have literals as input units, PCs can also be thought of as adding parameters to a LogicCircuit to define a distribution (See `LogicCircuit.jl` docs for more details). To get the corresponding logical formula, we can:
 
 ```@example demo
 tree_formula_string(pc)
