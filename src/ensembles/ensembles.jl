@@ -1,4 +1,5 @@
-export Ensemble, ensemble_sample_psdd, sample_vtree
+export Ensemble, ensemble_sample_psdd, sample_vtree, learn_ensemble_llw!, learn_ensemble_em!,
+       learn_ensemble_stacking!
 
 using ..Utils: sample_vtree, kfold
 using ThreadPools
@@ -24,7 +25,7 @@ Weights are computed by the given `strategy`. These can be any one of the follow
     3. `:em` for Expectation-Maximization;
     4. `:stacking` for mixture model Stacking;
 """
-function ensemble_sample_psdd(n::Integer, ϕ::Diagram, k::Int, D::DataFrame; vtree_bias::Real = -1.0,
+function ensemble_sample_psdd(n::Integer, ϕ::Bdd, k::Int, D::DataFrame; vtree_bias::Real = -1.0,
         strategy::Symbol = :em, verbose::Bool = true, em_maxiter::Integer = 100,
         kfold::Integer = min(nrow(D), 5), pseudocount::Real = 1.0, kwargs...)::Ensemble{StructProbCircuit}
     circs = Vector{StructProbCircuit}(undef, n)

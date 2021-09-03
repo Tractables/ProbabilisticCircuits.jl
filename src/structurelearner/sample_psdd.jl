@@ -1,8 +1,7 @@
 export sample_psdd
 
 using StatsFuns
-using BinaryDecisionDiagrams: Diagram, BinaryDecisionDiagrams
-const BDD = BinaryDecisionDiagrams
+using LogicCircuits
 
 "Samples an element from a Binomial distribution with p=0.5."
 function sample_row(n::Int)::Int
@@ -52,14 +51,13 @@ end
 """
 Samples a partial partition.
 """
-function sample_partition(ϕ::Diagram, Sc::BitSet, p::Real, k::Integer, ⊤_k::Integer,
-        exact::Bool)::Dict{Diagram, Vector{Diagram}}
-    X = intersect!(BDD.scope(ϕ), Sc)
-    idem = isempty(X) || BDD.is_⊤(ϕ)
+function sample_partition(ϕ::Bdd, Sc::BitSet, p::Real, k::Integer, ⊤_k::Integer, exact::Bool)::Dict{Bdd, Vector{Bdd}}
+    X = intersect!(scope(ϕ), Sc)
+    idem = isempty(X) || is_⊤(ϕ)
     O = shuffle!(idem ? collect(Sc) : X)
-    E = Dict{Diagram, Vector{Diagram}}()
+    E = Dict{Bdd, Vector{Bdd}}()
     if idem
-        E[ϕ] = Vector{Diagram}()
+        E[ϕ] = Vector{Bdd}()
         sample_idem_primes!(O, p, E[ϕ], ⊤_k)
     else sample_primes!(ϕ, O, E, k, exact) end
     return E
@@ -68,13 +66,13 @@ end
 """
 Samples primes for the ⊤ case.
 """
-function sample_idem_primes!(O::Vector{Int}, p::Real, P::Vector{Diagram}, k::Integer)
+function sample_idem_primes!(O::Vector{Int}, p::Real, P::Vector{Bdd}, k::Integer)
     e_count, Sc_len = 1, length(O)
     Q = Tuple{Int, Vector{Int}}[(1, Vector{Int}())]
     while !isempty(Q)
         i, V = popfirst!(Q)
         if e_count >= k || i > Sc_len
-            push!(P, BDD.and(V))
+            push!(P, and(V))
             continue
         end
         x = O[i]
@@ -93,23 +91,23 @@ end
 """
 Samples primes for partial partition.
 """
-function sample_primes!(ϕ::Diagram, O::Vector{Int}, E::Dict{Diagram, Vector{Diagram}}, k::Integer,
+function sample_primes!(ϕ::Bdd, O::Vector{Int}, E::Dict{Bdd, Vector{Bdd}}, k::Integer,
         exact::Bool)
     e_count, Sc_len = 1, length(O)
-    Q = Tuple{Diagram, Int, Vector{Int}}[(ϕ, 1, Vector{Int}())]
+    Q = Tuple{Bdd, Int, Vector{Int}}[(ϕ, 1, Vector{Int}())]
     while !isempty(Q)
         ψ, i, V = popfirst!(Q)
-        if (e_count >= k && !exact) || (i > Sc_len) || BDD.is_⊤(ψ)
-            if !haskey(E, ψ) E[ψ] = Diagram[BDD.and(V)]
-            else push!(E[ψ], BDD.and(V)) end
+        if (e_count >= k && !exact) || (i > Sc_len) || is_⊤(ψ)
+            if !haskey(E, ψ) E[ψ] = Bdd[and(V)]
+            else push!(E[ψ], and(V)) end
             continue
         end
         x = O[i]
         if x ∉ ψ push!(Q, (ψ, i+1, V))
         else
             α, β = ψ|x, ψ|-x
-            if !BDD.is_⊥(α) push!(Q, (α, i+1, push!(copy(V), x))) end
-            if !BDD.is_⊥(β) push!(Q, (β, i+1, push!(copy(V), -x))) end
+            if !is_⊥(α) push!(Q, (α, i+1, push!(copy(V), x))) end
+            if !is_⊥(β) push!(Q, (β, i+1, push!(copy(V), -x))) end
             e_count += 1
         end
     end
@@ -119,11 +117,11 @@ end
 """
 Samples a PSDD from a BDD `ϕ` and vtree `V` with at most `k` elements in each disjunction node.
 """
-@inline function sample_psdd(ϕ::Diagram, V::Vtree, k::Integer, D::DataFrame;
-        opts::SamplingOpts = full, randomize_weights::Bool = false, pseudocount::Real = 1.0,
-        fact_on_⊤::Bool = false, ⊤_k::Integer = k, p_mr::Real = 0.5, always_compress::Bool = false,
+@inline function sample_psdd(ϕ::Bdd, V::Vtree, k::Integer, D::DataFrame; opts::SamplingOpts = full,
+        randomize_weights::Bool = false, pseudocount::Real = 1.0, fact_on_⊤::Bool = false,
+        ⊤_k::Integer = k, p_mr::Real = 0.5, always_compress::Bool = false,
         always_merge::Bool = false, merge_branch::Real = 0.0, maxiter::Integer = 0)::StructProbCircuit
-    memo = Dict{Tuple{Vtree, Diagram}, StructSumNode}()
+    memo = Dict{Tuple{Vtree, Bdd}, StructSumNode}()
     C = sample_psdd_r(ϕ, V, k, Dict{Int32, StructProbLiteralNode}(), randomize_weights, opts,
                       fact_on_⊤, ⊤_k, p_mr, always_compress, always_merge, memo, merge_branch > 0.0,
                       merge_branch, false, false)
@@ -137,9 +135,9 @@ Samples a PSDD from a BDD `ϕ` and vtree `V` with at most `k` elements in each d
     return C
 end
 
-function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, StructProbLiteralNode},
+function sample_psdd_r(ϕ::Bdd, V::Vtree, k::Integer, leaves::Dict{Int32, StructProbLiteralNode},
         randomize_weights::Bool, opts::SamplingOpts, fact_on_⊤::Bool, ⊤_k::Integer, p_mr::Real,
-        always_compress::Bool, always_merge::Bool, repeats::Dict{Tuple{Vtree, Diagram}, StructSumNode},
+        always_compress::Bool, always_merge::Bool, repeats::Dict{Tuple{Vtree, Bdd}, StructSumNode},
         merge_this::Bool, merge_branch_pr::Float64, exact::Bool, anc_exact::Bool)::StructProbCircuit
     merge_branch = merge_branch_pr > 0.0
     if merge_branch
@@ -149,9 +147,9 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
     if isleaf(V)
         v = convert(Int32, V.var)
         if v ∈ ϕ
-            if BDD.is_lit(ϕ) return get_lit(BDD.to_lit(ϕ), V, leaves) end
-            if BDD.is_⊤(ϕ|v) return get_lit(v, V, leaves) end
-            if BDD.is_⊤(ϕ|-v) return get_lit(-v, V, leaves) end
+            if is_lit(ϕ) return get_lit(to_lit(ϕ), V, leaves) end
+            if is_⊤(ϕ|v) return get_lit(v, V, leaves) end
+            if is_⊤(ϕ|-v) return get_lit(-v, V, leaves) end
             S = StructSumNode([get_lit(v, V, leaves), get_lit(-v, V, leaves)], V)
             if merge_branch repeats[r_p] = S end
             if randomize_weights S.log_probs = random_weights(2) end
@@ -161,7 +159,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
         if merge_branch repeats[r_p] = S end
         if randomize_weights S.log_probs = random_weights(2) end
         return S
-    elseif fact_on_⊤ && (BDD.is_⊤(ϕ) || isempty(intersect!(BDD.scopeset(ϕ), variables(V))))
+    elseif fact_on_⊤ && (is_⊤(ϕ) || isempty(intersect!(scopeset(ϕ), variables(V))))
         # When ϕ ≡ ⊤ and we want to simplify the circuit, fully factorize.
         left = sample_psdd_r(⊤, V.left, k, leaves, randomize_weights, opts, fact_on_⊤, ⊤_k, p_mr,
                              always_compress, always_merge, repeats, merge_branch, merge_branch_pr,
@@ -177,8 +175,8 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
         C = Vector{StructProbCircuit}()
         # Left element.
         left_sub_ϕ = ϕ|prime_var
-        if !BDD.is_⊥(left_sub_ϕ)
-            left_prime = sample_psdd_r(BDD.variable(prime_var), V.left, k, leaves,
+        if !is_⊥(left_sub_ϕ)
+            left_prime = sample_psdd_r(bdd_var(prime_var), V.left, k, leaves,
                                        randomize_weights, opts, fact_on_⊤, ⊤_k, p_mr,
                                        always_compress, always_merge, repeats, merge_branch,
                                        merge_branch_pr, true, true)
@@ -188,8 +186,8 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
             push!(C, StructMulNode(left_prime, left_sub, V))
         end
         right_sub_ϕ = ϕ|-prime_var
-        if !BDD.is_⊥(right_sub_ϕ)
-            right_prime = sample_psdd_r(BDD.variable(-prime_var), V.left, k, leaves,
+        if !is_⊥(right_sub_ϕ)
+            right_prime = sample_psdd_r(bdd_var(-prime_var), V.left, k, leaves,
                                         randomize_weights, opts, fact_on_⊤, ⊤_k, p_mr,
                                         always_compress, always_merge, repeats, merge_branch,
                                         merge_branch_pr, true, true)
@@ -204,7 +202,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
         return S
     end
     L, R = variables(V.left), variables(V.right)
-    force_exact = (exact || anc_exact) && !BDD.is_⊤(ϕ)
+    force_exact = (exact || anc_exact) && !is_⊤(ϕ)
     E = sample_partition(ϕ, L, p_mr, k, ⊤_k, force_exact)
     C = Vector{StructProbCircuit}()
     for (s, P) ∈ E
@@ -217,7 +215,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
                                        merge_branch, merge_branch_pr, true, true)
             sub_node = sample_psdd_r(s, V.right, k, leaves, randomize_weights, opts, fact_on_⊤,
                                      ⊤_k, p_mr, always_compress, always_merge, repeats,
-                                     merge_branch && isempty(intersect!(BDD.scopeset(s), R)),
+                                     merge_branch && isempty(intersect!(scopeset(s), R)),
                                      merge_branch_pr, false, anc_exact)
             push!(C, StructMulNode(prime_node, sub_node, V))
             continue
@@ -230,7 +228,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
                                            merge_branch, merge_branch_pr, true, true)
                 sub_node = sample_psdd_r(s, V.right, k, leaves, randomize_weights, opts, fact_on_⊤,
                                          ⊤_k, p_mr, always_compress, always_merge, repeats,
-                                         merge_branch && isempty(intersect!(BDD.scopeset(s), R)),
+                                         merge_branch && isempty(intersect!(scopeset(s), R)),
                                          merge_branch_pr, false, anc_exact)
                 push!(C, StructMulNode(prime_node, sub_node, V))
             end
@@ -240,20 +238,20 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
         do_compress = Int(opts) & Int(compress) > 0
         if do_compress
             if always_compress
-                K = Tuple{Diagram, Vector{Int}}[(reduce(BDD.:∨, P), Int[1])]
+                K = Tuple{Bdd, Vector{Int}}[(reduce(∨, P), Int[1])]
             else
                 c = sample_row(n)
                 if c == n # Compress everyone.
-                    K = Tuple{Diagram, Vector{Int}}[(reduce(BDD.:∨, P), Int[1])]
+                    K = Tuple{Bdd, Vector{Int}}[(reduce(∨, P), Int[1])]
                 elseif c == 1 # Compress no one.
-                    K = Tuple{Diagram, Vector{Int}}[(P[i], Int[i]) for i ∈ 1:n]
+                    K = Tuple{Bdd, Vector{Int}}[(P[i], Int[i]) for i ∈ 1:n]
                 else # Compress c randomly selected elements.
-                    K = Vector{Tuple{Diagram, Vector{Int}}}(undef, n-c+1)
+                    K = Vector{Tuple{Bdd, Vector{Int}}}(undef, n-c+1)
                     comb = sample_comb(n, c)
-                    j, ψ = 2, BDD.⊥
+                    j, ψ = 2, ⊥
                     @inbounds for i ∈ 1:n
                         if i ∈ comb
-                            ψ = BDD.:∨(ψ, P[i])
+                            ψ = ψ ∨ P[i]
                         else
                             K[j] = (P[i], Int[j])
                             j += 1
@@ -263,7 +261,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
                 end
             end
         else
-            K = Vector{Tuple{Diagram, Vector{Int}}}(undef, n)
+            K = Vector{Tuple{Bdd, Vector{Int}}}(undef, n)
             @inbounds for i ∈ 1:n K[i] = (P[i], Int[i]) end
         end
         m = length(K)
@@ -298,7 +296,7 @@ function sample_psdd_r(ϕ::Diagram, V::Vtree, k::Integer, leaves::Dict{Int32, St
             if !isempty(M)
                 sub_node = sample_psdd_r(s, V.right, k, leaves, randomize_weights, opts, fact_on_⊤,
                                          ⊤_k, p_mr, always_compress, always_merge, repeats,
-                                         merge_branch && isempty(intersect!(BDD.scopeset(s), R)),
+                                         merge_branch && isempty(intersect!(scopeset(s), R)),
                                          merge_branch_pr, false, anc_exact)
                 for j ∈ M subs[j] = sub_node end
             end
