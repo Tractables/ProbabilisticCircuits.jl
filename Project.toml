@@ -4,7 +4,6 @@ authors = ["Guy Van den Broeck <guyvdb@cs.ucla.edu>"]
 version = "0.2.3"
 
 [deps]
-BinaryDecisionDiagrams = "cd45f48d-2bff-4983-a793-756749635bd1"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"

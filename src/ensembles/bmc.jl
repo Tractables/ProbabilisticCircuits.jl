@@ -10,7 +10,7 @@ mutable struct BayesModelComb{T <: ProbCircuit}
 end
 
 "Constructs a SamplePSDD BMC with `q*t` combinations, each with `n` models."
-function bmc_sample_psdd(n::Integer, ϕ::Diagram, k::Integer, D::DataFrame, q::Integer, t::Integer;
+function bmc_sample_psdd(n::Integer, ϕ::Bdd, k::Integer, D::DataFrame, q::Integer, t::Integer;
         reuse::Union{Vector{StructProbCircuit}, Nothing} = nothing, vtree_bias::Real = -1.0,
         α::Union{Vector{Float64}, Nothing} = nothing, verbose::Bool = true, kwargs...)::BayesModelComb{StructProbCircuit}
     if isnothing(α) α = ones(n) end

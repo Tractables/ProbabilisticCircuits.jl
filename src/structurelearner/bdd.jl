@@ -1,4 +1,4 @@
-export learn_bdd
+export learn_bdd, generate_from_bdd
 
 "Returns an increasing sorted right-linear vtree."
 function bdd_vtree!(V::AbstractVector{<:Integer})::Vtree
@@ -24,16 +24,16 @@ function factorize_reuse(X::Vector{Int}, L::Dict{Int32, StructProbLiteralNode}):
 end
 
 "Returns a structured probabilistic circuit compiled from a binary decision diagram."
-function generate_bdd(ϕ::Diagram, n::Integer)::StructProbCircuit
-    Sc = BDD.scope(ϕ)
+function generate_from_bdd(ϕ::Bdd, n::Integer)::StructProbCircuit
+    Sc = scope(ϕ)
     X = setdiff!(collect(1:n), Sc)
     U = bdd_vtree!(Sc)
     L = Dict{Int32, StructProbLiteralNode}()
     visited = Dict{UInt64, StructSumNode}()
-    function passdown(V::Vtree, α::Diagram)::StructProbCircuit
-        sh = hash((BDD.shallowhash(α), V))
+    function passdown(V::Vtree, α::Bdd)::StructProbCircuit
+        sh = hash((shallowhash(α), V))
         if haskey(visited, sh) return visited[sh] end
-        if BDD.is_⊤(α)
+        if is_⊤(α)
             if isleaf(V)
                 v = convert(Int32, V.var)
                 return StructSumNode([get_lit(-v, V, L), get_lit(v, V, L)], V)
@@ -44,7 +44,7 @@ function generate_bdd(ϕ::Diagram, n::Integer)::StructProbCircuit
                                   StructMulNode(get_lit(v, V.left, L), sub, V)], V)
         end
         v = convert(Int32, α.index)
-        if isleaf(V) && BDD.is_lit(α) return get_lit(BDD.to_lit(α), V, L) end
+        if isleaf(V) && is_lit(α) return get_lit(to_lit(α), V, L) end
         C = StructProbCircuit[]
         if V.left.var != v
             sub = passdown(V.right, α)
@@ -52,8 +52,8 @@ function generate_bdd(ϕ::Diagram, n::Integer)::StructProbCircuit
             push!(C, StructMulNode(get_lit(-v, V.left, L), sub, V))
             push!(C, StructMulNode(get_lit(v, V.left, L), sub, V))
         else
-            if !BDD.is_⊥(α.low) push!(C, StructMulNode(get_lit(-v, V.left, L), passdown(V.right, α.low), V)) end
-            if !BDD.is_⊥(α.high) push!(C, StructMulNode(get_lit(v, V.left, L), passdown(V.right, α.high), V)) end
+            if !is_⊥(α.low) push!(C, StructMulNode(get_lit(-v, V.left, L), passdown(V.right, α.low), V)) end
+            if !is_⊥(α.high) push!(C, StructMulNode(get_lit(v, V.left, L), passdown(V.right, α.high), V)) end
         end
         s = StructSumNode(C, V)
         visited[sh] = s
@@ -69,8 +69,8 @@ function generate_bdd(ϕ::Diagram, n::Integer)::StructProbCircuit
 end
 
 "Learns a structured probabilistic circuit consistent with a binary decision diagram `ϕ`."
-function learn_bdd(ϕ::Diagram, D::DataFrame; pseudocount::Real)::StructProbCircuit
-    pc = generate_bdd(ϕ, ncol(D))
+function learn_bdd(ϕ::Bdd, D::DataFrame; pseudocount::Real)::StructProbCircuit
+    pc = generate_from_bdd(ϕ, ncol(D))
     estimate_parameters(pc, D; pseudocount)
     return pc
 end
