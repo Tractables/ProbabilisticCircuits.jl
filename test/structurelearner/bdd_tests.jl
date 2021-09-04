@@ -1,7 +1,7 @@
 using Test
+using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
-import LogicCircuits
 
 @testset "BDD tests" begin
     # Set up a logic constraint ϕ as a BDD and scope size n. Sample m PSDDs.
@@ -13,9 +13,9 @@ import LogicCircuits
         # Assign random probabilities for each world in W.
         R = rand(1:20, size(W, 1))
         # Construct a dataset that maps the distribution of R (world W[i] repeats R[i] times).
-        D = DataFrame(vcat([repeat(W[i,:], 1, R[i])' for i ∈ 1:size(W, 1)]...))
+        D = DataFrame(vcat([repeat(W[i,:], 1, R[i])' for i ∈ 1:size(W, 1)]...), :auto)
         C = learn_bdd(ϕ, D; pseudocount = 0.0)
-        T = DataFrame(M)
+        T = DataFrame(M, :auto)
         # Test smoothness.
         @test issmooth(C)
         # Test decomposability.

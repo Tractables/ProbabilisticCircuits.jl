@@ -13,11 +13,11 @@ using LogicCircuits
         # Assign random probabilities for each world in W.
         R = rand(1:20, size(W, 1))
         # Construct a dataset that maps the distribution of R (world W[i] repeats R[i] times).
-        D = DataFrame(vcat([repeat(W[i,:], 1, R[i])' for i ∈ 1:size(W, 1)]...))
+        D = DataFrame(vcat([repeat(W[i,:], 1, R[i])' for i ∈ 1:size(W, 1)]...), :auto)
         # Learn ensemble of PSDDs from ϕ and D.
         E = ensemble_sample_psdd(m, ϕ, 16, D; strategy, pseudocount = 0.0, maxiter = 100,
                                  verbose = false, vtree_bias = 0.8)
-        T = DataFrame(M)
+        T = DataFrame(M, :auto)
         # Test consistency.
         @test (EVI(E, T) .> -Inf) == ϕ.(eachrow(M))
         # Test probabilities.
@@ -43,7 +43,7 @@ using LogicCircuits
         end
     end
     Rs = Vector{Ensemble{StructProbCircuit}}()
-    T = DataFrame(all_valuations(1:5))
+    T = DataFrame(all_valuations(1:5), :auto)
     @testset "Loading ensembles" begin
         for i ∈ 1:length(Es)
             E = load_as_ensemble("$tmp/$i.esbl"; quiet = true)
