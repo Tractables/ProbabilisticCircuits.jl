@@ -1,5 +1,6 @@
-export save_circuit, save_as_dot, save_as_psdd, save_as_logistic
+export save_circuit, save_as_dot, save_as_psdd, save_as_logistic, save_as_ensemble
 
+using ZipFile
 using LogicCircuits.LoadSave: SDDElement, 
     PSDDElement, 
     save_lines,
@@ -194,4 +195,30 @@ function save_as_dot(file::String, circuit::ProbCircuit)
     write(f, "}\n")
     flush(f)
     close(f)
+end
+
+"Save file as a .esbl ensemble file format."
+function save_as_ensemble(name::String, ensemble::Ensemble{StructProbCircuit}; quiet::Bool = false)
+    @assert endswith(name, ".esbl")
+    zip = ZipFile.Writer(name)
+    f_w = ZipFile.addfile(zip, "ensemble.meta")
+    n = length(ensemble.C)
+    write(f_w, "$(n)\n")
+    write(f_w, join(ensemble.W, ' '))
+    close(f_w)
+    function do_work(C::StructProbCircuit, i::Integer)
+        f_c = ZipFile.addfile(zip, "$(i).psdd")
+        save_as_psdd(f_c, C, C.vtree)
+        f_v = ZipFile.addfile(zip, "$(i).vtree")
+        save_vtree(f_v, C.vtree)
+        nothing
+    end
+    !quiet && print("Saving circuits...\n  ")
+    for (i, C) ∈ enumerate(ensemble.C)
+        do_work(C, i)
+        !quiet && print('*')
+    end
+    !quiet && print('\n')
+    close(zip)
+    nothing
 end

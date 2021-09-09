@@ -42,7 +42,7 @@ using Suppressor
     train_x = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
                                 1 1 1 1 1 1 1 1 1 1;
                                 0 0 0 0 0 0 0 0 0 0;
-                                0 1 1 0 1 0 0 1 0 1]))
+                                0 1 1 0 1 0 0 1 0 1]), :auto)
     @test_throws Exception learn_chow_liu_tree(train_x; α = 0.0, clt_root="")
     t1 = learn_chow_liu_tree(train_x; α=0.0, clt_root="graph_center")
     test_chow_liu_tree(t1, train_x)

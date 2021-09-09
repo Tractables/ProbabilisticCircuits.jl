@@ -4,7 +4,12 @@ name: Deploy Docs
 # events but only for the master branch
 on: 
   workflow_dispatch:
+  
   push:
+  
+  pull_request:
+    branches:
+      master
 
 
 env:

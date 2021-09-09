@@ -9,7 +9,7 @@ using Suppressor
     data = DataFrame(BitArray([1 0 1 0 1 0 1 0 1 0;
                                 1 1 1 1 1 1 1 1 1 1;
                                 0 0 0 0 0 0 0 0 0 0;
-                                0 1 1 0 1 0 0 1 0 1]))
+                                0 1 1 0 1 0 0 1 0 1]), :auto)
     num_v = num_features(data)
 
     # init

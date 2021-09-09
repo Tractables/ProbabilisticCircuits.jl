@@ -20,7 +20,7 @@ include("../helper/gpu.jl")
                       false false false missing;
                       missing true false missing;
                       missing missing missing missing;
-                      false missing missing missing])
+                      false missing missing missing], :auto)
     true_prob = [0.07; 0.03; 0.13999999999999999;
                     0.3499999999999; 0.1; 1.0; 0.8]
 
@@ -65,7 +65,7 @@ include("../helper/gpu.jl")
     # make sure log-likelihoods are -Inf when the input is not satisfied
     data = DataFrame([false true false missing;
                       false true true false;
-                      missing missing missing false])
+                      missing missing missing false], :auto)
     alltrue = multiply(pos_literals(ProbCircuit,4))
     @test all(MAR(alltrue, data) .== -Inf)
 
@@ -76,7 +76,7 @@ include("../helper/gpu.jl")
     # Strudel Marginal Flow Test
     rng = MersenneTwister(100003); # Fix the seed
     samples, _ = sample(prob_circuit, 100000; rng)
-    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
+    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples), :auto); num_mix = 10,
                                     init_maxiter = 20, em_maxiter = 100, verbose = false)
     mix_calc_prob = exp.(MAR(mix, data_marg, weights))
     for mix_pair in zip(true_prob, mix_calc_prob)
@@ -96,7 +96,7 @@ end
                       false false false missing;
                       missing true false missing;
                       missing missing missing missing;
-                      false missing missing missing])
+                      false missing missing missing], :auto)
     batched_data_marg = batch(data_marg, 1; shuffle = false)
 
     data_marg = DataFrame([false false false false;
@@ -105,7 +105,7 @@ end
                       false false false missing;
                       missing true false missing;
                       missing missing missing missing;
-                      false missing missing missing])
+                      false missing missing missing], :auto)
     weights = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
     data_marg_w = weigh_samples(data_marg, weights)
     batched_data_marg_w = batch(data_marg_w, 1)
@@ -119,7 +119,7 @@ end
                       false false false missing;
                       missing true false missing;
                       missing missing missing missing;
-                      false missing missing missing])
+                      false missing missing missing], :auto)
 
     calc_prob = exp.(MAR(prob_circuit, data_marg))
     @test true_prob ≈ calc_prob atol=1e-7
@@ -164,7 +164,7 @@ end
     end
 
     # Validating one example with missing features done by hand
-    data_partial = DataFrame([missing true missing true;])
+    data_partial = DataFrame([missing true missing true;], :auto)
     prob_circuit = zoo_psdd("little_4var.psdd");
     _, f, _ = marginal_flows(prob_circuit, data_partial)
     f = exp.(f)

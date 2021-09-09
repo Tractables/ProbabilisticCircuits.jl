@@ -14,7 +14,7 @@ include("../helper/gpu.jl")
     @test prob_circuit isa ProbCircuit;
 
     # Step 1. Check Probabilities for 3 samples
-    data = DataFrame(BitArray([0 0 0 0; 0 1 1 0; 0 0 1 1]));
+    data = DataFrame(BitArray([0 0 0 0; 0 1 1 0; 0 0 1 1]), :auto);
     true_prob = [0.07; 0.03; 0.13999999999999999]
 
     calc_prob = EVI(prob_circuit, data)
@@ -46,7 +46,7 @@ include("../helper/gpu.jl")
 
     # Test Sturdel EVI
     samples, _ = sample(prob_circuit, 100000)
-    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples)); num_mix = 10,
+    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples), :auto); num_mix = 10,
                                     init_maxiter = 20, em_maxiter = 100, verbose = false)
     mix_calc_prob = exp.(EVI(mix, data, weights))
 
@@ -60,7 +60,7 @@ include("../helper/gpu.jl")
 end
 
 @testset "Bagging models' likelihood" begin
-    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]))
+    dfb = DataFrame(BitMatrix([true true; true true; true true; true true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     # bag_dfb = bagging_dataset(dfb; num_bags = 2, frac_examples = 1.0)
     bag_dfb = Vector{DataFrame}(undef, 2)

@@ -6,5 +6,6 @@ module Utils
 
 include("misc.jl")
 include("information.jl")
+include("sample.jl")
 
 end #module

@@ -6,7 +6,7 @@ using CUDA: CUDA
 using Random
 
 @testset "Gradient-based learning tests" begin
-    dfb = DataFrame(BitMatrix([true true; false false]))
+    dfb = DataFrame(BitMatrix([true true; false false]), :auto)
     weights = DataFrame(weight = [2.0, 2.0])
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))

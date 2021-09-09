@@ -4,6 +4,7 @@ using ProbabilisticCircuits
 using Random: MersenneTwister
 using CUDA: functional
 using DataFrames
+using Tables
 
 include("../helper/gpu.jl")
 
@@ -62,7 +63,7 @@ end
     sample_states, sample_prs = sample(pc, num_samples, data_all; rng)
 
     for i in 1:num_samples
-        @test sample_states[i,:,:] == convert(Matrix,data_all)
+        @test sample_states[i,:,:] == Tables.matrix(data_all)
         @test sample_prs[i,:] ≈ loglikelihoods atol=1e-6
     end
     
@@ -85,7 +86,7 @@ end
                       false false false missing; 
                       missing true false missing; 
                       missing missing missing missing; 
-                      false missing missing missing])
+                      false missing missing missing], :auto)
 
     _, map_pr = MAP(pc, data_marg)
 
@@ -94,7 +95,7 @@ end
     for i in 1:num_samples
 
         # samples keep the partial evidence values
-        pairs = collect(zip(sample_states[i,:,:], convert(Matrix,data_marg)))
+        pairs = collect(zip(sample_states[i,:,:], Tables.matrix(data_marg)))
         @test all(pairs) do (f,m)
             ismissing(m) || f == m
         end

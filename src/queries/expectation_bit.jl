@@ -80,19 +80,60 @@ function init_expectations(circuit::ParamBitCircuitPair, data, reuse_f, reuse_g,
         fvalues[:, var + 3*nfeatures] .= same_device(temp_cpu, data)
     end
 
-    for var=1:nfeatures
-        ind2 = var + 3*nfeatures
-        # find the index of correct paramter to grab from LogisticCircuit
-        p_ind = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var]]
-        p_ind2 = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var+nfeatures]]
+    
+    if isgpu(circuit)
+        examples_count = size(fvalues, 1)
+        num_threads = balance_threads(examples_count, nfeatures/8, 8)
+        num_blocks = (ceil(Int, examples_count/num_threads[1]), 
+                        ceil(Int, nfeatures/num_threads[2]))
+        # CUDA.@sync begin
+        #     @cuda threads=num_threads blocks=num_blocks init_expectations_cuda_part1(nfeatures, data, fvalues)
+        # end
 
-        for cc=1:classes_num
-            fgvalues[:, var, cc] .= (fvalues[:, var] .* PARS[p_ind, cc])
-            fgvalues[:, ind2, cc] .= (fvalues[:, ind2] .* PARS[p_ind2, cc])
+        CUDA.@sync begin
+            @cuda threads=num_threads blocks=num_blocks init_expectations_cuda_part2(nfeatures, classes_num,
+                                                        circuit.lc_bit.nodes, circuit.lc_bit.parents, 
+                                                        PARS, fvalues, fgvalues)
+        end
+    else
+        for var=1:nfeatures
+            ind2 = var + 3*nfeatures
+            # find the index of correct paramter to grab from LogisticCircuit 
+            p_ind = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var]]
+            p_ind2 = circuit.lc_bit.parents[circuit.lc_bit.nodes[3, 2+var+nfeatures]]        
+
+            for cc=1:classes_num
+                fgvalues[:, var, cc] .= (fvalues[:, var] .* PARS[p_ind, cc])
+                fgvalues[:, ind2, cc] .= (fvalues[:, ind2] .* PARS[p_ind2, cc])
+            end
         end
     end
     return fvalues, fgvalues
 end
+
+
+function init_expectations_cuda_part2(nfeatures, classes_num, lc_bit_nodes, lc_bit_pars, PARS, fvalues, fgvalues)
+    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    stride_x = blockDim().x * gridDim().x
+    stride_y = blockDim().y * gridDim().y
+    
+    for var = index_x:stride_x:nfeatures
+        @inbounds ind2 = var + 3*nfeatures
+        @inbounds idx1 = lc_bit_nodes[3, 2+var]
+        @inbounds idx2 = lc_bit_nodes[3, 2+var+nfeatures]
+
+        @inbounds p_ind = lc_bit_pars[idx1]
+        @inbounds p_ind2 = lc_bit_pars[idx2]  
+        for i = index_y:stride_y:size(fvalues, 1)
+            for cc=1:classes_num
+                fgvalues[i, var, cc] = (fvalues[i, var] * PARS[p_ind, cc])
+                fgvalues[i, ind2, cc] = (fvalues[i, ind2] * PARS[p_ind2, cc])
+            end
+        end
+    end
+end
+
 
 
 function expectation_layers(circuit, fvalues::Array{<:AbstractFloat,2}, fgvalues::Array{<:AbstractFloat,3})

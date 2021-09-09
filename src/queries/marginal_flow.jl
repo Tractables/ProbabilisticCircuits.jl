@@ -36,7 +36,7 @@ marginal(root::ProbCircuit, data::Union{Real,Missing}...) =
     marginal(root, collect(Union{Bool,Missing}, data))
 
 marginal(root::ProbCircuit, data::Union{Vector{Union{Bool,Missing}},CuVector{UInt8}}) =
-    marginal(root, DataFrame(reshape(data, 1, :)))[1]
+    marginal(root, DataFrame(reshape(data, 1, :), :auto))[1]
 
 marginal(circuit::ProbCircuit, data::Union{DataFrame, Vector{DataFrame}}) =
     marginal(same_device(ParamBitCircuit(circuit, data), data) , data)

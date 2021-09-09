@@ -54,6 +54,11 @@ include("structurelearner/init.jl")
 include("structurelearner/heuristics.jl")
 include("structurelearner/learner.jl")
 include("structurelearner/vtree_learner.jl")
+include("structurelearner/sample_psdd.jl")
+include("structurelearner/bdd.jl")
+
+include("ensembles/ensembles.jl")
+include("ensembles/bmc.jl")
 
 include("LoadSave/LoadSave.jl")
 @reexport using .LoadSave
