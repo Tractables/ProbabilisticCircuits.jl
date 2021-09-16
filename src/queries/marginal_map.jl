@@ -1,6 +1,6 @@
 export MMAP_LOG_HEADER, forward_bounds, edge_bounds, max_sum_lower_bound, associated_with_mult,
     mmap_solve, add_and_split, get_to_split, prune,
-    gen_edges, brute_force_mmap, pc_condition, get_margs
+    mmap_reduced_mpe_state, gen_edges, brute_force_mmap, pc_condition, get_margs
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -21,118 +21,82 @@ MMAP_LOG_HEADER = ["iter", "prune_time", "split_time", "total_time",
     "split_var", "num_edge_post_split", "num_node_post_split",
     "num_sum_post_split", "num_max_post_split", "ub_post_split", "lb_post_split"]
 
+NodeCacheDict = DefaultDict{ProbCircuit, Float64}
+NodeEdgeCacheDict = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64}
+LitCacheDict = Dict{ProbCircuit, Union{BitSet, Nothing}}
+
+struct MMAPCache
+    ub::Dict{ProbCircuit, Float32}  # cache for upper bound forward pass
+    lb::Dict{ProbCircuit,Tuple{Float32,Bool}}  # cache for lower bound forward pass (max-sum)
+    impl_lits::LitCacheDict         # implied literals
+end
+
+MMAPCache() = MMAPCache(Dict{ProbCircuit, Float32}(), Dict{ProbCircuit,Tuple{Float32,Bool}}(), LitCacheDict())
+
 #####################
 # Marginal MAP bound computations
 ##################### 
 
 "Computes the upper bound on MMAP probability for each edge. Returns a map from node or edge to its upper bound"
-function edge_bounds(root::ProbCircuit, query_vars::BitSet, impl_lits=nothing)
-    if isnothing(impl_lits)
-        impl_lits = Dict()
-        implied_literals(root, impl_lits)
-    end
-    mcache = forward_bounds(root, query_vars, impl_lits=impl_lits)
-    tcache = DefaultDict{ProbCircuit, Float64}(0.0)
+function edge_bounds(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache)
+    implied_literals(root, cache.impl_lits)
+    forward_bounds(root, query_vars, cache)
+
+    tcache = NodeCacheDict(0.0)
     tcache[root] = 1.0
-    rcache = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64}(0.0)
-    rcache[root] = exp(mcache[root])
-    foreach_down(x -> edge_bounds_fn(x, query_vars, impl_lits, mcache, tcache, rcache), root)
+    rcache = NodeEdgeCacheDict(0.0)
+    rcache[root] = exp(cache.ub[root])
+    foreach_down(x -> edge_bounds_fn(x, query_vars, cache, tcache, rcache), root)
+    # @assert all(collect(values(rcache)) .>= 0.0)
     rcache
 end
 
-
-function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, impl_lits, mcache,
-    tcache::DefaultDict{ProbCircuit, Float64, Float64},
-    rcache::DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64, Float64})
-    if isleaf(root)
-        return 
-    end
-    if tcache[root] == 0.0
+function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache, tcache::NodeCacheDict, rcache::NodeEdgeCacheDict)
+    if isleaf(root) || tcache[root] == 0.0
         return
     end
     if is⋁gate(root)
         for (c, param) in zip(root.children, params(root))
-            if num_children(root) >= 2 && associated_with_mult(root, query_vars, impl_lits)
-                if(abs(exp(param) * exp(mcache[c]) - exp(mcache[root])) > 1e-7)
-                    rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(mcache[c]) - exp(mcache[root]))
-                else
-                    rcache[(root, c)] = rcache[root]
-                end
+            if (associated_with_mult(root, query_vars, cache.impl_lits)
+                && abs(exp(param) * exp(cache.ub[c]) - exp(cache.ub[root])) > 1e-7)
+                rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(cache.ub[c]) - exp(cache.ub[root]))
             else
                 rcache[(root, c)] = rcache[root]
             end
-            if mcache[c] > -Inf
-                if tcache[c] == 0 
-                    tcache[c] = exp(param) * tcache[root]
-                else
-                    tcache[c] = min(tcache[c], exp(param) * tcache[root])
-                end
+            if cache.ub[c] > -Inf
+                edge_pr = exp(param) * tcache[root]
+                tcache[c] = tcache[c] == 0 ? edge_pr : min(tcache[c], edge_pr)
             end
             rcache[c] = max(rcache[c], rcache[(root, c)])
         end
     else
         for c in root.children
             rcache[(root, c)] = rcache[root]
-            if tcache[c] == 0
-                tcache[c] = tcache[root]
-            else
-                tcache[c] = min(tcache[c], tcache[root])
-            end
             rcache[c] = max(rcache[c], rcache[(root, c)])
+            tcache[c] = tcache[c] == 0 ? tcache[root] : min(tcache[c], tcache[root])
         end
     end
 end
 
-
-function forward_bounds(root::ProbCircuit, query_vars::BitSet; impl_lits=nothing, counters=nothing) 
-    if isnothing(impl_lits)
-        impl_lits = Dict()
-        implied_literals(root, impl_lits)
-    end
-    if isnothing(counters)
-        counters = Dict("max" => 0, "sum" => 0)
-    end
-    ret = forward_bounds_rec(root, query_vars, Dict{ProbCircuit, Float32}(), impl_lits, counters)
-    @show counters
-    ret
+function forward_bounds(root::ProbCircuit, query_vars::BitSet)
+    cache = MMAPCache()
+    forward_bounds(root, query_vars, cache)
 end
 
+# TODO: perhaps a flag to skip recomputing impl_lits
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache) 
+    implied_literals(root, cache.impl_lits)
 
-function forward_bounds_rec(root::ProbCircuit, query_vars::BitSet, mcache::Dict{ProbCircuit, Float32}, impl_lits, counters)
-    if isleaf(root)
-        mcache[root] = 0.0
-    elseif isinner(root)
-        for c in root.children
-            if !haskey(mcache, c)
-                forward_bounds_rec(c, query_vars, mcache, impl_lits, counters)
-            end
-        end
-        if is⋀gate(root) 
-            mcache[root] = mapreduce(c -> mcache[c], +, root.children)
+    f_leaf(_) = 0.0f0
+    f_a(_, cs) = sum(cs)
+    f_o(n, cs) = begin
+        if associated_with_mult(n, query_vars, cache.impl_lits)
+            maximum(Float32.(params(n)) .+ cs)
         else
-            # @assert(num_children(root) <= 2)
-            # If we have just the one child, just incorporate the parameter
-            if num_children(root) == 1
-                mcache[root] = mcache[root.children[1]] + params(root)[1]
-            else
-                # If we have 2 children, check if associated:
-                if associated_with_mult(root, query_vars, impl_lits)
-                    # Max node
-                    counters["max"] = counters["max"] + 1 
-                    # If it is, we're taking a max
-                    mcache[root] = mapreduce((c,p) -> mcache[c] + p, max, root.children, params(root))
-                else
-                    # If it isn't, we're taking a sum
-                    counters["sum"] = counters["sum"] + 1
-                    # @show params(root)
-                    mcache[root] = mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
-                    # mcache[root] = logsumexp()mapreduce((c,p) -> mcache[c] + p, logaddexp, root.children, params(root))
-                    # @show mcache[root]
-                end
-            end
+            reduce(logaddexp, Float32.(params(n)) .+ cs)
         end
     end
-    mcache
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
 end
 
 """
@@ -141,65 +105,38 @@ Compute the lower bound on MMAP using a max-sum circuit
 I.e. a forward bound that takes sum until encountering a max node.
 If the circuit has a constrained vtree for the query variables, returns the exact MMAP.
 """
-function max_sum_lower_bound(n::ProbCircuit, query_vars::BitSet)
-    impl_lits = Dict()
-    implied_literals(n, impl_lits)
-
-    # forward pass 
-    mcache = Dict{ProbCircuit,Tuple{Float32,Bool}}()
-    max_sum_up(n, query_vars, impl_lits, mcache)
-
-    # backward pass to get the max state
-    state = zeros(Bool, num_variables(n))
-    max_sum_down(n, mcache, state)
-
-    # reduce to query variables
-    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(n)])
-    df = DataFrame(reduced)
-    df, exp(MAR(n, df)[1])
+function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet)
+    cache = MMAPCache()
+    max_sum_lower_bound(root, query_vars, cache)
 end
 
-function max_sum_up(root, query_vars, impl_lits, mcache)
+function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache)
+    implied_literals(root, cache.impl_lits)
+
+    # forward pass 
     f_leaf(_) = (0.0f0, false)
     f_a(_, cs) = reduce((c1,c2) -> (c1[1]+c2[1], c1[2]||c2[2]), cs)
     f_o(n, cs) = begin
-        has_max = any(last.(cs))
-        if has_max || associated_with_mult(n, query_vars, impl_lits)
+        has_max = any(last.(cs))    # whether n has a max node as a descendant
+        if has_max || associated_with_mult(n, query_vars, cache.impl_lits)
             val = reduce(max, Float32.(params(n)) .+ first.(cs))
             (val, true)
         else
-            # propagate up as if every sum node adds up to 1
-            (0.0f0, has_max)
+            val = reduce(logaddexp, Float32.(params(n)) .+ first.(cs))
+            (val, false)
         end
     end
-    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, mcache)
-end
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
 
-# function max_sum_rec(n::ProbCircuit, query_vars::BitSet, mcache::Dict{ProbCircuit, Tuple{Float32,Bool}}, impl_lits)
-#     if isleaf(n)
-#         mcache[n] = (0.0,false)
-#     elseif isinner(n)
-#         for c in n.children
-#             if !haskey(mcache, c)
-#                 max_sum_rec(c, query_vars, mcache, impl_lits)
-#             end
-#         end
-#         if is⋀gate(n)
-#             aggr_prod(c1,c2) = (c1[1]+c2[1], c1[2]||c2[2])
-#             mcache[n] = mapreduce(c -> mcache[c], aggr_prod, n.children)
-#         else
-#             has_max = mapreduce(c->mcache[c][2], |, n.children)
-#             if has_max || associated_with_mult(n, query_vars, impl_lits)
-#                 val = mapreduce((c,p) -> mcache[c][1] + p, max, n.children, params(n))
-#                 mcache[n] = (val, true)
-#             else
-#                 # propagate up as if every sum node adds up to 1
-#                 mcache[n] = (0.0, has_max)
-#             end
-#         end
-#     end
-#     mcache
-# end
+    # backward pass to get the max state
+    state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
+    max_sum_down(root, cache.lb, state)
+
+    # reduce to query variables
+    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
+    df = DataFrame(reduced, :auto)
+    df, exp(MAR(root, df)[1])
+end
 
 function max_sum_down(n::ProbCircuit, mcache, state)
     if isleaf(n)
@@ -241,6 +178,10 @@ end
 # TODO: check using get_associated_vars?
 "Check if a given sum node (with more than 2 children) is associated with any query variables"
 function associated_with_mult(n::ProbCircuit, query_vars::BitSet, impl_lits)
+    if num_children(n) < 2
+        return false
+    end
+
     impl = [impl_lits[x] for x in n.children]
     neg_impl = [BitSet(map(x -> -x, collect(imp))) for imp in impl]
     # Checking all pairs
@@ -271,14 +212,15 @@ function mmap_reduced_mpe_state(n::ProbCircuit, query_vars::BitSet)
 end
 
 "Repeatedly prune a circuit using a given lower bound up to num_reps times"
-function prune(n::PlainProbCircuit, query_vars::BitSet, lower_bound, num_reps=1)
+function prune(n::PlainProbCircuit, query_vars::BitSet, cache::MMAPCache, lower_bound, num_reps=1)
     circ = n
     prev_size = num_edges(circ)
     counters = counter(Int)
     actual_reps = num_reps
     for i in 1:num_reps
-        to_prune = find_to_prune(circ, query_vars, lower_bound, counters)
+        to_prune = find_to_prune(circ, query_vars, cache, lower_bound, counters)
         circ = do_pruning(circ, Set(to_prune)) 
+        # TODO: delete pruned edges/nodes from cache
 
         if num_edges(circ) < prev_size
             prev_size = num_edges(circ)
@@ -291,18 +233,16 @@ function prune(n::PlainProbCircuit, query_vars::BitSet, lower_bound, num_reps=1)
 end
 
 "Find edges to prune using a given lower bound (thresh) on the MMAP probability"
-function find_to_prune(n::ProbCircuit, query_vars::BitSet, thresh, counters)
-    impl_lits = Dict()
-    implied_literals(n, impl_lits)
+function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thresh, counters)
+    implied_literals(n, cache.impl_lits)
 
-    rcache = edge_bounds(n, query_vars, impl_lits)
-    bounds_list = collect(rcache)
+    rcache = edge_bounds(n, query_vars, cache)
     # Caution: if buffer is too small, edges may be pruned incorrectly. if it's too big, too little pruning may happen.
-    to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh * (1 - 1e-4), bounds_list))
+    to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh * (1 - 1e-4), collect(rcache)))
 
     query_lits = union(query_vars, BitSet(map(x->-x, collect(query_vars))))
     for (n,x) in to_prune
-        decided_lits = setdiff(impl_lits[x], impl_lits[n])
+        decided_lits = setdiff(cache.impl_lits[x], cache.impl_lits[n])
         decided_query_lits = intersect(decided_lits, query_lits)
         merge!(counters, counter(decided_query_lits))
     end
@@ -321,15 +261,18 @@ function prune_fn(n, to_prune, cache)
     if isinner(n)
         # Find children we are keeping
         inds = findall(x -> (n, x) ∉ to_prune, n.children)
+        new_children = map(x -> cache[x], n.children[inds])
         if isempty(inds)
-            del_n = nothing     # no need to create a new node if all children are pruned
+            cache[n] = nothing  # no need to create a new node if all children are pruned
+        elseif new_children == n.children
+            cache[n] = n        # reuse node if no edges below are pruned
         elseif is⋁gate(n)
             del_n = PlainSumNode(map(x -> cache[x], n.children[inds]))
             del_n.log_probs = n.log_probs[inds]
+            cache[n] = del_n
         else
-            del_n = PlainMulNode(map(x -> cache[x], n.children[inds]))
+            cache[n] = PlainMulNode(map(x -> cache[x], n.children[inds]))
         end
-        cache[n] = del_n
     else
         # Leaf nodes just use themselves, fine to reuse in new circuit
         cache[n] = n
@@ -344,6 +287,7 @@ function get_associated_vars(n::ProbCircuit, query_vars::BitSet, impl_lits)
     if num_children(n) < 2
         return nothing
     end
+
     impl = [impl_lits[x] for x in n.children]
     neg_impl = [BitSet(map(x -> -x, collect(imp))) for imp in impl]
     vars = BitSet()
@@ -406,15 +350,15 @@ function get_to_split(root, splittable, counters, heur)
     end
 
     min_diff(x,y) = begin
-        diff_x = abs(counters[x] - counters[-x])
-        diff_y = abs(counters[y] - counters[-y])
-        if diff_x < diff_y
+        min_x = min(counters[x], counters[-x])
+        min_y = min(counters[y], counters[-y])
+        if min_x > min_y
             x
-        elseif diff_x == diff_y     # tie break by number of edges pruned
+        elseif min_x == min_y
             max_prune(x,y)
         else
             y
-        end 
+        end
     end
 
     pruned_vars = BitSet(map(x -> abs(x), collect(keys(counters))))
@@ -454,13 +398,7 @@ end
 ##################### 
 
 "Update upper and lower bounds, and add log info"
-function update_and_log(cur_root, root, quer, lb, results, iter, post_prune; time=missing, prune_attempts=missing, split_var=missing)
-    # Recompute upper and lower bounds
-    counters = Dict("max" => 0, "sum" => 0)
-    ub = forward_bounds(cur_root, quer, counters=counters)[cur_root]    # TODO: could probably reuse impl_lits without recomputing
-    mstate, mp = max_sum_lower_bound(cur_root, quer)
-    new_lb = max(lb, MAR(root, mstate)[1]) # use the original circuit (before pruning) for lower bounds
-
+function update_and_log(cur_root, root, quer, cache, lb, results, iter, post_prune; time=missing, prune_attempts=missing, split_var=missing)
     if post_prune
         results["iter"][iter] = iter
         results["prune_time"][iter] = time
@@ -473,12 +411,22 @@ function update_and_log(cur_root, root, quer, lb, results, iter, post_prune; tim
         postfix = "_post_split"
     end
 
+    # Recompute upper and lower bounds
+    ub = forward_bounds(cur_root, quer, cache)
+    mstate, _ = max_sum_lower_bound(cur_root, quer, cache)
+    if lb > MAR(root, mstate)[1] 
+        println("Lower bound worsened from $(lb) to $(MAR(root, mstate)[1])")
+    end
+    new_lb = max(lb, MAR(root, mstate)[1]) # use the original circuit (before pruning) for lower bounds
+    results[string("ub",postfix)][iter] = ub
+    results[string("lb",postfix)][iter] = new_lb
+
+    or_nodes = ⋁_nodes(cur_root)
+    num_max = count(n -> associated_with_mult(n, quer, cache.impl_lits), or_nodes)
     results[string("num_edge",postfix)][iter] = num_edges(cur_root)
     results[string("num_node",postfix)][iter] = num_nodes(cur_root)
-    results[string("num_sum",postfix)][iter] = counters["sum"]
-    results[string("num_max",postfix)][iter] = counters["max"]
-    results[string("ub",postfix)][iter] = ub
-    results[string("lb",postfix)][iter] = lb
+    results[string("num_sum",postfix)][iter] = length(or_nodes) - num_max
+    results[string("num_max",postfix)][iter] = num_max
 
     ub, new_lb
 end
@@ -486,6 +434,7 @@ end
 "Compute marginal MAP by iteratively pruning and splitting"
 function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_per_iter=noop, heur="maxP")
     # initialize log
+    num_iter = min(num_iter, length(quer))
     results = Dict()
     for x in MMAP_LOG_HEADER
         results[x] = Vector{Union{Any,Missing}}(missing,num_iter)
@@ -493,11 +442,12 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
 
     splittable = copy(quer)
     cur_root = root
-    ub = forward_bounds(cur_root, quer)[cur_root]
-    mstate, mp = max_sum_lower_bound(cur_root, quer)
-    # mstate, mp = mmap_reduced_mpe_state(cur_root, quer)
+    cache = MMAPCache()
+    ub = forward_bounds(cur_root, quer, cache)
+    _, mp = max_sum_lower_bound(cur_root, quer, cache)
     lb = log(mp)
     @show ub, lb
+    counters = counter(Int)
     for i in 1:num_iter
         try
             if isempty(splittable) || ub < lb + 1e-10
@@ -507,20 +457,20 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             # Prune -- could improve the upper bound (TODO: maybe also the lower bound?)
             println("* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             tic = time_ns()
-            cur_root, counters, actual_reps = prune(cur_root, quer, exp(lb), prune_attempts)
+            cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
+            merge!(counters, prune_counters)
             toc = time_ns()
             println("* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-            @show update_and_log(cur_root,root,quer,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+            @show update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
             to_split = get_to_split(cur_root, splittable, counters, heur)
-            # to_split = get_to_split(root, splittable, counters, heur)
             cur_root = add_and_split(cur_root, to_split)
             toc = time_ns()
             println("* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             delete!(splittable, to_split)
-            @show ub, lb = update_and_log(cur_root,root,quer,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
+            @show ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
 
             log_per_iter(results)
             # TODO: also save the circuit at the end of each iteration for easy retrieval?    
