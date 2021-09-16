@@ -31,16 +31,16 @@ function add_basic_arg(s::ArgParseSettings)
             arg_type = Float64
             default = 0.5
         "--iters"
-            help = "Number of maximum iterations of pruning and splitting"
+            help = "Number of maximum iterations of pruning and splitting (defaults to the number of query variables)"
             arg_type = Int64
-            default = 50
+            default = -1
         "--prune-attempts"
             help = "Number of pruning attempts for each iteration"
             arg_type = Int64
             default = 10
         "--pick-var"
             arg_type = String
-            help = "Heuristic method to do split (maxP, minD, depth)"
+            help = "Heuristic method to do split (maxP, minD, depth, rand)"
             default = "maxP"
         "--exp-id"
             help = "Experiment id"
@@ -77,7 +77,8 @@ function main()
 
     Random.seed!(seed)
     pc = load_prob_circuit(circ_path)
-    quer = BitSet(sample(1:num_variables(pc), round(Int,quer_percent*num_variables(pc)), replace=false))
+    quer_size = round(Int, quer_percent*num_variables(pc))
+    quer = BitSet(sample(1:num_variables(pc), quer_size, replace=false))
 
     csv = joinpath(out_path, "progress.csv")
     log_func(results) = begin
@@ -87,11 +88,12 @@ function main()
 
     @show out_path, seed, iter, prune_attempts, length(quer)
     pc = mmap_solve(pc, quer, 
-                    num_iter=iter,
+                    num_iter=(iter < 0 ? quer_size : iter),
                     prune_attempts=prune_attempts,
                     log_per_iter=log_func,
                     heur=pick_var)
     
+    # TODO: save quer
     # Save result
     open(f -> serialize(f,pc), joinpath(out_path, "circuit.jls"), "w")
     # read_pc = open(deserialize, joinpath(out_path, "circuit.jls"))
