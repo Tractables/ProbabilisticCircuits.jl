@@ -78,13 +78,12 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache,
     end
 end
 
-function forward_bounds(root::ProbCircuit, query_vars::BitSet)
-    cache = MMAPCache()
-    forward_bounds(root, query_vars, cache)
-end
-
 # TODO: perhaps a flag to skip recomputing impl_lits
-function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache) 
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache::Union{MMAPCache, Nothing}=nothing) 
+    if isnothing(cache)
+        cache = MMAPCache()
+    end
+
     implied_literals(root, cache.impl_lits)
 
     f_leaf(_) = 0.0f0
@@ -99,18 +98,41 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache)
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
 end
 
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, impl_lits=nothing) 
+    if isnothing(impl_lits)
+        impl_lits = LitCacheDict()
+    end
+    implied_literals(root, impl_lits)
+    
+    @assert num_features(data) == num_variables(root)
+    f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
+    f_lit(n) = begin
+        assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
+        log.(Float32.(coalesce.(assignments, true)))
+    end
+    f_a(_, cs) = sum(cs)
+    f_o(n, cs) = begin
+        evals = map((p,cv) -> p .+ cv, Float32.(params(n)), cs)
+        if associated_with_mult(n, query_vars, impl_lits)
+            reduce((x,y) -> max.(x,y), evals)
+        else
+            reduce((x,y) -> logaddexp.(x,y), evals)
+        end
+    end
+    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Array{Float32})
+end
+
 """
 Compute the lower bound on MMAP using a max-sum circuit
  
 I.e. a forward bound that takes sum until encountering a max node.
 If the circuit has a constrained vtree for the query variables, returns the exact MMAP.
 """
-function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet)
-    cache = MMAPCache()
-    max_sum_lower_bound(root, query_vars, cache)
-end
+function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache::Union{MMAPCache, Nothing}=nothing)
+    if isnothing(cache)
+        cache = MMAPCache()
+    end
 
-function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache)
     implied_literals(root, cache.impl_lits)
 
     # forward pass 
@@ -344,27 +366,29 @@ function remove_unary_gates(root::PlainProbCircuit)
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
-function get_to_split(root, splittable, counters, heur)    
-    max_prune(x,y) = begin
-        counters[x] + counters[-x] >= counters[y] + counters[-y] ? x : y
-    end
-
-    min_diff(x,y) = begin
-        min_x = min(counters[x], counters[-x])
-        min_y = min(counters[y], counters[-y])
-        if min_x > min_y
-            x
-        elseif min_x == min_y
-            max_prune(x,y)
-        else
-            y
+function get_to_split(root, splittable, counters, heur, lb)    
+    if heur == "avgUB" || heur == "minUB" || heur == "maxUB" || heur == "UB"
+        vars = collect(splittable)
+        datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), num_variables(root))
+        for i in 1:length(vars)
+            datamat[2*i-1, vars[i]] = true
+            datamat[2*i, vars[i]] = false
         end
-    end
-
-    pruned_vars = BitSet(map(x -> abs(x), collect(keys(counters))))
-    pruned_splittable = intersect(splittable, pruned_vars)
-    if heur == "maxDepth"
-        # TODO: just get the max depth of each quer variable at the beginning of solver
+        bounds = forward_bounds(root, splittable, DataFrame(datamat, :auto))
+        if heur == "UB"
+            prunable = filter(i -> min(bounds[2*i-1], bounds[2*i]) < lb * (1 - 1e-4), 1:length(vars))
+            if isempty(prunable)
+                idx = reduce((i,j) -> logaddexp(bounds[2*i-1], bounds[2*i]) < logaddexp(bounds[2*j-1], bounds[2*j]) ? i : j, 1:length(vars))
+            else
+                idx = reduce((i,j) -> max(bounds[2*i-1], bounds[2*i]) < max(bounds[2*j-1], bounds[2*j]) ? i : j, prunable)
+            end
+        else
+            op = Dict("avgUB" => logaddexp, "minUB" => min, "maxUB" => max)
+            idx = reduce((i,j) -> op[heur](bounds[2*i-1], bounds[2*i]) < op[heur](bounds[2*j-1], bounds[2*j]) ? i : j, 1:length(vars))
+        end
+        vars[idx]
+    
+    elseif heur == "maxDepth"
         cache = Dict()
         impl_lits = Dict()
         implied_literals(root, impl_lits)
@@ -384,12 +408,32 @@ function get_to_split(root, splittable, counters, heur)
         end
         foreach(n -> max_depth_var(n, cache), root)
         cache[root][1]
-    elseif isempty(pruned_splittable) || heur == "rand"
-        rand(splittable) 
-    elseif heur == "minD"
-        reduce(min_diff, collect(pruned_splittable))
-    else # maxP
-        reduce(max_prune, collect(pruned_splittable))
+
+    else
+        pruned_vars = BitSet(map(x -> abs(x), collect(keys(counters))))
+        pruned_splittable = intersect(splittable, pruned_vars)
+        
+        max_prune(x,y) = counters[x] + counters[-x] >= counters[y] + counters[-y] ? x : y
+    
+        min_diff(x,y) = begin
+            min_x = min(counters[x], counters[-x])
+            min_y = min(counters[y], counters[-y])
+            if min_x > min_y
+                x
+            elseif min_x == min_y
+                max_prune(x,y)
+            else
+                y
+            end
+        end
+        
+        if isempty(pruned_splittable) || heur == "rand"
+            rand(splittable) 
+        elseif heur == "minD"
+            reduce(min_diff, collect(pruned_splittable))
+        else # maxP
+            reduce(max_prune, collect(pruned_splittable))
+        end
     end
 end
 
@@ -465,7 +509,7 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
-            to_split = get_to_split(cur_root, splittable, counters, heur)
+            to_split = get_to_split(cur_root, splittable, counters, heur, lb)
             cur_root = add_and_split(cur_root, to_split)
             toc = time_ns()
             println("* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")

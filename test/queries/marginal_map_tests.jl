@@ -8,14 +8,20 @@ using StatsBase
 @testset "Forward bound" begin
     prob_circuit = zoo_psdd("asia-bdd.psdd")
 
-    data_marg = DataFrame([missing missing missing missing missing missing missing missing])
+    data_marg = DataFrame([missing missing missing missing missing missing missing missing;
+         missing true missing missing missing missing missing missing;
+         missing false missing missing true missing missing missing], :auto)
     map, mappr = MAP(prob_circuit, data_marg)
     fwd_mpe = forward_bounds(prob_circuit, BitSet([1,2,3,4,5,6,7,8]))
+    fwd_mpe_ev = forward_bounds(prob_circuit, BitSet([1,2,3,4,5,6,7,8]), data_marg)
     @test mappr[1] ≈ fwd_mpe atol=1e-6
+    @test mappr ≈ fwd_mpe_ev atol=1e-6
 
-    wmc = MAR(prob_circuit, data_marg)[1]
+    wmc = MAR(prob_circuit, data_marg)
     fwd_wmc = forward_bounds(prob_circuit, BitSet([]))
-    @test wmc ≈ fwd_wmc atol=1e-6
+    fwd_wmc_ev = forward_bounds(prob_circuit, BitSet([]), data_marg)
+    @test wmc[1] ≈ fwd_wmc atol=1e-6
+    @test wmc ≈ fwd_wmc_ev atol=1e-6
 
     fwd_mmap = forward_bounds(prob_circuit, BitSet([1,2,3]))
     # Computed using merlin. The psdd is a bdd with the right variable order, so we'll compute it exactly
