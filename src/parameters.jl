@@ -302,9 +302,9 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
     
     if isbatched(data)
         v, f = nothing, nothing
-        if weights != nothing
+        if weights !== nothing
             map(zip(data, weights)) do (d, w)
-                if w != nothing
+                if w !== nothing
                     w = to_gpu(w)
                 end
                 v, f = satisfies_flows(to_gpu(bc), to_gpu(d), v, f; on_node = on_node, on_edge = on_edge, weights = w)
@@ -315,7 +315,7 @@ function estimate_parameters_gpu(bc::BitCircuit, data, pseudocount; weights = no
             end
         end
     else
-        if weights != nothing
+        if weights !== nothing
             weights = to_gpu(weights)
         end
         v, f = satisfies_flows(to_gpu(bc), to_gpu(data); on_node = on_node, on_edge = on_edge, weights = weights)
