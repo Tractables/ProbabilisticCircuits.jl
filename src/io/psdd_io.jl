@@ -138,60 +138,67 @@ function Base.read(ios::Tuple{IO,IO}, ::Type{StructProbCircuit}, ::PsddVtreeForm
     parse(StructProbCircuit, (circuit_str,vtree_str), PsddVtreeFormat())
 end
 
-# ##############################################
-# # Write SDDs
-# ##############################################
+##############################################
+# Write PSDDs
+##############################################
 
-# const SDD_FORMAT = """c this file was saved by LogicCircuits.jl
-# c ids of psdd nodes start at 0
-# c psdd nodes appear bottom-up, children before parents
-# c
-# c file syntax:
-# c psdd count-of-psdd-nodes
-# c F id-of-false-psdd-node
-# c T id-of-true-psdd-node
-# c L id-of-literal-psdd-node id-of-vtree literal
-# c D id-of-decomposition-psdd-node id-of-vtree number-of-elements {id-of-prime id-of-sub}*
-# c"""
+const PSDD_FORMAT = """c this file was saved by ProbabilisticCircuits.jl
+c ids of psdd nodes start at 0
+c psdd nodes appear bottom-up, children before parents
+c
+c file syntax:
+c psdd count-of-sdd-nodes
+c L id-of-literal-sdd-node id-of-vtree literal
+c T id-of-trueNode-sdd-node id-of-vtree variable log(litProb)
+c D id-of-decomposition-sdd-node id-of-vtree number-of-elements {id-of-prime id-of-sub log(elementProb)}*
+c"""
 
-# function Base.write(io::IO, psdd::Psdd, ::PsddFormat, vtree2id::Function = (x -> 0))
+function Base.write(io::IO, pc::ProbCircuit, ::PsddFormat, vtree2id::Function = (x -> 0))
 
-#     id = -1
+    id = -1
 
-#     println(io, SDD_FORMAT)
-#     println(io, "psdd $(psdd_num_nodes_leafs(psdd))")
+    println(io, PSDD_FORMAT)
+    println(io, "psdd $(sdd_num_nodes_leafs(pc))")
 
-#     f_con(n) = begin
-#         nid = id += 1
-#         sign = isfalse(n) ? "F" : "T"
-#         println(io, "$sign $nid")
-#         nid
-#     end
+    f_con(_) = error("ProbCircuits have no constant nodes")
 
-#     f_lit(n) = begin
-#         nid = id += 1
-#         println(io, "L $nid $(vtree2id(mgr(n))) $(literal(n))")
-#         nid
-#     end
+    f_lit(n) = begin
+        nid = id += 1
+        println(io, "L $nid $(vtree2id(n)) $(literal(n))")
+        nid
+    end
 
-#     f_a(n, ids) = tuple(ids...)
+    f_a(n, ids) = begin
+        if length(ids) != 2 
+            error("The PSDD file format requires multiplications/AND nodes to have exactly two inputs")
+        end
+        tuple(ids...)
+    end
 
-#     f_o(n, ids) = begin
-#         nid = id += 1
-#         print(io, "D $nid $(vtree2id(mgr(n))) $(length(ids))")
-#         for el in ids
-#             print(io, " $(el[1]) $(el[2])")
-#         end
-#         println(io)
-#         nid
-#     end
+    f_o(n, ids) = begin
+        nid = id += 1
+        vtreeid = vtree2id(n)
+        if num_children(n) == 2 && all(isliteralgate, children(n))
+            pos_child = literal(children(n)[1]) > 0 ? 1 : 2 
+            log_prob = n.log_probs[pos_child]
+            v = variable(children(n)[1])
+            print(io, "T $nid $vtreeid $v $log_prob")
+        else
+            print(io, "D $nid $vtreeid $(length(ids))")
+            for (el, log_prob) in zip(ids, n.log_probs)
+                print(io, " $(el[1]) $(el[2]) $log_prob")
+            end
+        end
+        println(io)
+        nid
+    end
     
-#     foldup_aggregate(psdd, f_con, f_lit, f_a, f_o, Union{Int, Tuple{Int,Int}})
+    foldup_aggregate(pc, f_con, f_lit, f_a, f_o, Union{Int, Tuple{Int,Int}})
 
-#     nothing
-# end
+    nothing
+end
 
-# function Base.write(ios::Tuple{IO,IO}, psdd::Psdd, format::PsddVtreeFormat)
-#     vtree2id = write(ios[2], mgr(psdd), format[2])
-#     write(ios[1], psdd, format[1], i -> vtree2id[i])
-# end
+function Base.write(ios::Tuple{IO,IO}, pc::StructProbCircuit, format::PsddVtreeFormat)
+    vtree2id = write(ios[2], vtree(pc), format[2])
+    write(ios[1], pc, format[1], i -> vtree2id[vtree(i)])
+end
