@@ -1,6 +1,7 @@
 using Test
 using ProbabilisticCircuits
 using Suppressor
+using MetaGraphs
 
 @testset "Test loaded clt file" begin
    # TODO add more clt files
