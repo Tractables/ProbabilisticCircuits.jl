@@ -14,6 +14,7 @@ export issmooth, isdecomposable, isstruct_decomposable,
        isdeterministic, iscanonical
 # circuit status
 export num_nodes, num_edges, children, num_parameters
+export zoo_vtree, zoo_vtree_file, VtreeFormat, vtree, respects_vtree
 # datasets
 export twenty_datasets
 
