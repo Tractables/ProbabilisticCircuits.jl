@@ -32,10 +32,10 @@ end
 mutable struct PlainSumNode <: PlainProbInnerNode
     children::Vector{PlainProbCircuit}
     log_probs::Vector{Float64}
-    PlainSumNode(c) = begin
-        new(c, log.(ones(Float64, length(c)) / length(c)))
-    end
 end
+
+PlainSumNode(c) =
+    PlainSumNode(c, log.(ones(Float64, length(c)) / length(c)))
 
 #####################
 # traits

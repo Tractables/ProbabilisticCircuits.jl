@@ -13,7 +13,7 @@ export pos_literals, neg_literals
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
 # circuit status
-export num_edges, num_parameters
+export num_nodes, num_edges, children, num_parameters
 # datasets
 export twenty_datasets
 
@@ -59,8 +59,7 @@ include("structurelearner/bdd.jl")
 include("ensembles/ensembles.jl")
 include("ensembles/bmc.jl")
 
-include("LoadSave/LoadSave.jl")
-@reexport using .LoadSave
+include("io/io.jl")
 
 using Requires
 
