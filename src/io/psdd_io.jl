@@ -87,79 +87,56 @@ end
 Base.read(io::IO, ::Type{PlainProbCircuit}, ::PsddFormat) =
     parse(PlainProbCircuit, read(io, String), PsddFormat())
 
-# #  parse structured
-# struct StructPsddParse <: PsddParse
-#     id2vtree::Dict{String,<:Vtree}
-#     nodes::Dict{String,StructLogicCircuit}
-#     StructPsddParse(id2vtree) = 
-#         new(id2vtree,Dict{String,StructLogicCircuit}())
-# end
+#  parse structured
+struct StructPsddParse <: PsddParse
+    id2vtree::Dict{String,<:Vtree}
+    nodes::Dict{String,StructProbCircuit}
+    StructPsddParse(id2vtree) = 
+        new(id2vtree,Dict{String,StructProbCircuit}())
+end
 
-# @rule literal_node(t::StructPsddParse, x) = begin
-#     lit = Base.parse(Lit,x[3])
-#     vtree = t.id2vtree[x[2]]
-#     t.nodes[x[1]] = PlainStructLiteralNode(lit, vtree)
-# end
+@rule literal_node(t::StructPsddParse, x) = begin
+    lit = Base.parse(Lit,x[3])
+    vtree = t.id2vtree[x[2]]
+    t.nodes[x[1]] = StructProbLiteralNode(lit, vtree)
+end
 
-# @rule false_node(t::StructPsddParse, x) = 
-#     t.nodes[x[1]] = PlainStructConstantNode(false)
+@rule true_node(t::StructPsddParse, x) = begin
+    vtree = t.id2vtree[x[2]]
+    litn = StructProbLiteralNode(Base.parse(Lit, x[3]), vtree)
+    log_prob = Base.parse(Float64, x[4])
+    log_probs = [log_prob, log1p(-exp(log_prob))]
+    t.nodes[x[1]] = StructSumNode([litn, -litn], log_probs, vtree)
+end
 
-# @rule true_node(t::StructPsddParse, x) = 
-#     t.nodes[x[1]] = PlainStructConstantNode(true)
+@rule decision_node(t::StructPsddParse,x) = begin
+    @assert length(x[4]) == Base.parse(Int,x[3])
+    vtree = t.id2vtree[x[2]]
+    children = map(x[4]) do elem
+        StructMulNode(elem[1], elem[2], vtree)
+    end
+    log_probs = map(e -> e[3], x[4])
+    t.nodes[x[1]] = StructSumNode(children, log_probs, vtree)
+end
 
+function Base.parse(::Type{StructProbCircuit}, str::AbstractString, ::PsddFormat, id2vtree) 
+    ast = Lerche.parse(psdd_parser, str)
+    Lerche.transform(StructPsddParse(id2vtree), ast)
+end
 
-# @rule decision_node(t::StructPsddParse,x) = begin
-#     @assert length(x[4]) == Base.parse(Int,x[3])
-#     vtree = t.id2vtree[x[2]]
-#     elems = map(x[4]) do elem
-#         PlainStruct⋀Node(elem[1], elem[2], vtree)
-#     end
-#     t.nodes[x[1]] = PlainStruct⋁Node(elems, vtree)
-# end
+function Base.parse(::Type{StructProbCircuit}, strings, format::PsddVtreeFormat) 
+    id2vtree = parse(Dict{String,Vtree}, strings[2], format[2])
+    parse(StructProbCircuit, strings[1], format[1], id2vtree)
+end
 
-# function Base.parse(::Type{PlainStructLogicCircuit}, str::AbstractString, ::PsddFormat, id2vtree) 
-#     ast = Lerche.parse(psdd_parser, str)
-#     Lerche.transform(StructPsddParse(id2vtree), ast)
-# end
+Base.read(io::IO, ::Type{StructProbCircuit}, ::PsddFormat, id2vtree) =
+    parse(StructProbCircuit, read(io, String), PsddFormat(), id2vtree)
 
-# function Base.parse(::Type{PlainStructLogicCircuit}, strings, format::PsddVtreeFormat) 
-#     id2vtree = parse(Dict{String,Vtree}, strings[2], format[2])
-#     parse(PlainStructLogicCircuit, strings[1], format[1], id2vtree)
-# end
-
-# Base.read(io::IO, ::Type{PlainStructLogicCircuit}, ::PsddFormat, id2vtree) =
-#     parse(PlainStructLogicCircuit, read(io, String), PsddFormat(), id2vtree)
-
-# function Base.read(ios::Tuple{IO,IO}, ::Type{PlainStructLogicCircuit}, ::PsddVtreeFormat) 
-#     circuit_str = read(ios[1], String)
-#     vtree_str = read(ios[2], String)
-#     parse(PlainStructLogicCircuit, (circuit_str,vtree_str), PsddVtreeFormat())
-# end
-
-# #  parse as SDD
-
-# function Base.parse(::Type{Psdd}, str::AbstractString, ::PsddFormat, id2mgr::Dict{String,<:PsddMgr}) 
-#     ast = Lerche.parse(psdd_parser, str)
-#     # create a structured logic circuit for Psdd Mgr
-#     struct_circuit = Lerche.transform(StructPsddParse(id2mgr), ast)
-#     # turn logic circuit into Psdd
-#     compile(vtree(struct_circuit)::PsddMgr, struct_circuit)::Psdd
-# end
-
-# function Base.parse(::Type{Psdd}, strings, format::PsddVtreeFormat) 
-#     id2mgr = parse(Dict{String,PsddMgr}, strings[2], format[2])
-#     parse(Psdd, strings[1], format[1], id2mgr)
-# end
-
-# Base.read(io::IO, ::Type{Psdd}, ::PsddFormat, id2mgr::Dict{String,<:PsddMgr}) =
-#     parse(Psdd, read(io, String), PsddFormat(), id2mgr)
-
-# function Base.read(ios::Tuple{IO,IO}, ::Type{Psdd}, ::PsddVtreeFormat) 
-#     circuit_str = read(ios[1], String)
-#     vtree_str = read(ios[2], String)
-#     parse(Psdd, (circuit_str,vtree_str), PsddVtreeFormat())
-# end
-
+function Base.read(ios::Tuple{IO,IO}, ::Type{StructProbCircuit}, ::PsddVtreeFormat) 
+    circuit_str = read(ios[1], String)
+    vtree_str = read(ios[2], String)
+    parse(StructProbCircuit, (circuit_str,vtree_str), PsddVtreeFormat())
+end
 
 # ##############################################
 # # Write SDDs
