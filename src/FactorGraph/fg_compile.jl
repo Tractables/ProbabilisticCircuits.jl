@@ -10,7 +10,7 @@ using Pkg.Artifacts
 
 # Might want to move this to LoadSave later
 zoo_fg_file(name) =
-    artifact"circuit_model_zoo" * LogicCircuits.LoadSave.zoo_version * "/fgs/$name"
+    artifact"circuit_model_zoo" * LogicCircuits.zoo_version * "/fgs/$name"
 
 
 """

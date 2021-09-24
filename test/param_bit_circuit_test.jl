@@ -41,9 +41,6 @@ using ProbabilisticCircuits
 
     r = fully_factorized_circuit(PlainProbCircuit, 10)
     test_integrity(ParamBitCircuit(r, 10))
-
-    r = fully_factorized_circuit(LogisticCircuit, 10; classes=2)
-    test_integrity(ParamBitCircuit(r, 2, 10))
     
     vtree = PlainVtree(10, :balanced)
     r = fully_factorized_circuit(StructProbCircuit, vtree)

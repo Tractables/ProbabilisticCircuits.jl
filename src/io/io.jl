@@ -5,11 +5,9 @@ using Pkg.Artifacts
 using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
 
 include("psdd_io.jl")
+include("clt_io.jl")
+include("ensemble_io.jl")
 include("plot.jl")
-
-# TODO CLEANUP
-# include("circuit_loaders.jl")
-# include("circuit_savers.jl")
 
 # if no logic circuit file format is given on read, infer file format from extension
 
@@ -30,6 +28,10 @@ Reads circuit from file; uses extension to detect format type, for example ".psd
 Base.read(file::AbstractString, ::Type{C}) where C <: ProbCircuit =
     read(file, C, file2pcformat(file))
 
+
+Base.read(files::Tuple{AbstractString,AbstractString}, ::Type{C}) where C <: StructProbCircuit =
+    read(files, C, (file2pcformat(files[1]), VtreeFormat()))
+
 """
     Base.write(file::AbstractString, circuit::ProbCircuit)
 
@@ -47,7 +49,7 @@ Base.write(files::Tuple{AbstractString,AbstractString},
            circuit::StructProbCircuit) =
     write(files, circuit, (file2pcformat(files[1]), VtreeFormat()))
 
-    
+
 #  when asked to parse/read as `ProbCircuit`, default to `PlainProbCircuit`
 
 Base.parse(::Type{ProbCircuit}, args...) = 
