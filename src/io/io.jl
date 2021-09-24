@@ -11,7 +11,43 @@ include("plot.jl")
 # include("circuit_loaders.jl")
 # include("circuit_savers.jl")
 
+# if no logic circuit file format is given on read, infer file format from extension
 
+function file2pcformat(file) 
+    if endswith(file,".psdd")
+        PsddFormat()
+    else
+        # try a logic circuit format
+        LogicCircuits.file2logicformat(file)
+    end
+end
+
+"""
+    Base.read(file::AbstractString, ::Type{C}) where C <: ProbCircuit
+
+Reads circuit from file; uses extension to detect format type, for example ".psdd" for PSDDs.
+"""
+Base.read(file::AbstractString, ::Type{C}) where C <: ProbCircuit =
+    read(file, C, file2pcformat(file))
+
+"""
+    Base.write(file::AbstractString, circuit::ProbCircuit)
+
+Writes circuit to file; uses file name extention to detect file format.
+"""
+Base.write(file::AbstractString, circuit::ProbCircuit) =
+    write(file, circuit, file2pcformat(file))
+
+"""
+    Base.write(files::Tuple{AbstractString,AbstractString}, circuit::StructProbCircuit)
+
+Saves circuit and vtree to file.
+"""
+Base.write(files::Tuple{AbstractString,AbstractString}, 
+           circuit::StructProbCircuit) =
+    write(files, circuit, (file2pcformat(files[1]), VtreeFormat()))
+
+    
 #  when asked to parse/read as `ProbCircuit`, default to `PlainProbCircuit`
 
 Base.parse(::Type{ProbCircuit}, args...) = 
