@@ -4,6 +4,7 @@ using LogicCircuits: JuiceTransformer, dimacs_comments, zoo_version
 using Pkg.Artifacts
 using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
 
+include("jpc_io.jl")
 include("psdd_io.jl")
 include("clt_io.jl")
 include("ensemble_io.jl")
@@ -12,7 +13,9 @@ include("plot.jl")
 # if no logic circuit file format is given on read, infer file format from extension
 
 function file2pcformat(file) 
-    if endswith(file,".psdd")
+    if endswith(file,".jpc")
+        JpcFormat()
+    elseif endswith(file,".psdd")
         PsddFormat()
     else
         # try a logic circuit format
