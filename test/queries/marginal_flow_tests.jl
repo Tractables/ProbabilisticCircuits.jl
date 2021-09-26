@@ -73,17 +73,18 @@ include("../helper/gpu.jl")
         MAR(alltrue, d)
     end
 
-    # Strudel Marginal Flow Test
-    rng = MersenneTwister(100003); # Fix the seed
-    samples, _ = sample(prob_circuit, 100000; rng)
-    mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples), :auto); num_mix = 10,
-                                    init_maxiter = 20, em_maxiter = 100, verbose = false)
-    mix_calc_prob = exp.(MAR(mix, data_marg, weights))
-    for mix_pair in zip(true_prob, mix_calc_prob)
-        @test mix_pair[1] ≈ mix_pair[2]  atol=0.1
-    end
+    # TODO move somewhere else because this test is too slow to run each time
+    # # Strudel Marginal Flow Test
+    # rng = MersenneTwister(100003); # Fix the seed
+    # samples, _ = sample(prob_circuit, 100000; rng)
+    # mix, weights, _ = learn_strudel(DataFrame(convert(BitArray, samples), :auto); num_mix = 10,
+    #                                 init_maxiter = 20, em_maxiter = 100, verbose = false)
+    # mix_calc_prob = exp.(MAR(mix, data_marg, weights))
+    # for mix_pair in zip(true_prob, mix_calc_prob)
+    #     @test mix_pair[1] ≈ mix_pair[2]  atol=0.1
+    # end
 
-    test_complete_mar(mix, data_full, weights, 0.1)
+    # test_complete_mar(mix, data_full, weights, 0.1)
 end
 
 @testset "Marginals batch" begin

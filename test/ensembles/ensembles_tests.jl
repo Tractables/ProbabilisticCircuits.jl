@@ -4,6 +4,7 @@ using DataFrames
 using LogicCircuits
 
 @testset "ensemble tests with SamplePSDD" begin
+
     # Set up a logic constraint ϕ as a BDD and scope size n. Sample m PSDDs.
     function case(ϕ::Bdd, n::Integer, strategy::Symbol; m::Integer = 20, atol::Real = 1e-2)::Ensemble{StructProbCircuit}
         # All possible valuations (including impossible ones).
@@ -26,13 +27,14 @@ using LogicCircuits
         return E
     end
 
+    # some tests commented out to speed up tests
     Es = Vector{Ensemble{StructProbCircuit}}()
     for strategy ∈ [:likelihood, :uniform, :em, :stacking]
         case((1 ∧ 2) ∨ (3 ∧ ¬4) ∨ (¬1 ∧ 5), 5, strategy)
-        case((1 → 3) ∧ (5 → ¬2), 5, strategy)
-        case((1 ∧ 2 ∧ 3) ∨ (4 ∧ 5), 5, strategy)
-        case(exactly(3, collect(1:5)), 5, strategy)
-        case(atleast(3, collect(1:5)), 5, strategy)
+        # case((1 → 3) ∧ (5 → ¬2), 5, strategy)
+        # case((1 ∧ 2 ∧ 3) ∨ (4 ∧ 5), 5, strategy)
+        # case(exactly(3, collect(1:5)), 5, strategy)
+        # case(atleast(3, collect(1:5)), 5, strategy)
         case(atmost(3, collect(1:5)), 5, strategy)
     end
 
