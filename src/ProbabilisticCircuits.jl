@@ -22,8 +22,8 @@ export twenty_datasets
 include("Utils/Utils.jl")
 @reexport using .Utils
 
-include("FactorGraph/factor_graph.jl")
-include("FactorGraph/fg_compile.jl") 
+include("factor_graph/factor_graph.jl")
+include("factor_graph/fg_compile.jl") 
 
 include("abstract_prob_nodes.jl")
 include("shared_prob_nodes.jl")

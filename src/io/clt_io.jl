@@ -7,6 +7,7 @@ using Pkg.Artifacts
 # circuit loaders from module zoo
 #####################
 
+# TODO move this to a Lerche.jl parser and use Base.{read,parse}
 
 zoo_clt_file(name) = 
     artifact"circuit_model_zoo" * LogicCircuits.zoo_version * "/clts/$name"
