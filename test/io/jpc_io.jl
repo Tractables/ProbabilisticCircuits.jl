@@ -1,10 +1,9 @@
 using Test
 using ProbabilisticCircuits
-using LogicCircuits: is⋁gate, is⋀gate
 
 include("../helper/pc_equals.jl")
 
-@testset "Load and save a small PSDD with and without vtree" begin
+@testset "Load and save a small JPC" begin
     
     function test_my_circuit(pc)
     
@@ -32,34 +31,26 @@ include("../helper/pc_equals.jl")
         @test check_parameter_integrity(pc)
     end
 
-    pc0 = zoo_psdd("little_4var.psdd")
-    
-    test_my_circuit(pc0)
-
+    # first load circuit from PSDD file
     paths = (zoo_psdd_file("little_4var.psdd"), zoo_vtree_file("little_4var.vtree"))
     formats = (PsddFormat(), VtreeFormat())
     pc1 = read(paths, StructProbCircuit, formats) 
 
-    @test pc1 isa StructProbCircuit
-    test_my_circuit(pc1)
-    @test respects_vtree(pc1, vtree(pc1))
-    test_pc_equals(pc0, pc1)
-
     mktempdir() do tmp
         
         # write as a unstructured logic circuit
-        psdd_path = "$tmp/example.psdd"
-        write(psdd_path, pc1)
+        jpc_path = "$tmp/example.jpc"
+        write(jpc_path, pc1)
 
         # read as a unstructured logic circuit
-        pc2 = read(psdd_path, ProbCircuit)
+        pc2 = read(jpc_path, ProbCircuit)
         
         test_my_circuit(pc2)
-        test_pc_equals(pc0, pc2)
+        test_pc_equals(pc1, pc2)
 
         # write with vtree
         vtree_path = "$tmp/example.vtree"
-        paths = (psdd_path, vtree_path)
+        paths = (jpc_path, vtree_path)
         write(paths, pc1)
 
         # read as a structured probabilistic circuit
@@ -67,29 +58,25 @@ include("../helper/pc_equals.jl")
         
         @test pc3 isa StructProbCircuit
         test_my_circuit(pc3)
+        test_pc_equals(pc1, pc3)
         @test vtree(pc1) == vtree(pc3)
-        test_pc_equals(pc0, pc3)
-
+        
     end
 
 end
  
- psdd_files = ["little_4var.psdd", "msnbc-yitao-a.psdd", "msnbc-yitao-b.psdd", "msnbc-yitao-c.psdd", "msnbc-yitao-d.psdd", "msnbc-yitao-e.psdd", "mnist-antonio.psdd"]
- 
- @testset "Test parameter integrity of loaded PSDDs" begin
-    for psdd_file in psdd_files
-       @test check_parameter_integrity(zoo_psdd(psdd_file))
-    end
- end
-
-@testset "Cannot save PSDDs with nonbinary multiplications" begin
+@testset "Can save JPCs with nonbinary multiplications" begin
     
-    pc = fully_factorized_circuit(ProbCircuit, 10)
+    pc1 = fully_factorized_circuit(ProbCircuit, 10)
     
     mktempdir() do tmp
             
-        psdd_path = "$tmp/example.psdd"
-        @test_throws ErrorException write(psdd_path, pc)
+        jpc_path = "$tmp/example.jpc"
+        write(jpc_path, pc1)
 
+        pc2 = read(jpc_path, ProbCircuit)
+        
+        test_pc_equals(pc1, pc2)
     end
+    
 end

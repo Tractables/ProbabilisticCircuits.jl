@@ -27,11 +27,11 @@ const jpc_grammar = raw"""
     header : "jpc" _WS INT
     
     node : "L" _WS INT _WS INT _WS SIGNED_INT -> literal_node
-         | "S" _WS INT _WS INT _WS INT _WS child_nodes -> sum_node
-         | "P" _WS INT _WS INT _WS INT _WS child_nodes _WS log_probs -> prod_node
+         | "P" _WS INT _WS INT _WS INT child_nodes -> prod_node
+         | "S" _WS INT _WS INT _WS INT weighted_child_nodes -> sum_node
          
-    child_nodes : INT (_WS INT)*
-    log_probs : LOGPROB (_WS LOGPROB)*
+    child_nodes : (_WS INT)+
+    weighted_child_nodes: (_WS INT _WS LOGPROB)+
     
     %import common.INT
     %import common.SIGNED_INT
@@ -55,8 +55,11 @@ end
 @rule child_nodes(t::JpcParse, x) = 
     map(id -> t.nodes[id], x)
 
-@rule log_probs(t::JpcParse, x) = 
-    Base.parse.(Float64,x)
+@rule weighted_child_nodes(t::JpcParse, x) = begin
+    children = map(id -> t.nodes[id], x[1:2:end])
+    log_probs = Base.parse.(Float64,x[2:2:end])
+    (children, log_probs)
+end
 
 #  parse unstructured
 struct PlainJpcParse <: JpcParse
@@ -65,16 +68,16 @@ struct PlainJpcParse <: JpcParse
 end
 
 @rule literal_node(t::PlainJpcParse, x) = 
-    t.nodes[x[1]] = PlainLiteralNode(Base.parse(Lit,x[3]))
-
-@rule sum_node(t::PlainJpcParse,x) = begin
-    @assert length(x[4]) == Base.parse(Int,x[3])
-    t.nodes[x[1]] = PlainSumNode(x[4], x[5])
-end
+    t.nodes[x[1]] = PlainProbLiteralNode(Base.parse(Lit,x[3]))
 
 @rule prod_node(t::PlainJpcParse,x) = begin
     @assert length(x[4]) == Base.parse(Int,x[3])
     t.nodes[x[1]] = PlainMulNode(x[4])
+end
+
+@rule sum_node(t::PlainJpcParse,x) = begin
+    @assert length(x[4][1]) == length(x[4][2]) == Base.parse(Int,x[3])
+    t.nodes[x[1]] = PlainSumNode(x[4][1], x[4][2])
 end
 
 function Base.parse(::Type{PlainProbCircuit}, str, ::JpcFormat) 
@@ -99,17 +102,16 @@ end
     t.nodes[x[1]] = StructProbLiteralNode(lit, vtree)
 end
 
-
-@rule sum_node(t::StructJpcParse,x) = begin
-    @assert length(x[4]) == Base.parse(Int,x[3])
-    vtree = t.id2vtree[x[2]]
-    t.nodes[x[1]] = StructSumNode(x[4], x[5], vtree)
-end
-
 @rule prod_node(t::StructJpcParse,x) = begin
     @assert length(x[4]) == Base.parse(Int,x[3]) == 2
     vtree = t.id2vtree[x[2]]
     t.nodes[x[1]] = StructMulNode(x[4]..., vtree)
+end
+
+@rule sum_node(t::StructJpcParse,x) = begin
+    @assert length(x[4][1]) == length(x[4][2]) == Base.parse(Int,x[3])
+    vtree = t.id2vtree[x[2]]
+    t.nodes[x[1]] = StructSumNode(x[4][1], x[4][2], vtree)
 end
 
 function Base.parse(::Type{StructProbCircuit}, str::AbstractString, ::JpcFormat, id2vtree) 
@@ -142,8 +144,8 @@ c
 c file syntax:
 c jpc count-of-jpc-nodes
 c L id-of-literal-jpc-node id-of-vtree literal
-c S id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
-c P id-of-product-jpc-node id-of-vtree number-of-children {child-id}+ {log-probability}+
+c P id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
+c S id-of-product-jpc-node id-of-vtree number-of-children {child-id}+ {log-probability}+
 c"""
 
 function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function = (x -> 0))
@@ -161,11 +163,15 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
         else
             t = is⋀gate(n) ? "P" : "S"
             print(io, "$t $(labeling[n]) $(vtreeid(n)) $(num_children(n))")
-            for child in children(n)
-                print(io, " $(labeling[child])")
-            end
-            for logp in n.log_probs
-                print(io, " $logp")
+            if is⋀gate(n)
+                for child in children(n)
+                    print(io, " $(labeling[child])")
+                end
+            else
+                @assert is⋁gate(n)  
+                for (child, logp) in zip(children(n), n.log_probs)
+                    print(io, " $(labeling[child]) $logp")
+                end    
             end
             println(io)
         end
