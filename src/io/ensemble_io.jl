@@ -1,5 +1,7 @@
 export load_as_ensemble, save_as_ensemble
 
+# TODO transition this to a Lerche.jl parser and use Base.{read,parse}
+
 "Loads an ensemble from disk."
 function load_as_ensemble(name::String; quiet::Bool = false)::Ensemble{StructProbCircuit}
     @assert endswith(name, ".esbl")
