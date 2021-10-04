@@ -42,30 +42,41 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache)
     implied_literals(root, cache.impl_lits)
     forward_bounds(root, query_vars, cache)
 
-    tcache = NodeCacheDict(0.0)
-    tcache[root] = 1.0
-    rcache = NodeEdgeCacheDict(0.0)
-    rcache[root] = exp(cache.ub[root])
+    # tcache = NodeCacheDict(0.0)
+    # tcache[root] = 1.0
+    # rcache = NodeEdgeCacheDict(0.0)
+    # rcache[root] = exp(cache.ub[root])
+
+    tcache = NodeCacheDict(-Inf)
+    tcache[root] = 0.0
+    rcache = NodeEdgeCacheDict(-Inf)
+    rcache[root] = cache.ub[root]
+
     foreach_down(x -> edge_bounds_fn(x, query_vars, cache, tcache, rcache), root)
     # @assert all(collect(values(rcache)) .>= 0.0)
     rcache
 end
 
 function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache, tcache::NodeCacheDict, rcache::NodeEdgeCacheDict)
-    if isleaf(root) || tcache[root] == 0.0
+    # if isleaf(root) || tcache[root] == 0.0
+    if isleaf(root) || tcache[root] == -Inf
         return
     end
     if is⋁gate(root)
         for (c, param) in zip(root.children, params(root))
             if (associated_with_mult(root, query_vars, cache.impl_lits)
-                && abs(exp(param) * exp(cache.ub[c]) - exp(cache.ub[root])) > 1e-7)
-                rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(cache.ub[c]) - exp(cache.ub[root]))
+                && cache.ub[root] - (param + cache.ub[c]) > 1e-5)
+                # rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(cache.ub[c]) - exp(cache.ub[root]))
+                rcache[(root, c)] = logsubexp(rcache[root], tcache[root] + logsubexp(param + cache.ub[c], cache.ub[root]))
+                # rcache[(root, c)] = logsubexp(logaddexp(rcache[root], tcache[root] + param + cache.ub[c]), tcache[root] + cache.ub[root])
             else
                 rcache[(root, c)] = rcache[root]
             end
             if cache.ub[c] > -Inf
-                edge_pr = exp(param) * tcache[root]
-                tcache[c] = tcache[c] == 0 ? edge_pr : min(tcache[c], edge_pr)
+                # edge_pr = exp(param) * tcache[root]
+                # tcache[c] = tcache[c] == 0 ? edge_pr : min(tcache[c], edge_pr)
+                edge_pr = param + tcache[root]
+                tcache[c] = tcache[c] > -Inf ? min(tcache[c], edge_pr) : edge_pr
             end
             rcache[c] = max(rcache[c], rcache[(root, c)])
         end
@@ -73,7 +84,8 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, cache::MMAPCache,
         for c in root.children
             rcache[(root, c)] = rcache[root]
             rcache[c] = max(rcache[c], rcache[(root, c)])
-            tcache[c] = tcache[c] == 0 ? tcache[root] : min(tcache[c], tcache[root])
+            # tcache[c] = tcache[c] == 0 ? tcache[root] : min(tcache[c], tcache[root])
+            tcache[c] = tcache[c] > -Inf ? min(tcache[c], tcache[root]) : tcache[root]
         end
     end
 end
@@ -155,6 +167,7 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache::Union
     max_sum_down(root, cache.lb, state)
 
     # reduce to query variables
+    @assert all(issomething(state[collect(query_vars)]))
     reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
     df = DataFrame(reduced, :auto)
     df, exp(MAR(root, df)[1])
@@ -241,8 +254,7 @@ function prune(n::PlainProbCircuit, query_vars::BitSet, cache::MMAPCache, lower_
     actual_reps = num_reps
     for i in 1:num_reps
         to_prune = find_to_prune(circ, query_vars, cache, lower_bound, counters)
-        circ = do_pruning(circ, Set(to_prune)) 
-        # TODO: delete pruned edges/nodes from cache
+        circ = do_pruning(circ, Set(to_prune), cache) 
 
         if num_edges(circ) < prev_size
             prev_size = num_edges(circ)
@@ -260,7 +272,8 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
 
     rcache = edge_bounds(n, query_vars, cache)
     # Caution: if buffer is too small, edges may be pruned incorrectly. if it's too big, too little pruning may happen.
-    to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh * (1 - 1e-4), collect(rcache)))
+    # to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh * (1 - 1e-4), collect(rcache)))
+    to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh - 1e-5, collect(rcache)))
 
     query_lits = union(query_vars, BitSet(map(x->-x, collect(query_vars))))
     for (n,x) in to_prune
@@ -273,10 +286,20 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
 end
 
 "Perform the actual pruning. Note this will always return a plain logic circuit"
-function do_pruning(n, to_prune)
-    cache = Dict()
-    foreach(x -> prune_fn(x, to_prune, cache), n)
-    cache[n]
+function do_pruning(n, to_prune, cache)
+    new_nodes = Dict()
+    foreach(x -> prune_fn(x, to_prune, new_nodes), n)
+    filter!(p -> issomething(get(new_nodes, p.first, nothing)), cache.ub)
+    filter!(cache.lb) do p
+        if p isa Tuple
+            (issomething(get(new_nodes, p.first.first, nothing))
+             && issomething(get(new_nodes, p.first.second, nothing)))
+        else
+            issomething(get(new_nodes, p.first, nothing))
+        end
+    end
+    filter!(p -> issomething(get(new_nodes, p.first, nothing)), cache.impl_lits)
+    new_nodes[n]
 end
 
 function prune_fn(n, to_prune, cache)
@@ -501,7 +524,8 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             # Prune -- could improve the upper bound (TODO: maybe also the lower bound?)
             println("* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             tic = time_ns()
-            cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
+            # cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
+            cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, lb, prune_attempts)
             merge!(counters, prune_counters)
             toc = time_ns()
             println("* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
