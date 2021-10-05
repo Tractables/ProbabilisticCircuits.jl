@@ -76,7 +76,7 @@ function main()
     end
 
     Random.seed!(seed)
-    pc = load_prob_circuit(circ_path)
+    pc = read(circ_path, ProbCircuit)
     quer_size = round(Int, quer_percent*num_variables(pc))
     quer = BitSet(sample(1:num_variables(pc), quer_size, replace=false))
 
