@@ -34,4 +34,9 @@ jobs:
           julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
           julia --project=test -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.precompile();'
           julia --project=test -e 'using Pkg; Pkg.develop("ProbabilisticCircuits");'
-          julia --project=test --check-bounds=yes --depwarn=error test/_manual_/aqua_test.jl
+          julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/aqua_test.jl
+          julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/strudel_marginal_tests.jl
+          julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/strudel_likelihood_tests.jl
+          julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/ensembles_tests.jl
+
+

@@ -24,10 +24,11 @@ using LogicCircuits
         @test isapprox(evi[findall(>(0), evi)], (R/sum(R)); atol)
     end
 
+    # some tests commented out to speed up tests
     case((1 ∧ 2) ∨ (3 ∧ ¬4) ∨ (¬1 ∧ 5), 5)
-    case((1 → 3) ∧ (5 → ¬2), 5)
-    case((1 ∧ 2 ∧ 3) ∨ (4 ∧ 5), 5)
+    # case((1 → 3) ∧ (5 → ¬2), 5)
+    # case((1 ∧ 2 ∧ 3) ∨ (4 ∧ 5), 5)
     case(exactly(3, collect(1:5)), 5)
-    case(atleast(3, collect(1:5)), 5)
-    case(atmost(3, collect(1:5)), 5)
+    # case(atleast(3, collect(1:5)), 5)
+    # case(atmost(3, collect(1:5)), 5)
 end

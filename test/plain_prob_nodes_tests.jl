@@ -2,7 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 
-include("helper/plain_logic_circuits.jl")
+include("helper/little_circuits.jl")
 
 @testset "probabilistic circuit nodes" begin
 

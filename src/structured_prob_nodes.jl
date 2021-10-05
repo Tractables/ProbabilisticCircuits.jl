@@ -43,9 +43,10 @@ mutable struct StructSumNode <: StructProbInnerNode
     children::Vector{StructProbCircuit}
     log_probs::Vector{Float64}
     vtree::Vtree # could be leaf or inner
-    StructSumNode(c, v) = 
-        new(c, log.(ones(Float64, length(c)) / length(c)), v)
 end
+
+StructSumNode(c, v) = 
+    StructSumNode(c, log.(ones(Float64, length(c)) / length(c)), v)
 
 #####################
 # traits

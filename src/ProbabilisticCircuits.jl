@@ -13,23 +13,23 @@ export pos_literals, neg_literals
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
 # circuit status
-export num_edges, num_parameters
+export num_nodes, num_edges, children, num_parameters
+export zoo_vtree, zoo_vtree_file, VtreeFormat, vtree, respects_vtree
+export linearize, isliteralgate, literal, fully_factorized_circuit
 # datasets
 export twenty_datasets
 
 include("Utils/Utils.jl")
 @reexport using .Utils
 
-include("FactorGraph/factor_graph.jl")
-include("FactorGraph/fg_compile.jl") 
+include("factor_graph/factor_graph.jl")
+include("factor_graph/fg_compile.jl") 
 
 include("abstract_prob_nodes.jl")
 include("shared_prob_nodes.jl")
 include("plain_prob_nodes.jl")
 include("structured_prob_nodes.jl")
-include("logistic_nodes.jl")
 include("param_bit_circuit.jl")
-include("param_bit_circuit_pair.jl")
 include("parameters.jl")
 include("gradient_based_learning.jl")
 
@@ -40,12 +40,6 @@ include("queries/marginal_map.jl")
 include("queries/sample.jl")
 include("queries/pr_constraint.jl")
 include("queries/information.jl")
-include("queries/expectation_rec.jl")
-include("queries/expectation_graph.jl")
-include("queries/expectation_bit.jl")
-
-include("Logistic/Logistic.jl")
-@reexport using .Logistic
 
 include("mixtures/em.jl")
 
@@ -60,8 +54,7 @@ include("structurelearner/bdd.jl")
 include("ensembles/ensembles.jl")
 include("ensembles/bmc.jl")
 
-include("LoadSave/LoadSave.jl")
-@reexport using .LoadSave
+include("io/io.jl")
 
 using Requires
 
