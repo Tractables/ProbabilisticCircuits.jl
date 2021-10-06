@@ -52,7 +52,7 @@ end
 @rule literal_node(t::SpnParse, x) = begin
     v = Base.parse(Var,x[1]) + 1
     @assert x[2] == "0" || x[2] == "1" "Boolean domains only." 
-    l = (x[2] == 1) ? Lit(v) : -Lit(v)
+    l = (x[2] == "1") ? Lit(v) : -Lit(v)
     push!(t.nodes, PlainProbLiteralNode(l))
 end
 
@@ -78,53 +78,35 @@ Base.read(io::IO, ::Type{PlainProbCircuit}, ::SpnFormat) =
     parse(PlainProbCircuit, read(io, String), SpnFormat())
 
 
-# ##############################################
-# # Write SPNs
-# ##############################################
+##############################################
+# Write SPNs
+##############################################
 
-# const SPN_FORMAT = """c this file was saved by ProbabilisticCircuits.jl
-# c ids of spn nodes start at 0
-# c spn nodes appear bottom-up, children before parents
-# c
-# c file syntax:
-# c spn count-of-spn-nodes
-# c L id-of-literal-spn-node id-of-vtree literal
-# c P id-of-sum-spn-node id-of-vtree number-of-children {child-id}+
-# c S id-of-product-spn-node id-of-vtree number-of-children {child-id}+ {log-probability}+
-# c"""
+function Base.write(io::IO, circuit::ProbCircuit, ::SpnFormat)
 
-# function Base.write(io::IO, circuit::ProbCircuit, ::SpnFormat, vtreeid::Function = (x -> 0))
+    labeling = label_nodes(circuit)
+    map!(x -> x-1, values(labeling)) # nodes are 0-based indexed
 
-#     labeling = label_nodes(circuit)
-#     map!(x -> x-1, values(labeling)) # vtree nodes are 0-based indexed
-
-#     println(io, SPN_FORMAT)
-#     println(io, "spn $(num_nodes(circuit))")
-#     foreach(circuit) do n
-#         if isliteralgate(n)
-#             println(io, "L $(labeling[n]) $(vtreeid(n)) $(literal(n))")
-#         elseif isconstantgate(n)
-#             @assert false
-#         else
-#             t = is⋀gate(n) ? "P" : "S"
-#             print(io, "$t $(labeling[n]) $(vtreeid(n)) $(num_children(n))")
-#             if is⋀gate(n)
-#                 for child in children(n)
-#                     print(io, " $(labeling[child])")
-#                 end
-#             else
-#                 @assert is⋁gate(n)  
-#                 for (child, logp) in zip(children(n), n.log_probs)
-#                     print(io, " $(labeling[child]) $logp")
-#                 end    
-#             end
-#             println(io)
-#         end
-#     end
-#     nothing
-# end
-
-# function Base.write(ios::Tuple{IO,IO}, circuit::StructProbCircuit, format::SpnVtreeFormat)
-#     vtree2id = write(ios[2], vtree(circuit), format[2])
-#     write(ios[1], circuit, format[1], n -> vtree2id[vtree(n)])
-# end
+    println(io, "(2" * " 2"^(num_variables(circuit)-1) * ")")
+    foreach(circuit) do n
+        if isliteralgate(n)
+            state = ispositive(n) ? "1" : "0"
+            println(io, "v $(variable(n)-1) $state")
+        else
+            print(io, is⋀gate(n) ? "*" : "+")
+            if is⋀gate(n)
+                for child in children(n)
+                    print(io, " $(labeling[child])")
+                end
+            else
+                @assert is⋁gate(n)  
+                for (child, logp) in zip(children(n), n.log_probs)
+                    print(io, " $(labeling[child]) $logp")
+                end    
+            end
+            println(io)
+        end
+    end
+    println(io, "EOF")
+    nothing
+end
