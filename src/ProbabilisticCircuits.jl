@@ -13,7 +13,7 @@ export pos_literals, neg_literals
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
 # circuit status
-export num_nodes, num_edges, children, num_parameters
+export num_nodes, num_edges, children, num_parameters, num_children
 export zoo_vtree, zoo_vtree_file, VtreeFormat, vtree, respects_vtree
 export linearize, isliteralgate, literal, fully_factorized_circuit
 # datasets

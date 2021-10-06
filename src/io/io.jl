@@ -6,6 +6,7 @@ using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
 
 include("jpc_io.jl")
 include("psdd_io.jl")
+include("spn_io.jl")
 include("clt_io.jl")
 include("ensemble_io.jl")
 include("plot.jl")
@@ -17,6 +18,8 @@ function file2pcformat(file)
         JpcFormat()
     elseif endswith(file,".psdd")
         PsddFormat()
+    elseif endswith(file,".spn")
+        SpnFormat()
     else
         # try a logic circuit format
         LogicCircuits.file2logicformat(file)

@@ -23,7 +23,7 @@ function DiGraph(pc::ProbCircuit)
             "$(round(exp(n.log_probs[i]), digits=3))"
         end
     end
-    g, _ = LogicCircuits.LoadSave.DiGraph(pc;on_edge=on_edge, on_var=add_label!)
+    g, _ = LogicCircuits.DiGraph(pc;on_edge=on_edge, on_var=add_label!)
     g, label, edge_labels
 end
 
