@@ -8,7 +8,7 @@ using Reexport
 
 using LogicCircuits
 # only reexport selectively from LogicCircuits
-export pos_literals, neg_literals
+export pos_literals, neg_literals, print_tree
 # circuit queries
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
