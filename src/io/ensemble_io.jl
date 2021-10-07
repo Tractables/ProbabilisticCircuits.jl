@@ -1,5 +1,7 @@
 export load_as_ensemble, save_as_ensemble
 
+using ZipFile
+
 # TODO transition this to a Lerche.jl parser and use Base.{read,parse}
 
 "Loads an ensemble from disk."
