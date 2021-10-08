@@ -72,7 +72,11 @@ function summate(arguments::Vector{<:PlainProbCircuit};
                     reuse=nothing)
     @assert length(arguments) > 0
     reuse isa PlainSumNode && children(reuse) == arguments && return reuse
-    return PlainSumNode(arguments)
+    node = PlainSumNode(arguments)
+    if reuse isa PlainSumNode && num_children(reuse) == length(arguments)
+        node.log_probs = reuse.log_probs
+    end
+    return node
 end
 
 # claim `PlainProbCircuit` as the default `ProbCircuit` implementation

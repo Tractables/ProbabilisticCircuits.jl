@@ -1,6 +1,7 @@
 export MMAP_LOG_HEADER, forward_bounds, edge_bounds, max_sum_lower_bound, associated_with_mult,
     mmap_solve, add_and_split, get_to_split, prune,
-    mmap_reduced_mpe_state, gen_edges, brute_force_mmap, pc_condition, get_margs
+    mmap_reduced_mpe_state, gen_edges, brute_force_mmap, pc_condition, get_margs,
+    marginalize_out
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -116,7 +117,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
     end
     implied_literals(root, impl_lits)
     
-    @assert num_features(data) == num_variables(root)
+    @assert num_features(data) == maximum(variables(root))
     f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
     f_lit(n) = begin
         assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
@@ -163,12 +164,14 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache::Union
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
 
     # backward pass to get the max state
-    state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
+    # state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
+    state = Array{Union{Nothing,Bool}}(nothing, maximum(variables(root)))
     max_sum_down(root, cache.lb, state)
 
     # reduce to query variables
-    @assert all(issomething(state[collect(query_vars)]))
-    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
+    @assert all(issomething.(state[collect(query_vars)]))
+    # reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
+    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:maximum(variables(root))])
     df = DataFrame(reduced, :auto)
     df, exp(MAR(root, df)[1])
 end
@@ -289,6 +292,8 @@ end
 function do_pruning(n, to_prune, cache)
     new_nodes = Dict()
     foreach(x -> prune_fn(x, to_prune, new_nodes), n)
+
+    # Only keep in cache nodes that are not pruned
     filter!(p -> issomething(get(new_nodes, p.first, nothing)), cache.ub)
     filter!(cache.lb) do p
         if p isa Tuple
@@ -392,7 +397,7 @@ end
 function get_to_split(root, splittable, counters, heur, lb)    
     if heur == "avgUB" || heur == "minUB" || heur == "maxUB" || heur == "UB"
         vars = collect(splittable)
-        datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), num_variables(root))
+        datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), maximum(variables(root)))
         for i in 1:length(vars)
             datamat[2*i-1, vars[i]] = true
             datamat[2*i, vars[i]] = false
@@ -464,6 +469,61 @@ end
 # Iterative MMAP solver
 ##################### 
 
+"""
+Marginalize out variables. Requires at least one variable that is not marginalized.
+
+Requires and preserves smoothness and decomposability. This may break determinism. 
+"""
+function marginalize_out(root, to_marginalize)
+    # TOOD: take into account evidence
+    # NOTE: without evidence, marg should always be 0.0
+    f_leaf(n) = variable(n) ∈ to_marginalize ? (0.0f0, nothing) : (0.0f0, n)
+    f_a(n, cn) = begin
+        children = filter(issomething, last.(cn))
+        if isempty(children)
+            new_n = nothing
+        elseif length(children) == 1
+            new_n = children[1]
+        else
+            new_n = multiply(children, reuse=n)
+        end
+        marg = sum(first.(cn))
+        (marg, new_n)
+    end
+    f_o(n, cn) = begin
+        # By smoothness, either all children are marginalized (ie nothing) or none are.
+        if all(isnothing.(last.(cn)))
+            marg = reduce(logaddexp, Float32.(params(n)) .+ first.(cn))
+            (marg, nothing)
+        else
+            @assert all(issomething.(last.(cn)))
+            new_n = summate(last.(cn), reuse=n)
+            new_n.log_probs = n.log_probs .+ first.(cn)
+            (0.0f0, new_n)
+        end
+    end
+    (marg, new_root) = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32, Union{Nothing, Node}})
+
+    @assert issomething(new_root)
+    if marg != 0.0f0
+        new_root = PlainSumNode([new_root])
+        new_root.log_probs = [marg]
+    end
+    new_root
+end
+
+function forget(root, is_forgotten)
+    (_, true_node) = canonical_constants(root)
+    if isnothing(true_node)
+        true_node = compile(typeof(root), true)
+    end
+    f_con(n) = n
+    f_lit(n) = is_forgotten(variable(n)) ? true_node : n
+    f_a(n, cn) = conjoin([cn...]; reuse=n) # convert type of cn
+    f_o(n, cn) = disjoin([cn...]; reuse=n)
+    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
+end
+
 "Update upper and lower bounds, and add log info"
 function update_and_log(cur_root, root, quer, cache, lb, results, iter, post_prune; time=missing, prune_attempts=missing, split_var=missing)
     if post_prune
@@ -507,8 +567,16 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
         results[x] = Vector{Union{Any,Missing}}(missing,num_iter)
     end
 
+    # marginalize out non-query variables
+    # cur_root = root
+    ub = forward_bounds(root, quer)
+    _, mp = max_sum_lower_bound(root, quer)
+    @show ub, log(mp)
+    cur_root = marginalize_out(root, setdiff(variables(root), quer))
+    @assert variables(cur_root) == quer
+    # TODO: check the bounds before and after
+
     splittable = copy(quer)
-    cur_root = root
     cache = MMAPCache()
     ub = forward_bounds(cur_root, quer, cache)
     _, mp = max_sum_lower_bound(cur_root, quer, cache)

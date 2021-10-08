@@ -46,6 +46,9 @@ function add_basic_arg(s::ArgParseSettings)
             help = "Experiment id"
             arg_type = String
             default = Dates.format(now(), "yyyymmdd-HHMMSSs")
+        "--out-spn"
+            help = "Do not run solver and output the circuit as .spn after marginalizing out non-query variables"
+            action = :store_true
         end
 end
 
@@ -65,12 +68,14 @@ function main()
     prune_attempts = args["prune-attempts"]
     pick_var = args["pick-var"]
     exp_id = args["exp-id"]
+    out_spn = args["out-spn"]
     
-    # log config
     out_path = joinpath(outdir, exp_id)
     if !isdir(out_path)
         mkpath(out_path)
     end
+
+    # log config
     open(joinpath(out_path, "config.json"),"w") do f
         write(f, JSON.json(args))
     end
@@ -79,6 +84,15 @@ function main()
     pc = read(circ_path, ProbCircuit)
     quer_size = round(Int, quer_percent*num_variables(pc))
     quer = BitSet(sample(1:num_variables(pc), quer_size, replace=false))
+    open(f -> serialize(f,quer), joinpath(out_path, "quer.jls"), "w")
+
+    if out_spn
+        spn = marginalize_out(pc, setdiff(variables(pc), quer))
+        spn, mapping = make_vars_contiguous(spn)
+        write(joinpath(out_path, "$(basename(circ_path)).spn"), spn)
+        open(f -> serialize(f,mapping), joinpath(out_path, "mapping.jls"), "w")
+        # return
+    end
 
     csv = joinpath(out_path, "progress.csv")
     log_func(results) = begin
@@ -93,9 +107,9 @@ function main()
                     log_per_iter=log_func,
                     heur=pick_var)
     
-    # TODO: save quer
     # Save result
     open(f -> serialize(f,pc), joinpath(out_path, "circuit.jls"), "w")
+
     # read_pc = open(deserialize, joinpath(out_path, "circuit.jls"))
 end
 
