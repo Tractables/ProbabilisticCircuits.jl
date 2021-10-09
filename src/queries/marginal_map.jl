@@ -48,13 +48,11 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     rcache = NodeCacheDict(-Inf)
     rcache[root] = cache.ub[root]
 
-    to_prune = Tuple{ProbCircuit,ProbCircuit}[]
+    to_prune = Set{Tuple{ProbCircuit,ProbCircuit}}()
 
     foreach_down(x -> edge_bounds_fn(x, query_vars, thresh, to_prune, cache, tcache, rcache), root)
     # @assert all(collect(values(rcache)) .>= 0.0)
     
-    # remove duplicate edges
-    unique!(to_prune)
     to_prune
 end
 
@@ -253,7 +251,7 @@ function prune(n::PlainProbCircuit, query_vars::BitSet, cache::MMAPCache, lower_
     actual_reps = num_reps
     for i in 1:num_reps
         to_prune = find_to_prune(circ, query_vars, cache, lower_bound, counters)
-        circ = do_pruning(circ, Set(to_prune), cache) 
+        circ = do_pruning(circ, to_prune, cache) 
 
         if num_edges(circ) < prev_size
             prev_size = num_edges(circ)
