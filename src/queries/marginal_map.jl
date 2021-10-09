@@ -271,7 +271,7 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
     
     # Caution: if buffer is too small, edges may be pruned incorrectly. if it's too big, too little pruning may happen.
 
-    println("to_prune: $(length(to_prune))")
+    # println("to_prune: $(length(to_prune))")
 
     query_lits = union(query_vars, BitSet(map(x->-x, collect(query_vars))))
     for (n,x) in to_prune
@@ -289,10 +289,11 @@ function do_pruning(n, to_prune, cache)
     foreach(x -> prune_fn(x, to_prune, new_nodes), n)
 
     # Only keep in cache nodes that are not pruned
-    filter!(p -> haskey(new_nodes, p.first), cache.lb)
-    filter!(p -> haskey(new_nodes, p.first), cache.ub)
-    # unclear why the next line is so slow...
-    filter!(p -> haskey(new_nodes, p.first), cache.impl_lits)
+    for k in setdiff(keys(cache.impl_lits), keys(new_nodes))
+        delete!(cache.lb, k)
+        delete!(cache.ub, k)
+        delete!(cache.impl_lits, k)
+    end
 
     new_nodes[n]
 end
