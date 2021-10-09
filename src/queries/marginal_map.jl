@@ -300,16 +300,16 @@ function do_pruning(n, to_prune, cache)
     foreach(x -> prune_fn(x, to_prune, new_nodes), n)
 
     # Only keep in cache nodes that are not pruned
-    filter!(p -> issomething(get(new_nodes, p.first, nothing)), cache.ub)
+    filter!(p -> haskey(new_nodes, p.first), cache.ub)
     filter!(cache.lb) do p
         if p isa Tuple
-            (issomething(get(new_nodes, p.first.first, nothing))
-             && issomething(get(new_nodes, p.first.second, nothing)))
+            (haskey(new_nodes, p.first.first)
+             && haskey(new_nodes, p.first.second))
         else
-            issomething(get(new_nodes, p.first, nothing))
+            haskey(new_nodes, p.first)
         end
     end
-    filter!(p -> issomething(get(new_nodes, p.first, nothing)), cache.impl_lits)
+    filter!(p -> haskey(new_nodes, p.first), cache.impl_lits)
     new_nodes[n]
 end
 
