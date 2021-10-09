@@ -64,40 +64,41 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
 end
 
 function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, tcache::NodeCacheDict, rcache::NodeEdgeCacheDict)
-       # if isleaf(root) || tcache[root] == 0.0
-       if isleaf(root) || tcache[root] == -Inf
+    tcr = tcache[root]
+    if isleaf(root) || tcr == -Inf
         return
     end
+    cur = cache.ub[root]
+    rcr = rcache[root]
     if is⋁gate(root)
         for (c, param) in zip(root.children, params(root))
-            if (associated_with_mult(root, query_vars, cache.impl_lits)
-                && cache.ub[root] - (param + cache.ub[c]) > 1e-5)
-                # rcache[(root, c)] = rcache[root] + tcache[root] * (exp(param) * exp(cache.ub[c]) - exp(cache.ub[root]))
-                rcache[(root, c)] = logsubexp(rcache[root], tcache[root] + logsubexp(param + cache.ub[c], cache.ub[root]))
-                # rcache[(root, c)] = logsubexp(logaddexp(rcache[root], tcache[root] + param + cache.ub[c]), tcache[root] + cache.ub[root])
+            edge = (root, c)
+            cuc = cache.ub[c]
+            edge_val = if (cur - (param + cuc) > 1e-5 
+                            && associated_with_mult(root, query_vars, cache.impl_lits))
+                logsubexp(rcache[root], tcr + logsubexp(param + cuc, cur))
             else
-                rcache[(root, c)] = rcache[root]
+                rcr
             end
-            if cache.ub[c] > -Inf
-                # edge_pr = exp(param) * tcache[root]
-                # tcache[c] = tcache[c] == 0 ? edge_pr : min(tcache[c], edge_pr)
-                edge_pr = param + tcache[root]
+            rcache[edge] = edge_val
+            if cuc > -Inf
+                edge_pr = param + tcr
                 tcache[c] = tcache[c] > -Inf ? min(tcache[c], edge_pr) : edge_pr
             end
-            rcache[c] = max(rcache[c], rcache[(root, c)])
+            rcache[c] = max(rcache[c], edge_val)
+            if edge_val < thresh - 1e-5
+                push!(to_prune, edge) 
+            end
         end
     else
         for c in root.children
-            rcache[(root, c)] = rcache[root]
-            rcache[c] = max(rcache[c], rcache[(root, c)])
-            # tcache[c] = tcache[c] == 0 ? tcache[root] : min(tcache[c], tcache[root])
-            tcache[c] = tcache[c] > -Inf ? min(tcache[c], tcache[root]) : tcache[root]
-        end
-    end
-    for c in root.children
-        x = ((root, c), rcache[(root, c)])
-        if x[2] < thresh - 1e-5
-           push!(to_prune, x[1]) 
+            edge = (root, c)
+            rcache[edge] = rcr
+            rcache[c] = max(rcache[c], rcr)
+            tcache[c] = tcache[c] > -Inf ? min(tcache[c], tcr) : tcr
+            if rcr < thresh - 1e-5
+                push!(to_prune, edge) 
+            end
         end
     end
 end
