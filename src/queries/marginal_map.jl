@@ -23,7 +23,6 @@ MMAP_LOG_HEADER = ["iter", "prune_time", "split_time", "total_time",
     "num_sum_post_split", "num_max_post_split", "ub_post_split", "lb_post_split"]
 
 NodeCacheDict = DefaultDict{ProbCircuit, Float64}
-NodeEdgeCacheDict = DefaultDict{Union{ProbCircuit, Tuple{ProbCircuit, ProbCircuit}}, Float64}
 LitCacheDict = Dict{ProbCircuit, Union{BitSet, Nothing}}
 
 struct MMAPCache
@@ -292,15 +291,7 @@ function do_pruning(n, to_prune, cache)
     foreach(x -> prune_fn(x, to_prune, new_nodes), n)
 
     # Only keep in cache nodes that are not pruned
-    filter!(cache.lb) do p
-        if p isa Tuple
-            (haskey(new_nodes, p.first.first)
-             && haskey(new_nodes, p.first.second))
-        else
-            haskey(new_nodes, p.first)
-        end
-    end
-
+    filter!(p -> haskey(new_nodes, p.first), cache.lb)
     filter!(p -> haskey(new_nodes, p.first), cache.ub)
     # unclear why the next line is so slow...
     filter!(p -> haskey(new_nodes, p.first), cache.impl_lits)
