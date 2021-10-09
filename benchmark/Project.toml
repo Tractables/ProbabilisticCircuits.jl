@@ -1,0 +1,11 @@
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+PProf = "e4faabce-9ead-11e9-39d9-4379958e3056"
+ProfileSVG = "132c30aa-f267-4189-9183-c8a63c7e05e6"
+ProfileVega = "4391764f-db79-4bd7-a4c6-f9062de4300e"
+ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
+
+[compat]
+DataFrames = "1.2"
