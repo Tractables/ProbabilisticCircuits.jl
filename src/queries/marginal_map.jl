@@ -43,14 +43,10 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     implied_literals(root, cache.impl_lits)
     forward_bounds(root, query_vars, cache)
 
-    # tcache = NodeCacheDict(0.0)
-    # tcache[root] = 1.0
-    # rcache = NodeEdgeCacheDict(0.0)
-    # rcache[root] = exp(cache.ub[root])
 
     tcache = NodeCacheDict(-Inf)
     tcache[root] = 0.0
-    rcache = NodeEdgeCacheDict(-Inf)
+    rcache = NodeCacheDict(-Inf)
     rcache[root] = cache.ub[root]
 
     to_prune = Tuple{ProbCircuit,ProbCircuit}[]
@@ -63,7 +59,7 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     to_prune
 end
 
-function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, tcache::NodeCacheDict, rcache::NodeEdgeCacheDict)
+function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, tcache, rcache)
     tcr = tcache[root]
     if isleaf(root) || tcr == -Inf
         return
@@ -80,7 +76,6 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune,
             else
                 rcr
             end
-            rcache[edge] = edge_val
             if cuc > -Inf
                 edge_pr = param + tcr
                 tcache[c] = tcache[c] > -Inf ? min(tcache[c], edge_pr) : edge_pr
@@ -93,7 +88,6 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune,
     else
         for c in root.children
             edge = (root, c)
-            rcache[edge] = rcr
             rcache[c] = max(rcache[c], rcr)
             tcache[c] = tcache[c] > -Inf ? min(tcache[c], tcr) : tcr
             if rcr < thresh - 1e-5
@@ -279,8 +273,6 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
     to_prune = edge_bounds(n, query_vars, thresh, cache)
     
     # Caution: if buffer is too small, edges may be pruned incorrectly. if it's too big, too little pruning may happen.
-    # to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh * (1 - 1e-4), collect(rcache)))
-    # to_prune = map(x -> x[1], filter(x -> isa(x[1], Tuple) && x[2] < thresh - 1e-5, collect(rcache)))
 
     println("to_prune: $(length(to_prune))")
 
@@ -300,7 +292,6 @@ function do_pruning(n, to_prune, cache)
     foreach(x -> prune_fn(x, to_prune, new_nodes), n)
 
     # Only keep in cache nodes that are not pruned
-    filter!(p -> haskey(new_nodes, p.first), cache.ub)
     filter!(cache.lb) do p
         if p isa Tuple
             (haskey(new_nodes, p.first.first)
@@ -309,12 +300,18 @@ function do_pruning(n, to_prune, cache)
             haskey(new_nodes, p.first)
         end
     end
+
+    filter!(p -> haskey(new_nodes, p.first), cache.ub)
+    # unclear why the next line is so slow...
     filter!(p -> haskey(new_nodes, p.first), cache.impl_lits)
+
     new_nodes[n]
 end
 
+# TODO use foldup
 function prune_fn(n, to_prune, cache)
     if isinner(n)
+        # TODO optimize for the case where nothing gets deleted
         # Find children we are keeping
         inds = findall(x -> (n, x) ∉ to_prune, n.children)
         new_children = map(x -> cache[x], n.children[inds])
