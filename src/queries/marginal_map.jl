@@ -246,16 +246,13 @@ end
 "Repeatedly prune a circuit using a given lower bound up to num_reps times"
 function prune(n::PlainProbCircuit, query_vars::BitSet, cache::MMAPCache, lower_bound, num_reps=1)
     circ = n
-    prev_size = num_edges(circ)
     counters = counter(Int)
     actual_reps = num_reps
     for i in 1:num_reps
         to_prune = find_to_prune(circ, query_vars, cache, lower_bound, counters)
-        circ = do_pruning(circ, to_prune, cache) 
-
-        if num_edges(circ) < prev_size
-            prev_size = num_edges(circ)
-        else  # early terminate if no more edges are getting pruned
+        if !isempty(to_prune)
+            circ = do_pruning(circ, to_prune, cache) 
+        else # early terminate if no more edges are getting pruned
             actual_reps = i
             break
         end

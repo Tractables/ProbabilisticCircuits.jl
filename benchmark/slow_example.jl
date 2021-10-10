@@ -55,30 +55,28 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
             end
 
             # Prune -- could improve the upper bound (TODO: maybe also the lower bound?)
-            println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            # println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             tic = time_ns()
             # cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
             cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, lb, prune_attempts)
             merge!(counters, prune_counters)
             toc = time_ns()
-            println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-            update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+            # println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            # update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
             to_split = get_to_split(cur_root, splittable, counters, heur, lb)
             cur_root = add_and_split(cur_root, to_split)
             toc = time_ns()
-            println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            # println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             delete!(splittable, to_split)
-            ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
+            # ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
 
             log_per_iter(results)
             # TODO: also save the circuit at the end of each iteration for easy retrieval?    
         else
             
-            println("SP")
-
             @profile @time begin
                 
                 if isempty(splittable) || ub < lb + 1e-10
@@ -86,33 +84,34 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
                 end
 
                 # Prune -- could improve the upper bound (TODO: maybe also the lower bound?)
-                println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+                # println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
                 tic = time_ns()
                 # cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
                 cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, lb, prune_attempts)
                 merge!(counters, prune_counters)
                 toc = time_ns()
-                println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-                update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+                # println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+                # update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
 
                 # Split root (move a quer variable up) -- could improve both the upper and lower bounds
                 tic = time_ns()
                 to_split = get_to_split(cur_root, splittable, counters, heur, lb)
                 cur_root = add_and_split(cur_root, to_split)
                 toc = time_ns()
-                println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+                # println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
                 delete!(splittable, to_split)
-                ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
+                # ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
 
                 log_per_iter(results)
                 # TODO: also save the circuit at the end of each iteration for easy retrieval?    
             end
         end
     end
-    cur_root
+    @assert num_edges(cur_root) == 191438
+    @assert num_nodes(cur_root) == 112073
 end
 
-Profile.init(n = 10^7, delay = 0.01)
+Profile.init(n = 10^7, delay = 0.002)
 Profile.clear()
 @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull);
 
@@ -122,10 +121,6 @@ Profile.clear()
 @profile mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull);
 
 Profile.print(format=:flat, mincount=100, sortedby=:count)
-
-
-using ProfileVega
-ProfileVega.view() |> save("prof.svg")
 
 using ProfileSVG
 ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
