@@ -40,7 +40,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
     # TODO: check the bounds before and after
 
     splittable = copy(quer)
-    cache = MMAPCache()
+    cache = MMAPCache(cur_root)
     ub = forward_bounds(cur_root, quer, cache)
     lb_state, mp = max_sum_lower_bound(cur_root, quer, cache)
     lb = log(mp)
@@ -107,6 +107,10 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
 end
 
 Profile.init(n = 10^7, delay = 0.002)
+
+Profile.clear(); GC.gc();  @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull); ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
+
+# ===================
 Profile.clear()
 @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull);
 
@@ -118,5 +122,3 @@ Profile.clear()
 Profile.print(format=:flat, mincount=100, sortedby=:count)
 
 ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
-
-Profile.clear(); GC.gc();  @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull); ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)

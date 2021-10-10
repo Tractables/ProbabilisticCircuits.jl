@@ -29,9 +29,18 @@ struct MMAPCache
     ub::Dict{ProbCircuit, Float32}  # cache for upper bound forward pass
     lb::Dict{ProbCircuit,Tuple{Float32,Bool}}  # cache for lower bound forward pass (max-sum)
     impl_lits::LitCacheDict         # implied literals
+    variables::BitSet
+    max_var::Var
 end
 
-MMAPCache() = MMAPCache(Dict{ProbCircuit, Float32}(), Dict{ProbCircuit,Tuple{Float32,Bool}}(), LitCacheDict())
+MMAPCache(root) = begin
+    vars = variables(root)
+    MMAPCache(
+    Dict{ProbCircuit, Float32}(), 
+    Dict{ProbCircuit,Tuple{Float32,Bool}}(), 
+    LitCacheDict(),
+    vars, maximum(vars))
+end
 
 #####################
 # Marginal MAP bound computations
@@ -95,7 +104,7 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune,
 end
 
 # TODO: perhaps a flag to skip recomputing impl_lits
-function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache=MMAPCache()) 
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache) 
     implied_literals(root, cache.impl_lits)
 
     f_leaf(_) = 0.0f0
@@ -138,7 +147,7 @@ Compute the lower bound on MMAP using a max-sum circuit
 I.e. a forward bound that takes sum until encountering a max node.
 If the circuit has a constrained vtree for the query variables, returns the exact MMAP.
 """
-function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache=MMAPCache())
+function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
     
     implied_literals(root, cache.impl_lits)
 
@@ -157,17 +166,15 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache=MMAPCa
     end
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
 
-    max_var = maximum(variables(root))
-
     # backward pass to get the max state
     # state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
-    state = Array{Union{Nothing,Bool}}(nothing, max_var)
+    state = Array{Union{Nothing,Bool}}(nothing, cache.max_var)
     max_sum_down(root, cache.lb, state)
 
     # reduce to query variables
     @assert all(issomething.(state[collect(query_vars)]))
     # reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
-    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:max_var])
+    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:cache.max_var])
     df = DataFrame(reduced, :auto)
     df, exp(MAR(root, df)[1])
 end
@@ -580,7 +587,7 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
     # TODO: check the bounds before and after
 
     splittable = copy(quer)
-    cache = MMAPCache()
+    cache = MMAPCache(cur_root)
     ub = forward_bounds(cur_root, quer, cache)
     lb_state, mp = max_sum_lower_bound(cur_root, quer, cache)
     lb = log(mp)
