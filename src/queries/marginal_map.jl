@@ -29,6 +29,7 @@ struct MMAPCache
     ub::Dict{ProbCircuit, Float32}  # cache for upper bound forward pass
     lb::Dict{ProbCircuit,Tuple{Float32,Bool}}  # cache for lower bound forward pass (max-sum)
     impl_lits::LitCacheDict         # implied literals
+    max_dec_node::Dict{ProbCircuit,Bool}
     variables::BitSet
     max_var::Var
 end
@@ -39,7 +40,35 @@ MMAPCache(root) = begin
     Dict{ProbCircuit, Float32}(), 
     Dict{ProbCircuit,Tuple{Float32,Bool}}(), 
     LitCacheDict(),
+    Dict{ProbCircuit,Bool}(),
     vars, maximum(vars))
+end
+
+function update_lit_and_max_dec(root, query_vars, cache)
+    implied_literals(root, cache.impl_lits)
+    f_other(args...) = false
+    f_o(n, cs) = begin
+        # Check if a given sum node (with more than 2 children) is associated with any query variables
+        if num_children(n) < 2
+            return false
+        end
+    
+        impl = [cache.impl_lits[x] for x in n.children]
+        neg_impl = [BitSet(map(x -> -x, collect(imp))) for imp in impl]
+        # Checking all pairs
+        for i in 1:num_children(n)
+            for j in (i+1):num_children(n)
+                decided_lits = intersect(impl[i], neg_impl[j])
+                decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
+                if isdisjoint(decided_vars, query_vars)
+                    # If they don't differ in a max variable, not associated
+                    return false
+                end
+            end
+        end
+        true
+    end
+    foldup_aggregate(root, f_other, f_other, f_other, f_o, Bool, cache.max_dec_node)
 end
 
 #####################
@@ -48,7 +77,7 @@ end
 
 "Computes the upper bound on MMAP probability for each edge. Returns a map from node or edge to its upper bound"
 function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPCache)
-    implied_literals(root, cache.impl_lits)
+    update_lit_and_max_dec(root, query_vars, cache)
     forward_bounds(root, query_vars, cache)
 
 
@@ -77,7 +106,7 @@ function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune,
             edge = (root, c)
             cuc = cache.ub[c]
             edge_val = if (cur - (param + cuc) > 1e-5 
-                            && associated_with_mult(root, query_vars, cache.impl_lits))
+                            && cache.max_dec_node[root])
                 logsubexp(rcache[root], tcr + logsubexp(param + cuc, cur))
             else
                 rcr
@@ -105,12 +134,12 @@ end
 
 # TODO: perhaps a flag to skip recomputing impl_lits
 function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache) 
-    implied_literals(root, cache.impl_lits)
+    update_lit_and_max_dec(root, query_vars, cache)
 
     f_leaf(_) = 0.0f0
     f_a(_, cs) = sum(cs)
     f_o(n, cs) = begin
-        if associated_with_mult(n, query_vars, cache.impl_lits)
+        if cache.max_dec_node[n]
             maximum(Float32.(params(n)) .+ cs)
         else
             reduce(logaddexp, Float32.(params(n)) .+ cs)
@@ -121,7 +150,7 @@ end
 
 function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, cache::MMAPCache)
     
-    implied_literals(root, cache.impl_lits)
+    update_lit_and_max_dec(root, query_vars, cache)
     
     @assert num_features(data) == cache.max_var
     f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
@@ -132,7 +161,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
     f_a(_, cs) = sum(cs)
     f_o(n, cs) = begin
         evals = map((p,cv) -> p .+ cv, Float32.(params(n)), cs)
-        if associated_with_mult(n, query_vars, cache.impl_lits)
+        if cache.max_dec_node[n]
             reduce((x,y) -> max.(x,y), evals)
         else
             reduce((x,y) -> logaddexp.(x,y), evals)
@@ -149,14 +178,14 @@ If the circuit has a constrained vtree for the query variables, returns the exac
 """
 function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
     
-    implied_literals(root, cache.impl_lits)
+    update_lit_and_max_dec(root, query_vars, cache)
 
     # forward pass 
     f_leaf(_) = (0.0f0, false)
     f_a(_, cs) = reduce((c1,c2) -> (c1[1]+c2[1], c1[2]||c2[2]), cs)
     f_o(n, cs) = begin
         has_max = any(last.(cs))    # whether n has a max node as a descendant
-        if has_max || associated_with_mult(n, query_vars, cache.impl_lits)
+        if has_max || cache.max_dec_node[n]
             val = reduce(max, Float32.(params(n)) .+ first.(cs))
             (val, true)
         else
@@ -216,28 +245,6 @@ end
 #     return !isempty(intersect(decided_vars, query_vars))
 # end
 
-# TODO: check using get_associated_vars?
-"Check if a given sum node (with more than 2 children) is associated with any query variables"
-function associated_with_mult(n::ProbCircuit, query_vars::BitSet, impl_lits)
-    if num_children(n) < 2
-        return false
-    end
-
-    impl = [impl_lits[x] for x in n.children]
-    neg_impl = [BitSet(map(x -> -x, collect(imp))) for imp in impl]
-    # Checking all pairs
-    for i in 1:num_children(n)
-        for j in (i+1):num_children(n)
-            decided_lits = intersect(impl[i], neg_impl[j])
-            decided_vars = BitSet(map(x -> abs(x), collect(decided_lits)))
-            if isdisjoint(decided_vars, query_vars)
-                # If they don't differ in a max variable, not associated
-                return false
-            end
-        end
-    end
-    true
-end
 
 #####################
 # Edge Pruning
@@ -271,7 +278,7 @@ end
 
 "Find edges to prune using a given lower bound (thresh) on the MMAP probability"
 function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thresh, counters)
-    implied_literals(n, cache.impl_lits)
+    update_lit_and_max_dec(n, query_vars, cache)
 
     to_prune = edge_bounds(n, query_vars, thresh, cache)
     
