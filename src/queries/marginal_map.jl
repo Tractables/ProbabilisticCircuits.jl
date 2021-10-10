@@ -157,15 +157,17 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache=MMAPCa
     end
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
 
+    max_var = maximum(variables(root))
+
     # backward pass to get the max state
     # state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
-    state = Array{Union{Nothing,Bool}}(nothing, maximum(variables(root)))
+    state = Array{Union{Nothing,Bool}}(nothing, max_var)
     max_sum_down(root, cache.lb, state)
 
     # reduce to query variables
     @assert all(issomething.(state[collect(query_vars)]))
     # reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
-    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:maximum(variables(root))])
+    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:max_var])
     df = DataFrame(reduced, :auto)
     df, exp(MAR(root, df)[1])
 end
