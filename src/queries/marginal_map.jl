@@ -119,11 +119,11 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache)
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
 end
 
-function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, impl_lits=LitCacheDict())
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, cache::MMAPCache, impl_lits=LitCacheDict())
     
     implied_literals(root, impl_lits)
     
-    @assert num_features(data) == maximum(variables(root))
+    @assert num_features(data) == cache.max_var
     f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
     f_lit(n) = begin
         assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
@@ -393,7 +393,7 @@ function remove_unary_gates(root::PlainProbCircuit)
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
-function get_to_split(root, splittable, counters, heur, lb)    
+function get_to_split(root, splittable, counters, heur, lb, cache::MMAPCache)    
     if heur == "avgUB" || heur == "minUB" || heur == "maxUB" || heur == "UB"
         vars = collect(splittable)
         datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), maximum(variables(root)))
@@ -401,7 +401,7 @@ function get_to_split(root, splittable, counters, heur, lb)
             datamat[2*i-1, vars[i]] = true
             datamat[2*i, vars[i]] = false
         end
-        bounds = forward_bounds(root, splittable, DataFrame(datamat, :auto))
+        bounds = forward_bounds(root, splittable, DataFrame(datamat, :auto), cache)
         if heur == "UB"
             prunable = filter(i -> min(bounds[2*i-1], bounds[2*i]) < lb * (1 - 1e-4), 1:length(vars))
             if isempty(prunable)
@@ -612,7 +612,7 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
-            to_split = get_to_split(cur_root, splittable, counters, heur, lb)
+            to_split = get_to_split(cur_root, splittable, counters, heur, lb, cache)
             cur_root = add_and_split(cur_root, to_split)
             ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()

@@ -66,7 +66,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
-            to_split = get_to_split(cur_root, splittable, counters, heur, lb)
+            to_split = get_to_split(cur_root, splittable, counters, heur, lb, cache)
             cur_root = add_and_split(cur_root, to_split)
             ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()
@@ -92,7 +92,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
     
                 # Split root (move a quer variable up) -- could improve both the upper and lower bounds
                 tic = time_ns()
-                to_split = get_to_split(cur_root, splittable, counters, heur, lb)
+                to_split = get_to_split(cur_root, splittable, counters, heur, lb, cache)
                 cur_root = add_and_split(cur_root, to_split)
                 ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
                 toc = time_ns()
