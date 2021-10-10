@@ -30,6 +30,10 @@ function add_basic_arg(s::ArgParseSettings)
             help = "Percentage of the variables to be randomly selected as query variables (in decimals)"
             arg_type = Float64
             default = 0.5
+        "--timeout", "-t"
+            help = "Timeout in seconds"
+            arg_type = Float64
+            default = 3600.0
         "--iters"
             help = "Number of maximum iterations of pruning and splitting (defaults to the number of query variables)"
             arg_type = Int64
@@ -64,6 +68,7 @@ function main()
     outdir = args["outdir"]
     seed = args["seed"]
     quer_percent = args["quer-percent"]
+    timeout = args["timeout"]
     iter = args["iters"]
     prune_attempts = args["prune-attempts"]
     pick_var = args["pick-var"]
@@ -103,6 +108,7 @@ function main()
     @show out_path, seed, iter, prune_attempts, length(quer)
     pc = mmap_solve(pc, quer, 
                     num_iter=(iter < 0 ? quer_size : iter),
+                    timeout=timeout,
                     prune_attempts=prune_attempts,
                     log_per_iter=log_func,
                     heur=pick_var)
