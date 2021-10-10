@@ -514,8 +514,22 @@ function forget(root, is_forgotten)
     foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
 end
 
-"Update upper and lower bounds, and add log info"
-function update_and_log(cur_root, root, quer, cache, lb, results, iter, post_prune; time=missing, prune_attempts=missing, split_var=missing)
+"Update upper and lower bounds"
+function update_bounds(cur_root, root, quer, cache, lb, lb_state)
+    ub = forward_bounds(cur_root, quer, cache)
+    mstate, _ = max_sum_lower_bound(cur_root, quer, cache)
+    if !isequal(mstate, lb_state)
+        mp = MAR(root, mstate)[1]  # use the original circuit (before pruning) for lower bounds
+        if mp > lb
+            lb = mp
+            lb_state = mstate
+        end
+    end
+    return ub, lb, lb_state
+end
+
+"Update log info and call log function if specified"
+function update_and_log(cur_root, quer, timeout, cache, ub, lb, results, iter, time, post_prune; callback=noop, prune_attempts=missing, split_var=missing)
     if post_prune
         results["iter"][iter] = iter
         results["prune_time"][iter] = time
@@ -523,20 +537,13 @@ function update_and_log(cur_root, root, quer, cache, lb, results, iter, post_pru
         postfix = "_post_prune"
     else # post_split
         results["split_time"][iter] = time
-        results["total_time"][iter] = (iter==1 ? 0 : results["total_time"][iter-1]) + results["prune_time"][iter] + time
+        results["total_time"][iter] = total_time = (iter==1 ? 0 : results["total_time"][iter-1]) + results["prune_time"][iter] + time
         results["split_var"][iter] = split_var
         postfix = "_post_split"
     end
 
-    # Recompute upper and lower bounds
-    ub = forward_bounds(cur_root, quer, cache)
-    mstate, _ = max_sum_lower_bound(cur_root, quer, cache)
-    if lb > MAR(root, mstate)[1] 
-        println("Lower bound worsened from $(lb) to $(MAR(root, mstate)[1])")
-    end
-    new_lb = max(lb, MAR(root, mstate)[1]) # use the original circuit (before pruning) for lower bounds
     results[string("ub",postfix)][iter] = ub
-    results[string("lb",postfix)][iter] = new_lb
+    results[string("lb",postfix)][iter] = lb
 
     or_nodes = ⋁_nodes(cur_root)
     num_max = count(n -> associated_with_mult(n, quer, cache.impl_lits), or_nodes)
@@ -545,11 +552,16 @@ function update_and_log(cur_root, root, quer, cache, lb, results, iter, post_pru
     results[string("num_sum",postfix)][iter] = length(or_nodes) - num_max
     results[string("num_max",postfix)][iter] = num_max
 
-    ub, new_lb
+    if !post_prune
+        callback(results)
+        if total_time > timeout
+            error("timeout")
+        end
+    end
 end
 
 "Compute marginal MAP by iteratively pruning and splitting"
-function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_per_iter=noop, heur="maxP", out=stdout)
+function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_per_iter=noop, heur="maxP", timeout=3600, verbose=false, out=stdout)
     # initialize log
     num_iter = min(num_iter, length(quer))
     results = Dict()
@@ -559,9 +571,8 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
 
     # marginalize out non-query variables
     # cur_root = root
-    ub = forward_bounds(root, quer)
-    _, mp = max_sum_lower_bound(root, quer)
-    # @show ub, log(mp)
+    # ub = forward_bounds(root, quer)
+    # _, mp = max_sum_lower_bound(root, quer)
     cur_root = marginalize_out(root, setdiff(variables(root), quer))
     @assert variables(cur_root) == quer
     # TODO: check the bounds before and after
@@ -569,42 +580,42 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
     splittable = copy(quer)
     cache = MMAPCache()
     ub = forward_bounds(cur_root, quer, cache)
-    _, mp = max_sum_lower_bound(cur_root, quer, cache)
+    lb_state, mp = max_sum_lower_bound(cur_root, quer, cache)
     lb = log(mp)
     # @show ub, lb
     counters = counter(Int)
     for i in 1:num_iter
-        try
+        # try
             if isempty(splittable) || ub < lb + 1e-10
                 break
             end
 
             # Prune -- could improve the upper bound (TODO: maybe also the lower bound?)
-            println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            verbose && println(out, "* Starting with $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             tic = time_ns()
             # cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, exp(lb), prune_attempts)
             cur_root, prune_counters, actual_reps = prune(cur_root, quer, cache, lb, prune_attempts)
             merge!(counters, prune_counters)
+            ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()
-            println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-            update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+            verbose && println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,true, prune_attempts=actual_reps)
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
             to_split = get_to_split(cur_root, splittable, counters, heur, lb)
             cur_root = add_and_split(cur_root, to_split)
+            ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()
-            println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             delete!(splittable, to_split)
-            ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
-
-            log_per_iter(results)
-            # TODO: also save the circuit at the end of each iteration for easy retrieval?    
-        catch e
-            println(out, sprint(showerror, e, backtrace()))
-            break
-        end
+            verbose && println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,false, split_var=to_split, callback=log_per_iter)
+        # catch e
+        #     println(out, sprint(showerror, e, backtrace()))
+        #     break
+        # end
     end
+    # TODO: return results (timeout, iter, time, ub, lb, lbstate)
     cur_root
 end
 
