@@ -119,9 +119,9 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache)
     foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
 end
 
-function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, cache::MMAPCache, impl_lits=LitCacheDict())
+function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, cache::MMAPCache)
     
-    implied_literals(root, impl_lits)
+    implied_literals(root, cache.impl_lits)
     
     @assert num_features(data) == cache.max_var
     f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
@@ -132,7 +132,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
     f_a(_, cs) = sum(cs)
     f_o(n, cs) = begin
         evals = map((p,cv) -> p .+ cv, Float32.(params(n)), cs)
-        if associated_with_mult(n, query_vars, impl_lits)
+        if associated_with_mult(n, query_vars, cache.impl_lits)
             reduce((x,y) -> max.(x,y), evals)
         else
             reduce((x,y) -> logaddexp.(x,y), evals)
@@ -396,7 +396,7 @@ end
 function get_to_split(root, splittable, counters, heur, lb, cache::MMAPCache)    
     if heur == "avgUB" || heur == "minUB" || heur == "maxUB" || heur == "UB"
         vars = collect(splittable)
-        datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), maximum(variables(root)))
+        datamat = Array{Union{Missing, Bool}}(missing, 2*length(vars), cache.max_var)
         for i in 1:length(vars)
             datamat[2*i-1, vars[i]] = true
             datamat[2*i, vars[i]] = false
