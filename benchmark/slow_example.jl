@@ -62,7 +62,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
             merge!(counters, prune_counters)
             toc = time_ns()
             # println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-            # update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+            update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
 
             # Split root (move a quer variable up) -- could improve both the upper and lower bounds
             tic = time_ns()
@@ -71,7 +71,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
             toc = time_ns()
             # println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             delete!(splittable, to_split)
-            # ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
+            ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
 
             log_per_iter(results)
             # TODO: also save the circuit at the end of each iteration for easy retrieval?    
@@ -91,7 +91,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
                 merge!(counters, prune_counters)
                 toc = time_ns()
                 # println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
-                # update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
+                update_and_log(cur_root,root,quer,cache,lb,results,i,true, prune_attempts=actual_reps, time=(toc-tic)/1.0e9)
 
                 # Split root (move a quer variable up) -- could improve both the upper and lower bounds
                 tic = time_ns()
@@ -100,7 +100,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
                 toc = time_ns()
                 # println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
                 delete!(splittable, to_split)
-                # ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
+                ub, lb = update_and_log(cur_root,root,quer,cache,lb,results,i,false, split_var=to_split, time=(toc-tic)/1.0e9)
 
                 log_per_iter(results)
                 # TODO: also save the circuit at the end of each iteration for easy retrieval?    
@@ -124,3 +124,5 @@ Profile.print(format=:flat, mincount=100, sortedby=:count)
 
 using ProfileSVG
 ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
+
+Profile.clear(); GC.gc();  @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull); ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
