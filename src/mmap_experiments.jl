@@ -131,7 +131,9 @@ function main()
         evid = map(i -> qe[1,i] ? i : -i, filter(i -> !ismissing(qe[1,i]) && qe[1,i] isa Bool, 1:nvars))
     end
 
-    pc = pc_condition(pc, Int32.(evid)...)
+    if !isempty(evid)
+        pc = pc_condition(pc, Int32.(evid)...)
+    end
 
     if out_spn
         spn = marginalize_out(pc, setdiff(variables(pc), quer))
