@@ -658,7 +658,7 @@ function update_and_log(cur_root, quer, timeout, cache, ub, lb, results, iter, t
     results[string("lb",postfix)][iter] = lb
 
     or_nodes = ⋁_nodes(cur_root)
-    num_max = count(n -> associated_with_mult(n, quer, cache.impl_lits), or_nodes)
+    num_max = count(n -> cache.max_dec_node[n], or_nodes)
     results[string("num_edge",postfix)][iter] = num_edges(cur_root)
     results[string("num_node",postfix)][iter] = num_nodes(cur_root)
     results[string("num_sum",postfix)][iter] = length(or_nodes) - num_max
