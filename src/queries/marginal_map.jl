@@ -1,7 +1,7 @@
 export MMAP_LOG_HEADER, forward_bounds, edge_bounds, max_sum_lower_bound, associated_with_mult,
     mmap_solve, add_and_split, get_to_split, prune,
     mmap_reduced_mpe_state, gen_edges, brute_force_mmap, pc_condition, get_margs,
-    marginalize_out
+    marginalize_out, pc_condition
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -697,7 +697,7 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
     # @show ub, lb
     counters = counter(Int)
     for i in 1:num_iter
-        # try
+        try
             if isempty(splittable) || ub < lb + 1e-10
                 break
             end
@@ -722,10 +722,10 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             delete!(splittable, to_split)
             verbose && println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,false, split_var=to_split, callback=log_per_iter)
-        # catch e
-        #     println(out, sprint(showerror, e, backtrace()))
-        #     break
-        # end
+        catch e
+            println(out, sprint(showerror, e, backtrace()))
+            break
+        end
     end
     # TODO: return results (timeout, iter, time, ub, lb, lbstate)
     cur_root
@@ -773,11 +773,10 @@ end
 #     root
 # end
 
-pc_condition(root::PlainProbCircuit, var1, var2, var3...) = pc_condition(pc_condition(root, var1), var2, var3...)
+pc_condition(root::PlainProbCircuit, lit1, lit2, lit3...) = pc_condition(pc_condition(root, lit1), lit2, lit3...)
 
-function pc_condition(root::PlainProbCircuit, var)
-    conjoin(root, var2lit(var), callback=keep_params, keep_unary=true)
-    # condition(root, var2lit(var))
+function pc_condition(root::PlainProbCircuit, lit)
+    conjoin(root, lit, callback=keep_params, keep_unary=true)
 end
 
 function get_margs(root, num_vars, vars, cond, norm=false)
