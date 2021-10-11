@@ -425,38 +425,48 @@ function custom_split(root, var)
 
     f_o(n, cn) = begin
         
-        leftcn = ProbCircuit[]
-        leftpa = Float64[]
-        rightcn = ProbCircuit[]
-        rightpa = Float64[]
-
+        left_changed = false
+        left_false = true
+        right_changed = false
+        right_false = true
         for i = 1:length(cn)
-            c = cn[i]
-            if issomething(c[1])
-                push!(leftcn, c[1])
-                push!(leftpa, n.log_probs[i])
-            end
-            if issomething(c[2])
-                push!(rightcn, c[2])
-                push!(rightpa, n.log_probs[i])
-            end
+            left_false && issomething(cn[i][1]) && (left_false = false)
+            right_false && issomething(cn[i][2]) && (right_false = false)
+            !left_changed && cn[i][1] !== n.children[i] && (left_changed = true)
+            !right_changed && cn[i][2] !== n.children[i] && (right_changed = true)
         end
 
-        left = if isempty(leftcn)
+        left = if left_false
             nothing
-        elseif leftcn == children(n)
+        elseif !left_changed
             n
-        else
+        else            
+            leftcn = ProbCircuit[]
+            leftpa = Float64[]
+            for i = 1:length(cn)
+                if issomething(cn[i][1])
+                    push!(leftcn, cn[i][1])
+                    push!(leftpa, n.log_probs[i])
+                end
+            end
             left = PlainSumNode(leftcn)
             left.log_probs .= leftpa
             left
         end
 
-        right = if isempty(rightcn)
+        right = if right_false
             nothing
-        elseif rightcn == children(n)
+        elseif !right_changed
             n
-        else
+        else            
+            rightcn = ProbCircuit[]
+            rightpa = Float64[]
+            for i = 1:length(cn)
+                if issomething(cn[i][2])
+                    push!(rightcn, cn[i][2])
+                    push!(rightpa, n.log_probs[i])
+                end
+            end
             right = PlainSumNode(rightcn)
             right.log_probs .= rightpa
             right
