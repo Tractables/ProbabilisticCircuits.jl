@@ -366,15 +366,111 @@ end
 
 "Add a unary parent node and then split on a variable"
 function add_and_split(root, var)
-    new_and = PlainMulNode([root])
-    new_root = PlainSumNode([new_and])
+
+    split_root = custom_split(root, var)
+
+    # new_and = PlainMulNode([root])
+    # new_root = PlainSumNode([new_and])
+    # split_root = split(new_root, (new_root, new_and), Var(var), sanity_check=false, callback=keep_params, keep_unary=true)[1]
     
-    split_root = split(new_root, (new_root, new_and), Var(var), sanity_check=false, callback=keep_params, keep_unary=true)[1]
     split_root.log_probs .= 0   # each child has var as evidence and is left unnormalized
     split_root = remove_unary_gates(split_root)
     split_root
 end
 
+function custom_split(root, var)
+
+    f_leaf(n) = begin
+        if variable(n) == var
+            if ispositive(n)
+                (n, nothing)
+            else
+                (nothing, n)
+            end
+        else
+            (n,n)
+        end
+    end
+
+    f_a(n, cn) = begin 
+        left_changed = false
+        left_false = false
+        right_changed = false
+        right_false = false
+        for i = 1:length(cn)
+            !left_false && isnothing(cn[i][1]) && (left_false = true)
+            !right_false && isnothing(cn[i][2]) && (right_false = true)
+            !left_changed && cn[i][1] !== n.children[i] && (left_changed = true)
+            !right_changed && cn[i][2] !== n.children[i] && (right_changed = true)
+        end
+
+        left = if left_false
+            nothing
+        elseif !left_changed
+            n
+        else            
+            PlainMulNode(first.(cn))
+        end
+
+        right = if right_false
+            nothing
+        elseif !right_changed
+            n
+        else            
+            PlainMulNode(last.(cn))
+        end
+        
+        (left, right)
+    end
+
+    f_o(n, cn) = begin
+        
+        leftcn = ProbCircuit[]
+        leftpa = Float64[]
+        rightcn = ProbCircuit[]
+        rightpa = Float64[]
+
+        for i = 1:length(cn)
+            c = cn[i]
+            if issomething(c[1])
+                push!(leftcn, c[1])
+                push!(leftpa, n.log_probs[i])
+            end
+            if issomething(c[2])
+                push!(rightcn, c[2])
+                push!(rightpa, n.log_probs[i])
+            end
+        end
+
+        left = if isempty(leftcn)
+            nothing
+        elseif leftcn == children(n)
+            n
+        else
+            left = PlainSumNode(leftcn)
+            left.log_probs .= leftpa
+            left
+        end
+
+        right = if isempty(rightcn)
+            nothing
+        elseif rightcn == children(n)
+            n
+        else
+            right = PlainSumNode(rightcn)
+            right.log_probs .= rightpa
+            right
+        end
+
+        (left, right)
+    end
+
+    T = Tuple{Union{Nothing,ProbCircuit},Union{Nothing,ProbCircuit}}
+    l,r = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, T)
+
+    PlainSumNode([PlainMulNode([l]), 
+                  PlainMulNode([r])])
+end
 
 "Function to pass to condition so that it maintains parameters"
 function keep_params(new_n, n, kept)
