@@ -30,6 +30,18 @@ function add_basic_arg(s::ArgParseSettings)
             help = "Percentage of the variables to be randomly selected as query variables (in decimals)"
             arg_type = Float64
             default = 0.5
+        "--evid-percent"
+            help = "Percentage of the variables to be randomly selected as evidence variables (in decimals)"
+            arg_type = Float64
+            default = 0.0
+        "--qe"
+            help = "Path to the file containing query-evidence instances. If specified, ignores --quer-percent and --evid-percent"
+            arg_type = String
+            default = ""
+        "--instance-id"
+            help = "Instance ID to read from the query-evidence instances."
+            arg_type = Int64
+            default = 1
         "--timeout", "-t"
             help = "Timeout in seconds"
             arg_type = Float64
@@ -50,6 +62,9 @@ function add_basic_arg(s::ArgParseSettings)
             help = "Experiment id"
             arg_type = String
             default = Dates.format(now(), "yyyymmdd-HHMMSSs")
+        "--only-generate"
+            help = "Generate query-evidence instances"
+            action = :store_true
         "--out-spn"
             help = "Do not run solver and output the circuit as .spn after marginalizing out non-query variables"
             action = :store_true
@@ -68,13 +83,25 @@ function main()
     outdir = args["outdir"]
     seed = args["seed"]
     quer_percent = args["quer-percent"]
+    evid_percent = args["evid-percent"]
+    qe_path = args["qe"]
+    id = args["instance-id"]
     timeout = args["timeout"]
     iter = args["iters"]
     prune_attempts = args["prune-attempts"]
     pick_var = args["pick-var"]
     exp_id = args["exp-id"]
     out_spn = args["out-spn"]
-    
+    only_generate = args["only-generate"]
+
+    if only_generate
+        if !isdir(joinpath(outdir, "spns"))
+            mkpath(joinpath(outdir, "spns"))
+        end
+        generate_instances(outdir, circ_path, quer_percent, evid_percent)
+        return
+    end
+
     out_path = joinpath(outdir, exp_id)
     if !isdir(out_path)
         mkpath(out_path)
@@ -87,9 +114,26 @@ function main()
 
     Random.seed!(seed)
     pc = read(circ_path, ProbCircuit)
-    quer_size = round(Int, quer_percent*num_variables(pc))
-    quer = BitSet(sample(1:num_variables(pc), quer_size, replace=false))
-    open(f -> serialize(f,quer), joinpath(out_path, "quer.jls"), "w")
+    nvars = num_variables(pc)
+
+    if isempty(qe_path)
+        quer_size = round(Int, quer_percent*nvars)
+        quer = BitSet(sample(1:nvars, quer_size, replace=false))
+        open(f -> serialize(f,quer), joinpath(out_path, "quer.jls"), "w")
+
+        evid_size = round(Int, evid_percent*nvars)
+        evid_vars = sample(collect(setdiff(variables(pc), quer)), evid_size, replace=false)
+        assignments = bitrand(evid_size)
+        evid = [assignments[i] ? evid_vars[i] : -evid_vars[i] for i in 1:evid_size]
+    else
+        qe = CSV.read(qe_path, DataFrame, missingstring="?", skipto=id+1, limit=1)
+        quer = BitSet(filter(i -> !ismissing(qe[1,i]) && qe[1,i] == "*", 1:nvars))
+        evid = map(i -> qe[1,i] ? i : -i, filter(i -> !ismissing(qe[1,i]) && qe[1,i] isa Bool, 1:nvars))
+    end
+
+    if !isempty(evid)
+        pc = pc_condition(pc, Int32.(evid)...)
+    end
 
     if out_spn
         spn = marginalize_out(pc, setdiff(variables(pc), quer))
@@ -119,8 +163,50 @@ function main()
     # read_pc = open(deserialize, joinpath(out_path, "circuit.jls"))
 end
 
-main()
+function generate_instances(out_path, circ_path, quer_percent, evid_percent, num_instances=100)
+    pc = read(circ_path, ProbCircuit)
+    nvars = num_variables(pc)
+    vars = variables(pc)
+    
+    dict = Dict()
+    for x in 1:nvars
+        dict[x] = []
+    end
 
+    for i in 1:num_instances
+        quer_size = round(Int, quer_percent*nvars)
+        quer = BitSet(sample(1:nvars, quer_size, replace=false))
+    
+        evid_size = round(Int, evid_percent*nvars)
+        evid_vars = sample(collect(setdiff(vars, quer)), evid_size, replace=false)
+        evid_vars_set = BitSet(evid_vars)
+        assignments = bitrand(evid_size)
+        evid = Dict(evid_vars .=> assignments)
+
+        for x in 1:nvars
+            if x ∈ quer
+                push!(dict[x], "*")
+            elseif x ∈ evid_vars_set
+                push!(dict[x], evid[x] ? "true" : "false")
+            else
+                push!(dict[x], "?")
+            end
+        end
+
+        evid_lits = [assignments[i] ? evid_vars[i] : -evid_vars[i] for i in 1:evid_size]
+        pc_cond = pc_condition(pc, Int32.(evid_lits)...)
+        spn = marginalize_out(pc_cond, setdiff(vars, quer))
+        spn, mapping = make_vars_contiguous(spn)
+        write(joinpath(out_path, "spns/$(basename(circ_path))-$(i).spn"), spn)
+        open(f -> serialize(f,mapping), joinpath(out_path, "spns/$(basename(circ_path))-$(i)-mapping.jls"), "w")
+    end
+
+    csv = joinpath(out_path, "$(basename(circ_path)).csv")
+    table = DataFrame(;[Symbol(x) => dict[x] for x in 1:nvars]...)
+    CSV.write(csv, table)
+end
+
+main()
 
 function some_tests()
     Random.seed!(123)
