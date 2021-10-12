@@ -92,10 +92,14 @@ end
 
 import LogicCircuits: fully_factorized_circuit #extend
 
-fully_factorized_circuit(::Type{ProbCircuit}, n::Int) =
-    fully_factorized_circuit(PlainProbCircuit, n)
+fully_factorized_circuit(::Type{ProbCircuit}, n::Int; reIndex_bijection) =
+    fully_factorized_circuit(PlainProbCircuit, n; reIndex_bijection)
 
-function fully_factorized_circuit(::Type{<:PlainProbCircuit}, n::Int)
+function fully_factorized_circuit(::Type{<:PlainProbCircuit}, n::Int; reIndex_bijection = nothing)
     ff_logic_circuit = fully_factorized_circuit(PlainLogicCircuit, n)
+    if !isnothing(reIndex_bijection)
+        @assert length(reIndex_bijection) == n
+        ff_logic_circuit = LogicCircuits.reIndex_vars(ff_logic_circuit, reIndex_bijection)
+    end
     compile(PlainProbCircuit, ff_logic_circuit)
 end

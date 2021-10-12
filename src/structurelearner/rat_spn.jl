@@ -1,16 +1,10 @@
 
 
-export RegionGraph, random_region_graph
+export RegionGraph, random_region_graph, region_graph_2_pc
 import Random: shuffle
 
 "Root of region graph node hierarchy"
 abstract type RegionGraph <: Tree end
-
-import Base: getindex, size, length
-@inline Base.size(n::Partition) = size(n.partition)
-@inline Base.length(n::Partition) = length(n.partition)
-@inline Base.getindex(n::Partition, i::Int) = n.partition[i]
-
 
 ######
 ## Partition
@@ -21,6 +15,12 @@ mutable struct Partition
         new(n)
     end 
 end
+
+import Base: getindex, size, length
+@inline Base.size(n::Partition) = size(n.partition)
+@inline Base.length(n::Partition) = length(n.partition)
+@inline Base.getindex(n::Partition, i::Int) = n.partition[i]
+
 
 mutable struct RegionGraphInnerNode <: RegionGraph
     partitions::AbstractVector{Partition}
@@ -130,4 +130,63 @@ function split_rg(variables::AbstractVector{Var}, depth::Int; num_splits::Int = 
     else
         RegionGraphInnerNode([Partition(answer)])
     end
+end
+
+
+########################################
+### Rat-SPNs in Juice PC data structure
+########################################
+
+"""
+
+- num_nodes_root: number of sum nodes in the root region
+- num_nodes_leaf: number of sum nodes per leaf region
+- num_nodes_region: number of in each region except root and leaves
+"""
+function region_graph_2_pc(node::RegionGraph; 
+    num_nodes_root::Int = 4,  num_nodes_region::Int= 3, num_nodes_leaf::Int = 2)::Vector{ProbCircuit}
+    sum_nodes = Vector{ProbCircuit}()
+
+    if isleaf(node)
+        # need `fully_factorized_circuit` but with variable from the scope instead of x_1...x_n
+        #leaves = Vector{ProbCircuit}()
+        for i = 1:num_nodes_leaf
+            reIndex_bijection = [(i, v) for (i,v) in enumerate(variables(node))]
+            push!(sum_nodes, fully_factorized_circuit(ProbCircuit, length(variables(node)); reIndex_bijection))
+        end
+
+    else
+        mul_nodes = Vector{ProbCircuit}()
+
+        # Foreach replication; usually only > 1 at root
+        for partition in node.partitions
+            @assert length(partition) == 2 "Only supporting partitions of size 2 at the moment"
+            lefts = region_graph_2_pc(partition[1]; num_nodes_root, num_nodes_region, num_nodes_leaf)
+            rights = region_graph_2_pc(partition[2]; num_nodes_root, num_nodes_region, num_nodes_leaf)
+            @assert all([issum(l) for l in lefts])
+            @assert all([issum(r) for r in rights])
+
+            for l in lefts, r in rights
+                mul_node = PlainMulNode([l, r])
+                push!(mul_nodes, mul_node)
+            end
+        end
+
+        # Repeat Sum nodes nodes based on where in Region Graph
+        if isnothing(node.parent)
+            # Root region
+            for i = 1:num_nodes_root
+                sum_node = PlainSumNode(mul_nodes)
+                push!(sum_nodes, sum_node)
+            end
+        else
+            # Inner region
+            for i = 1:num_nodes_region
+                sum_node = PlainSumNode(mul_nodes)
+                push!(sum_nodes, sum_node)
+            end
+        end
+    end
+
+    sum_nodes
 end
