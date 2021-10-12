@@ -214,11 +214,16 @@ function custom_MAR(root, data)
             log(one(Float32))
         else
             log(zero(Float32))
+        end 
+    f_a(n, call) = mapreduce(call, +, n.children)
+    f_o(n, call) = begin
+        r = log(zero(Float32))
+        for i = 1:length(n.children)
+           r = logaddexp(r, Float32(n.log_probs[i]) + call(n.children[i])) 
         end
-        
-    f_a(_, cs) = reduce(+, cs)
-    f_o(n, cs) = reduce(logaddexp, Float32.(params(n)) .+ cs)
-    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32)
+        r
+    end
+    foldup(root, f_leaf, f_leaf, f_a, f_o, Float32)
 end
 
 function max_sum_down(n::ProbCircuit, mcache, state)
