@@ -26,8 +26,10 @@ NodeCacheDict = DefaultDict{ProbCircuit, Float64}
 LitCacheDict = Dict{ProbCircuit, Union{BitSet, Nothing}}
 
 struct MMAPCache
-    ub::Dict{ProbCircuit, Float32}  # cache for upper bound forward pass
-    lb::Dict{ProbCircuit,Tuple{Float32,Bool}}  # cache for lower bound forward pass (max-sum)
+    ub::Dict{ProbCircuit, Float64}  # cache for upper bound forward pass
+    lb::Dict{ProbCircuit,Tuple{Float64,Bool}}  # cache for lower bound forward pass (max-sum)
+    # ub::Dict{ProbCircuit, Float32}  # cache for upper bound forward pass
+    # lb::Dict{ProbCircuit,Tuple{Float32,Bool}}  # cache for lower bound forward pass (max-sum)
     impl_lits::LitCacheDict         # implied literals
     max_dec_node::Dict{ProbCircuit,Bool}
     variables::BitSet
@@ -37,8 +39,10 @@ end
 MMAPCache(root) = begin
     vars = variables(root)
     MMAPCache(
-    Dict{ProbCircuit, Float32}(), 
-    Dict{ProbCircuit,Tuple{Float32,Bool}}(), 
+    Dict{ProbCircuit, Float64}(), 
+    Dict{ProbCircuit,Tuple{Float64,Bool}}(), 
+    # Dict{ProbCircuit, Float32}(), 
+    # Dict{ProbCircuit,Tuple{Float32,Bool}}(), 
     LitCacheDict(),
     Dict{ProbCircuit,Bool}(),
     vars, maximum(vars))
@@ -178,16 +182,20 @@ end
 function forward_bounds(root::ProbCircuit, query_vars::BitSet, cache) 
     update_lit_and_max_dec(root, query_vars, cache)
 
-    f_leaf(_) = 0.0f0
+    f_leaf(_) = 0.0
+    # f_leaf(_) = 0.0f0
     f_a(_, cs) = sum(cs)
     f_o(n, cs) = begin
         if cache.max_dec_node[n]
-            maximum(Float32.(params(n)) .+ cs)
+            maximum(params(n) .+ cs)
+            # maximum(Float32.(params(n)) .+ cs)
         else
-            reduce(logaddexp, Float32.(params(n)) .+ cs)
+            reduce(logaddexp, params(n) .+ cs)
+            # reduce(logaddexp, Float32.(params(n)) .+ cs)
         end
     end
-    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float64, cache.ub)
+    # foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32, cache.ub)
 end
 
 function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, cache::MMAPCache)
@@ -198,18 +206,21 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
 
     f_lit(n) = begin
         assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
-        log.(Float32.(coalesce.(assignments, true)))
+        # log.(Float32.(coalesce.(assignments, true)))
+        log.(coalesce.(assignments, true))
     end
     f_a(_, cs) = sum(cs)
     f_o(n, cs) = begin
-        evals = map((p,cv) -> p .+ cv, Float32.(params(n)), cs)
+        evals = map((p,cv) -> p .+ cv, params(n), cs)
+        # evals = map((p,cv) -> p .+ cv, Float32.(params(n)), cs)
         if cache.max_dec_node[n]
             reduce((x,y) -> max.(x,y), evals)
         else
             reduce((x,y) -> logaddexp.(x,y), evals)
         end
     end
-    foldup_aggregate(root, f_lit, f_lit, f_a, f_o, Array{Float32})
+    foldup_aggregate(root, f_lit, f_lit, f_a, f_o, Array{Float64})
+    # foldup_aggregate(root, f_lit, f_lit, f_a, f_o, Array{Float32})
 end
 
 """
@@ -223,19 +234,23 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
     update_lit_and_max_dec(root, query_vars, cache)
 
     # forward pass 
-    f_leaf(_) = (0.0f0, false)
+    f_leaf(_) = (0.0, false)
+    # f_leaf(_) = (0.0f0, false)    
     f_a(_, cs) = reduce((c1,c2) -> (c1[1]+c2[1], c1[2]||c2[2]), cs)
     f_o(n, cs) = begin
         has_max = any(last.(cs))    # whether n has a max node as a descendant
         if has_max || cache.max_dec_node[n]
-            val = reduce(max, Float32.(params(n)) .+ first.(cs))
+            val = reduce(max, params(n) .+ first.(cs))
+            # val = reduce(max, Float32.(params(n)) .+ first.(cs))
             (val, true)
         else
-            val = reduce(logaddexp, Float32.(params(n)) .+ first.(cs))
+            val = reduce(logaddexp, params(n) .+ first.(cs))
+            # val = reduce(logaddexp, Float32.(params(n)) .+ first.(cs))
             (val, false)
         end
     end
-    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float64,Bool}, cache.lb)
+    # foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32,Bool}, cache.lb)
 
     # backward pass to get the max state
     # state = Array{Union{Nothing,Bool}}(nothing, num_variables(root))
@@ -253,19 +268,24 @@ end
 function custom_MAR(root, data)
     f_leaf(n) = if (data[variable(n)] === nothing ||
                     data[variable(n)] == ispositive(n))
-            log(one(Float32))
+            log(one(Float64))
+            # log(one(Float32))
         else
-            log(zero(Float32))
+            log(zero(Float64))
+            # log(zero(Float32))
         end 
     f_a(n, call) = mapreduce(call, +, n.children)
     f_o(n, call) = begin
-        r = Float32(n.log_probs[1]) + call(n.children[1])
+        r = n.log_probs[1] + call(n.children[1])
+        # r = Float32(n.log_probs[1]) + call(n.children[1])
         for i = 2:length(n.children)
-           r = logaddexp(r, Float32(n.log_probs[i]) + call(n.children[i])) 
+           r = logaddexp(r, n.log_probs[i] + call(n.children[i])) 
+        #    r = logaddexp(r, Float32(n.log_probs[i]) + call(n.children[i])) 
         end
         r
     end
-    foldup(root, f_leaf, f_leaf, f_a, f_o, Float32)
+    foldup(root, f_leaf, f_leaf, f_a, f_o, Float64)
+    # foldup(root, f_leaf, f_leaf, f_a, f_o, Float32)
 end
 
 function max_sum_down(n::ProbCircuit, mcache, state)
@@ -280,7 +300,8 @@ function max_sum_down(n::ProbCircuit, mcache, state)
         # Otherwise, n is a sum node that contains no query var or fixes some query vars.
         # In either case, any branch can be taken to retrieve the maximizing assignments to query vars.
         c_opt = n.children[1]
-        m_opt = typemin(Float32)
+        m_opt = typemin(Float64)
+        # m_opt = typemin(Float32)
         for (c,p) in zip(n.children, params(n))
             if mcache[c][1]+p >= m_opt
                 c_opt = c
@@ -671,7 +692,8 @@ Requires and preserves smoothness and decomposability. This may break determinis
 function marginalize_out(root, to_marginalize)
     # TOOD: take into account evidence
     # NOTE: without evidence, marg should always be 0.0
-    f_leaf(n) = variable(n) ∈ to_marginalize ? (0.0f0, nothing) : (0.0f0, n)
+    f_leaf(n) = variable(n) ∈ to_marginalize ? (0.0, nothing) : (0.0, n)
+    # f_leaf(n) = variable(n) ∈ to_marginalize ? (0.0f0, nothing) : (0.0f0, n)
     f_a(n, cn) = begin
         children = filter(issomething, last.(cn))
         if isempty(children)
@@ -687,19 +709,23 @@ function marginalize_out(root, to_marginalize)
     f_o(n, cn) = begin
         # By smoothness, either all children are marginalized (ie nothing) or none are.
         if all(isnothing.(last.(cn)))
-            marg = reduce(logaddexp, Float32.(params(n)) .+ first.(cn))
+            marg = reduce(logaddexp, params(n) .+ first.(cn))
+            # marg = reduce(logaddexp, Float32.(params(n)) .+ first.(cn))
             (marg, nothing)
         else
             @assert all(issomething.(last.(cn)))
             new_n = summate(last.(cn), reuse=n)
             new_n.log_probs = n.log_probs .+ first.(cn)
-            (0.0f0, new_n)
+            (0.0, new_n)
+            # (0.0f0, new_n)
         end
     end
-    (marg, new_root) = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32, Union{Nothing, Node}})
+    (marg, new_root) = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float64, Union{Nothing, Node}})
+    # (marg, new_root) = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Tuple{Float32, Union{Nothing, Node}})
 
     @assert issomething(new_root)
-    if marg != 0.0f0
+    if marg != 0.0
+    # if marg != 0.0f0
         new_root = PlainSumNode([new_root])
         new_root.log_probs = [marg]
     end
@@ -723,7 +749,7 @@ function update_bounds(cur_root, root, quer, cache, lb, lb_state)
     ub = forward_bounds(cur_root, quer, cache)
     mstate, _ = max_sum_lower_bound(cur_root, quer, cache)
     if !isequal(mstate, lb_state)
-        mp = MAR(root, mstate)[1]  # use the original circuit (before pruning) for lower bounds
+        mp = custom_MAR(root, mstate)  # use the original circuit (before pruning) for lower bounds
         if mp > lb
             lb = mp
             lb_state = mstate
@@ -741,7 +767,7 @@ function update_and_log(cur_root, quer, timeout, cache, ub, lb, results, iter, t
         postfix = "_post_prune"
     else # post_split
         results["split_time"][iter] = time
-        results["total_time"][iter] = total_time = (iter==1 ? 0 : results["total_time"][iter-1]) + results["prune_time"][iter] + time
+        results["total_time"][iter] = (iter==1 ? 0 : results["total_time"][iter-1]) + results["prune_time"][iter] + time
         results["split_var"][iter] = split_var
         postfix = "_post_split"
     end
@@ -758,9 +784,6 @@ function update_and_log(cur_root, quer, timeout, cache, ub, lb, results, iter, t
 
     if !post_prune
         callback(results)
-        if total_time > timeout
-            error("timeout")
-        end
     end
 end
 
@@ -787,8 +810,12 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
     lb_state, mp = max_sum_lower_bound(cur_root, quer, cache)
     lb = log(mp)
     # @show ub, lb
+
+    total_time = 0.0
+    did_timeout = false
     counters = counter(Int)
-    for i in 1:num_iter
+    i=0
+    for outer i in 1:num_iter
         try
             if isempty(splittable) || ub < lb + 1e-10
                 break
@@ -802,6 +829,7 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             merge!(counters, prune_counters)
             ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()
+            total_time += (toc-tic)/1.0e9
             verbose && println(out, "* Pruning gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,true, prune_attempts=actual_reps)
 
@@ -811,16 +839,23 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             cur_root = add_and_split(cur_root, to_split)
             ub, lb, lb_state = update_bounds(cur_root, root, quer, cache, lb, lb_state)
             toc = time_ns()
+            total_time += (toc-tic)/1.0e9            
             delete!(splittable, to_split)
             verbose && println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,false, split_var=to_split, callback=log_per_iter)
+
+            if total_time > timeout 
+                did_timeout = true
+                total_time = timeout
+                error("timeout")
+            end
         catch e
             println(out, sprint(showerror, e, backtrace()))
             break
         end
     end
-    # TODO: return results (timeout, iter, time, ub, lb, lbstate)
-    cur_root
+
+    did_timeout, total_time, i, ub, lb, lb_state, cur_root
 end
 
 #####################

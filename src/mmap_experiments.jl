@@ -68,6 +68,9 @@ function add_basic_arg(s::ArgParseSettings)
         "--out-spn"
             help = "Do not run solver and output the circuit as .spn after marginalizing out non-query variables"
             action = :store_true
+        "--verbose", "-v"
+            help = "Verbose option. Writes progress.csv"
+            action = :store_true
         end
 end
 
@@ -93,12 +96,13 @@ function main()
     exp_id = args["exp-id"]
     out_spn = args["out-spn"]
     only_generate = args["only-generate"]
+    verbose = args["verbose"]
 
     if only_generate
         if !isdir(joinpath(outdir, "spns"))
             mkpath(joinpath(outdir, "spns"))
         end
-        generate_instances(outdir, circ_path, quer_percent, evid_percent)
+        generate_instances(outdir, circ_path, quer_percent, evid_percent, 10)
         return
     end
 
@@ -128,6 +132,7 @@ function main()
     else
         qe = CSV.read(qe_path, DataFrame, missingstring="?", skipto=id+1, limit=1)
         quer = BitSet(filter(i -> !ismissing(qe[1,i]) && qe[1,i] == "*", 1:nvars))
+        quer_size = length(quer)
         evid = map(i -> qe[1,i] ? i : -i, filter(i -> !ismissing(qe[1,i]) && qe[1,i] isa Bool, 1:nvars))
     end
 
@@ -150,14 +155,18 @@ function main()
     end
 
     @show out_path, seed, iter, prune_attempts, length(quer)
-    pc = mmap_solve(pc, quer, 
+    did_timeout, total_time, iter, ub, lb, lb_state, pc = mmap_solve(pc, quer, 
                     num_iter=(iter < 0 ? quer_size : iter),
                     timeout=timeout,
                     prune_attempts=prune_attempts,
                     log_per_iter=log_func,
+                    verbose=verbose,
                     heur=pick_var)
-    
+
     # Save result
+    table = DataFrame("timeout"=>did_timeout, "total_time"=>total_time, "num_iters"=>iter, "ub"=>ub, "lb"=>lb)
+    CSV.write(joinpath(out_path, "result.csv"), table)
+    CSV.write(joinpath(out_path, "mmap.csv"), lb_state, missingstring="?")
     open(f -> serialize(f,pc), joinpath(out_path, "circuit.jls"), "w")
 
     # read_pc = open(deserialize, joinpath(out_path, "circuit.jls"))
