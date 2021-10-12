@@ -98,13 +98,6 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     end
     # @assert all(collect(values(rcache)) .>= 0.0)
     
-    # Only keep in cache nodes that are not pruned in the previous iteration
-    for k in setdiff(keys(cache.impl_lits), lin)
-        delete!(cache.lb, k)
-        delete!(cache.ub, k)
-        delete!(cache.impl_lits, k)
-    end
-
     to_prune
 end
 
@@ -168,6 +161,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
     update_lit_and_max_dec(root, query_vars, cache)
     
     @assert num_features(data) == cache.max_var
+
     f_lit(n) = begin
         assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
         log.(Float32.(coalesce.(assignments, true)))
@@ -231,8 +225,8 @@ function custom_MAR(root, data)
         end 
     f_a(n, call) = mapreduce(call, +, n.children)
     f_o(n, call) = begin
-        r = log(zero(Float32))
-        for i = 1:length(n.children)
+        r = Float32(n.log_probs[1]) + call(n.children[1])
+        for i = 2:length(n.children)
            r = logaddexp(r, Float32(n.log_probs[i]) + call(n.children[i])) 
         end
         r
@@ -296,13 +290,22 @@ function prune(n::PlainProbCircuit, query_vars::BitSet, cache::MMAPCache, lower_
     circ = n
     counters = counter(Int)
     actual_reps = num_reps
+    newnodecache = nothing
     for i in 1:num_reps
         to_prune = find_to_prune(circ, query_vars, cache, lower_bound, counters)
         if !isempty(to_prune)
-            circ = do_pruning(circ, to_prune, cache) 
+            circ, newnodecache = do_pruning(circ, to_prune)
         else # early terminate if no more edges are getting pruned
             actual_reps = i
             break
+        end
+    end
+
+    if actual_reps > 1
+        for k in setdiff(keys(cache.impl_lits), values(newnodecache))
+            delete!(cache.lb, k)
+            delete!(cache.ub, k)
+            delete!(cache.impl_lits, k)
         end
     end
     circ, counters, actual_reps
@@ -329,28 +332,67 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
 end
 
 "Perform the actual pruning. Note this will always return a plain logic circuit"
-function do_pruning(root, to_prune, cache)
+function do_pruning(root, to_prune)
     
-    f_leaf(n) = n
-    f_inner(n, call) = begin
-        # TODO optimize for the case where nothing gets deleted
-        # Find children we are keeping
-        inds = findall(x -> (n, x) ∉ to_prune, n.children)
-        new_children = map(call, n.children[inds])
-        if isempty(inds)
-            nothing  # no need to create a new node if all children are pruned
-        elseif new_children == n.children
-            n        # reuse node if no edges below are pruned
-        elseif is⋁gate(n)
-            del_n = PlainSumNode(new_children)
-            del_n.log_probs = n.log_probs[inds]
-            del_n
-        else
-            PlainMulNode(new_children)
-        end
-    end
+    cache = Dict{ProbCircuit, Union{Nothing,ProbCircuit}}()
 
-    foldup(root, f_leaf, f_inner, Union{Nothing,ProbCircuit})
+    f(n) = get!(cache, n) do 
+           if isleaf(n)
+                n
+            elseif is⋁gate(n) 
+                cs = ProbCircuit[]
+                params = Float64[]
+                changed = false
+                for i in 1:length(n.children)
+                    c = n.children[i]
+                    if (n, c) ∉ to_prune
+                        c_new = f(c)
+                        if issomething(c_new)
+                            if !changed && (c_new !== c)
+                                changed = true
+                            end
+                            push!(cs, c_new)
+                            push!(params, n.log_probs[i])
+                        end
+                    else 
+                        changed = true
+                    end
+                end
+                if !changed
+                    n # reuse node if no edges below are pruned
+                elseif isempty(cs)
+                    nothing
+                else
+                    PlainSumNode(cs, params)
+                end
+            else 
+                cs = ProbCircuit[]
+                changed = false
+                for i in 1:length(n.children)
+                    c = n.children[i]
+                    if (n, c) ∉ to_prune
+                        c_new = f(c)
+                        if issomething(c_new)
+                            if !changed && (c_new !== c)
+                                changed = true
+                            end
+                            push!(cs, c_new)
+                        end
+                    else 
+                        changed = true
+                    end
+                end
+                if !changed
+                    n # reuse node if no edges below are pruned
+                elseif isempty(cs)
+                    nothing
+                else
+                    PlainMulNode(cs)
+                end
+           end
+        end
+    
+    return f(root), cache
 end
 
 
