@@ -266,8 +266,8 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
 end
 
 function custom_MAR(root, data)
-    f_leaf(n) = if (data[variable(n)] === nothing ||
-                    data[variable(n)] == ispositive(n))
+    f_leaf(n) = if (data[1, variable(n)] === missing ||
+                    data[1, variable(n)] == ispositive(n))
             log(one(Float64))
             # log(one(Float32))
         else
