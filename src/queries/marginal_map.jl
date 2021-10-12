@@ -77,6 +77,7 @@ end
 
 "Computes the upper bound on MMAP probability for each edge. Returns a map from node or edge to its upper bound"
 function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPCache)
+    
     update_lit_and_max_dec(root, query_vars, cache)
     forward_bounds(root, query_vars, cache)
 
@@ -89,19 +90,52 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     trcache = DefaultDict{ProbCircuit, Tuple{Float64, Float64}}((-Inf,-Inf))
     trcache[root] = (0.0, cache.ub[root])
 
-
     to_prune = Set{Tuple{ProbCircuit,ProbCircuit}}()
 
-    lin = linearize(root, ProbCircuit)
-    foreach(Iterators.reverse(lin)) do x 
-        edge_bounds_fn(x, query_vars, thresh, to_prune, cache, trcache)
+    foreach_down(root) do x 
+        edge_bounds_fn(x, thresh, to_prune, cache, trcache)
     end
     # @assert all(collect(values(rcache)) .>= 0.0)
     
     to_prune
 end
 
-function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, trcache)
+# correct but does not appear to be faster... :-(
+function custom_foreach_down(f::Function, root)
+    counter::Dict{ProbCircuit, Int} = Dict{ProbCircuit, Int}()
+
+    # populate the counter with the number of parents
+    g1(n) = begin
+        count = get(counter, n, 0) + 1
+        counter[n] = count 
+        if count == 1 && isinner(n)
+            # first visit to inner node, recurse
+            for c in children(n)
+                g1(c)
+            end
+        end
+    end
+    # decrement the counter
+    g2(n) = begin
+        count = counter[n] - 1
+        if count == 0 
+            # all parents have been visited, safe to call function now
+            f(n)
+            if isinner(n)
+                for c in children(n)
+                    g2(c)
+                end
+            end
+        else
+            counter[n] = count
+        end
+    end
+    g1(root)
+    counter[root] = 1
+    g2(root)
+end
+
+function edge_bounds_fn(root::ProbCircuit, thresh, to_prune, cache::MMAPCache, trcache)
     tcr, rcr = trcache[root]
     if isleaf(root) || tcr == -Inf
         return
