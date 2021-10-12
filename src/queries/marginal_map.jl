@@ -88,9 +88,19 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
 
     to_prune = Set{Tuple{ProbCircuit,ProbCircuit}}()
 
-    foreach_down(x -> edge_bounds_fn(x, query_vars, thresh, to_prune, cache, tcache, rcache), root)
+    lin = linearize(root, ProbCircuit)
+    foreach(Iterators.reverse(lin)) do x 
+        edge_bounds_fn(x, query_vars, thresh, to_prune, cache, tcache, rcache)
+    end
     # @assert all(collect(values(rcache)) .>= 0.0)
     
+    # Only keep in cache nodes that are not pruned in the previous iteration
+    for k in setdiff(keys(cache.impl_lits), lin)
+        delete!(cache.lb, k)
+        delete!(cache.ub, k)
+        delete!(cache.impl_lits, k)
+    end
+
     to_prune
 end
 
@@ -153,7 +163,6 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
     update_lit_and_max_dec(root, query_vars, cache)
     
     @assert num_features(data) == cache.max_var
-    f_con(n) = zeros(Float32, nrow(data))   # Note: no constant node for ProbCircuit anyway
     f_lit(n) = begin
         assignments = ispositive(n) ? data[:,variable(n)] : .!data[:,variable(n)]
         log.(Float32.(coalesce.(assignments, true)))
@@ -167,7 +176,7 @@ function forward_bounds(root::ProbCircuit, query_vars::BitSet, data::DataFrame, 
             reduce((x,y) -> logaddexp.(x,y), evals)
         end
     end
-    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Array{Float32})
+    foldup_aggregate(root, f_lit, f_lit, f_a, f_o, Array{Float32})
 end
 
 """
@@ -315,43 +324,30 @@ function find_to_prune(n::ProbCircuit, query_vars::BitSet, cache::MMAPCache, thr
 end
 
 "Perform the actual pruning. Note this will always return a plain logic circuit"
-function do_pruning(n, to_prune, cache)
-    new_nodes = Dict()
-    foreach(x -> prune_fn(x, to_prune, new_nodes), n)
-
-    # Only keep in cache nodes that are not pruned
-    for k in setdiff(keys(cache.impl_lits), keys(new_nodes))
-        delete!(cache.lb, k)
-        delete!(cache.ub, k)
-        delete!(cache.impl_lits, k)
-    end
-
-    new_nodes[n]
-end
-
-# TODO use foldup
-function prune_fn(n, to_prune, cache)
-    if isinner(n)
+function do_pruning(root, to_prune, cache)
+    
+    f_leaf(n) = n
+    f_inner(n, call) = begin
         # TODO optimize for the case where nothing gets deleted
         # Find children we are keeping
         inds = findall(x -> (n, x) ∉ to_prune, n.children)
-        new_children = map(x -> cache[x], n.children[inds])
+        new_children = map(call, n.children[inds])
         if isempty(inds)
-            cache[n] = nothing  # no need to create a new node if all children are pruned
+            nothing  # no need to create a new node if all children are pruned
         elseif new_children == n.children
-            cache[n] = n        # reuse node if no edges below are pruned
+            n        # reuse node if no edges below are pruned
         elseif is⋁gate(n)
-            del_n = PlainSumNode(map(x -> cache[x], n.children[inds]))
+            del_n = PlainSumNode(new_children)
             del_n.log_probs = n.log_probs[inds]
-            cache[n] = del_n
+            del_n
         else
-            cache[n] = PlainMulNode(map(x -> cache[x], n.children[inds]))
+            PlainMulNode(new_children)
         end
-    else
-        # Leaf nodes just use themselves, fine to reuse in new circuit
-        cache[n] = n
     end
+
+    foldup(root, f_leaf, f_inner, Union{Nothing,ProbCircuit})
 end
+
 
 #####################
 # Splitting on MMAP variables

@@ -109,7 +109,7 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
     @assert lb ≈ -3.021191f0
 end
 
-Profile.init(n = 10^7, delay = 0.002)
+Profile.init(n = 10^7, delay = 0.001)
 
 Profile.clear(); GC.gc();  @time my_mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull); ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)
 
