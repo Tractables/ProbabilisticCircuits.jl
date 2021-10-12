@@ -81,16 +81,20 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     forward_bounds(root, query_vars, cache)
 
 
-    tcache = NodeCacheDict(-Inf)
-    tcache[root] = 0.0
-    rcache = NodeCacheDict(-Inf)
-    rcache[root] = cache.ub[root]
+    # tcache = NodeCacheDict(-Inf)
+    # tcache[root] = 0.0
+    # rcache = NodeCacheDict(-Inf)
+    # rcache[root] = cache.ub[root]
+
+    trcache = DefaultDict{ProbCircuit, Tuple{Float64, Float64}}((-Inf,-Inf))
+    trcache[root] = (0.0, cache.ub[root])
+
 
     to_prune = Set{Tuple{ProbCircuit,ProbCircuit}}()
 
     lin = linearize(root, ProbCircuit)
     foreach(Iterators.reverse(lin)) do x 
-        edge_bounds_fn(x, query_vars, thresh, to_prune, cache, tcache, rcache)
+        edge_bounds_fn(x, query_vars, thresh, to_prune, cache, trcache)
     end
     # @assert all(collect(values(rcache)) .>= 0.0)
     
@@ -104,39 +108,40 @@ function edge_bounds(root::ProbCircuit, query_vars::BitSet, thresh, cache::MMAPC
     to_prune
 end
 
-function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, tcache, rcache)
-    tcr = tcache[root]
+function edge_bounds_fn(root::ProbCircuit, query_vars::BitSet, thresh, to_prune, cache::MMAPCache, trcache)
+    tcr, rcr = trcache[root]
     if isleaf(root) || tcr == -Inf
         return
     end
     cur = cache.ub[root]
-    rcr = rcache[root]
     if is⋁gate(root)
+        ismax = cache.max_dec_node[root]
         for (c, param) in zip(root.children, params(root))
-            edge = (root, c)
             cuc = cache.ub[c]
-            edge_val = if (cur - (param + cuc) > 1e-5 
-                            && cache.max_dec_node[root])
-                logsubexp(rcache[root], tcr + logsubexp(param + cuc, cur))
+            edge_val = if (ismax && cur - (param + cuc) > 1e-5)
+                logsubexp(rcr, tcr + logsubexp(param + cuc, cur))
             else
                 rcr
             end
+            tcc, rcc = trcache[c]
             if cuc > -Inf
                 edge_pr = param + tcr
-                tcache[c] = tcache[c] > -Inf ? min(tcache[c], edge_pr) : edge_pr
+                tcc = tcc > -Inf ? min(tcc, edge_pr) : edge_pr
             end
-            rcache[c] = max(rcache[c], edge_val)
+            rcc = max(rcc, edge_val)
+            trcache[c] = (tcc, rcc)
             if edge_val < thresh - 1e-5
-                push!(to_prune, edge) 
+                push!(to_prune, (root, c)) 
             end
         end
     else
         for c in root.children
-            edge = (root, c)
-            rcache[c] = max(rcache[c], rcr)
-            tcache[c] = tcache[c] > -Inf ? min(tcache[c], tcr) : tcr
+            tcc, rcc = trcache[c]
+            rcc = max(rcc, rcr)
+            tcc = tcc > -Inf ? min(tcc, tcr) : tcr
+            trcache[c] = (tcc, rcc)
             if rcr < thresh - 1e-5
-                push!(to_prune, edge) 
+                push!(to_prune, (root, c)) 
             end
         end
     end
