@@ -104,6 +104,9 @@ function my_mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log
     end
     @assert num_edges(cur_root) == 191438 "Got $(num_edges(cur_root)) edges"
     @assert num_nodes(cur_root) == 112073 "Got $(num_nodes(cur_root)) nodes"
+    @assert mp ≈ 0.048743136f0
+    @assert ub ≈ -0.73240435f0
+    @assert lb ≈ -3.021191f0
 end
 
 Profile.init(n = 10^7, delay = 0.002)

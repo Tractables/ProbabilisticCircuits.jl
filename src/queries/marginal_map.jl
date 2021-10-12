@@ -205,7 +205,20 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
     # reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
     reduced = transpose([i in query_vars ? state[i] : missing for i in 1:cache.max_var])
     df = DataFrame(reduced, :auto)
-    df, exp(MAR(root, df)[1])
+    df, exp(custom_MAR(root, reduced))
+end
+
+function custom_MAR(root, data)
+    f_leaf(n) = if (data[variable(n)] === nothing ||
+                    data[variable(n)] == ispositive(n))
+            log(one(Float32))
+        else
+            log(zero(Float32))
+        end
+        
+    f_a(_, cs) = reduce(+, cs)
+    f_o(n, cs) = reduce(logaddexp, Float32.(params(n)) .+ cs)
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Float32)
 end
 
 function max_sum_down(n::ProbCircuit, mcache, state)
