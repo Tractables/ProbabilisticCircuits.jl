@@ -374,7 +374,6 @@ function add_and_split(root, var)
     # split_root = split(new_root, (new_root, new_and), Var(var), sanity_check=false, callback=keep_params, keep_unary=true)[1]
     
     split_root.log_probs .= 0   # each child has var as evidence and is left unnormalized
-    split_root = remove_unary_gates(split_root)
     split_root
 end
 
@@ -406,20 +405,27 @@ function custom_split(root, var)
 
         left = if left_false
             nothing
+        elseif length(cn) == 1
+            cn[1][1]
         elseif !left_changed
             n
-        else            
+        else
             PlainMulNode(first.(cn))
         end
 
         right = if right_false
             nothing
+        elseif length(cn) == 1
+            cn[1][2]
         elseif !right_changed
             n
-        else            
+        else   
             PlainMulNode(last.(cn))
         end
         
+        # @assert isnothing(left) || LogicCircuits.num_children(left) > 1
+        # @assert isnothing(right) || LogicCircuits.num_children(right) > 1
+
         (left, right)
     end
 
@@ -478,8 +484,7 @@ function custom_split(root, var)
     T = Tuple{Union{Nothing,ProbCircuit},Union{Nothing,ProbCircuit}}
     l,r = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, T)
 
-    PlainSumNode([PlainMulNode([l]), 
-                  PlainMulNode([r])])
+    PlainSumNode([l,r])
 end
 
 "Function to pass to condition so that it maintains parameters"
@@ -487,24 +492,6 @@ function keep_params(new_n, n, kept)
     new_n.log_probs = n.log_probs[kept]
 end
 
-"Return an equivalent circuit without and nodes with single children"
-function remove_unary_gates(root::PlainProbCircuit)
-    f_con(n) = n
-    f_lit(n) = n
-    f_a(n, cn) = begin 
-        if length(cn) == 1 
-            cn[1]
-        else
-            multiply([cn...], reuse=n)
-        end
-    end
-    f_o(n, cn) = begin 
-        ret = summate([cn...], reuse=n)
-        ret.log_probs = n.log_probs
-        ret
-    end
-    foldup_aggregate(root, f_con, f_lit, f_a, f_o, Node)
-end
 
 function get_to_split(root, splittable, counters, heur, lb, cache::MMAPCache)    
     if heur == "avgUB" || heur == "minUB" || heur == "maxUB" || heur == "UB"
