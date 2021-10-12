@@ -21,12 +21,13 @@ Loads PSDD file with given name from model zoo. See https://github.com/UCLA-Star
 zoo_psdd(name) = 
     read(zoo_psdd_file(name), ProbCircuit, PsddFormat())
 
+# note: some tools output two logprobs for true node leafs
 const psdd_grammar = raw"""
     start: _header (_NL node)+ _NL?
 
     _header : "psdd" (_WS INT)?
     
-    node : "T" _WS INT _WS INT _WS INT _WS LOGPROB -> true_node
+    node : "T" _WS INT _WS INT _WS INT _WS LOGPROB (_WS LOGPROB)? -> true_node
          | "L" _WS INT _WS INT _WS SIGNED_INT _WS? -> literal_node
          | "D" _WS INT _WS INT _WS INT _WS elems  -> decision_node
          
@@ -65,7 +66,7 @@ end
 
 @rule true_node(t::PlainPsddParse, x) = begin
     litn = PlainProbLiteralNode(Base.parse(Lit, x[3]))
-    log_prob = Base.parse(Float64, x[4])
+    log_prob = Base.parse(Float64, x[end])
     log_probs = [log_prob, log1p(-exp(log_prob))]
     t.nodes[x[1]] = PlainSumNode([litn, -litn], log_probs)
 end
