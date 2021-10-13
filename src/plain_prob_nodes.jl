@@ -92,7 +92,7 @@ end
 
 import LogicCircuits: fully_factorized_circuit #extend
 
-fully_factorized_circuit(::Type{ProbCircuit}, n::Int; reIndex_bijection) =
+fully_factorized_circuit(::Type{ProbCircuit}, n::Int; reIndex_bijection = nothing) =
     fully_factorized_circuit(PlainProbCircuit, n; reIndex_bijection)
 
 function fully_factorized_circuit(::Type{<:PlainProbCircuit}, n::Int; reIndex_bijection = nothing)
