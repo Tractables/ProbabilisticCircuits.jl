@@ -122,6 +122,7 @@ Profile.clear()
 
 @profile mmap_solve(pc, myquer, num_iter=2, heur="UB", log_per_iter=log_func, out=devnull);
 
-Profile.print(format=:flat, mincount=100, sortedby=:count)
+Profile.print(format=:flat, mincount=10, sortedby=:count)
+Profile.print(format=:flat, mincount=10)
 
 ProfileSVG.save("prof.svg", timeunit=:ms, yflip=true)

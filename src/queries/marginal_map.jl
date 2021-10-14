@@ -707,7 +707,7 @@ function marginalize_out(root, to_marginalize)
             new_n = children[1]
         else
             @assert all(issomething.(children))
-            new_n = multiply(children, reuse=n)
+            new_n = multiply([children...], reuse=n)
         end
         marg = sum(first.(cn))
         (marg, new_n)
