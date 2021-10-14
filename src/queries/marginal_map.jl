@@ -260,14 +260,13 @@ function max_sum_lower_bound(root::ProbCircuit, query_vars::BitSet, cache)
     # reduce to query variables
     @assert all(issomething.(state[collect(query_vars)]))
     # reduced = transpose([i in query_vars ? state[i] : missing for i in 1:num_variables(root)])
-    reduced = transpose([i in query_vars ? state[i] : missing for i in 1:cache.max_var])
-    df = DataFrame(reduced, :auto)
-    df, exp(custom_MAR(root, reduced))
+    reduced = [i in query_vars ? state[i] : missing for i in 1:cache.max_var]
+    reduced, custom_MAR(root, reduced)
 end
 
 function custom_MAR(root, data)
-    f_leaf(n) = if (data[1, variable(n)] === missing ||
-                    data[1, variable(n)] == ispositive(n))
+    f_leaf(n) = if (data[variable(n)] === missing ||
+                    data[variable(n)] == ispositive(n))
             log(one(Float64))
             # log(one(Float32))
         else
@@ -600,7 +599,13 @@ function custom_split(root, var)
     T = Tuple{Union{Nothing,ProbCircuit},Union{Nothing,ProbCircuit}}
     l,r = foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, T)
 
-    PlainSumNode([l,r])
+    if isnothing(l)
+        return r
+    elseif isnothing(r)
+        return l
+    else
+        return PlainSumNode([l,r])
+    end
 end
 
 "Function to pass to condition so that it maintains parameters"
@@ -701,6 +706,7 @@ function marginalize_out(root, to_marginalize)
         elseif length(children) == 1
             new_n = children[1]
         else
+            @assert all(issomething.(children))
             new_n = multiply(children, reuse=n)
         end
         marg = sum(first.(cn))
@@ -788,7 +794,7 @@ function update_and_log(cur_root, quer, timeout, cache, ub, lb, results, iter, t
 end
 
 "Compute marginal MAP by iteratively pruning and splitting"
-function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_per_iter=noop, heur="maxP", timeout=3600, verbose=false, out=stdout)
+function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_per_iter=noop, heur="UB", timeout=3600, verbose=false, out=stdout)
     # initialize log
     num_iter = min(num_iter, length(quer))
     results = Dict()
@@ -796,20 +802,14 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
         results[x] = Vector{Union{Any,Missing}}(missing,num_iter)
     end
 
+    splittable = copy(quer)
+    cache = MMAPCache(root)
     # marginalize out non-query variables
-    # cur_root = root
-    # ub = forward_bounds(root, quer)
-    # _, mp = max_sum_lower_bound(root, quer)
     cur_root = marginalize_out(root, setdiff(variables(root), quer))
     @assert variables(cur_root) == quer
-    # TODO: check the bounds before and after
-
-    splittable = copy(quer)
-    cache = MMAPCache(cur_root)
     ub = forward_bounds(cur_root, quer, cache)
-    lb_state, mp = max_sum_lower_bound(cur_root, quer, cache)
-    lb = log(mp)
-    # @show ub, lb
+    lb_state, lb = max_sum_lower_bound(cur_root, quer, cache)
+    @show ub, lb
 
     total_time = 0.0
     did_timeout = false

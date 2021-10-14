@@ -119,6 +119,7 @@ function main()
     Random.seed!(seed)
     pc = read(circ_path, ProbCircuit)
     nvars = num_variables(pc)
+    vars = variables(pc)
 
     if isempty(qe_path)
         quer_size = round(Int, quer_percent*nvars)
@@ -126,9 +127,21 @@ function main()
         open(f -> serialize(f,quer), joinpath(out_path, "quer.jls"), "w")
 
         evid_size = round(Int, evid_percent*nvars)
-        evid_vars = sample(collect(setdiff(variables(pc), quer)), evid_size, replace=false)
-        assignments = bitrand(evid_size)
-        evid = [assignments[i] ? evid_vars[i] : -evid_vars[i] for i in 1:evid_size]
+        if evid_size > 0
+            evid_vars = sample(collect(setdiff(variables(pc), quer)), evid_size, replace=false)
+            evid_vars_set = BitSet(evid_vars)
+            while true
+                assignments = bitrand(evid_size)
+                evid_dict = Dict(evid_vars .=> assignments)
+                df = DataFrame(transpose([x ∈ evid_vars_set ? evid_dict[x] : missing for x in vars]), :auto)
+                evid = [assignments[i] ? evid_vars[i] : -evid_vars[i] for i in 1:evid_size]
+                if MAR(pc, df)[1] > -Inf
+                    break
+                end
+            end
+        else
+            evid = []
+        end
     else
         qe = CSV.read(qe_path, DataFrame, missingstring="?", skipto=id+1, limit=1)
         quer = BitSet(filter(i -> !ismissing(qe[1,i]) && qe[1,i] == "*", 1:nvars))
@@ -154,6 +167,11 @@ function main()
         CSV.write(csv, table; )
     end
 
+    # Do a dummy round of solving to compile everything once
+    mini_pc = read("/space/yjchoi/Circuit-Model-Zoo/psdds/little_4var.psdd", ProbCircuit)
+    mini_quer = BitSet([1,2,3])
+    mmap_solve(mini_pc, mini_quer, num_iter=1)
+
     @show out_path, seed, iter, prune_attempts, length(quer)
     did_timeout, total_time, iter, ub, lb, lb_state, pc = mmap_solve(pc, quer, 
                     num_iter=(iter < 0 ? quer_size : iter),
@@ -166,7 +184,7 @@ function main()
     # Save result
     table = DataFrame("timeout"=>did_timeout, "total_time"=>total_time, "num_iters"=>iter, "ub"=>ub, "lb"=>lb)
     CSV.write(joinpath(out_path, "result.csv"), table)
-    CSV.write(joinpath(out_path, "mmap.csv"), lb_state, missingstring="?")
+    CSV.write(joinpath(out_path, "mmap.csv"), DataFrame(transpose(lb_state),:auto), missingstring="?")
     open(f -> serialize(f,pc), joinpath(out_path, "circuit.jls"), "w")
 
     # read_pc = open(deserialize, joinpath(out_path, "circuit.jls"))
@@ -176,6 +194,8 @@ function generate_instances(out_path, circ_path, quer_percent, evid_percent, num
     pc = read(circ_path, ProbCircuit)
     nvars = num_variables(pc)
     vars = variables(pc)
+    max_var = maximum(vars)
+    @assert nvars == max_var
     
     dict = Dict()
     for x in 1:nvars
@@ -191,6 +211,15 @@ function generate_instances(out_path, circ_path, quer_percent, evid_percent, num
         evid_vars_set = BitSet(evid_vars)
         assignments = bitrand(evid_size)
         evid = Dict(evid_vars .=> assignments)
+
+        while true
+            df = DataFrame(transpose([x ∈ evid_vars_set ? evid[x] : missing for x in vars]), :auto)
+            if MAR(pc, df)[1] > -Inf
+                break
+            end
+            assignments = bitrand(evid_size)
+            evid = Dict(evid_vars .=> assignments)
+        end
 
         for x in 1:nvars
             if x ∈ quer
