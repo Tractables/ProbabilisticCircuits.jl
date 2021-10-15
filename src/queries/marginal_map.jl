@@ -902,11 +902,11 @@ function mmap_solve(root, quer; num_iter=length(quer), prune_attempts=10, log_pe
             toc = time_ns()
             total_time += (toc-tic)/1.0e9            
             delete!(splittable, to_split)
-            verbose && println(out, "* Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
+            verbose && println(out, "* [$(i)/$(num_iter)] Splitting on $(to_split) gives $(num_edges(cur_root)) edges and $(num_nodes(cur_root)) nodes.")
             verbose && update_and_log(cur_root,quer,timeout,cache,ub,lb,results,i,(toc-tic)/1.0e9,false, split_var=to_split, callback=log_per_iter)
 
             if total_time > timeout 
-                did_timeout = true
+                did_timeout = true  
                 total_time = timeout
                 error("timeout")
             end

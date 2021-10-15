@@ -80,10 +80,18 @@ function main()
     # 1. condition on pixels 1..K,
     # 2. condition on indexes nvars...(nvars-B)
     println("Compute pixels idxs to condition on")
-    K = 28*13
-    B = 28*13
-    condition_indexs = [i for i=1:K]
-    append!(condition_indexs, [i for i=nvars:-1:(nvars-B+1)])
+    # K = 28*12
+    # B = 28*12
+    # condition_indexs = [i for i=1:K]
+    # append!(condition_indexs, [i for i=nvars-1:-1:(nvars-B+1)])
+    # partial_image = [img[i] == 1 ? i : -i for i in condition_indexs];
+
+    U = 14
+    D = 7
+    L = 16
+    R = 4
+
+    condition_indexs = [i for i=1:nvars if ((i%28 < L) | (i % 28 > 28-R) | (i/28 < U) | (i/28 > 28-D))]
     partial_image = [img[i] == 1 ? i : -i for i in condition_indexs];
 
     println("Compute query variables (rest of pixels)")
@@ -99,9 +107,12 @@ function main()
     # Gray out is missing, the rest is the condition
     println("Save evidence image to file....png")
     img_temp = Float32.(Array(example(test_data, img_idx)))
+    img_temp_2 = Float32.(Array(example(test_data, img_idx)))
     for i in 1:nvars
         if !(i in condition_indexs)
             img_temp[i] = 0.5
+        else
+            img_temp_2[i] = 0.5
         end
     end
     save("mnist_evidence_$(img_idx).png",  arr2img(img_temp))
@@ -111,34 +122,38 @@ function main()
     query_img = [i in query ? 0.0 : 1.0 for i=1:nvars]
     save("mnist_query_$(img_idx).png",  arr2img(query_img))
 
-    chunk = 10
-    conjoin_lits = Int32.(partial_image)
-    for i = 1:chunk:size(conjoin_lits)[1]
-        end_idx = min(size(conjoin_lits)[1], i+chunk-1)
-        print("Conjoining on conjoin_lits[$(i):$(end_idx)] / $(size(conjoin_lits)[1])")
-        t = @elapsed begin
-            pc = pc_condition(pc, conjoin_lits[i:end_idx]...)    
-        end
-        print(" $(t) seconds;")
-        println(";; Nodes $(num_nodes(pc)); Params $(num_parameters(pc));")
-        write("$(pc_name)_conjoined.jpc", pc)
+    t = @elapsed begin
+        println(num_nodes(pc), " ", num_parameters(pc), " ", num_edges(pc))
+        conjoin_lits = Int32.(partial_image)
+        println("conjoin_with_literals .. $(size(conjoin_lits))")
+        pc2 = conjoin_with_literals(pc, conjoin_lits) 
+        println(num_nodes(pc2), " ", num_parameters(pc2), " ", num_edges(pc2))
     end
 
-    arr = [arr2img(img), arr2img(img_temp),  arr2img(query_img)]
+    # chunk = 20
+    # conjoin_lits = Int32.(partial_image)
+    # for i = 1:chunk:size(conjoin_lits)[1]
+    #     end_idx = min(size(conjoin_lits)[1], i+chunk-1)
+    #     print("Conjoining on conjoin_lits[$(i):$(end_idx)] / $(size(conjoin_lits)[1])")
+    #     t = @elapsed begin
+    #         pc = pc_condition(pc, conjoin_lits[i:end_idx]...)    
+    #     end
+    #     print(" $(t) seconds;")
+    #     println(";; Nodes $(num_nodes(pc)); Params $(num_parameters(pc));")
+    #     write("$(pc_name)_conjoined.jpc", pc)
+    # end
+
+    arr = [arr2img(img), arr2img(img_temp), arr2img(img_temp_2),  arr2img(query_img)]
     save("$(@__DIR__)//mnist_$(img_idx)_before_map.png", mosaicview(arr, fillvalue=1, npad=4, ncol=10, rowmajor=true))
-
-    # quer = open(deserialize, "$(@__DIR__)//mnist_quer.jls")
-    did_timeout, total_time, iter, ub, lb, lb_state, pc  = mmap_solve(pc, query, heur="UB", verbose=true);
+    did_timeout, total_time, iter, ub, lb, lb_state, pc  = mmap_solve(pc2, query, heur="UB", verbose=true);
    
-
     for i in condition_indexs
         lb_state[i] = img[i]
     end
-    println(lb_state)
+    lb_state = Array{Bool}(lb_state);
 
-    save("mnist_final.png", arr2img(lb_state))
-
-    arr = [arr2img(img), arr2img(img_temp),  arr2img(query_img), arr2img(lb_state)]
+    #save("mnist_final.png", arr2img(lb_state))
+    arr = [arr2img(img), arr2img(img_temp), arr2img(img_temp_2), arr2img(query_img), arr2img(lb_state)]
     save("$(@__DIR__)//mnist_$(img_idx)_map_final_$(pc_name).png", mosaicview(arr, fillvalue=1, npad=4, ncol=10, rowmajor=true))
 end
 
