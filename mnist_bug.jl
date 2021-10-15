@@ -40,17 +40,20 @@ function example(data::Vector{DataFrame}, i)
     end
 end
 
-function load_pc()
-    read("$(@__DIR__)//mnist_b_301.jpc", ProbCircuit)
+function load_pc(name)
+    read("$(@__DIR__)//$(name).jpc", ProbCircuit)
 end
  
 function main()
 
-    #Random.seed!(2880)
-    pc = load_pc()
-    nvars = num_variables(pc)
+    Random.seed!(2880)
+    pc_name = "mnist_cats8_181"  # "mnist_b_301"
+    img_idx = 10
     soft_reg_train = 0.002
     batch_size = 1024
+
+    pc = load_pc(pc_name)
+    nvars = num_variables(pc)
 
     println(num_nodes(pc))
     println(num_variables(pc))
@@ -60,16 +63,16 @@ function main()
         # MNIST dataset
         mnist_train, _, mnist_test = mnist(true);
         mnist_train, _, mnist_test = threshold(mnist_train[:, 1:end-1], nothing, mnist_test[:, 1:end-1], 0.5);
-        mnist_train = shuffle_examples(mnist_train);
+        # mnist_train = shuffle_examples(mnist_train);
         mnist_valid = mnist_train[1:10000, :];
         mnist_train = mnist_train[10001:end, :];
         
-        train_data = batch(soften(mnist_train, soft_reg_train; scale_by_marginal = true), batch_size)
-        valid_data = batch(mnist_valid, batch_size)
-        test_data = batch(mnist_test, batch_size)
+        train_data = batch(soften(mnist_train, soft_reg_train; scale_by_marginal = true), batch_size; shuffle=false)
+        valid_data = batch(mnist_valid, batch_size; shuffle=false)
+        test_data = batch(mnist_test, batch_size; shuffle=false)
     end
 
-    img_idx = 10
+    
     img = example(test_data, img_idx)
     save("mnist_image_$(img_idx).png", arr2img(img))
 
@@ -77,8 +80,8 @@ function main()
     # 1. condition on pixels 1..K,
     # 2. condition on indexes nvars...(nvars-B)
     println("Compute pixels idxs to condition on")
-    K = 28*10
-    B = 28*10
+    K = 28*13
+    B = 28*13
     condition_indexs = [i for i=1:K]
     append!(condition_indexs, [i for i=nvars:-1:(nvars-B+1)])
     partial_image = [img[i] == 1 ? i : -i for i in condition_indexs];
@@ -94,39 +97,49 @@ function main()
     query = BitSet(query);
 
     # Gray out is missing, the rest is the condition
+    println("Save evidence image to file....png")
     img_temp = Float32.(Array(example(test_data, img_idx)))
     for i in 1:nvars
         if !(i in condition_indexs)
             img_temp[i] = 0.5
         end
     end
-
-    println("Save evidence image to file....png")
     save("mnist_evidence_$(img_idx).png",  arr2img(img_temp))
+
     # Black pixels are the query
     println("Save query image to file....png")
-    query_img = [i in query ? -1.0 : 1.0 for i=1:nvars]
+    query_img = [i in query ? 0.0 : 1.0 for i=1:nvars]
     save("mnist_query_$(img_idx).png",  arr2img(query_img))
 
     chunk = 10
     conjoin_lits = Int32.(partial_image)
     for i = 1:chunk:size(conjoin_lits)[1]
         end_idx = min(size(conjoin_lits)[1], i+chunk-1)
-        print("Conjoining on conjoin_lits[$(i):$(end_idx)]")
+        print("Conjoining on conjoin_lits[$(i):$(end_idx)] / $(size(conjoin_lits)[1])")
         t = @elapsed begin
             pc = pc_condition(pc, conjoin_lits[i:end_idx]...)    
         end
-        println(" $(t) seconds; Out of $(size(conjoin_lits))")
-        write("conjoined_pc.jpc", pc)
+        print(" $(t) seconds;")
+        println(";; Nodes $(num_nodes(pc)); Params $(num_parameters(pc));")
+        write("$(pc_name)_conjoined.jpc", pc)
     end
 
+    arr = [arr2img(img), arr2img(img_temp),  arr2img(query_img)]
+    save("$(@__DIR__)//mnist_$(img_idx)_before_map.png", mosaicview(arr, fillvalue=1, npad=4, ncol=10, rowmajor=true))
+
     # quer = open(deserialize, "$(@__DIR__)//mnist_quer.jls")
-    did_timeout, total_time, iter, ub, lb, lb_state, pc  = mmap_solve(pc, query, heur="UB");
+    did_timeout, total_time, iter, ub, lb, lb_state, pc  = mmap_solve(pc, query, heur="UB", verbose=true);
+   
+
+    for i in condition_indexs
+        lb_state[i] = img[i]
+    end
     println(lb_state)
+
     save("mnist_final.png", arr2img(lb_state))
 
     arr = [arr2img(img), arr2img(img_temp),  arr2img(query_img), arr2img(lb_state)]
-    save("$(@__DIR__)//mnist_map.png", mosaicview(arr, fillvalue=1, npad=4, ncol=10, rowmajor=true))
+    save("$(@__DIR__)//mnist_$(img_idx)_map_final_$(pc_name).png", mosaicview(arr, fillvalue=1, npad=4, ncol=10, rowmajor=true))
 end
 
 main()
