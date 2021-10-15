@@ -1,7 +1,7 @@
 export MMAP_LOG_HEADER, forward_bounds, edge_bounds, max_sum_lower_bound, associated_with_mult,
     mmap_solve, add_and_split, get_to_split, prune,
     mmap_reduced_mpe_state, gen_edges, brute_force_mmap, pc_condition, get_margs,
-    marginalize_out, pc_condition
+    marginalize_out, pc_condition, conjoin_with_literals
 
 using LogicCircuits
 using StatsFuns: logaddexp
@@ -606,6 +606,67 @@ function custom_split(root, var)
     else
         return PlainSumNode([l,r])
     end
+end
+
+
+function conjoin_with_literals(root, literals)
+
+    f_leaf(n) = begin
+        if -literal(n) ∈ literals
+            nothing
+        else
+            n
+        end
+    end
+
+    f_a(n, cn) = begin 
+        unsat = false
+        changed = false
+        for i = 1:length(cn)
+            !unsat && isnothing(cn[i]) && (unsat = true)
+            !changed && cn[i] !== n.children[i] && (changed = true)
+        end
+
+        if unsat
+            nothing
+        elseif length(cn) == 1
+            cn[1]
+        elseif !changed
+            n
+        else
+            PlainMulNode(cn)
+        end
+    end
+
+    f_o(n, cn) = begin
+        
+        changed = false
+        unsat = true
+        for i = 1:length(cn)
+            unsat && issomething(cn[i]) && (unsat = false)
+            !changed && cn[i] !== n.children[i] && (changed = true)
+        end
+
+        if unsat
+            nothing
+        elseif !changed
+            n
+        else            
+            newcn = ProbCircuit[]
+            newpa = Float64[]
+            for i = 1:length(cn)
+                if issomething(cn[i])
+                    push!(newcn, cn[i])
+                    push!(newpa, n.log_probs[i])
+                end
+            end
+            newnode = PlainSumNode(newcn)
+            newnode.log_probs .= newpa
+            newnode
+        end
+    end
+
+    foldup_aggregate(root, f_leaf, f_leaf, f_a, f_o, Union{Nothing,ProbCircuit})
 end
 
 "Function to pass to condition so that it maintains parameters"
