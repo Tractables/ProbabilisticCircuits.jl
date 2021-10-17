@@ -118,8 +118,8 @@ probs[1:3]
 We can also sample from the distrubtion ``p(x)`` defined by a Probabilistic Circuit. You can use [`sample`](@ref) to achieve this task.
 
 ```@example queries
-samples, lls = sample(pc, 100);
-lls[1:3]
+samples, _ = sample(pc, 100);
+size(samples)
 ```
 
 Additionally, we can do conditional samples ``x \sim p(x \mid x^o)``, where ``x^o`` are the observed features (``x^o \subseteq x``), and could be any arbitrary subset of features.
@@ -128,8 +128,8 @@ Additionally, we can do conditional samples ``x \sim p(x \mid x^o)``, where ``x^
 #3 random evidences for the examples
 evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))), :auto)
 
-samples, lls = sample(pc, 3, evidence);
-lls
+samples, _ = sample(pc, 3, evidence);
+size(samples)
 ```
 
 ## Expected Prediction (EXP)
@@ -142,10 +142,11 @@ In the case where ``f`` and ``p`` are circuit, and some structural constrains fo
 You can use [`Expectation`](@ref) and [`Moment`](@ref) to compute the expectations.
 
 ```@example queries
+using DiscriminativeCircuits
 using DataFrames
 
 pc = zoo_psdd("insurance.psdd")
-rc = zoo_lc("insurance.circuit", 1)
+rc = zoo_dc("insurance.circuit")
 
 # Using samples from circuit for the example; replace with real data
 data, _ = sample(pc, 10);

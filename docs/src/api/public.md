@@ -6,21 +6,11 @@ This page lists documentation for the most commonly used public APIs of `Probabi
 Pages = ["public.md"]
 ```
 
-## Loading Circuits
+## Circuit IO
 
 ```@docs
-load_prob_circuit
-load_struct_prob_circuit
-load_logistic_circuit
-```
-
-## Saving Interface
-
-```@docs
-save_circuit
-save_as_psdd
-save_as_logistic
-save_as_dot
+read
+write
 ```
 
 ## Learning Circuits
@@ -29,7 +19,7 @@ save_as_dot
 learn_circuit
 learn_strudel
 estimate_parameters
-learn_parameters
+estimate_parameters_em
 learn_chow_liu_tree_circuit
 ```
 
@@ -39,8 +29,6 @@ learn_chow_liu_tree_circuit
 marginal
 max_a_posteriori
 sample
-Expectation
-Moment
 ```
 
 ## Compilation

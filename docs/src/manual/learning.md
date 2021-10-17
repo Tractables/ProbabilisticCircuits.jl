@@ -80,7 +80,8 @@ p cnf 4 3
 First we construct an SDD from the CNF. Here we sample a random vtree as an example (you might want to learn it from data instead with [`learn_vtree`](@ref)).
 
 ```@setup sdd
-open("/tmp/example.cnf", "w") with f do write(f,
+open("/tmp/example.cnf", "w") do f 
+write(f,
 """
 c Encodes the following: ϕ = (1 ∨ ¬2) ∧ (3 ∨ ¬4) ∧ (1 ∨ ¬4)
 c
@@ -88,7 +89,8 @@ p cnf 4 3
 1 -2 0
 3 -4 0
 1 -4 0
-""") end
+""") 
+end
 ```
 
 ```@example sdd
@@ -98,7 +100,7 @@ using DataFrames
 
 n = 4 # number of variables
 V = Vtree(n, :random)
-sdd = compile(SddMgr(V), load_cnf("/tmp/example.cnf"))
+sdd = compile(SddMgr(V), read("/tmp/example.cnf", LogicCircuit))
 pc = compile(StructProbCircuit, sdd)
 ```
 

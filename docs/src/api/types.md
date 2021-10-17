@@ -14,9 +14,3 @@ For example, we can see [`ProbabilisticCircuits.ProbCircuit`](@ref)'s type tree.
 ```@example types
 AbstractTrees.print_tree(ProbCircuit)
 ```
-
-Alternatively, here's [`ProbabilisticCircuits.LogisticCircuit`](@ref)'s type tree.
-
-```@example types
-AbstractTrees.print_tree(LogisticCircuit)
-```
