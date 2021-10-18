@@ -38,9 +38,6 @@ mutable struct RegionGraphInnerNode <: RegionGraph
             scope = scope ∪ variables(partitions[1][ind])
         end
 
-        #TODO add more assertions, specifically when more than one paritition
-        # they should be on the same set of variables
-
         this = new(partitions, scope, nothing)
         for partition in partitions
             for i = 1:size(partition)[1]
@@ -102,6 +99,22 @@ function random_region_graph(X::AbstractVector{Var};
         cur_rg = split_rg(X, depth; num_splits=num_splits, return_partition_only = true)
         push!(partitions, cur_rg)
     end
+
+    # Each parition should include the same set of variables
+    prev_scope = nothing
+    for cur_partition in partitions
+        cur_scope = variables(cur_partition[1])
+        for i = 2:length(cur_partition)
+            cur_scope = cur_scope ∪ variables(cur_partition[i])
+        end
+        
+        if !isnothing(prev_scope)
+            @assert prev_scope == cur_scope "All paritions should include the same set of variables."
+        else
+            prev_scope = cur_scope
+        end
+    end
+
     RegionGraphInnerNode(partitions)
 end
 
@@ -148,8 +161,8 @@ function region_graph_2_pc(node::RegionGraph;
     sum_nodes = Vector{ProbCircuit}()
 
     if isleaf(node)
-        # need `fully_factorized_circuit` but with variable from the scope instead of x_1...x_n
-        #leaves = Vector{ProbCircuit}()
+        # TODO replace `fully_factorized_circuit` wiht something that does not give 
+        # one Prod node with many children
         for i = 1:num_nodes_leaf
             reIndex_bijection = [(i, v) for (i,v) in enumerate(variables(node))]
             push!(sum_nodes, fully_factorized_circuit(ProbCircuit, length(variables(node)); reIndex_bijection))
