@@ -15,11 +15,13 @@ using DataFrames
     region_graph = random_region_graph([Var(i) for i=1:num_vars]; depth, replicas);
 
     @test isnothing(region_graph.parent)
-    @test typeof(region_graph) == RegionGraphInnerNode
-    @test length(region_graph.paritions) == 2 # 2 replices means 2 partitions in root
+    @test typeof(region_graph) == ProbabilisticCircuits.RegionGraphInnerNode
+    @test length(region_graph.partitions) == 2 # 2 replices means 2 partitions in root
     @test variables(region_graph) == BitSet([Var(i) for i=1:num_vars])
 
-    @test length(region_graph.paritions[1]) == 5
+    @test length(region_graph.partitions[1]) == 2 # Parition into two subsets
+    @test length(variables(region_graph.partitions[1][1])) == 5
+    @test length(variables(region_graph.partitions[1][2])) == 5
 
     # Each parition should include the same set of variables
     prev_scope = nothing
@@ -30,7 +32,7 @@ using DataFrames
         end
         
         if !isnothing(prev_scope)
-            @test prev_scope == cur_scope "All paritions should include the same set of variables."
+            @test prev_scope == cur_scope
         else
             prev_scope = cur_scope
         end
@@ -45,16 +47,26 @@ end
         1 1 1 1 1 1 1 1 1 1;
         0 0 0 0 0 0 0 0 0 0;
         0 1 1 0 1 0 0 1 0 1]), :auto)
-
+    
+    pseudocount = 0.1
     num_vars = num_features(data)
 
     num_vars = 10
     depth = 2
     replicas = 2
 
+    num_nodes_region = 3
+    num_nodes_leaf   = 4
+
+
     region_graph = random_region_graph([Var(i) for i=1:num_vars]; depth, replicas);
     circuit = region_graph_2_pc(region_graph; num_nodes_root = 1, num_nodes_region, num_nodes_leaf)[1];
 
-    @test typeof(circuit) == ProbCircuit
+    @test typeof(circuit) <: ProbCircuit
+
+    estimate_parameters_em(circuit, data; pseudocount, use_gpu=false, update_per_batch = false)
+    estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = false)
+    estimate_parameters_em(circuit, data; pseudocount, use_gpu=false, update_per_batch = true)
+    estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = true)
 
 end
