@@ -2,9 +2,7 @@ using Test
 using LogicCircuits
 using ProbabilisticCircuits
 using DataFrames
-
-
-
+using CUDA
 
 @testset "Random Region Graph tests" begin
 
@@ -65,8 +63,11 @@ end
     @test typeof(circuit) <: ProbCircuit
 
     estimate_parameters_em(circuit, data; pseudocount, use_gpu=false, update_per_batch = false)
-    estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = false)
     estimate_parameters_em(circuit, data; pseudocount, use_gpu=false, update_per_batch = true)
-    estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = true)
+
+    if CUDA.functional()
+        estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = false)
+        estimate_parameters_em(circuit, data; pseudocount, use_gpu=true, update_per_batch = true)
+    end
 
 end
