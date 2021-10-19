@@ -1,5 +1,3 @@
-
-
 export RegionGraph, random_region_graph, region_graph_2_pc
 import Random: shuffle
 
