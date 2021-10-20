@@ -65,6 +65,16 @@ function heuristic_loss(circuit::LogicCircuit, train_x;
         values, flows, node2id = satisfies_flows(circuit, train_x; weights = nothing) # Do not use samples weights here    
     end
     
+    # TODO; The next steps such as `eflow` don't support gpu Arrays yet
+    # for example `count_downflow` 
+    # for now move to cpu before doing other stuff
+    if isgpu(values)
+        values = to_cpu(values)
+    end
+    if isgpu(flows)
+        flows = to_cpu(flows)
+    end
+
     if pick_edge == "eFlow"
         edge, flow = eFlow(values, flows, candidates, node2id)
     elseif pick_edge == "eRand"

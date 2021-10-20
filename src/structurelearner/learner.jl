@@ -48,7 +48,11 @@ function learn_circuit_miss(train_x;
         max_learning_time=nothing)
     
     # Initial Structure
-    train_x_impute = impute(train_x; method=impute_method)
+    if isgpu(train_x)
+        train_x_impute = impute(to_cpu(train_x); method=impute_method)
+    else
+        train_x_impute = impute(train_x; method=impute_method)
+    end
     pc, vtree = learn_chow_liu_tree_circuit(train_x_impute)
 
     # Only vRand supported for missing data
