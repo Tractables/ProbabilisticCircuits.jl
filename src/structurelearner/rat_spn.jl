@@ -159,11 +159,13 @@ function region_graph_2_pc(node::RegionGraph;
     sum_nodes = Vector{ProbCircuit}()
 
     if isleaf(node)
-        # TODO replace `fully_factorized_circuit` wiht something that does not give 
-        # one Prod node with many children
         for i = 1:num_nodes_leaf
-            reIndex_bijection = [(i, v) for (i,v) in enumerate(variables(node))]
-            push!(sum_nodes, fully_factorized_circuit(ProbCircuit, length(variables(node)); reIndex_bijection))
+            # reIndex_bijection = [(i, v) for (i,v) in enumerate(variables(node))]
+            # leaf_circuit = fully_factorized_circuit(ProbCircuit, length(variables(node)); reIndex_bijection)           
+
+            vtree = Vtree([PlainVtreeLeafNode(x) for x ∈ variables(node)], :balanced)
+            leaf_circuit = PlainProbCircuit(fully_factorized_circuit(ProbCircuit, vtree))
+            push!(sum_nodes, leaf_circuit)
         end
 
     else
