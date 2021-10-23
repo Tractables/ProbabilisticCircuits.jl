@@ -1,7 +1,7 @@
 using LogicCircuits
 using LogicCircuits: JuiceTransformer, dimacs_comments, zoo_version
 
-using Pkg.Artifacts
+using LazyArtifacts
 using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
 
 include("jpc_io.jl")

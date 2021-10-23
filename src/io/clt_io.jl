@@ -1,7 +1,7 @@
 export zoo_clt, zoo_clt_file
 
 using LogicCircuits
-using Pkg.Artifacts
+using LazyArtifacts
 
 #####################
 # circuit loaders from module zoo
