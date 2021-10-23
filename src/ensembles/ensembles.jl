@@ -116,9 +116,8 @@ function weighted_query(E::Ensemble{T}, D::DataFrame, f::Function; kwargs...)::V
     return logsumexp.(eachrow(M))
 end
 
-@inline function log_likelihood_per_instance(E::Ensemble{T}, D::DataFrame;
-        use_gpu::Bool = false)::Vector{Float64} where T <: ProbCircuit
-    return weighted_query(E, D, log_likelihood_per_instance; use_gpu)
+@inline function log_likelihood_per_instance(E::Ensemble{T}, D::DataFrame)::Vector{Float64} where T <: ProbCircuit
+    return weighted_query(E, D, log_likelihood_per_instance)
 end
 
 @inline function marginal(E::Ensemble{T}, D::DataFrame)::Vector{Float64} where T <: ProbCircuit

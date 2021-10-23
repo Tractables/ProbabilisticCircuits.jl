@@ -92,11 +92,7 @@ const MAR = marginal
     
 Compute the marginal likelihood of the PC given the data
 """
-marginal_log_likelihood(pc, data; use_gpu::Bool = isgpu(data)) = begin
-    if use_gpu
-        data = to_gpu(data)
-    end
-
+marginal_log_likelihood(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
@@ -106,8 +102,9 @@ marginal_log_likelihood(pc, data; use_gpu::Bool = isgpu(data)) = begin
         sum(marginal(pc, data))
     end
 end
-marginal_log_likelihood(pc, data, weights::DataFrame; use_gpu::Bool = isgpu(data)) = 
-    marginal_log_likelihood(pc, data, weights[:, 1]; use_gpu)
+
+marginal_log_likelihood(pc, data, weights::DataFrame) = 
+    marginal_log_likelihood(pc, data, weights[:, 1])
 
 marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     if isgpu(weights)
@@ -119,18 +116,15 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     end
     mapreduce(*, +, likelihoods, weights)
 end
-marginal_log_likelihood(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data)) = begin
-    if use_gpu
-        data = to_gpu(data)
-    end
-    
+
+marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin    
     pbc = ParamBitCircuit(pc, data)
     
     total_ll::Float64 = 0.0
     if isweighted(data)
         data, weights = split_sample_weights(data)
         
-        if use_gpu
+        if isgpu(data)
             data = to_gpu(data)
         end
         
@@ -156,7 +150,7 @@ marginal_log_likelihood(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data)
         end
     end
     
-    if use_gpu
+    if isgpu(data)
         CUDA.unsafe_free!(v) # save the GC some effort
     end
     
@@ -166,18 +160,18 @@ end
 """
 Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
 """
-marginal_log_likelihood_avg(pc, data; use_gpu::Bool = isgpu(data)) = begin
+marginal_log_likelihood_avg(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
-        marginal_log_likelihood_avg(pc, data, weights; use_gpu = use_gpu)
+        marginal_log_likelihood_avg(pc, data, weights)
     else
-        marginal_log_likelihood(pc, data; use_gpu = use_gpu) / num_examples(data)
+        marginal_log_likelihood(pc, data) / num_examples(data)
     end
 end
 
-marginal_log_likelihood_avg(pc, data, weights::DataFrame; use_gpu::Bool = isgpu(data)) =
-    marginal_log_likelihood_avg(pc, data, weights[:, 1]; use_gpu = use_gpu)
+marginal_log_likelihood_avg(pc, data, weights::DataFrame) =
+    marginal_log_likelihood_avg(pc, data, weights[:, 1])
     
 marginal_log_likelihood_avg(pc, data, weights) = begin
     if isgpu(weights)
@@ -186,8 +180,8 @@ marginal_log_likelihood_avg(pc, data, weights) = begin
     marginal_log_likelihood(pc, data, weights)/sum(weights)
 end
 
-marginal_log_likelihood_avg(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data)) = begin
-    total_ll = marginal_log_likelihood(pc, data; use_gpu = use_gpu)
+marginal_log_likelihood_avg(pc, data::Vector{DataFrame}) = begin
+    total_ll = marginal_log_likelihood(pc, data)
     
     if isweighted(data)
         data, weights = split_sample_weights(data)

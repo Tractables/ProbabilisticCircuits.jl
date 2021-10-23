@@ -8,52 +8,35 @@ using LoopVectorization
 """
 Maximum likilihood estimation of parameters given data
 
-use_gpu: If set to `true`, use gpu learning no matter which device `data` is in.
-
 bagging support: If `pc` is a SharedProbCircuit and data is an array of DataFrames
   with the same number of "components", learn each circuit with its corresponding 
   dataset.
 """
-function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), entropy_reg::Float64 = 0.0)
-    estimate_single_circuit_parameters(pc, data; pseudocount, use_sample_weights, use_gpu, entropy_reg)
+function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
+    estimate_single_circuit_parameters(pc, data; pseudocount, entropy_reg)
 end
-function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64,
-                             use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), entropy_reg::Float64 = 0.0)
+
+function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
     @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
     
     map(1 : num_components(spc)) do component_idx
-        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, use_sample_weights, use_gpu, 
-                                           component_idx, entropy_reg)
+        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, component_idx, entropy_reg)
     end
 end
 function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
-                                            use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                             component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
+    weights = nothing
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
-    else
-        use_sample_weights = false
     end
     
     @assert isbinarydata(data) || isfpdata(data) "Probabilistic circuit parameter estimation for binary/floating point data only"
     bc = BitCircuit(pc, data)
-    if isgpu(data)
-        use_gpu = true
-    end
-    params = if use_gpu
-        if use_sample_weights
-            estimate_parameters_gpu(to_gpu(bc), data, pseudocount; weights, entropy_reg)
-        else
-            estimate_parameters_gpu(to_gpu(bc), data, pseudocount; entropy_reg)
-        end
-    else
-        if use_sample_weights
-            estimate_parameters_cpu(bc, data, pseudocount; weights, entropy_reg)
-        else
-            estimate_parameters_cpu(bc, data, pseudocount; entropy_reg)
-        end
+    params = if isgpu(data)
+        estimate_parameters_gpu(to_gpu(bc), data, pseudocount; weights, entropy_reg)
+    else  
+        estimate_parameters_cpu(bc, data, pseudocount; weights, entropy_reg)
     end
     
     if pc isa SharedProbCircuit
@@ -364,67 +347,41 @@ end
 Expectation maximization parameter learning given missing data
 """
 function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
     if update_per_batch && isbatched(data)
-        estimate_parameters_em_per_batch(pc, data; pseudocount, entropy_reg,
-                                         use_sample_weights, use_gpu, exp_update_factor)
+        estimate_parameters_em_per_batch(pc, data; pseudocount, entropy_reg, exp_update_factor)
     else
+        weights = nothing
         if isweighted(data)
             # `data' is weighted according to its `weight' column
             data, weights = split_sample_weights(data)
-        else
-            use_sample_weights = false
         end
 
         pbc = ParamBitCircuit(pc, data)
-        if isgpu(data)
-            use_gpu = true
-        elseif use_gpu && !isgpu(data)
-            data = to_gpu(data)
-        end
 
-        params = if use_gpu
-            if !isgpu(data)
-                data = to_gpu(data)
-            end
-            if use_sample_weights
-                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, entropy_reg)
-            else
-                estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; entropy_reg)
-            end
-        else
-            if use_sample_weights
-                estimate_parameters_cpu(pbc, data, pseudocount; weights, entropy_reg)
-            else
-                estimate_parameters_cpu(pbc, data, pseudocount; entropy_reg)
-            end
+        params = if isgpu(data)
+            estimate_parameters_gpu(to_gpu(pbc), data, pseudocount; weights, entropy_reg)
+        else  
+            estimate_parameters_cpu(pbc, data, pseudocount; weights, entropy_reg)
         end
 
         estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
-
         params
     end
 end
-function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                          use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data), exp_update_factor = 0.0)
-    if isgpu(data)
-        use_gpu = true
-    elseif use_gpu && !isgpu(data)
-        data = to_gpu(data)
-    end
-    
+function estimate_parameters_em_per_batch(pc::ProbCircuit, data; 
+                                                pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor = 0.0)
     pbc = ParamBitCircuit(pc, data)
-    if use_gpu
+    if isgpu(data)
         pbc = to_gpu(pbc)
     end
     
     reuse_v, reuse_f = nothing, nothing
-    reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+    reuse_counts = isgpu(data) ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
     
     for idx = 1 : length(data)
         pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em(pbc, data[idx]; pseudocount, entropy_reg,
-                                                                     use_gpu, reuse_v, reuse_f, reuse_counts, 
+                                                                     reuse_v, reuse_f, reuse_counts, 
                                                                      exp_update_factor)
     end
     
@@ -433,47 +390,31 @@ function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Fl
     pbc.params
 end
 function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
-                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
                                 exp_update_factor = 0.0
                                )
+    
+
+    @assert (isgpu(data) && isgpu(pbc)) || (!isgpu(data) && !isgpu(pbc)) "Both data and pbc must be on same device. CPU vs GPU"
+    
+    weights = nothing
     if isweighted(data)
         # `data' is weighted according to its `weight' column
-        data, weights = split_sample_weights(data)
-    else
-        use_sample_weights = false
+        data, weights = split_sample_weights(data)    
     end
-    
-    if isgpu(data)
-        use_gpu = true
-    elseif use_gpu && !isgpu(data)
-        data = to_gpu(data)
-    end
-    
+        
     if reuse_counts === nothing
-        reuse_counts = use_gpu ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+        reuse_counts = isgpu(data) ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
     end
     
-    params, v, f, reuse_counts = if use_gpu
-        if !isgpu(pbc)
-            pbc.bitcircuit = to_gpu(pbc.bitcircuit)
-            pbc.params = to_gpu(pbc.params)
-        end
-        if use_sample_weights
-            estimate_parameters_gpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
-        else
-            estimate_parameters_gpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
-        end
+    params, v, f, reuse_counts = if isgpu(data)
+        estimate_parameters_gpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
     else
-        if use_sample_weights
-            estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
-        else
-            estimate_parameters_cpu(pbc, data, pseudocount; reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
-        end
+        estimate_parameters_cpu(pbc, data, pseudocount; weights, reuse = true, reuse_v, reuse_f, reuse_counts, entropy_reg)
     end
     
     # Update the parameters to `pbc`
-    if use_gpu # GPU
+    if isgpu(data) # GPU
         tempparam = Vector{Float64}(undef, length(params))
         tempparam .= to_cpu(params)
         @inbounds @views pbc.params .+= log(exp_update_factor)

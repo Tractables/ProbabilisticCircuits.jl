@@ -57,8 +57,8 @@ function weighted_query(B::BayesModelComb{T}, D::DataFrame, f::Function; kwargs.
     return logsumexp(LL, 2)
 end
 
-@inline function log_likelihood_per_instance(B::BayesModelComb{T}, D::DataFrame; use_gpu::Bool = false)::Vector{Float64} where T <: ProbCircuit
-    return weighted_query(B, D, log_likelihood_per_instance; use_gpu)
+@inline function log_likelihood_per_instance(B::BayesModelComb{T}, D::DataFrame)::Vector{Float64} where T <: ProbCircuit
+    return weighted_query(B, D, log_likelihood_per_instance)
 end
 
 @inline function marginal(B::BayesModelComb{T}, D::DataFrame)::Vector{Float64} where T <: ProbCircuit
