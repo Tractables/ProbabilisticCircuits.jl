@@ -11,7 +11,7 @@ using Random
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     Random.seed!(123)
-    uniform_parameters(r; perturbation = 0.2)
+    uniform_parameters!(r; perturbation = 0.2)
     wdfb = batch(wdfb, 2);
     
     params = nothing

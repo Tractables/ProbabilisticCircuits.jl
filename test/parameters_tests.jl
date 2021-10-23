@@ -198,7 +198,7 @@ end
     data = DataFrame([true missing], :auto)
     vtree2 = PlainVtree(2, :balanced)
     pc = fully_factorized_circuit(StructProbCircuit, vtree2).children[1]
-    uniform_parameters(pc)
+    uniform_parameters!(pc)
     pc.children[1].prime.log_probs .= log.([0.3, 0.7])
     pc.children[1].sub.log_probs .= log.([0.4, 0.6])
     estimate_parameters_em(pc, data; pseudocount=0.0)
@@ -207,10 +207,10 @@ end
 
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters(r,dfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, dfb).params
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters_em(r, dfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, dfb).params
     @test all(paras1 .≈ paras2)
@@ -218,11 +218,11 @@ end
     if CUDA.functional()
         dfb_gpu = to_gpu(dfb)
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, dfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters(r, dfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -231,11 +231,11 @@ end
         data = DataFrame([true missing; false missing], :auto)
         r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, data; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, to_gpu(data); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -250,7 +250,7 @@ end
     
     vtree2 = PlainVtree(2, :balanced)
     pc = fully_factorized_circuit(StructProbCircuit, vtree2).children[1]
-    uniform_parameters(pc)
+    uniform_parameters!(pc)
     pc.children[1].prime.log_probs .= log.([0.3, 0.7])
     pc.children[1].sub.log_probs .= log.([0.4, 0.6])
     estimate_parameters_em(pc, wdata; pseudocount=0.0)
@@ -261,20 +261,20 @@ end
     weights = DataFrame(weight = [0.6, 0.6, 0.6])
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters(r,wdfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, wdfb).params
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters_em(r, wdfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
     
     if CUDA.functional()
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, to_gpu(wdfb); pseudocount=0.0)
         paras1 = ParamBitCircuit(r, wdfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
         paras2 = ParamBitCircuit(r, wdfb).params
         
@@ -285,11 +285,11 @@ end
         wdata = hcat(data, weights)
         r = fully_factorized_circuit(ProbCircuit, num_features(wdata))
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, wdata; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, to_gpu(wdata); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -303,10 +303,10 @@ end
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters_em(r, dfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, dfb).params
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters_em(r, batched_dfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, dfb).params
     @test all(paras1 .≈ paras2)
@@ -317,11 +317,11 @@ end
     batched_wdfb = batch(wdfb, 1)
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
-    uniform_parameters(r)
+    uniform_parameters!(r)
     
     estimate_parameters(r, batched_wdfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, wdfb).params
-    uniform_parameters(r)
+    uniform_parameters!(r)
     estimate_parameters_em(r, batched_wdfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
@@ -329,11 +329,11 @@ end
     if CUDA.functional()
         batched_dfb_gpu = to_gpu(batched_dfb)
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, batched_dfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters(r, batched_dfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -341,11 +341,11 @@ end
         
         batched_wdfb_gpu = to_gpu(batched_wdfb)
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, batched_wdfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters(r, batched_wdfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -355,11 +355,11 @@ end
         r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
         batched_data = batch(data, 1)
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, batched_data; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         estimate_parameters_em(r, to_gpu(batched_data); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
@@ -373,13 +373,13 @@ end
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    uniform_parameters(r)
+    uniform_parameters!(r)
     params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true)
     @test params[5] ≈ 0.0
     
     if CUDA.functional()
         
-        uniform_parameters(r)
+        uniform_parameters!(r)
         params = estimate_parameters_em(r, to_gpu(batched_dfb); pseudocount=1.0, update_per_batch = true)
         @test to_cpu(params)[5] ≈ 0.0
 
@@ -407,11 +407,11 @@ end
 @testset "Uniform parameters tests" begin
     r = fully_factorized_circuit(ProbCircuit, 2)
     
-    uniform_parameters(r)
+    uniform_parameters!(r)
     @test all(.≈(exp.(r.children[1].children[1].log_probs), [0.5, 0.5], atol = 1e-6))
     @test all(.≈(exp.(r.children[1].children[2].log_probs), [0.5, 0.5], atol = 1e-6))
     
-    uniform_parameters(r; perturbation = 0.1)
+    uniform_parameters!(r; perturbation = 0.1)
     @test all(exp.(r.children[1].children[1].log_probs) .> 0.9 / (0.9 + 1.1))
     @test all(exp.(r.children[1].children[1].log_probs) .< 1.1 / (0.9 + 1.1))
     @test all(exp.(r.children[1].children[2].log_probs) .> 0.9 / (0.9 + 1.1))
