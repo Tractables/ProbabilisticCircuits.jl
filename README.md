@@ -148,7 +148,7 @@ Learning the parameters on a CPU took 0.243524592 seconds.
 Optionally, we can use GPUs to speedup the learning process:
 
 ```julia
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true)
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 

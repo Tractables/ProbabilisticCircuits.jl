@@ -5,20 +5,18 @@ using StatsFuns: logaddexp
 using CUDA
 
 function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     # Construct the low-level circuit representation
     pbc = ParamBitCircuit(pc, data)
-    if use_gpu
+    if isgpu(data)
         pbc = to_gpu(pbc)
     end
     
     # Main training loop
     @assert isbatched(data)
     for idx = 1 : length(data)
-        sgd_parameter_learning(pbc, data[idx]; lr, use_sample_weights, use_gpu,
-                               reuse_values, reuse_flows, reuse)
+        sgd_parameter_learning(pbc, data[idx]; lr, reuse_values, reuse_flows, reuse)
     end
     
     # Store the updated parameters back to `pc`
@@ -27,49 +25,28 @@ function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01,
     pbc.params
 end
 function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
-                                use_sample_weights::Bool = true, use_gpu::Bool = isgpu(data),
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
+    
+    weights = nothing
     # Extract weights from dataset
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
-    else
-        use_sample_weights = false
     end
     
-    # Move data to GPU if needed
-    if isgpu(data)
-        use_gpu = true
-    elseif use_gpu && !isgpu(data)
-        data = to_gpu(data)
-    end
-    
-    if use_gpu && !isgpu(pbc)
-        pbc.bitcircuit = to_gpu(pbc.bitcircuit)
-        pbc.params = to_gpu(pbc.params)
-    end
-    
-    if use_gpu
+    if isgpu(data) 
         if !isgpu(pbc)
             pbc.bitcircuit = to_gpu(pbc.bitcircuit)
             pbc.params = to_gpu(pbc.params)
         end
+        if !isgpu(weights)
+            weights = to_gpu(weights)
+        end
 
-        if use_sample_weights
-            if !isgpu(weights)
-                weights = to_gpu(weights)
-            end
-            sgd_parameter_learning_gpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
-        else
-            sgd_parameter_learning_gpu(pbc, data; lr, reuse_values, reuse_flows, reuse)
-        end
-    else
-        if use_sample_weights
-            sgd_parameter_learning_cpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
-        else
-            sgd_parameter_learning_cpu(pbc, data; lr, reuse_values, reuse_flows, reuse)
-        end
+        sgd_parameter_learning_gpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)    
+    else    
+        sgd_parameter_learning_cpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
     end
     
     pbc.params

@@ -60,7 +60,7 @@ end
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
-        estimate_parameters(r, dfb; pseudocount=1.0, use_gpu=true)
+        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
@@ -271,11 +271,11 @@ end
     
     if CUDA.functional()
         uniform_parameters(r)
-        estimate_parameters_em(r, wdfb; pseudocount=0.0, use_gpu=true)
+        estimate_parameters_em(r, to_gpu(wdfb); pseudocount=0.0)
         paras1 = ParamBitCircuit(r, wdfb).params
         
         uniform_parameters(r)
-        estimate_parameters(r, wdfb; pseudocount=0.0, use_gpu=true)
+        estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
         paras2 = ParamBitCircuit(r, wdfb).params
         
         @test all(paras1 .≈ paras2)
@@ -380,7 +380,7 @@ end
     if CUDA.functional()
         
         uniform_parameters(r)
-        params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true, use_gpu = true)
+        params = estimate_parameters_em(r, to_gpu(batched_dfb); pseudocount=1.0, update_per_batch = true)
         @test to_cpu(params)[5] ≈ 0.0
 
     end
@@ -435,19 +435,19 @@ end
     @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
-        params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
+        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
+        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
+        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
+        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end
@@ -470,19 +470,19 @@ end
     @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
-        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1, use_gpu = true);
+        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0, use_gpu = true);
+        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0, use_gpu = true);
+        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0, use_gpu = true);
+        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end

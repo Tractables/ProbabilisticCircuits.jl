@@ -5,7 +5,7 @@ export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
 """
 Compute the likelihood of the PC given each individual instance in the data
 """
-function log_likelihood_per_instance(spc::SharedProbCircuit, data, weights::Union{AbstractArray, Nothing} = nothing; use_gpu::Bool = isgpu(data), component_idx = 0)::AbstractVector
+function log_likelihood_per_instance(spc::SharedProbCircuit, data, weights::Union{AbstractArray, Nothing} = nothing; component_idx = 0)::AbstractVector
     if component_idx != 0
         ll, _, _ = EVI(ParamBitCircuit(spc, data; component_idx = component_idx), data)
         return ll
@@ -15,7 +15,7 @@ function log_likelihood_per_instance(spc::SharedProbCircuit, data, weights::Unio
     if isnothing(weights)
         for component_idx = 1 : num_components(spc)
             bc = ParamBitCircuit(spc, data; component_idx = component_idx)
-            ll, v, f = log_likelihood_per_instance(bc, data, v, f; use_gpu)
+            ll, v, f = log_likelihood_per_instance(bc, data, v, f)
             ll = isgpu(ll) ? to_cpu(ll) : ll
             @inbounds @views ll_per_instance[:] .= ll_per_instance[:] .+ ll[:]
         end
@@ -28,13 +28,13 @@ function log_likelihood_per_instance(spc::SharedProbCircuit, data, weights::Unio
     lls = Array{Float64, 2}(undef, num_examples(data), n)
     for i in 1:n
         pbc = ParamBitCircuit(spc, data; component_idx = i)
-        ll, v, f = log_likelihood_per_instance(pbc, data, v, f; use_gpu)
+        ll, v, f = log_likelihood_per_instance(pbc, data, v, f)
         lls[:,i] .= isgpu(ll) ? to_cpu(ll) : ll
     end
     return logsumexp(lls .+ log.(weights), 2)
 end
 
-function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = isgpu(data))
+function log_likelihood_per_instance(pc::ProbCircuit, data)
     if isweighted(data)
         data, weights = split_sample_weights(data)
     end
@@ -43,17 +43,17 @@ function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = isgp
     if isbatched(data)
         v, f = nothing, nothing
         lls = map(data) do d
-            ll, v, f = log_likelihood_per_instance(bc, d; use_gpu)
+            ll, v, f = log_likelihood_per_instance(bc, d)
             
             ll
         end
         
         ll = cat(lls...; dims = 1)
     else
-        ll, v, f = log_likelihood_per_instance(bc, data; use_gpu)
+        ll, v, f = log_likelihood_per_instance(bc, data)
     end
     
-    if use_gpu
+    if isgpu(data)
         CUDA.unsafe_free!(v) # save the GC some effort
         CUDA.unsafe_free!(f) # save the GC some effort
     end
@@ -61,14 +61,10 @@ function log_likelihood_per_instance(pc::ProbCircuit, data; use_gpu::Bool = isgp
     ll
 end
 
-function log_likelihood_per_instance(bc::ParamBitCircuit, data, reuse_v = nothing, reuse_f = nothing; 
-                                     use_gpu::Bool = isgpu(data))
+function log_likelihood_per_instance(bc::ParamBitCircuit, data, reuse_v = nothing, reuse_f = nothing)
     @assert isbinarydata(data) || isfpdata(data) "Probabilistic circuit likelihoods are for binary/float data only"
     if isgpu(data)
-        use_gpu = true
-    end
-    if use_gpu
-        ll, v, f = log_likelihood_per_instance_gpu(to_gpu(bc), to_gpu(data), reuse_v, reuse_f)
+        ll, v, f = log_likelihood_per_instance_gpu(to_gpu(bc), data, reuse_v, reuse_f)
     else
         ll, v, f = log_likelihood_per_instance_cpu(bc, data, reuse_v, reuse_f)
     end
@@ -186,40 +182,41 @@ const EVI = log_likelihood_per_instance
 
 Compute the likelihood of the PC given the data
 """
-log_likelihood(pc, data; use_gpu::Bool = isgpu(data)) = begin
+log_likelihood(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
-        
-        log_likelihood(pc, data, weights; use_gpu)
+        log_likelihood(pc, data, weights)
     else
-        likelihoods = log_likelihood_per_instance(pc, data; use_gpu)
-        
+        likelihoods = log_likelihood_per_instance(pc, data)
         isgpu(likelihoods) ? sum(to_cpu(likelihoods)) : sum(likelihoods)
     end
 end
-log_likelihood(pc, data, weights::DataFrame; use_gpu::Bool = isgpu(data)) = log_likelihood(pc, data, weights[:, 1]; use_gpu)
-log_likelihood(pc, data, weights::AbstractArray; use_gpu::Bool = isgpu(data)) = begin
+
+log_likelihood(pc, data, weights::DataFrame) = 
+    log_likelihood(pc, data, weights[:, 1])
+
+log_likelihood(pc, data, weights::AbstractArray) = begin
     if isgpu(weights)
         weights = to_cpu(weights)
     end
-    likelihoods = log_likelihood_per_instance(pc, data; use_gpu)
+    likelihoods = log_likelihood_per_instance(pc, data)
     likelihoods = isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods
     mapreduce(*, +, likelihoods, weights)
 end
-log_likelihood(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data)) = begin
+log_likelihood(pc, data::Vector{DataFrame}) = begin
     if pc isa SharedProbCircuit
         total_ll = 0.0
         for component_idx = 1 : num_components(pc)
-            total_ll += log_likelihood_batched(pc, data; use_gpu, component_idx)
+            total_ll += log_likelihood_batched(pc, data; component_idx)
         end
         total_ll / num_components(pc)
     else
-        log_likelihood_batched(pc, data; use_gpu)
+        log_likelihood_batched(pc, data)
     end
 end
-log_likelihood_batched(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data), component_idx::Integer = 0) = begin
-    # mapreduce(d -> log_likelihood(pc, d; use_gpu), +, data)
+log_likelihood_batched(pc, data::Vector{DataFrame}, component_idx::Integer = 0) = begin
+    # mapreduce(d -> log_likelihood(pc, d), +, data)
     if pc isa SharedProbCircuit
         pbc = ParamBitCircuit(pc, data; component_idx)
     else
@@ -232,7 +229,7 @@ log_likelihood_batched(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data),
         
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f)
             if isgpu(likelihoods)
                 likelihoods = to_cpu(likelihoods)
             end
@@ -245,12 +242,12 @@ log_likelihood_batched(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data),
     else
         v, f = nothing, nothing
         for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f; use_gpu)
+            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f)
             total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
         end
     end
     
-    if use_gpu
+    if isgpu(data)
         CUDA.unsafe_free!(v) # save the GC some effort
         CUDA.unsafe_free!(f) # save the GC some effort
     end
@@ -263,31 +260,35 @@ end
 
 Compute the likelihood of the PC given the data, averaged over all instances in the data
 """
-log_likelihood_avg(pc, data; use_gpu::Bool = isgpu(data)) = begin
+log_likelihood_avg(pc, data) = begin
     if isweighted(data)
         # `data' is weighted according to its `weight' column
         data, weights = split_sample_weights(data)
         
-        log_likelihood_avg(pc, data, weights; use_gpu)
+        log_likelihood_avg(pc, data, weights)
     else
-        log_likelihood(pc, data; use_gpu) / num_examples(data)
+        log_likelihood(pc, data) / num_examples(data)
     end
 end
-log_likelihood_avg(pc, data, weights::DataFrame; use_gpu::Bool = isgpu(data)) = log_likelihood_avg(pc, data, weights[:, 1]; use_gpu)
-log_likelihood_avg(pc, data, weights; use_gpu::Bool = isgpu(data)) = begin
+
+log_likelihood_avg(pc, data, weights::DataFrame) = 
+    log_likelihood_avg(pc, data, weights[:, 1])
+
+log_likelihood_avg(pc, data, weights) = begin
     if isgpu(weights)
         weights = to_cpu(weights)
     end
-    log_likelihood(pc, data, weights; use_gpu) / sum(weights)
+    log_likelihood(pc, data, weights) / sum(weights)
 end
-log_likelihood_avg(pc, data::Vector{DataFrame}; use_gpu::Bool = isgpu(data)) = begin
+
+log_likelihood_avg(pc, data::Vector{DataFrame}) = begin
     if isweighted(data)
         weights = get_weights(data)
         if isgpu(weights)
             weights = to_cpu(weights)
         end
-        log_likelihood(pc, data; use_gpu) / mapreduce(sum, +, weights)
+        log_likelihood(pc, data) / mapreduce(sum, +, weights)
     else
-        log_likelihood(pc, data; use_gpu) / num_examples(data)
+        log_likelihood(pc, data) / num_examples(data)
     end
 end

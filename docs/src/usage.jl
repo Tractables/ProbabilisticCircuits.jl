@@ -61,8 +61,9 @@ print("Learning the parameters on a CPU took $(t) seconds.")
 
 # Optionally, we can use GPUs to speedup the learning process:
 if CUDA.functional() #hide
-estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true) #hide
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true)
+train_data = to_gpu(train_data)
+estimate_parameters(circuit, train_data; pseudocount = 0.1) #hide
+t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a GPU took $(t) seconds.")
 end #hide
 

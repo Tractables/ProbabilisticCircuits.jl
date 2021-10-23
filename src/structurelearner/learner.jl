@@ -77,7 +77,6 @@ function learn_circuit(train_x, pc, vtree;
         return_vtree=false,
         batch_size=0,
         splitting_data=nothing,
-        use_gpu=false,
         entropy_reg=0.0,
         verbose=true,
         max_circuit_nodes=nothing,
@@ -115,18 +114,18 @@ function learn_circuit(train_x, pc, vtree;
         if isnothing(r) return nothing end
         c, = r
         if batch_size > 0
-            estimate_parameters_func(c, batch(train_x, batch_size); pseudocount, use_gpu, entropy_reg)
+            estimate_parameters_func(c, batch(train_x, batch_size); pseudocount, entropy_reg)
         else
-            estimate_parameters_func(c, train_x; pseudocount, use_gpu, entropy_reg)
+            estimate_parameters_func(c, train_x; pseudocount, entropy_reg)
         end
         return c, missing
     end
     iter = 0
     log_per_iter(circuit) = begin
         if batch_size > 0
-            ll = likelihood_avg_func(circuit, batch(train_x, batch_size); use_gpu)
+            ll = likelihood_avg_func(circuit, batch(train_x, batch_size))
         else
-            ll = likelihood_avg_func(circuit, train_x; use_gpu)
+            ll = likelihood_avg_func(circuit, train_x)
         end
         verbose && println("Iteration $iter/$maxiter. $(LogLikelihood_str) = $(ll); nodes = $(num_nodes(circuit)); edges =  $(num_edges(circuit)); params = $(num_parameters(circuit))")
         iter += 1
