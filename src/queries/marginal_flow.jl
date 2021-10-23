@@ -3,7 +3,7 @@ using StatsFuns: logsumexp, log1pexp
 using CUDA: CUDA, @cuda
 using DataFrames: DataFrame
 using LoopVectorization: @avx
-using LogicCircuits: balance_threads, BitCircuit
+using LogicCircuits: balance_threads, BitCircuit, balance_threads_2d
 
 export marginal, MAR, marginal_all, marginal_log_likelihood, 
 marginal_log_likelihood_avg, marginal_flows, marginal_flows_down
@@ -294,11 +294,12 @@ function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix;  dec_per_th
     bc = circuit.bitcircuit
     CUDA.@sync for layer in bc.layers[2:end]
         num_examples = size(values, 1)
-        num_decision_sets = length(layer)/dec_per_thread
-        num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
-        num_blocks = (ceil(Int, num_examples/num_threads[1]), 
-                      ceil(Int, num_decision_sets/num_threads[2]))
-        @cuda threads=num_threads blocks=num_blocks marginal_layers_cuda(layer, bc.nodes, bc.elements, circuit.params, values)
+        num_decision_sets = length(layer)
+
+        kernel = @cuda name="marginal_layers_cuda" launch=false marginal_layers_cuda(layer, bc.nodes, bc.elements, circuit.params, values)
+        config = launch_configuration(kernel.fun)
+        threads, blocks =  balance_threads_2d(num_examples, num_decision_sets, config.threads)
+        kernel(layer, bc.nodes, bc.elements, circuit.params, values; threads, blocks)
     end
 end
 
@@ -438,16 +439,17 @@ end
 
 "Pass marginal flows down the layers of a bit circuit on the GPU"
 function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::CuMatrix, values::CuMatrix, 
-            on_node, on_edge; 
-            dec_per_thread = 8, log2_threads_per_block = 7, weights = nothing)
+            on_node, on_edge; weights = nothing)
     bc = pbc.bitcircuit
     CUDA.@sync for layer in Iterators.reverse(bc.layers)
         num_examples = size(values, 1)
-        num_decision_sets = length(layer)/dec_per_thread
-        num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
-        num_blocks = (ceil(Int, num_examples/num_threads[1]), 
-                      ceil(Int, num_decision_sets/num_threads[2])) 
-        @cuda threads=num_threads blocks=num_blocks marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights)
+        num_decision_sets = length(layer)
+        
+        kernel = @cuda name="marginal_flows_down_layers_cuda" launch=false marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights)
+        config = launch_configuration(kernel.fun)
+        threads, blocks = balance_threads_2d(num_examples, num_decision_sets, config.threads)
+        kernel(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights; 
+                threads=threads, blocks=blocks)
     end
 end
 
