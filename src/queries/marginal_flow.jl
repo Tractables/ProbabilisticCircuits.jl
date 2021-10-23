@@ -289,7 +289,7 @@ end
 # upward pass helpers on GPU
 
 "Compute marginals on the GPU"
-function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix;  dec_per_thread = 8, log2_threads_per_block = 8)
+function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix)
     circuit = to_gpu(circuit)
     bc = circuit.bitcircuit
     CUDA.@sync for layer in bc.layers[2:end]
