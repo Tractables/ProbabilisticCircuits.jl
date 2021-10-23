@@ -6,7 +6,7 @@ export compile_factor_graph,
     time_compilation,
     time_compilation_cnf
 
-using Pkg.Artifacts
+using LazyArtifacts
 
 # Might want to move this to LoadSave later
 zoo_fg_file(name) =
