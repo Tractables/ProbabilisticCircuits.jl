@@ -126,9 +126,7 @@ marginal_log_likelihood(pc, data, weights::AbstractArray) = begin
     mapreduce(*, +, likelihoods, weights)
 end
 
-marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin    
-    pbc = ParamBitCircuit(pc, data)
-    
+marginal_log_likelihood(pbc::ParamBitCircuit, data::Vector{DataFrame}) = begin  
     total_ll::Float64 = 0.0
     if isweighted(data)
         data, weights = split_sample_weights(data)
@@ -160,6 +158,11 @@ marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin
     end
     
     total_ll
+end
+
+marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin    
+    pbc = ParamBitCircuit(pc, data)
+    marginal_log_likelihood(pbc, data)
 end
 
 """

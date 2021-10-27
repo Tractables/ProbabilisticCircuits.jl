@@ -40,7 +40,7 @@ function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01,
             pbc.bitcircuit = to_gpu(pbc.bitcircuit)
             pbc.params = to_gpu(pbc.params)
         end
-        if !isgpu(weights)
+        if !isnothing(weights) && !isgpu(weights)
             weights = to_gpu(weights)
         end
 
