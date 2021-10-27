@@ -45,6 +45,12 @@ function marginal(circuit::ParamBitCircuit, data::DataFrame)::AbstractVector
     marginal_all(circuit, data)[:,end]
 end
 
+"""
+    marginal(circuit::SharedProbCircuit, data::DataFrame, weights::Union{AbstractArray, Nothing} = nothing; component_idx = 0)::AbstractVector
+
+Computes marginals for one circuit in a `SharedProbCircuit`.
+- `component_idx`: index of the SharedProbCircuit component to comptue marginals on.
+"""
 function marginal(circuit::SharedProbCircuit, data::DataFrame, weights::Union{AbstractArray, Nothing} = nothing; component_idx = 0)::AbstractVector
     if component_idx == 0
         @assert !isnothing(weights) "Missing weights for weighting mixture probabilities."
@@ -81,14 +87,17 @@ function marginal(circuit::ParamBitCircuit, data::Vector{DataFrame})::AbstractVe
 end
 
 """
-    MAR(pc, data)
+    MAR(pc, data) = marginal
 
-Computes Marginal log likelhood of data. See docs for `marginal`.
+Computes Marginal log likelhood of data. `MAR` is juat an alias for `marginal`. See docs for `marginal` for more details.
 """
 const MAR = marginal
 
 """
     marginal_log_likelihood(pc, data)
+    marginal_log_likelihood(pc, data, weights::DataFrame)
+    marginal_log_likelihood(pc, data, weights::AbstractArray)
+    marginal_log_likelihood(pc, data::Vector{DataFrame})
     
 Compute the marginal likelihood of the PC given the data
 """
@@ -124,10 +133,6 @@ marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin
     if isweighted(data)
         data, weights = split_sample_weights(data)
         
-        if isgpu(data)
-            data = to_gpu(data)
-        end
-        
         v = nothing
         for idx = 1 : length(data)
             v = marginal_all(pbc, data[idx], v)
@@ -158,7 +163,9 @@ marginal_log_likelihood(pc, data::Vector{DataFrame}) = begin
 end
 
 """
-Compute the marginal likelihood of the PC given the data, averaged over all instances in the data
+    marginal_log_likelihood_avg(pc, data)
+
+Compute the marginal likelihood of the PC given the data, averaged over all instances in the data. If the data is weighted then does a weighted average.
 """
 marginal_log_likelihood_avg(pc, data) = begin
     if isweighted(data)
@@ -214,13 +221,48 @@ function marginal_all(circuit::ParamBitCircuit, data, reuse=nothing)
     return values
 end
 
-"Initialize values from the data (data frames)"
+"""
+    init_marginal(data, reuse, num_nodes; Float=Float32)
+
+Initialize values from the data (data frames)
+"""
 function init_marginal(data, reuse, num_nodes; Float=Float32)
+    if isgpu(data)
+        init_marginal_gpu(data, reuse, num_nodes; Float)
+    else
+        init_marginal_cpu(data, reuse, num_nodes; Float)
+    end
+end
+
+"""
+    init_marginal_cpu(data, reuse, num_nodes; Float)
+
+Initialize values from the cpu data (data frames)    
+"""
+function init_marginal_cpu(data, reuse, num_nodes; Float)
+    flowtype = Matrix{Float}
+    values = similar!(reuse, flowtype, num_examples(data), num_nodes)
+    @views values[:,LogicCircuits.TRUE_BITS]  .= log(one(Float))
+    @views values[:,LogicCircuits.FALSE_BITS] .= log(zero(Float))
+    nfeatures = num_features(data)
+    for i=1:nfeatures
+        values[:, 2+i] .= log.(coalesce.(data[:,i], one(Float)))
+        values[:, 2+nfeatures+i] .= log.(coalesce.(1.0 .- data[:,i], one(Float)))
+    end
+    return values
+end
+
+"""
+    init_marginal_gpu(data, reuse, num_nodes; Float=Float32)
+    
+Initialize values from the gpu data
+"""
+function init_marginal_gpu(data, reuse, num_nodes; Float=Float32)
     flowtype = isgpu(data) ? CuMatrix{Float} : Matrix{Float}
     values = similar!(reuse, flowtype, num_examples(data), num_nodes)
-    @views values[:,LogicCircuits.TRUE_BITS] .= log(one(Float))
-    @views values[:,LogicCircuits.FALSE_BITS] .= log(zero(Float))
-    # here we should use a custom CUDA kernel to extract Float marginals from bit vectors
+    @views values[:, LogicCircuits.TRUE_BITS] .= log(one(Float))
+    @views values[:, LogicCircuits.FALSE_BITS] .= log(zero(Float))
+    # TODO;;; here we should use a custom CUDA kernel to extract Float marginals from bit vectors
     # for now the lazy solution is to move everything to the CPU and do the work there...
     data_cpu = to_cpu(data)
     nfeatures = num_features(data)
@@ -284,7 +326,6 @@ end
 
 "Compute marginals on the GPU"
 function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix)
-    circuit = to_gpu(circuit)
     bc = circuit.bitcircuit
     CUDA.@sync for layer in bc.layers[2:end]
         num_examples = size(values, 1)
@@ -442,7 +483,7 @@ function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::CuMatrix, value
         kernel = @cuda name="marginal_flows_down_layers_cuda" launch=false marginal_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights)
         config = launch_configuration(kernel.fun)
         threads, blocks = balance_threads_2d(num_examples, num_decision_sets, config.threads)
-        kernel(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights; 
+        kernel(layer, bc.nodes, bc.elements, bc.parents, pbc.params, flows, values, on_node, on_edge, weights;
                 threads=threads, blocks=blocks)
     end
 end
