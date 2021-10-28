@@ -111,7 +111,12 @@ function sample_down(pbc, num_samples, data, values::CuArray, rng, ::Type{Float}
                   ceil(Int, num_examples(data)/num_threads[2]))
     CUDA.@sync  while true
         r = CUDA.rand(num_samples, num_examples(data))
-        @cuda threads=num_threads blocks=num_blocks sample_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, logprob, stack, r, Float)
+        kernel = @cuda name="sample_cuda_kernel" launch=false sample_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, logprob, stack, r, Float)
+        config = launch_configuration(kernel.fun)
+        threads, blocks = balance_threads_2d(num_samples, num_examples(data), config.threads)
+        kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, logprob, stack, r, Float
+            ; threads, blocks)
+            
         all_empty(stack) && break
     end
     CUDA.unsafe_free!(values) # save the GC some effort
