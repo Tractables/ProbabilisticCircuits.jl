@@ -143,10 +143,12 @@ function map_prob_layers(circuit::ParamBitCircuit, values::CuMatrix;  dec_per_th
     CUDA.@sync for layer in bc.layers[2:end]
         num_examples = size(values, 1)
         num_decision_sets = length(layer)/dec_per_thread
-        num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
-        num_blocks = (ceil(Int, num_examples/num_threads[1]), 
-                      ceil(Int, num_decision_sets/num_threads[2]))
-        @cuda threads=num_threads blocks=num_blocks map_prob_layers_cuda(layer, bc.nodes, bc.elements, circuit.params, values)
+
+        kernel = @cuda name="map_prob_layers_cuda" launch=false map_prob_layers_cuda(layer, bc.nodes, bc.elements, circuit.params, values)
+        config = launch_configuration(kernel.fun)
+        threads, blocks = balance_threads_2d(num_examples, num_decision_sets, config.threads)
+        kernel(layer, bc.nodes, bc.elements, circuit.params, values
+            ; threads, blocks)
     end
 end
 
@@ -229,10 +231,14 @@ function map_down(pbc, data, values::CuArray)
     stack = CUDA.zeros(Int32, num_examples(data), num_features(data)+3)
     @inbounds stack[:,1] .= 1 # start with 1 dec_id in the stack
     @inbounds stack[:,2] .= num_nodes(pbc) # start with the root in the stack
-    num_threads = 256
-    num_blocks = ceil(Int, size(state,1)/num_threads)
+    
     CUDA.@sync begin
-        @cuda threads=num_threads blocks=num_blocks map_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, stack)
+        kernel = @cuda name="map_cuda_kernel" launch=false map_cuda_kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, stack)
+        config = launch_configuration(kernel.fun)
+        threads = config.threads
+        blocks = cld(size(state,1), threads)
+        kernel(num_leafs(pbc), params(pbc), nodes(pbc), elements(pbc), values, state, stack
+            ; threads, blocks)
     end
     # do the conversion to a CuBitVector on the CPU...
     df = DataFrame(to_cpu(state), :auto)

@@ -210,10 +210,12 @@ function backprop_flows_down_gpu(pbc::ParamBitCircuit, log_grads::CuVector, valu
     CUDA.@sync for layer in Iterators.reverse(bc.layers)
         num_examples = size(values, 1)
         num_decision_sets = length(layer)/dec_per_thread
-        num_threads =  balance_threads(num_examples, num_decision_sets, log2_threads_per_block)
-        num_blocks = (ceil(Int, num_examples/num_threads[1]), 
-                      ceil(Int, num_decision_sets/num_threads[2])) 
-        @cuda threads=num_threads blocks=num_blocks backprop_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, log_grads, flows, values, param_grads_device)
+        
+        kernel = @cuda name="backprop_flows_down_layers_cuda" launch=false backprop_flows_down_layers_cuda(layer, bc.nodes, bc.elements, bc.parents, pbc.params, log_grads, flows, values, param_grads_device)
+        config = launch_configuration(kernel.fun)
+        threads, blocks = balance_threads_2d(num_examples, num_decision_sets, config.threads)
+        kernel(layer, bc.nodes, bc.elements, bc.parents, pbc.params, log_grads, flows, values, param_grads_device
+            ; threads, blocks)
     end
     
     flows # Return for reuse
@@ -270,10 +272,11 @@ function apply_gradients_gpu(pbc::ParamBitCircuit, param_grads::CuVector; lr::Fl
     bc::BitCircuit = pbc.bitcircuit
     
     CUDA.@sync for layer in Iterators.reverse(bc.layers)
-        num_threads = 2^min(ceil(Int, 2.0 * log2(length(layer))), 8)
-        num_blocks = 2^ceil(Int, log2(length(layer)^2 / num_threads))
-        @cuda threads=num_threads blocks=num_blocks apply_gradients_cuda(layer, bc.nodes, param_grads, pbc.params, 
-                                                                         lr::Float64)
+        kernel = @cuda name="apply_gradients_cuda" launch=false apply_gradients_cuda(layer, bc.nodes, param_grads, pbc.params, lr::Float64)
+        config = launch_configuration(kernel.fun)
+        threads =  Base.min(length(layer), config.threads)
+        blocks = cld(length(layer), threads)
+        kernel(layer, bc.nodes, param_grads, pbc.params, lr::Float64; threads, blocks)
     end
 end
 
