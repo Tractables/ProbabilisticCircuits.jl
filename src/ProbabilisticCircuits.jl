@@ -50,6 +50,7 @@ include("structurelearner/vtree_learner.jl")
 include("structurelearner/sample_psdd.jl")
 include("structurelearner/bdd.jl")
 include("structurelearner/rat_spn.jl")
+include("structurelearner/hclt.jl")
 
 
 include("ensembles/ensembles.jl")
