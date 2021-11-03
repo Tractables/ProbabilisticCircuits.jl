@@ -1,5 +1,5 @@
 export learn_chow_liu_tree_circuit, learn_vtree_from_clt, compile_sdd_from_clt
-using LightGraphs: outneighbors
+using Graphs: outneighbors
 using MetaGraphs: get_prop
 
 """
