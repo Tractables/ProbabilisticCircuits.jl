@@ -489,18 +489,20 @@ function estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data; 
 
     epoch_callback(iter_name, iter, total_iter, t) = begin
         if verbose & (iter % verbose_log_rate == 0)
+            t = round(t, digits=2)
             println("$iter_name Iter $(iter)/$(total_iter); took $(t)...")
             t = @elapsed begin
                 train_ll = marginal_log_likelihood_avg(pbc, train_data)
                 valid_ll = isnothing(valid_data) ? nothing : marginal_log_likelihood_avg(pbc, valid_data) 
                 test_ll  = isnothing(test_data)  ? nothing : marginal_log_likelihood_avg(pbc, test_data) 
             end
-            println(" Average Marginal log-likelihoods... took $(t); train $(train_ll), valid $(valid_ll), test $(test_ll)")
+            t = round(t, digits=2)
+            println("  - Average Marginal log-likelihoods... took $(t); train $(train_ll), valid $(valid_ll), test $(test_ll)")
         end
         if !isnothing(save_path) && (iter % save_rate == 0)
             update_pc_params_from_pbc!(circuit, pbc)
             if verbose
-                println(" Saving circuit at $(save_path)")
+                println("  - Saving circuit at $(save_path)")
                 write(save_path, circuit)
             end
         end
