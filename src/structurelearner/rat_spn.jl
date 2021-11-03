@@ -107,7 +107,7 @@ function random_region_graph(X::AbstractVector{Var};
         end
         
         if !isnothing(prev_scope)
-            @assert prev_scope == cur_scope "All paritions should include the same set of variables."
+            @assert prev_scope == cur_scope "All partitions should include the same set of variables."
         else
             prev_scope = cur_scope
         end
@@ -149,53 +149,99 @@ end
 ########################################
 
 """
+Makes sure the sum nodes does not have too many children. Makes balanced sums of sums to reduce children count.
+"""
+function balance_sum(children::Vector{ProbCircuit}, balance_childs_parents)::PlainSumNode
+    if balance_childs_parents
+        if length(children) <= 4
+            PlainSumNode(children)
+        else
+            ls = 1:floor(Int32, length(children) / 2)
+            rs = ceil(Int32, length(children) / 2):length(children)
+            PlainSumNode([balance_sum(children[ls], balance_childs_parents), balance_sum(children[rs], balance_childs_parents)])
+        end
+    else
+        PlainSumNode(children)
+    end
+end
 
-- num_nodes_root: number of sum nodes in the root region
-- num_nodes_leaf: number of sum nodes per leaf region
-- num_nodes_region: number of in each region except root and leaves
+"""
+Makes sure input nodes don't have too many parents.
+Makes a dummy sum node for each input per partition. Then nodes corresponding to the partition use
+the dummy node as their children instead of the input node.
+This way instead of num_nodes_root * num_nodes_leaf, we would have num_nodes_root parents nodes.
+"""
+function balanced_fully_factorized(vtrees::Vector{<:Vtree})::Vector{ProbCircuit}
+    vars = variables(vtrees[1]) # assuming all vtrees same set of variables
+    var_2_dummy_inputs = Dict(var => PlainSumNode([PlainProbLiteralNode(var), PlainProbLiteralNode(-var)]) for var in vars)
+    
+    balanced_recurse(nodes::Vector{<:Vtree})::Vector{ProbCircuit} = begin
+        if isleaf(nodes[1])
+            [PlainSumNode([var_2_dummy_inputs[variable(node)]]) for node in nodes]
+        else
+            lefts = balanced_recurse([node.left for node in nodes])
+            rights = balanced_recurse([node.right for node in nodes])
+            [PlainSumNode([PlainMulNode([left, right])]) for (left, right) in zip(lefts, rights)]
+        end
+    end
+
+    balanced_recurse(vtrees)
+end
+
+
+"""
+    region_graph_2_pc(node::RegionGraph; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
+
+- `num_nodes_root`: number of sum nodes in the root region
+- `num_nodes_leaf`: number of sum nodes per leaf region
+- `num_nodes_region`: number of in each region except root and leaves
 """
 function region_graph_2_pc(node::RegionGraph; 
-    num_nodes_root::Int = 4,  num_nodes_region::Int= 3, num_nodes_leaf::Int = 2)::Vector{ProbCircuit}
+    num_nodes_root::Int = 4,  num_nodes_region::Int = 3, num_nodes_leaf::Int = 2, balance_childs_parents)::Vector{ProbCircuit}
     sum_nodes = Vector{ProbCircuit}()
-
     if isleaf(node)
-        for i = 1:num_nodes_leaf
-            # reIndex_bijection = [(i, v) for (i,v) in enumerate(variables(node))]
-            # leaf_circuit = fully_factorized_circuit(ProbCircuit, length(variables(node)); reIndex_bijection)           
-
-            vtree = Vtree([PlainVtreeLeafNode(x) for x ∈ variables(node)], :balanced)
-            leaf_circuit = PlainProbCircuit(fully_factorized_circuit(ProbCircuit, vtree))
-            push!(sum_nodes, leaf_circuit)
+        if false #balance_childs_parents # TODO fix, turning this on makes param learning faster but log likelihood improves much slower
+            vtrees = [Vtree([PlainVtreeLeafNode(x) for x ∈ variables(node)], :balanced) for i=1:num_nodes_leaf]
+            sum_nodes = balanced_fully_factorized(vtrees)
+        else
+            for i = 1:num_nodes_leaf
+                vtree = Vtree([PlainVtreeLeafNode(x) for x ∈ variables(node)], :balanced)
+                leaf_circuit = PlainProbCircuit(fully_factorized_circuit(ProbCircuit, vtree))
+                push!(sum_nodes, leaf_circuit)
+            end
         end
-
     else
-        mul_nodes = Vector{ProbCircuit}()
-
+        root_children = Vector{ProbCircuit}()
         # Foreach replication; usually only > 1 at root
         for partition in node.partitions
+            partition_mul_nodes = Vector{ProbCircuit}()
+
             @assert length(partition) == 2 "Only supporting partitions of size 2 at the moment"
-            lefts = region_graph_2_pc(partition[1]; num_nodes_root, num_nodes_region, num_nodes_leaf)
-            rights = region_graph_2_pc(partition[2]; num_nodes_root, num_nodes_region, num_nodes_leaf)
+            lefts = region_graph_2_pc(partition[1]; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents) 
+            rights = region_graph_2_pc(partition[2]; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
             @assert all([issum(l) for l in lefts])
             @assert all([issum(r) for r in rights])
 
             for l in lefts, r in rights
                 mul_node = PlainMulNode([l, r])
-                push!(mul_nodes, mul_node)
+                push!(partition_mul_nodes, mul_node)
             end
+
+            dummy_sum_node = balance_sum(partition_mul_nodes, balance_childs_parents) 
+            push!(root_children, dummy_sum_node)
         end
 
         # Repeat Sum nodes nodes based on where in Region Graph
         if isnothing(node.parent)
             # Root region
             for i = 1:num_nodes_root
-                sum_node = PlainSumNode(mul_nodes)
+                sum_node = balance_sum(root_children, balance_childs_parents)
                 push!(sum_nodes, sum_node)
             end
         else
             # Inner region
             for i = 1:num_nodes_region
-                sum_node = PlainSumNode(mul_nodes)
+                sum_node = balance_sum(root_children, balance_childs_parents) 
                 push!(sum_nodes, sum_node)
             end
         end
