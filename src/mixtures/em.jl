@@ -3,7 +3,7 @@ export one_step_em,
     initial_weights,
     clustering,
     log_likelihood_per_instance_per_component,
-    estimate_parameters_cached,
+    update_pc_params_from_pbc!,
     learn_circuit_mixture,
     learn_strudel
 
@@ -22,7 +22,7 @@ function one_step_em(spc, data, values, flows, node2id, component_weights; pseud
     normalize!(component_weights, 1.0)
 
     # M step
-    estimate_parameters_cached(spc, example_weights, values, flows, node2id; pseudocount=pseudocount)
+    update_pc_params_from_pbc!(spc, example_weights, values, flows, node2id; pseudocount=pseudocount)
     logsumexp(lls, 2), component_weights
 end
 
@@ -90,7 +90,7 @@ function log_likelihood_per_instance_per_component(pc::SharedProbCircuit, data::
     log_likelihoods
 end
 
-function estimate_parameters_cached(pc::SharedProbCircuit, example_weights::Matrix{Float64},
+function update_pc_params_from_pbc!(pc::SharedProbCircuit, example_weights::Matrix{Float64},
         values::Matrix{UInt64}, flows::Matrix{UInt64}, node2id; pseudocount::Float64)
     N = size(example_weights, 1)
     foreach(pc) do pn
@@ -143,7 +143,7 @@ function learn_circuit_mixture(pc, data;
     spc = compile(SharedProbCircuit, pc, num_mix)
     values, flows, node2id = satisfies_flows(spc, data)
     component_weights = reshape(initial_weights(data, num_mix), 1, num_mix)
-    estimate_parameters_cached(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows, node2id; pseudocount=pseudocount)
+    update_pc_params_from_pbc!(spc, ones(Float64, num_examples(data), num_mix) ./ num_mix, values, flows, node2id; pseudocount=pseudocount)
 
     lls = nothing
     for iter in 1 : em_maxiter

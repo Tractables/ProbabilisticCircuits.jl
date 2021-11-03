@@ -11,7 +11,7 @@ function learn_chow_liu_tree_circuit(data;
     vtree = learn_vtree_from_clt(clt; vtree_kwargs...)
     lc = compile_sdd_from_clt(clt, vtree)
     pc = ProbCircuit(lc)
-    estimate_parameters(pc, data; pseudocount=pseudocount)
+    estimate_parameters!(pc, data; pseudocount=pseudocount)
     pc, vtree
 end
 

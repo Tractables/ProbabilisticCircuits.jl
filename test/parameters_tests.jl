@@ -10,20 +10,20 @@ using CUDA: CUDA
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    estimate_parameters(r,dfb; pseudocount=1.0)
+    estimate_parameters!(r,dfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
 
-    estimate_parameters(r,dfb; pseudocount=0.0)
+    estimate_parameters!(r,dfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
 
     if CUDA.functional()
         # Binary dataset
         dfb_gpu = to_gpu(dfb)
         
-        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, dfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
 
-        estimate_parameters(r, dfb_gpu; pseudocount=0.0)
+        estimate_parameters!(r, dfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
     end
 
@@ -40,11 +40,11 @@ end
     
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     
-    estimate_parameters(r,wdfb; pseudocount=1.0)
+    estimate_parameters!(r,wdfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
     
-    estimate_parameters(r,wdfb; pseudocount=0.0)
+    estimate_parameters!(r,wdfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
 
@@ -56,15 +56,15 @@ end
         # Weighted binary dataset
         wdfb_gpu = to_gpu(wdfb)
         
-        estimate_parameters(r, wdfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, wdfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
-        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, dfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
-        estimate_parameters(r, wdfb_gpu; pseudocount=0.0)
+        estimate_parameters!(r, wdfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
 
@@ -85,12 +85,12 @@ end
     # Batched dataset
     batched_wdfb = batch(wdfb, 1)
     
-    estimate_parameters(r,batched_wdfb; pseudocount=1.0)
+    estimate_parameters!(r,batched_wdfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
     @test log_likelihood_avg(r,batched_wdfb) ≈ log_likelihood_avg(r,wdfb)
     
-    estimate_parameters(r,batched_wdfb; pseudocount=0.0)
+    estimate_parameters!(r,batched_wdfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
     @test log_likelihood_avg(r,dfb) ≈ log_likelihood_avg(r,wdfb)
     @test log_likelihood_avg(r,batched_wdfb) ≈ log_likelihood_avg(r,wdfb)
@@ -106,11 +106,11 @@ end
         # Batched dataset
         batched_wdfb_gpu = to_gpu(batch(wdfb, 1))
         
-        estimate_parameters(r, batched_wdfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, batched_wdfb_gpu; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=1.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
         
-        estimate_parameters(r, batched_wdfb_gpu; pseudocount=0.0)
+        estimate_parameters!(r, batched_wdfb_gpu; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ LogicCircuits.Utils.fully_factorized_log_likelihood(dfb; pseudocount=0.0)
         @test log_likelihood_avg(r,dfb_gpu) ≈ log_likelihood_avg(r, wdfb_gpu)
 
@@ -142,50 +142,50 @@ end
     
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    estimate_parameters(r, dfb; pseudocount=0.0)
+    estimate_parameters!(r, dfb; pseudocount=0.0)
     @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
     @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
     
-    estimate_parameters(r, wdfb; pseudocount=0.0)
+    estimate_parameters!(r, wdfb; pseudocount=0.0)
     @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
     @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
     
-    estimate_parameters(r, batched_dfb; pseudocount=0.0)
+    estimate_parameters!(r, batched_dfb; pseudocount=0.0)
     @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
     @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
     
-    estimate_parameters(r, batched_wdfb; pseudocount=0.0)
+    estimate_parameters!(r, batched_wdfb; pseudocount=0.0)
     @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
     @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
     @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
     
     if CUDA.functional()
-        estimate_parameters(r, to_gpu(dfb); pseudocount=0.0)
+        estimate_parameters!(r, to_gpu(dfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
         @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
         
-        estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
+        estimate_parameters!(r, to_gpu(wdfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
         @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
         
-        estimate_parameters(r, to_gpu(batched_dfb); pseudocount=0.0)
+        estimate_parameters!(r, to_gpu(batched_dfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
         @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[2] ≈ -0.4059652245524093 atol = 1e-6
 
-        estimate_parameters(r, to_gpu(batched_wdfb); pseudocount=0.0)
+        estimate_parameters!(r, to_gpu(batched_wdfb); pseudocount=0.0)
         @test r.children[1].children[1].log_probs[1] ≈ -0.4059652245524093 atol = 1e-6
         @test r.children[1].children[1].log_probs[2] ≈ -1.0976127839931185 atol = 1e-6
         @test r.children[1].children[2].log_probs[1] ≈ -1.0976127839931185 atol = 1e-6
@@ -201,17 +201,17 @@ end
     uniform_parameters!(pc)
     pc.children[1].prime.log_probs .= log.([0.3, 0.7])
     pc.children[1].sub.log_probs .= log.([0.4, 0.6])
-    estimate_parameters_em(pc, data; pseudocount=0.0)
+    estimate_parameters_em!(pc, data; pseudocount=0.0)
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
 
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     uniform_parameters!(r)
-    estimate_parameters(r,dfb; pseudocount=1.0)
+    estimate_parameters!(r,dfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, dfb).params
     uniform_parameters!(r)
-    estimate_parameters_em(r, dfb; pseudocount=1.0)
+    estimate_parameters_em!(r, dfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, dfb).params
     @test all(paras1 .≈ paras2)
     
@@ -219,11 +219,11 @@ end
         dfb_gpu = to_gpu(dfb)
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, dfb_gpu; pseudocount=1.0)
+        estimate_parameters_em!(r, dfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters(r, dfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, dfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -232,11 +232,11 @@ end
         r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, data; pseudocount = 0.0)
+        estimate_parameters_em!(r, data; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, to_gpu(data); pseudocount = 0.0)
+        estimate_parameters_em!(r, to_gpu(data); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -253,7 +253,7 @@ end
     uniform_parameters!(pc)
     pc.children[1].prime.log_probs .= log.([0.3, 0.7])
     pc.children[1].sub.log_probs .= log.([0.4, 0.6])
-    estimate_parameters_em(pc, wdata; pseudocount=0.0)
+    estimate_parameters_em!(pc, wdata; pseudocount=0.0)
     @test all(pc.children[1].prime.log_probs .== log.([1.0, 0.0]))
     @test pc.children[1].sub.log_probs[1] .≈ log.([0.4, 0.6])[1] atol=1e-6
 
@@ -262,20 +262,20 @@ end
     wdfb = hcat(dfb, weights)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     uniform_parameters!(r)
-    estimate_parameters(r,wdfb; pseudocount=1.0)
+    estimate_parameters!(r,wdfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, wdfb).params
     uniform_parameters!(r)
-    estimate_parameters_em(r, wdfb; pseudocount=1.0)
+    estimate_parameters_em!(r, wdfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
     
     if CUDA.functional()
         uniform_parameters!(r)
-        estimate_parameters_em(r, to_gpu(wdfb); pseudocount=0.0)
+        estimate_parameters_em!(r, to_gpu(wdfb); pseudocount=0.0)
         paras1 = ParamBitCircuit(r, wdfb).params
         
         uniform_parameters!(r)
-        estimate_parameters(r, to_gpu(wdfb); pseudocount=0.0)
+        estimate_parameters!(r, to_gpu(wdfb); pseudocount=0.0)
         paras2 = ParamBitCircuit(r, wdfb).params
         
         @test all(paras1 .≈ paras2)
@@ -286,11 +286,11 @@ end
         r = fully_factorized_circuit(ProbCircuit, num_features(wdata))
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, wdata; pseudocount = 0.0)
+        estimate_parameters_em!(r, wdata; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, to_gpu(wdata); pseudocount = 0.0)
+        estimate_parameters_em!(r, to_gpu(wdata); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -304,10 +304,10 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     uniform_parameters!(r)
-    estimate_parameters_em(r, dfb; pseudocount=1.0)
+    estimate_parameters_em!(r, dfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, dfb).params
     uniform_parameters!(r)
-    estimate_parameters_em(r, batched_dfb; pseudocount=1.0)
+    estimate_parameters_em!(r, batched_dfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, dfb).params
     @test all(paras1 .≈ paras2)
     
@@ -319,10 +319,10 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     uniform_parameters!(r)
     
-    estimate_parameters(r, batched_wdfb; pseudocount=1.0)
+    estimate_parameters!(r, batched_wdfb; pseudocount=1.0)
     paras1 = ParamBitCircuit(r, wdfb).params
     uniform_parameters!(r)
-    estimate_parameters_em(r, batched_wdfb; pseudocount=1.0)
+    estimate_parameters_em!(r, batched_wdfb; pseudocount=1.0)
     paras2 = ParamBitCircuit(r, wdfb).params
     @test all(paras1 .≈ paras2)
     
@@ -330,11 +330,11 @@ end
         batched_dfb_gpu = to_gpu(batched_dfb)
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, batched_dfb_gpu; pseudocount=1.0)
+        estimate_parameters_em!(r, batched_dfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters(r, batched_dfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, batched_dfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -342,11 +342,11 @@ end
         batched_wdfb_gpu = to_gpu(batched_wdfb)
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, batched_wdfb_gpu; pseudocount=1.0)
+        estimate_parameters_em!(r, batched_wdfb_gpu; pseudocount=1.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters(r, batched_wdfb_gpu; pseudocount=1.0)
+        estimate_parameters!(r, batched_wdfb_gpu; pseudocount=1.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -356,11 +356,11 @@ end
         batched_data = batch(data, 1)
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, batched_data; pseudocount = 0.0)
+        estimate_parameters_em!(r, batched_data; pseudocount = 0.0)
         paras1 = ParamBitCircuit(r, dfb).params
         
         uniform_parameters!(r)
-        estimate_parameters_em(r, to_gpu(batched_data); pseudocount = 0.0)
+        estimate_parameters_em!(r, to_gpu(batched_data); pseudocount = 0.0)
         paras2 = ParamBitCircuit(r, dfb).params
         
         @test all(paras1 .≈ paras2)
@@ -374,13 +374,13 @@ end
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
     uniform_parameters!(r)
-    params = estimate_parameters_em(r, batched_dfb; pseudocount=1.0, update_per_batch = true)
+    params = estimate_parameters_em!(r, batched_dfb; pseudocount=1.0, update_per_batch = true)
     @test params[5] ≈ 0.0
     
     if CUDA.functional()
         
         uniform_parameters!(r)
-        params = estimate_parameters_em(r, to_gpu(batched_dfb); pseudocount=1.0, update_per_batch = true)
+        params = estimate_parameters_em!(r, to_gpu(batched_dfb); pseudocount=1.0, update_per_batch = true)
         @test to_cpu(params)[5] ≈ 0.0
 
     end
@@ -397,10 +397,10 @@ end
     
     r = compile(SharedProbCircuit, r, 2)
     
-    params = estimate_parameters(r, bag_dfb; pseudocount = 1.0)
+    params = estimate_parameters!(r, bag_dfb; pseudocount = 1.0)
     @test all(abs.(params[1] .- params[2]) .< 1e-6)
     
-    params = estimate_parameters(r, bag_dfb; pseudocount = 2.0)
+    params = estimate_parameters!(r, bag_dfb; pseudocount = 2.0)
     @test all(abs.(params[1] .- params[2]) .< 1e-6)
 end
 
@@ -422,32 +422,32 @@ end
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
+    params = estimate_parameters!(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
     @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
+    params = estimate_parameters!(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
     @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
 
-    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
+    params = estimate_parameters!(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
     @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-    params = estimate_parameters(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
+    params = estimate_parameters!(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
     @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
-        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
+        params = estimate_parameters!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
+        params = estimate_parameters!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
+        params = estimate_parameters!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-        params = estimate_parameters(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
+        params = estimate_parameters!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end
@@ -457,32 +457,32 @@ end
     dfb = DataFrame(BitMatrix([true false; true true; false true]), :auto)
     r = fully_factorized_circuit(ProbCircuit,num_features(dfb))
     
-    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
+    params = estimate_parameters_em!(r,dfb; pseudocount=1e-6, entropy_reg = 0.1);
     @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
+    params = estimate_parameters_em!(r,dfb; pseudocount=1e-6, entropy_reg = 1.0);
     @test exp.(params) ≈ [0.5841319507970275, 0.4158680492029725, 0.5841319507970275, 0.4158680492029725, 1.0] atol = 1e-4
 
-    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
+    params = estimate_parameters_em!(r,dfb; pseudocount=1e-6, entropy_reg = 5.0);
     @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-    params = estimate_parameters_em(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
+    params = estimate_parameters_em!(r,dfb; pseudocount=1e-6, entropy_reg = 10.0);
     @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     
     if CUDA.functional()
-        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
+        params = estimate_parameters_em!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 0.1);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.6523896320397116, 0.34761036796028844, 0.6523896320397116, 0.34761036796028844, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
+        params = estimate_parameters_em!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 1.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5841319659187809, 0.4158680380658034, 0.5841319659187809, 0.4158680380658034, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
+        params = estimate_parameters_em!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 5.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5278256829525434, 0.4721743170474565, 0.5278256829525434, 0.4721743170474565, 1.0] atol = 1e-4
 
-        params = estimate_parameters_em(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
+        params = estimate_parameters_em!(r, to_gpu(dfb); pseudocount=1e-6, entropy_reg = 10.0);
         params = convert(Vector{Float64}, params)
         @test exp.(params) ≈ [0.5151599626276689, 0.484840037372331, 0.5151599626276689, 0.484840037372331, 1.0] atol = 1e-4
     end

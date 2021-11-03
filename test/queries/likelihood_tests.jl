@@ -70,7 +70,7 @@ end
     
     r = compile(SharedProbCircuit, r, 2)
     
-    estimate_parameters(r, bag_dfb; pseudocount = 1.0)
+    estimate_parameters!(r, bag_dfb; pseudocount = 1.0)
     
     ll = log_likelihood_per_instance(r, dfb)
     @test ll[1] ≈ -0.2107210 atol = 1e-6

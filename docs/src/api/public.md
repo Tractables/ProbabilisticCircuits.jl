@@ -18,8 +18,9 @@ write
 ```@docs
 learn_circuit
 learn_strudel
-estimate_parameters
-estimate_parameters_em
+estimate_parameters!
+estimate_parameters_em!
+estimate_parameters_em_multi_epochs!
 learn_chow_liu_tree_circuit
 ```
 

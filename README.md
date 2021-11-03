@@ -137,7 +137,7 @@ Structural properties of the circuit: decomposability: true, determinism: true.
 Given that the circuit is decomposable and deterministic, the maximum likelihood estimation (MLE) of its parameters is in closed-form. That is, we can learn the MLE parameters deterministically:
 
 ```julia
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
+t = @elapsed estimate_parameters!(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a CPU took $(t) seconds.")
 ```
 
@@ -148,7 +148,7 @@ Learning the parameters on a CPU took 0.243524592 seconds.
 Optionally, we can use GPUs to speedup the learning process:
 
 ```julia
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
+t = @elapsed estimate_parameters!(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a GPU took $(t) seconds.")
 ```
 
@@ -169,7 +169,7 @@ print("The average test data log-likelihood is $(avg_ll).")
 The average test data log-likelihood is -137.59309172113964.
 ```
 
-Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
+Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em!`) and Stochastic Gradient Descent (SGD) (i.e., `estimate_parameters_sgd!`).
 
 ProbabilisticCircuits.jl also offers functionalities for learning the circuit structure and parameters simultaneously. For example, the Strudel structure learning algorithm is implemented natively in the package, and can be used with a few lines of code:
 

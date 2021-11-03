@@ -16,14 +16,14 @@ using Random
     
     params = nothing
     for i = 1 : 200
-        params = sgd_parameter_learning(r, wdfb; lr = 0.01)
+        params = estimate_parameters_sgd!(r, wdfb; lr = 0.01)
     end
     @test exp.(params) ≈ [0.5, 0.5, 0.5, 0.5, 1.0] atol = 0.1
     
     if CUDA.functional()
         params = nothing
         for i = 1 : 200
-            params = sgd_parameter_learning(r, wdfb; lr = 0.01)
+            params = estimate_parameters_sgd!(r, wdfb; lr = 0.01)
         end
         @test to_cpu(exp.(params)) ≈ [0.5, 0.5, 0.5, 0.5, 1.0] atol = 0.1
     end
