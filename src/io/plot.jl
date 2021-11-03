@@ -1,8 +1,8 @@
 export DiGraph, plot
-using LightGraphs
+using Graphs
 using TikzGraphs
 
-import LightGraphs: DiGraph
+import Graphs: DiGraph
 
 function DiGraph(pc::ProbCircuit)
     edge_labels = Dict()

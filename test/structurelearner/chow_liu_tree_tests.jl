@@ -1,7 +1,7 @@
 using Test
 using LogicCircuits
 using ProbabilisticCircuits
-using LightGraphs
+using Graphs
 using MetaGraphs
 using DataFrames
 using Suppressor

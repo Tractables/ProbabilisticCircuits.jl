@@ -1,8 +1,8 @@
 export CLT, learn_chow_liu_tree, parent_vector
-using LightGraphs: SimpleGraph, SimpleDiGraph, complete_graph, add_edge!, kruskal_mst, 
-    bfs_tree, center, connected_components, induced_subgraph, nv, ne, edges, vertices, src, dst
+using Graphs: SimpleGraph, SimpleDiGraph, complete_graph, kruskal_mst, 
+    bfs_tree, center, connected_components, induced_subgraph, src, dst
 using SimpleWeightedGraphs: SimpleWeightedGraph
-using MetaGraphs: MetaDiGraph, set_prop!, props
+using MetaGraphs: MetaDiGraph, set_prop!, props, nv, ne, edges, add_edge!, vertices
 
 #####################
 # Learn a Chow-Liu tree from (weighted) data

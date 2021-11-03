@@ -243,7 +243,7 @@ function chow_liu_tree(data, num_vars, num_cats; pseudocount = 0.1, num_trees::I
         clt = SimpleDiGraph(num_vars)
         for c in filter(c -> (length(c) > 1), connected_components(MStree))
             sg, vmap = induced_subgraph(MStree, c)
-            sub_root = vmap[LightGraphs.center(sg)[1]]
+            sub_root = vmap[Graphs.center(sg)[1]]
             clt = union(clt, bfs_tree(MStree, sub_root))
         end
 

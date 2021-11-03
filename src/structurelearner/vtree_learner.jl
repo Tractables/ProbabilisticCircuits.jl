@@ -1,8 +1,7 @@
 using Metis
 using SparseArrays
-using LightGraphs: add_edge!
 using SimpleWeightedGraphs
-using MetaGraphs
+using MetaGraphs: add_edge!
 using ..Utils
 
 export learn_vtree
