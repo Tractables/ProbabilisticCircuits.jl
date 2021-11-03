@@ -89,11 +89,11 @@ function learn_circuit(train_x, pc, vtree;
     end
 
     if has_missing
-        estimate_parameters_func = estimate_parameters_em
+        estimate_parameters_func = estimate_parameters_em!
         likelihood_avg_func = marginal_log_likelihood_avg
         LogLikelihood_str = "Marginal LogLikelihood"
     else
-        estimate_parameters_func = estimate_parameters
+        estimate_parameters_func = estimate_parameters!
         likelihood_avg_func = log_likelihood_avg
         LogLikelihood_str = "LogLikelihood"
     end

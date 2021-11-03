@@ -22,7 +22,7 @@ using Suppressor
 
     # em
     pc = fully_factorized_circuit(ProbCircuit, num_v)
-    estimate_parameters(pc, data; pseudocount=1.0)
+    estimate_parameters!(pc, data; pseudocount=1.0)
     spc = compile(SharedProbCircuit, pc, num_mix)
     values, flows, node2id = satisfies_flows(spc, data)
     ll0 = log_likelihood_per_instance_per_component(spc, data, values, flows, node2id)

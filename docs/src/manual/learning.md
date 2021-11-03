@@ -250,7 +250,7 @@ pc = fully_factorized_circuit(StructProbCircuit, v);
 No parmater learning is done yet, now let's, do maximum likelihood estimatation (MLE) using [`estimate_parameters`](@ref):
 
 ```@example learning
-estimate_parameters(pc, train_x; pseudocount=1.0);
+estimate_parameters!(pc, train_x; pseudocount=1.0);
 
 "PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters." *
 "Train log-likelihood is $(log_likelihood_avg(pc, train_x))"  
@@ -282,7 +282,7 @@ pc = struct_learn(pc;
     primitives=[split_step],  
     kwargs=Dict(split_step=>(loss=loss,)),
     maxiter=20)
-estimate_parameters(pc, train_x; pseudocount=1.0)
+estimate_parameters!(pc, train_x; pseudocount=1.0)
 
 "PC: $(num_nodes(pc)) nodes, $(num_parameters(pc)) parameters. " *
 "Training set log-likelihood is $(log_likelihood_avg(pc, train_x))"  

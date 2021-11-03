@@ -331,7 +331,7 @@ end
 function marginal_layers(circuit::ParamBitCircuit, values::CuMatrix)
     circuit = to_gpu(circuit)
     bc = circuit.bitcircuit
-    CUDA.@sync for layer in bc.layers[2:end]
+    CUDA.@sync for (li, layer) in enumerate(bc.layers[2:end])
         num_examples = size(values, 1)
         num_decision_sets = length(layer)
 
@@ -480,7 +480,7 @@ end
 function marginal_flows_down_layers(pbc::ParamBitCircuit, flows::CuMatrix, values::CuMatrix, 
             on_node, on_edge; weights = nothing)
     bc = pbc.bitcircuit
-    CUDA.@sync for layer in Iterators.reverse(bc.layers)
+    CUDA.@sync for (li, layer) in enumerate(Iterators.reverse(bc.layers))
         num_examples = size(values, 1)
         num_decision_sets = length(layer)
         

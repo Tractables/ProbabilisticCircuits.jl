@@ -96,12 +96,12 @@ function learn_ensemble_stacking!(E::Ensemble{T}, D::DataFrame; maxiter::Integer
     for j ∈ 1:k
         I, J = F[j]
         D_T, D_R = D[I,:], D[J,:]
-        @qthreads for i ∈ 1:K estimate_parameters(E.C[i], D_R; pseudocount = pseudocount == 0 ? 1.0 : pseudocount) end
+        @qthreads for i ∈ 1:K estimate_parameters!(E.C[i], D_R; pseudocount = pseudocount == 0 ? 1.0 : pseudocount) end
         @qthreads for i ∈ 1:K LL[I,i] .= log_likelihood_per_instance(E.C[i], D_T) end
         verbose && println("Stacking fold ", j, '/', k, '.')
     end
     learn_ensemble_em!(E, D; maxiter, verbose, reuse = LL)
-    @qthreads for i ∈ 1:K estimate_parameters(E.C[i], D; pseudocount) end
+    @qthreads for i ∈ 1:K estimate_parameters!(E.C[i], D; pseudocount) end
     return E
 end
 

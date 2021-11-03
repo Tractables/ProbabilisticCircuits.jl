@@ -71,6 +71,6 @@ end
 "Learns a structured probabilistic circuit consistent with a binary decision diagram `ϕ`."
 function learn_bdd(ϕ::Bdd, D::DataFrame; pseudocount::Real)::StructProbCircuit
     pc = generate_from_bdd(ϕ, ncol(D))
-    estimate_parameters(pc, D; pseudocount)
+    estimate_parameters!(pc, D; pseudocount)
     return pc
 end

@@ -1,10 +1,19 @@
-export sgd_parameter_learning
+export estimate_parameters_sgd!
 
 using LogicCircuits: num_nodes
 using StatsFuns: logaddexp
 using CUDA
 
-function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01, 
+"""
+    estimate_parameters_sgd!(pc::ProbCircuit, data; lr::Float64 = 0.01, reuse_values = nothing, reuse_flows = nothing, reuse = (nothing, nothing))
+
+One epoch SGD to learn paramters of the pc. It will run on CPU/GPU depending on where the data is located.
+- `lr`: Learning Rate
+- `pc`: The ProbCircuit
+- 'data': training data
+- 'resue_*`: Allows reusing of allocated memory to avoid extra memory allocation between epochs. If training for only one epoch don't need to specify them.
+"""
+function estimate_parameters_sgd!(pc::ProbCircuit, data; lr::Float64 = 0.01, 
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     # Construct the low-level circuit representation
@@ -16,15 +25,26 @@ function sgd_parameter_learning(pc::ProbCircuit, data; lr::Float64 = 0.01,
     # Main training loop
     @assert isbatched(data)
     for idx = 1 : length(data)
-        sgd_parameter_learning(pbc, data[idx]; lr, reuse_values, reuse_flows, reuse)
+        estimate_parameters_sgd!(pbc, data[idx]; lr, reuse_values, reuse_flows, reuse)
     end
     
     # Store the updated parameters back to `pc`
-    estimate_parameters_cached!(pc, pbc)
+    update_pc_params_from_pbc!(pc, pbc)
     
     pbc.params
 end
-function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
+
+
+"""
+    estimate_parameters_sgd!(pc::ProbCircuit, data; lr::Float64 = 0.01, reuse_values = nothing, reuse_flows = nothing, reuse = (nothing, nothing))
+
+One epoch SGD to learn paramters of a ParamBitCircuit. It will run on CPU/GPU depending on where the data is located.
+- `lr`: Learning Rate
+- `pbc`: The ParamBitCircuit
+- 'data': training data
+- 'resue_*`: Allows reusing of allocated memory to avoid extra memory allocation between epochs. If training for only one epoch don't need to specify them.
+"""
+function estimate_parameters_sgd!(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
                                 reuse_values = nothing, reuse_flows = nothing,
                                 reuse = (nothing, nothing))
     
@@ -44,15 +64,15 @@ function sgd_parameter_learning(pbc::ParamBitCircuit, data; lr::Float64 = 0.01,
             weights = to_gpu(weights)
         end
 
-        sgd_parameter_learning_gpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)    
+        estimate_parameters_sgd_gpu!(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)    
     else    
-        sgd_parameter_learning_cpu(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
+        estimate_parameters_sgd_cpu!(pbc, data; lr, weights, reuse_values, reuse_flows, reuse)
     end
     
     pbc.params
 end
 
-function sgd_parameter_learning_cpu(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
+function estimate_parameters_sgd_cpu!(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
                                     weights = nothing, reuse_values = nothing, reuse_flows = nothing,
                                     reuse = (nothing, nothing))
     bc = pbc.bitcircuit
@@ -71,12 +91,12 @@ function sgd_parameter_learning_cpu(pbc::ParamBitCircuit, data; lr::Float64 = 0.
     flows = backprop_flows_down_cpu(pbc, log_grads, values, param_grads, reuse_flows; weights)
     
     # Apply gradients
-    apply_gradients_cpu(pbc, param_grads; lr)
+    apply_gradients_cpu!(pbc, param_grads; lr)
     
     pbc.params, values, flows, (log_grads, param_grads)
 end
 
-function sgd_parameter_learning_gpu(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
+function estimate_parameters_sgd_gpu!(pbc::ParamBitCircuit, data; lr::Float64 = 0.01, 
                                     weights = nothing, reuse_values = nothing, reuse_flows = nothing,
                                     reuse = (nothing, nothing))
     bc = pbc.bitcircuit
@@ -95,7 +115,7 @@ function sgd_parameter_learning_gpu(pbc::ParamBitCircuit, data; lr::Float64 = 0.
     flows = backprop_flows_down_gpu(pbc, log_grads, values, param_grads, reuse_flows; weights)
     
     # Apply gradients
-    apply_gradients_gpu(pbc, param_grads; lr)
+    apply_gradients_gpu!(pbc, param_grads; lr)
     
     pbc.params, values, flows, (log_grads, param_grads)
 end
@@ -167,7 +187,7 @@ function backprop_flows_down_layers_cpu(pbc::ParamBitCircuit, log_grads::Vector,
     end
 end
 
-function apply_gradients_cpu(pbc::ParamBitCircuit, param_grads::Vector; lr::Float64 = 0.01)
+function apply_gradients_cpu!(pbc::ParamBitCircuit, param_grads::Vector; lr::Float64 = 0.01)
     bc::BitCircuit = pbc.bitcircuit
     nodes = bc.nodes
     params = pbc.params
@@ -268,7 +288,7 @@ function backprop_flows_down_layers_cuda(layer, nodes, elements, parents, params
     return nothing
 end
 
-function apply_gradients_gpu(pbc::ParamBitCircuit, param_grads::CuVector; lr::Float64 = 0.01)
+function apply_gradients_gpu!(pbc::ParamBitCircuit, param_grads::CuVector; lr::Float64 = 0.01)
     bc::BitCircuit = pbc.bitcircuit
     
     CUDA.@sync for layer in Iterators.reverse(bc.layers)

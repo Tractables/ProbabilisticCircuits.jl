@@ -131,7 +131,7 @@ Samples a PSDD from a BDD `ϕ` and vtree `V` with at most `k` elements in each d
         C = struct_learn(C; primitives = [split_step], kwargs = Dict(split_step => (loss = loss,)),
                          maxiter, verbose = false)
     end
-    !randomize_weights && estimate_parameters(C, D; pseudocount)
+    !randomize_weights && estimate_parameters!(C, D; pseudocount)
     return C
 end
 

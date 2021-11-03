@@ -1,4 +1,8 @@
-export estimate_parameters, uniform_parameters!, estimate_parameters_em, estimate_parameters_cached!
+export estimate_parameters!, 
+    uniform_parameters!, 
+    estimate_parameters_em!,
+    update_pc_params_from_pbc!,
+    estimate_parameters_em_multi_epochs!
 
 using LogicCircuits: num_nodes
 using StatsFuns: logsumexp, logaddexp, logsubexp
@@ -6,16 +10,16 @@ using CUDA
 using LoopVectorization
 
 """
-    estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
+    estimate_parameters!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
 
 Maximum likelihood estimation of a `ProbCircuit`'s parameters given data
 """
-function estimate_parameters(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
+function estimate_parameters!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
     estimate_single_circuit_parameters(pc, data; pseudocount, entropy_reg)
 end
 
 """
-    estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
+    estimate_parameters!(spc::SharedProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
 
 Maximum likelihood estimation of a SharedProbCircuit's parameters given data.
 
@@ -23,7 +27,7 @@ bagging support: If `spc` is a SharedProbCircuit and data is an array of DataFra
   with the same number of "components", learn each circuit with its corresponding 
   dataset.
 """
-function estimate_parameters(spc::SharedProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
+function estimate_parameters!(spc::SharedProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
     @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
     
     map(1 : num_components(spc)) do component_idx
@@ -53,15 +57,15 @@ function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::
     end
     
     if pc isa SharedProbCircuit
-        estimate_parameters_cached!(pc, bc, params, component_idx)
+        update_pc_params_from_pbc!(pc, bc, params, component_idx)
     else
-        estimate_parameters_cached!(pc, bc, params)
+        update_pc_params_from_pbc!(pc, bc, params)
     end
     params
 end
 
 """
-    estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
+    update_pc_params_from_pbc!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
 
 
 During parameter learning `pc`'s paramters are not updated automatically, and only the corresponding BitCircuit's paramters update.
@@ -69,7 +73,7 @@ This method updates the paramters of `pc` using the corresponding BitCircuit.
 
 Note: This is mostly for internal use. 
 """
-function estimate_parameters_cached!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
+function update_pc_params_from_pbc!(pc::SharedProbCircuit, bc, params, component_idx; exp_update_factor = 0.0)
     log_exp_factor = log(exp_update_factor)
     log_1_exp_factor = log(1.0 - exp_update_factor)
     foreach(pc) do pn
@@ -91,31 +95,31 @@ end
 
 
 """
-    estimate_parameters_cached!(pc::ProbCircuit, pbc; exp_update_factor = 0.0)
+    update_pc_params_from_pbc!(pc::ProbCircuit, pbc; exp_update_factor = 0.0)
 
 During parameter learning `pc`'s paramters are not updated automatically, and only the corresponding ParamBitCircuit's paramters update.
 This method updates the paramters of `pc` using the corresponding ParamBitCircuit.
 
 Note: This is mostly for internal use. 
 """
-function estimate_parameters_cached!(pc::ProbCircuit, pbc; exp_update_factor = 0.0)
+function update_pc_params_from_pbc!(pc::ProbCircuit, pbc; exp_update_factor = 0.0)
     if isgpu(pbc)
         pbc = to_cpu(pbc)
     end
     bc = pbc.bitcircuit
     params = pbc.params
-    estimate_parameters_cached!(pc, bc, params; exp_update_factor)
+    update_pc_params_from_pbc!(pc, bc, params; exp_update_factor)
 end
 
 """
-    function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
+    function update_pc_params_from_pbc!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
 
 During parameter learning `pc`'s paramters are not updated automatically, and only the corresponding ParamBitCircuit's paramters update.
 This method updates the paramters of `pc` using the corresponding ParamBitCircuit.
         
 Note: This is mostly for internal use. 
 """
-function estimate_parameters_cached!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
+function update_pc_params_from_pbc!(pc::ProbCircuit, bc, params; exp_update_factor = 0.0)
     log_exp_factor = log(exp_update_factor)
     log_1_exp_factor = log(1.0 - exp_update_factor)
     
@@ -395,17 +399,17 @@ function uniform_parameters!(pc::ProbCircuit; perturbation::Float64 = 0.0)
 end
 
 """
-    estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
+    estimate_parameters_em!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
 
 One epoch of Expectation maximization (EM) parameter learning for circuits. Useful when having missing data or non-deterministic circuits.
 
 - `entropy_reg`: Entropy Regularization
 - `update_per_batch`: Whether to update circuit paramters per batch (using the ParamBitCircuit's paramters)
 """
-function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
+function estimate_parameters_em!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
                                 exp_update_factor::Float64 = 0.0, update_per_batch::Bool = false)
     if update_per_batch && isbatched(data)
-        estimate_parameters_em_per_batch(pc, data; pseudocount, entropy_reg, exp_update_factor)
+        estimate_parameters_em_per_batch!(pc, data; pseudocount, entropy_reg, exp_update_factor)
     else
         weights = nothing
         if isweighted(data)
@@ -420,41 +424,147 @@ function estimate_parameters_em(pc::ProbCircuit, data; pseudocount::Float64, ent
             estimate_parameters_cpu(pbc, data, pseudocount; weights, entropy_reg)
         end
 
-        estimate_parameters_cached!(pc, pbc.bitcircuit, params; exp_update_factor)
+        update_pc_params_from_pbc!(pc, pbc.bitcircuit, params; exp_update_factor)
         params
     end
 end
 
+"""
+    estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data)
+
+Runs multiple epochs of EM for circuit. It will run on CPU/GPU based on where train_data is.
+
+Arguments: 
+- `circuit`:
+- `train_data`: training data. If want gpu, move to gpu before calling this `to_gpu(train_data)`.
+
+Keyword arguments:
+- `valid_data=nothing`: validation data, should be same device as `train_data` 
+` `test_data=nothing`: test data, data, should be same device as `train_data` 
+- `entropy_reg::Float64 = 0.0`: Entropy regularization
+- `exp_update_factor_start::Float64 = 0.1`: 
+- `exp_update_factor_end::Float64 = 0.9`:
+- `em_warmup_iters=100` : number of EM Warm up iterations
+- `em_finetune_iters=100`: number of EM fine tune iterations
+- `verbose=false`: verbose or not
+- `verbose_log_rate=1`: how often to print info
+- `save_path=nothing`: path of the file to save the partially trained circuit
+- `save_rate=20`: how often to save the circuit to file
+"""
+function estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
+                                                exp_update_factor_start::Float64 = 0.1, exp_update_factor_end::Float64 = 0.9,
+                                                em_warmup_iters=100, em_finetune_iters=100,
+                                                verbose=false, verbose_log_rate=1,
+                                                valid_data=nothing, test_data=nothing,
+                                                save_path=nothing, save_rate=20)
+
+    
+    if verbose
+        println("Learn circuit paramters using estimate_parameters_em_multi_epochs!")
+        println("Train Size [$(num_examples(train_data)), $(num_features(train_data))]")
+        println("nodes: $(num_nodes(circuit)); edges: $(num_edges(circuit)); parameters: $(num_parameters(circuit))")
+    end
+
+    reuse_counts = isgpu(train_data) ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
+    reuse_v = nothing
+    reuse_f = nothing
+
+    pbc = ParamBitCircuit(circuit, train_data)     
+    if isgpu(train_data)
+        pbc = to_gpu(ParamBitCircuit(circuit, train_data))
+    end
+
+    if verbose
+        println("PBC Layers: ", size(pbc.bitcircuit.layers))
+        println([length(layer) for layer in pbc.bitcircuit.layers])
+        println("----Node Stats-----")
+        for stat in node_stats(circuit)
+            println(stat)
+        end
+        println("----Parent Stats-----")
+        for stat in LogicCircuits.Utils.parent_stats(circuit)
+            println(stat)
+        end
+    end
+
+    epoch_callback(iter_name, iter, total_iter, t) = begin
+        if verbose & (iter % verbose_log_rate == 0)
+            println("$iter_name Iter $(iter)/$(total_iter); took $(t)...")
+            t = @elapsed begin
+                train_ll = marginal_log_likelihood_avg(pbc, train_data)
+                valid_ll = isnothing(valid_data) ? nothing : marginal_log_likelihood_avg(pbc, valid_data) 
+                test_ll  = isnothing(test_data)  ? nothing : marginal_log_likelihood_avg(pbc, test_data) 
+            end
+            println("\t marginal log-likelihoods... took $(t); train $(train_ll), valid $(valid_ll), test $(test_ll)")
+        end
+        if !isnothing(save_path) && (iter % save_rate == 0)
+            update_pc_params_from_pbc!(circuit, pbc)
+            if verbose
+                println("Saving circuit at $(save_path)")
+                write(save_path, circuit)
+            end
+        end
+    end
+
+    for iter = 1 : em_warmup_iters
+        t = @elapsed begin
+            exp_update_factor = exp_update_factor_start + (iter - 1) * (exp_update_factor_end - exp_update_factor_start) / (em_warmup_iters - 1)
+
+            _, reuse_v, reuse_f, reuse_counts = estimate_parameters_em_per_batch!(pc, pbc, train_data; reuse_v, reuse_f, reuse_counts, pseudocount, entropy_reg, exp_update_factor)
+        end
+
+        epoch_callback("EM Warmup", iter, em_warmup_iters, t)
+    end
+
+    for iter = 1 : em_finetune_iters
+        t = @elapsed begin
+            _, reuse_v, reuse_f, reuse_counts = estimate_parameters_em!(pbc, train_data; reuse_v, reuse_f, reuse_counts, pseudocount) # Full-batch EM
+        end
+        epoch_callback("EM Finetune", iter, em_finetune_iters, t)
+    end
+
+    update_pc_params_from_pbc!(circuit, pbc)
+    nothing # return nothing
+end
+
 
 """
-    estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor = 0.0)
+    estimate_parameters_em_per_batch!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor = 0.0)
 
 One epoch of Expectation maximization (EM) parameter learning for circuits. Useful when having missing data or non-deterministic circuits.
 
 - `entropy_reg`: Entropy Regularization
 - `update_per_batch`: Whether to update circuit paramters per batch (using the ParamBitCircuit's paramters)
 """
-function estimate_parameters_em_per_batch(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor = 0.0)
+function estimate_parameters_em_per_batch!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0, exp_update_factor = 0.0)
     pbc = ParamBitCircuit(pc, data)
     if isgpu(data)
         pbc = to_gpu(pbc)
     end
-    
     reuse_v, reuse_f = nothing, nothing
     reuse_counts = isgpu(data) ? (nothing, nothing) : (nothing, nothing, nothing, nothing, nothing)
-    
+
+    params, _, _ , _ = estimate_parameters_em_per_batch!(pc, pbc, data; pseudocount, entropy_reg, exp_update_factor, reuse_v, reuse_f, reuse_counts)
+    params
+end
+
+function estimate_parameters_em_per_batch!(pc::ProbCircuit, pbc::ParamBitCircuit, data; pseudocount::Float64, 
+                                                    entropy_reg::Float64 = 0.0, exp_update_factor = 0.0,
+                                                    reuse_v=nothing, reuse_f=nothing, reuse_counts=nothing)    
+  
     for idx = 1 : length(data)
-        pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em(pbc, data[idx]; pseudocount, entropy_reg,
+        pbc, reuse_v, reuse_f, reuse_counts = estimate_parameters_em!(pbc, data[idx]; pseudocount, entropy_reg,
                                                                      reuse_v, reuse_f, reuse_counts, 
                                                                      exp_update_factor)
     end
     
-    estimate_parameters_cached!(pc, pbc)
+    update_pc_params_from_pbc!(pc, pbc)
     
-    pbc.params
+    pbc.params, reuse_v, reuse_f, reuse_counts
 end
 
-function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
+
+function estimate_parameters_em!(pbc::ParamBitCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0,
                                 reuse_v = nothing, reuse_f = nothing, reuse_counts = nothing,
                                 exp_update_factor = 0.0
                                )
@@ -479,14 +589,14 @@ function estimate_parameters_em(pbc::ParamBitCircuit, data; pseudocount::Float64
     end
     
     # Update the parameters to `pbc`
-    if isgpu(data) # GPU
+    if isgpu(data) # GPU        
         tempparam = Vector{Float64}(undef, length(params))
         tempparam .= to_cpu(params)
         @inbounds @views pbc.params .+= log(exp_update_factor)
         @inbounds @views params .+= log(1.0 - exp_update_factor)
         delta = @inbounds @views @. CUDA.ifelse(pbc.params == params, CUDA.zero(params), CUDA.abs(pbc.params - params))
         @inbounds @views @. pbc.params = CUDA.max(pbc.params, params) + CUDA.log1p(CUDA.exp(-delta))
-        
+            
         CUDA.unsafe_free!(params)
         CUDA.unsafe_free!(delta)
     else # CPU

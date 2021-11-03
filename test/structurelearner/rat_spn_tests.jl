@@ -62,13 +62,13 @@ end
 
     @test typeof(circuit) <: ProbCircuit
 
-    estimate_parameters_em(circuit, data; pseudocount, update_per_batch = false)
-    estimate_parameters_em(circuit, data; pseudocount, update_per_batch = true)
+    estimate_parameters_em!(circuit, data; pseudocount, update_per_batch = false)
+    estimate_parameters_em!(circuit, data; pseudocount, update_per_batch = true)
 
     if CUDA.functional()
         data_gpu = to_gpu(data)
-        estimate_parameters_em(circuit, data_gpu; pseudocount, update_per_batch = false)
-        estimate_parameters_em(circuit, data_gpu; pseudocount, update_per_batch = true)
+        estimate_parameters_em!(circuit, data_gpu; pseudocount, update_per_batch = false)
+        estimate_parameters_em!(circuit, data_gpu; pseudocount, update_per_batch = true)
     end
 
 end
