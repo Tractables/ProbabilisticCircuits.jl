@@ -55,14 +55,15 @@ print("The loaded circuit contains $(num_edges(circuit)) edges and $(num_paramet
 print("Structural properties of the circuit: decomposability: $(isdecomposable(circuit)), determinism: $(isdeterministic(circuit)).")
 
 # Given that the circuit is decomposable and deterministic, the maximum likelihood estimation (MLE) of its parameters is in closed-form. That is, we can learn the MLE parameters deterministically:
-estimate_parameters(circuit, train_data; pseudocount = 0.1) #hide
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1)
+estimate_parameters!(circuit, train_data; pseudocount = 0.1) #hide
+t = @elapsed estimate_parameters!(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a CPU took $(t) seconds.")
 
 # Optionally, we can use GPUs to speedup the learning process:
 if CUDA.functional() #hide
-estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true) #hide
-t = @elapsed estimate_parameters(circuit, train_data; pseudocount = 0.1, use_gpu = true)
+train_data = to_gpu(train_data)
+estimate_parameters!(circuit, train_data; pseudocount = 0.1) #hide
+t = @elapsed estimate_parameters!(circuit, train_data; pseudocount = 0.1)
 print("Learning the parameters on a GPU took $(t) seconds.")
 end #hide
 
@@ -72,7 +73,7 @@ end #hide
 avg_ll = log_likelihood_avg(circuit, test_data)
 print("The average test data log-likelihood is $(avg_ll).")
 
-# Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em`) and Stochastic Gradient Descent (SGD) (i.e., `sgd_parameter_learning`).
+# Besides `estimate_parameters`, ProbabilisticCircuits.jl offers iterative parameter learning algorithms such as Expectation-Maximization (EM) (i.e., `estimate_parameters_em!`) and Stochastic Gradient Descent (SGD) (i.e., `estimate_parameters_sgd!`).
 
 # ProbabilisticCircuits.jl also offers functionalities for learning the circuit structure and parameters simultaneously. For example, the Strudel structure learning algorithm is implemented natively in the package, and can be used with a few lines of code:
 circuit_strudel = learn_circuit(train_data; maxiter = 100, verbose = false)
