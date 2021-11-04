@@ -15,7 +15,7 @@ using LoopVectorization
 Maximum likelihood estimation of a `ProbCircuit`'s parameters given data
 """
 function estimate_parameters!(pc::ProbCircuit, data; pseudocount::Float64, entropy_reg::Float64 = 0.0)
-    estimate_single_circuit_parameters(pc, data; pseudocount, entropy_reg)
+    estimate_single_circuit_parameters!(pc, data; pseudocount, entropy_reg)
 end
 
 """
@@ -31,16 +31,16 @@ function estimate_parameters!(spc::SharedProbCircuit, data; pseudocount::Float64
     @assert num_components(spc) == length(data) "SharedProbCircuit and data have different number of components: $(num_components(spc)) and $(length(data)), resp."
     
     map(1 : num_components(spc)) do component_idx
-        estimate_single_circuit_parameters(spc, data[component_idx]; pseudocount, component_idx, entropy_reg)
+        estimate_single_circuit_parameters!(spc, data[component_idx]; pseudocount, component_idx, entropy_reg)
     end
 end
 
 """
-    estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
+    estimate_single_circuit_parameters!(pc::ProbCircuit, data; pseudocount::Float64, component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
 
 Maximum likelihood estimation of a single circuit (for example, `ProbCircuit` or one component of `SharedProbCircuit`) parameters given data
 """
-function estimate_single_circuit_parameters(pc::ProbCircuit, data; pseudocount::Float64, 
+function estimate_single_circuit_parameters!(pc::ProbCircuit, data; pseudocount::Float64, 
                                             component_idx::Integer = 0, entropy_reg::Float64 = 0.0)
     weights = nothing
     if isweighted(data)
