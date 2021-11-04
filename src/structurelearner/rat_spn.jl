@@ -197,10 +197,10 @@ end
 - `num_nodes_region`: number of in each region except root and leaves
 """
 function region_graph_2_pc(node::RegionGraph; 
-    num_nodes_root::Int = 4,  num_nodes_region::Int = 3, num_nodes_leaf::Int = 2, balance_childs_parents)::Vector{ProbCircuit}
+    num_nodes_root::Int = 4,  num_nodes_region::Int = 3, num_nodes_leaf::Int = 2, balance_childs_parents=true)::Vector{ProbCircuit}
     sum_nodes = Vector{ProbCircuit}()
     if isleaf(node)
-        if false #balance_childs_parents # TODO fix, turning this on makes param learning faster but log likelihood improves much slower
+        if false # balance_childs_parents # TODO fix, turning this on makes param learning faster but log likelihood improves much slower
             vtrees = [Vtree([PlainVtreeLeafNode(x) for x ∈ variables(node)], :balanced) for i=1:num_nodes_leaf]
             sum_nodes = balanced_fully_factorized(vtrees)
         else
