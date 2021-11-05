@@ -92,13 +92,19 @@ import LogicCircuits.Utils: children, variables
 """
 function random_region_graph(X::AbstractVector{Var};
     depth::Int = 5, replicas::Int = 2, num_splits::Int = 2)::RegionGraph
+
+    if length(X) < 2 || depth == 0
+        # Cannot/should not split anymore
+        return RegionGraph(X)
+    end
+
     partitions = Vector{Partition}()
     for repeat = 1 : replicas
-        cur_rg = split_rg(X, depth; num_splits=num_splits, return_partition_only = true)
+        cur_rg = split_rg(X, depth; num_splits=num_splits)
         push!(partitions, cur_rg)
     end
 
-    # Each parition should include the same set of variables
+    # Validation: Each Partition should include the same set of variables
     prev_scope = nothing
     for cur_partition in partitions
         cur_scope = variables(cur_partition[1])
@@ -116,31 +122,22 @@ function random_region_graph(X::AbstractVector{Var};
     RegionGraphInnerNode(partitions)
 end
 
-function split_rg(variables::AbstractVector{Var}, depth::Int; num_splits::Int = 2, return_partition_only = false)
-    if length(variables) < 2 || depth == 0
-        # Cannot/shoud not split anymore
-        return RegionGraph(variables)
-    end
-
-    shuffle_variables = shuffle(variables)
-    
+function split_rg(variables::AbstractVector{Var}, depth::Int; num_splits::Int = 2)::Partition
     partition(x, n) = begin
         ## TODO; might not work if num_splits > 2
         sz = ceil(Int, (length(x) / n))
         [ x[i:min(i+sz-1, length(x))] for i = 1:sz:length(x) ]
     end 
+
+    shuffle_variables = shuffle(variables)
     splits = partition(shuffle_variables, num_splits)
-
-    answer = Vector{RegionGraph}()
+    cur_partition_regions = Vector{RegionGraph}()
     for split in splits
-        push!(answer, split_rg(split, depth-1; num_splits = num_splits))
+        # only 1 replicas for non-root
+        rg_node = random_region_graph(split; depth=depth-1, replicas=1, num_splits)
+        push!(cur_partition_regions, rg_node)
     end
-
-    if return_partition_only
-        Partition(answer)
-    else
-        RegionGraphInnerNode([Partition(answer)])
-    end
+    Partition(cur_partition_regions)
 end
 
 
@@ -184,7 +181,7 @@ function balanced_fully_factorized(vtrees::Vector{<:Vtree})::Vector{ProbCircuit}
             [PlainSumNode([PlainMulNode([left, right])]) for (left, right) in zip(lefts, rights)]
         end
     end
-
+    
     balanced_recurse(vtrees)
 end
 
