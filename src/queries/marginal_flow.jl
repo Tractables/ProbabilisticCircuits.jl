@@ -261,23 +261,40 @@ end
 Initialize values from the gpu data
 """
 function init_marginal_gpu(data, reuse, num_nodes; Float=Float32)
-    flowtype = isgpu(data) ? CuMatrix{Float} : Matrix{Float}
+    flowtype = CuMatrix{Float}
     values = similar!(reuse, flowtype, num_examples(data), num_nodes)
     @views values[:, LogicCircuits.TRUE_BITS] .= log(one(Float))
     @views values[:, LogicCircuits.FALSE_BITS] .= log(zero(Float))
+
+    nfeatures = num_features(data)
+    num_data = size(values, 1)
+
+    # Option 1; not possible rn cause cannot pass datafame to cuda kernel
+    # kernel = @cuda name="init_marginal_cuda" launch=false init_marginal_cuda(values, data, nfeatures)
+    # config = launch_configuration(kernel.fun)
+    # threads, blocks = balance_threads_2d(num_data, nfeatures, config.threads)
+    # kernel(values, data, nfeatures; threads, blocks)
+
+    
+    ## option 2 - still slow
+    for i=1:nfeatures
+        @views values[:, 2 + i]             .= log.(coalesce.(data[:, i], one(Float)))
+        @views values[:, 2 + i + nfeatures] .= log.(coalesce.(1.0 .- data[:, i], one(Float)))
+    end
+
+    # Option 3 - very slow
     # TODO;;; here we should use a custom CUDA kernel to extract Float marginals from bit vectors
     # for now the lazy solution is to move everything to the CPU and do the work there...
-    data_cpu = to_cpu(data)
-    nfeatures = num_features(data)
-    for i=1:nfeatures
-        marg_pos::Vector{Float} = log.(coalesce.(data_cpu[:,i], one(Float)))
-        marg_neg::Vector{Float} = log.(coalesce.(1.0 .- data_cpu[:,i], one(Float)))
-        values[:,2+i] .= same_device(marg_pos, values)
-        values[:,2+nfeatures+i] .= same_device(marg_neg, values)
-    end
+    # data_cpu = to_cpu(data)
+    # nfeatures = num_features(data)
+    # for i=1:nfeatures
+    #     marg_pos::Vector{Float} = log.(coalesce.(data_cpu[:,i], one(Float)))
+    #     marg_neg::Vector{Float} = log.(coalesce.(1.0 .- data_cpu[:,i], one(Float)))
+    #     values[:,2+i] .= same_device(marg_pos, values)
+    #     values[:,2+nfeatures+i] .= same_device(marg_neg, values)
+    # end
     return values
 end
-
 # upward pass helpers on CPU
 
 "Compute marginals on the CPU (SIMD & multi-threaded)"
