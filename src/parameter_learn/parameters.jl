@@ -821,9 +821,9 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
 
     if data_batched
         v, f = reuse_v, reuse_f
-        if weights != nothing
+        if !isnothing(weights)
             map(zip(data, weights)) do (d, w)
-                if w != nothing
+                if !isnothing(w)
                     w = to_gpu(w)
                 end
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
@@ -840,7 +840,7 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
             nothing # Return nothing to save some time
         end
     else
-        if weights != nothing
+        if !isnothing(weights)
             weights = to_gpu(weights)
         end
         
