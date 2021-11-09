@@ -250,7 +250,7 @@ function init_marginal_cpu(data, reuse, num_nodes; Float)
     nfeatures = num_features(data)
     for i=1:nfeatures
         values[:, 2+i] .= log.(coalesce.(data[:,i], one(Float)))
-        values[:, 2+nfeatures+i] .= log.(coalesce.(1.0 .- data[:,i], one(Float)))
+        values[:, 2+nfeatures+i] .= log.(coalesce.(one(Float) .- data[:,i], one(Float)))
     end
     return values
 end
@@ -267,26 +267,26 @@ function init_marginal_gpu(data, reuse, num_nodes; Float=Float32)
     @views values[:, LogicCircuits.FALSE_BITS] .= log(zero(Float))
 
     nfeatures = num_features(data)
-    num_data = size(values, 1)
-
-    # Option 1; not possible rn cause cannot pass datafame to cuda kernel
-    # kernel = @cuda name="init_marginal_cuda" launch=false init_marginal_cuda(values, data, nfeatures)
-    # config = launch_configuration(kernel.fun)
-    # threads, blocks = balance_threads_2d(num_data, nfeatures, config.threads)
-    # kernel(values, data, nfeatures; threads, blocks)
-
     
-    ## option 2 - still slow
-    for i=1:nfeatures
-        @views values[:, 2 + i]             .= log.(coalesce.(data[:, i], one(Float)))
-        @views values[:, 2 + i + nfeatures] .= log.(coalesce.(1.0 .- data[:, i], one(Float)))
+    # ## option 2 - still slow
+
+
+    if data[!, 1] isa CuBitVector
+        # Have to do this for CuBitVector since does not play well with CuArray broadcast kernels
+        data_cpu = to_cpu(data)
+        for i=1:nfeatures
+            @views values[:, 2 + i]             .= to_gpu(log.(coalesce.(zero(Float) .+ data_cpu[!, i], one(Float))))
+            @views values[:, 2 + nfeatures + i] .= to_gpu(log.(coalesce.(one(Float) .- data_cpu[!, i], one(Float))))
+        end
+    else
+        for i=1:nfeatures
+            @views values[:, 2 + i]             .= log.(coalesce.(zero(Float) .+ data[!, i], one(Float)))
+            @views values[:, 2 + nfeatures + i] .= log.(coalesce.(one(Float) .- data[!, i], one(Float)))
+        end
     end
 
-    # Option 3 - very slow
-    # TODO;;; here we should use a custom CUDA kernel to extract Float marginals from bit vectors
-    # for now the lazy solution is to move everything to the CPU and do the work there...
+    # Option 1 - very slow
     # data_cpu = to_cpu(data)
-    # nfeatures = num_features(data)
     # for i=1:nfeatures
     #     marg_pos::Vector{Float} = log.(coalesce.(data_cpu[:,i], one(Float)))
     #     marg_neg::Vector{Float} = log.(coalesce.(1.0 .- data_cpu[:,i], one(Float)))
