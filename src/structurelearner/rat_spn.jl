@@ -74,9 +74,13 @@ import LogicCircuits.NodeType
 ## Methods
 #################
 
-import LogicCircuits.Utils: children, variables
+
+import DirectedAcyclicGraphs: children
 
 @inline children(n::RegionGraphInnerNode) = n.partitions
+
+import LogicCircuits.Utils: variables
+
 @inline variables(n::RegionGraphInnerNode) = n.variables
 @inline variables(n::RegionGraphLeafNode) = n.variables
 

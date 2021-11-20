@@ -4,7 +4,7 @@ export heuristic_loss
 """
 Pick the edge with maximum flow
 """
-function eFlow(values, flows, candidates::Vector{Tuple{Node, Node}}, node2id)
+function eFlow(values, flows, candidates, node2id)
     edge2flows = map(candidates) do (or, and)
         count_downflow(values, flows, nothing, or, and, node2id)
     end
@@ -29,7 +29,7 @@ end
 """
 Pick the edge randomly
 """
-function eRand(candidates::Vector{Tuple{Node, Node}})
+function eRand(candidates)
     return rand(candidates)
 end
 
