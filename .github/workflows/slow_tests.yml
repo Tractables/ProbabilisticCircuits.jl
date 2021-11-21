@@ -31,7 +31,6 @@ jobs:
       # Runs a single command using the runners shell
       - name: Unit Tests
         run: |
-          julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
           julia --project=test -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.precompile();'
           julia --project=test -e 'using Pkg; Pkg.develop("ProbabilisticCircuits");'
           julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/aqua_test.jl
