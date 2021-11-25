@@ -1,5 +1,5 @@
 export zoo_spn, zoo_spn_file, 
-    SpnFormat, SpnVtreeFormat
+    SpnFormat
 
 struct SpnFormat <: FileFormat end
 
