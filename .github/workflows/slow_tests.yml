@@ -3,9 +3,10 @@ name: Slow Tests
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
 on: 
-  pull_request:
-    branches:
-      master
+  # tests are not being maintained so don't run on pull requests
+  # pull_request:
+  #   branches:
+  #     master
 
   schedule:
     - cron: '0 0 */7 * *'
