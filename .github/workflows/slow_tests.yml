@@ -3,9 +3,10 @@ name: Slow Tests
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
 on: 
-  pull_request:
-    branches:
-      master
+  # tests are not being maintained so don't run on pull requests
+  # pull_request:
+  #   branches:
+  #     master
 
   schedule:
     - cron: '0 0 */7 * *'
@@ -26,14 +27,13 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: 1.5
+          version: 1.6
 
       # Runs a single command using the runners shell
       - name: Unit Tests
         run: |
           julia --project=test -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.precompile();'
           julia --project=test -e 'using Pkg; Pkg.develop("ProbabilisticCircuits");'
-          julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/aqua_test.jl
           julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/strudel_marginal_tests.jl
           julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/strudel_likelihood_tests.jl
           julia --project=test --check-bounds=yes --depwarn=yes test/_manual_/ensembles_tests.jl

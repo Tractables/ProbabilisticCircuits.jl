@@ -14,7 +14,12 @@ include("plot.jl")
 # if no logic circuit file format is given on read, infer file format from extension
 
 function file2pcformat(file) 
-    if endswith(file,".jpc")
+    if endswith(file,".gz")
+        # duplicate code from `LogicCircuits.file2logicformat` -- not sure how to make this nicer
+        file_inner, _ = splitext(file)
+        format_inner = file2pcformat(file_inner)
+        GzipFormat(format_inner)
+    elseif endswith(file,".jpc")
         JpcFormat()
     elseif endswith(file,".psdd")
         PsddFormat()
@@ -63,6 +68,10 @@ Base.parse(::Type{ProbCircuit}, args...) =
 
 Base.read(io::IO, ::Type{ProbCircuit},  args...) = 
     read(io, PlainProbCircuit,  args...)
+
+Base.read(io::IO, ::Type{ProbCircuit}, f::GzipFormat) = 
+    # avoid method ambiguity
+    read(io, PlainProbCircuit,  f)
 
 # copy read/write API for tuples of files
 

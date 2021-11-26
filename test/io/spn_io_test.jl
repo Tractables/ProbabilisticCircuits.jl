@@ -44,6 +44,13 @@ include("../helper/pc_equals.jl")
         test_my_circuit(pc2)
         test_pc_equals(pc1, pc2)
 
+        # try compressed
+        write("$spn_path.gz", pc1)
+        pc2 = read("$spn_path.gz", ProbCircuit)
+        
+        test_my_circuit(pc2)
+        test_pc_equals(pc1, pc2)
+
     end
 
 end
