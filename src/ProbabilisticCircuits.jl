@@ -7,17 +7,21 @@ module ProbabilisticCircuits
 using Reexport
 
 using LogicCircuits
+
 # only reexport selectively from LogicCircuits
-export pos_literals, neg_literals, print_tree
+export pos_literals, neg_literals, print_tree, literal
 # circuit queries
 export issmooth, isdecomposable, isstruct_decomposable, 
        isdeterministic, iscanonical
 # circuit status
 export num_nodes, num_edges, children, num_parameters, num_children
+export num_variables
 export zoo_vtree, zoo_vtree_file, VtreeFormat, vtree, respects_vtree
 export linearize, isliteralgate, literal, fully_factorized_circuit
 # datasets
-export twenty_datasets
+export twenty_datasets, to_gpu, to_cpu
+
+export isleaf, isinner
 
 include("Utils/Utils.jl")
 @reexport using .Utils
