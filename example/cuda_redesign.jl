@@ -2,8 +2,10 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools
 CUDA.allowscalar(false)
 
+# pc_file = "meihua_hclt.jpc"
 pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
+# pc_file = "mnist_hclt_cat16.jpc"
 
 pc = read(pc_file, ProbCircuit)
 num_nodes(pc), num_edges(pc)
@@ -28,29 +30,25 @@ CUDA.@time marginal_all(pbc, batch_df, reuse);
 
 module BitsProbCircuits
         
-    using DirectedAcyclicGraphs
-    using ProbabilisticCircuits
-    using CUDA
+    using DirectedAcyclicGraphs, ProbabilisticCircuits, CUDA
 
     struct BitsLiteral
-        id::Int
         literal::Int
     end
 
     struct BitsInnerNode
-        id::Int
         issum::Bool
     end
     const BitsNode = Union{BitsLiteral, BitsInnerNode}
 
     struct SumEdge 
-        parent::BitsInnerNode
+        parent_id::Int
         child_id::Int
         logprob::Float32
     end
 
     struct MulEdge 
-        parent::BitsInnerNode
+        parent_id::Int
         child_id::Int
     end
 
@@ -75,21 +73,21 @@ module BitsProbCircuits
         foreach(pc) do node 
             pid = node2label[node]
             if isleaf(node)
-                bnode = BitsLiteral(pid, literal(node))
+                bnode = BitsLiteral(literal(node))
             else
                 if issum(node)
-                    bnode = BitsInnerNode(pid, true)
+                    bnode = BitsInnerNode(true)
                     for (c, logp) in zip(children(node), node.log_probs)
                        layer = bpc.edge_layers[node2layer[c]]
-                       edge = SumEdge(bnode, node2label[c], logp)
+                       edge = SumEdge(pid, node2label[c], logp)
                        push!(layer, edge) 
                     end
                 else
                     @assert ismul(node)
-                    bnode = BitsInnerNode(pid, false)
+                    bnode = BitsInnerNode(false)
                     for c in children(node)
                        layer = bpc.edge_layers[node2layer[c]]
-                       edge = MulEdge(bnode, node2label[c])
+                       edge = MulEdge(pid, node2label[c])
                        push!(layer, edge) 
                     end
                 end
@@ -170,7 +168,7 @@ function logincexp(matrix::CuDeviceArray, i, j, v)
 end
 
 function logincexp(matrix::Array, i, j, v)
-    # should also be atomic for multithreading?
+    # should also be atomic for CPU multiprocessing?
     matrix[i,j] = logsumexp(matrix[i,j], v)
     nothing
 end
@@ -181,7 +179,7 @@ function logmulexp(matrix::CuDeviceArray, i, j, v)
 end
 
 function logmulexp(matrix::Array, i, j, v)
-    # should also be atomic for multithreading?
+    # should also be atomic for CPU multiprocessing?
     matrix[i,j] += v
     nothing
 end
@@ -189,13 +187,13 @@ end
 function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
     child_prob = mars[edge.child_id, example_id]
     edge_prob = child_prob + edge.logprob
-    logincexp(mars, edge.parent.id, example_id, edge_prob)
+    logincexp(mars, edge.parent_id, example_id, edge_prob)
     nothing
 end
 
 function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     child_prob = mars[edge.child_id, example_id]
-    logmulexp(mars, edge.parent.id, example_id, child_prob)
+    logmulexp(mars, edge.parent_id, example_id, child_prob)
     nothing
 end
 
@@ -251,3 +249,5 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
+
+nothing
