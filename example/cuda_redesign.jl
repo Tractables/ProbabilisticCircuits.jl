@@ -19,10 +19,12 @@ cu_data = to_gpu(data);
 # create minibatch
 batch_i = 1:512;
 cu_batch_i = CuVector(1:512);
-batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+batch_df_cpu = DataFrame(transpose(data[:, batch_i]), :auto);
+batch_df = to_gpu(batch_df_cpu);
 
 # try current MAR code
-pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+pbc_cpu = ParamBitCircuit(pc, batch_df);
+pbc = to_gpu(pbc_cpu);
 CUDA.@time reuse = marginal_all(pbc, batch_df);
 CUDA.@time marginal_all(pbc, batch_df, reuse);
 
@@ -243,11 +245,13 @@ function eval_circuit!(mars, bpc, data, example_ids)
     nothing
 end
 
-@time eval_circuit!(mars, bpc, data, batch_i);
+CUDA.@time eval_circuit!(mars, bpc, data, batch_i);
 CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
+@btime marginal_all(pbc_cpu, batch_df_cpu); # old cpu code
+@btime eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+
 @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-@btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
 
 nothing
