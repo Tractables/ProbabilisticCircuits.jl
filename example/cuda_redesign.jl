@@ -3,9 +3,9 @@ using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools
 CUDA.allowscalar(false)
 
 # pc_file = "meihua_hclt.jpc"
-pc_file = "meihua_hclt_small.jpc"
+# pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-# pc_file = "mnist_hclt_cat16.jpc"
+pc_file = "mnist_hclt_cat16.jpc"
 
 pc = read(pc_file, ProbCircuit)
 num_nodes(pc), num_edges(pc)
@@ -18,9 +18,10 @@ cu_data = to_gpu(data);
 
 # create minibatch
 batch_i = 1:512;
-cu_batch_i = CuVector(1:512);
+cu_batch_i = CuVector(batch_i);
 batch_df_cpu = DataFrame(transpose(data[:, batch_i]), :auto);
 batch_df = to_gpu(batch_df_cpu);
+
 
 # try current MAR code
 pbc_cpu = ParamBitCircuit(pc, batch_df);
@@ -155,8 +156,10 @@ end
 CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
 function logsumexp(x::Float32,y::Float32)::Float32
-    if x == y == -Inf32
-        -Inf32
+    if x == -Inf32
+        y
+    elseif y == -Inf32
+        x
     elseif x > y
         x + log1p(exp(y-x))
     else
