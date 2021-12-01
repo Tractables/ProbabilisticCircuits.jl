@@ -4,11 +4,12 @@ CUDA.allowscalar(false)
 
 # pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
-# pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
+pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
 
 pc = read(pc_file, ProbCircuit)
 num_nodes(pc), num_edges(pc)
+node_stats(pc)
 
 # generate some fake data
 # TODO; figure out row vs col major
@@ -69,15 +70,30 @@ module BitsProbCircuits
         )
     end
 
-    ismaterialized_node(root, n) =
-        (n==root || !ismul(n) || num_children(n)!=2)
+    isduplicatenode(root, n) = begin
+       num_children(n)==1 && ismaterializednode(root, children(n)[1])
+    end
+
+    ismaterializednode(root, n) = begin
+        n==root && return true # always materialize the root
+        ismul(n) && num_children(n)==2 && return false # do not materialize "elements"
+        isduplicatenode(root, n) && return false # do not materialize duplicate pass-through nodes
+        return true
+    end
 
     function label_nodes_custom(root)
         labeling = Dict{ProbCircuit,Int}()
         i = 0
         f_inner(n, call) = begin 
-            foreach(call, children(n))
-            ismaterialized_node(root, n) ? (i += 1) : 0
+            child_ids = map(call, children(n))
+            if isduplicatenode(root, n)
+                @assert length(child_ids) == 1
+                child_ids[1]
+            elseif !ismaterializednode(root, n) 
+                0 # this node will be collapsed into an edge
+            else
+                (i += 1)
+            end
         end 
         f_leaf(n) = (i += 1)
         foldup(root, f_leaf, f_inner, Int, labeling)
@@ -88,7 +104,7 @@ module BitsProbCircuits
         node2layer = Dict{DAG, Int}()
         f_inner(n, call) = begin
             cl = mapreduce(call, max, children(n))
-            ismaterialized_node(root, n) ? cl + 1 : cl
+            ismaterializednode(root, n) ? cl + 1 : cl
         end
         f_leaf(n) = 1
         num_layers = foldup(root, f_leaf, f_inner, Int, node2layer)
@@ -101,14 +117,14 @@ module BitsProbCircuits
         bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
         foreach(pc) do node 
             pid = node2label[node]
-            if ismaterialized_node(pc, node)
+            if ismaterializednode(pc, node)
                 if isleaf(node)
                     bnode = BitsLiteral(literal(node))
                 else
                     if issum(node)
                         bnode = BitsInnerNode(true)
                         for (c, logp) in zip(children(node), node.log_probs)
-                            if ismaterialized_node(pc, c)
+                            if ismaterializednode(pc, c)
                                 layerid = node2layer[c]
                                 edge = SumEdge(pid, node2label[c], 0, logp)
                             else
@@ -124,7 +140,7 @@ module BitsProbCircuits
                         @assert ismul(node)
                         bnode = BitsInnerNode(false)
                         for c in children(node)
-                            if ismaterialized_node(pc, c)
+                            if ismaterializednode(pc, c)
                                 layerid = node2layer[c]
                                 edge = MulEdge(pid, node2label[c], 0)
                             else
@@ -168,6 +184,7 @@ end
 for i = 1:BitsProbCircuits.num_edge_layers(bpc)
     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
 end
+BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
 
 # allocate memory for MAR
 mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
