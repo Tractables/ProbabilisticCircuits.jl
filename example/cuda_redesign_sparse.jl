@@ -81,7 +81,7 @@ module BitsProbCircuits
         end 
         f_leaf(n) = (i += 1)
         foldup(root, f_leaf, f_inner, Int, labeling)
-        labeling
+        labeling, i
     end
 
     function feedforward_layers_custom(root::DAG)
@@ -96,9 +96,9 @@ module BitsProbCircuits
     end
 
     function BitsProbCircuit(pc)
-        node2label = label_nodes_custom(pc)
+        node2label, num_materialized_nodes = label_nodes_custom(pc)
         node2layer, num_layers = feedforward_layers_custom(pc)
-        bpc = BitsProbCircuit(length(node2label), num_layers)
+        bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
         foreach(pc) do node 
             pid = node2label[node]
             if ismaterialized_node(pc, node)
@@ -170,7 +170,7 @@ for i = 1:BitsProbCircuits.num_edge_layers(bpc)
 end
 
 # allocate memory for MAR
-mars = Matrix{Float32}(undef, num_nodes(pc), length(batch_i));
+mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
 cu_mars = cu(mars);
 
 # custom MAR initialization kernels
