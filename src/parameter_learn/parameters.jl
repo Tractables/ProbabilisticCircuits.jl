@@ -442,7 +442,7 @@ Arguments:
 
 Keyword arguments:
 - `valid_data=nothing`: validation data, should be same device as `train_data` 
-` `test_data=nothing`: test data, data, should be same device as `train_data` 
+- `test_data=nothing`: test data, data, should be same device as `train_data` 
 - `entropy_reg::Float64 = 0.0`: Entropy regularization
 - `exp_update_factor_start::Float64 = 0.1`: 
 - `exp_update_factor_end::Float64 = 0.9`:
