@@ -17,8 +17,9 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batch_i = 1:256;
-cu_batch_i = CuVector(1:256);
+batchsize = 512
+batch_i = 1:batchsize;
+cu_batch_i = CuVector(1:batchsize);
 batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
 
 # try current MAR code
@@ -43,13 +44,15 @@ module BitsProbCircuits
 
     struct SumEdge 
         parent_id::Int
-        child_id::Int
+        prime_id::Int
+        sub_id::Int # 0 means no sub
         logprob::Float32
     end
 
     struct MulEdge 
         parent_id::Int
-        child_id::Int
+        prime_id::Int
+        sub_id::Int # 0 means no sub
     end
 
     const BitsEdge = Union{SumEdge,MulEdge}
@@ -66,33 +69,77 @@ module BitsProbCircuits
         )
     end
 
+    ismaterialized_node(root, n) =
+        (n==root || !ismul(n) || num_children(n)!=2)
+
+    function label_nodes_custom(root)
+        labeling = Dict{ProbCircuit,Int}()
+        i = 0
+        f_inner(n, call) = begin 
+            foreach(call, children(n))
+            ismaterialized_node(root, n) ? (i += 1) : 0
+        end 
+        f_leaf(n) = (i += 1)
+        foldup(root, f_leaf, f_inner, Int, labeling)
+        labeling
+    end
+
+    function feedforward_layers_custom(root::DAG)
+        node2layer = Dict{DAG, Int}()
+        f_inner(n, call) = begin
+            cl = mapreduce(call, max, children(n))
+            ismaterialized_node(root, n) ? cl + 1 : cl
+        end
+        f_leaf(n) = 1
+        num_layers = foldup(root, f_leaf, f_inner, Int, node2layer)
+        node2layer, num_layers
+    end
+
     function BitsProbCircuit(pc)
-        node2label = label_nodes(pc)
-        node2layer, num_layers = feedforward_layers(pc)
-        bpc = BitsProbCircuit(num_nodes(pc), num_layers)
+        node2label = label_nodes_custom(pc)
+        node2layer, num_layers = feedforward_layers_custom(pc)
+        bpc = BitsProbCircuit(length(node2label), num_layers)
         foreach(pc) do node 
             pid = node2label[node]
-            if isleaf(node)
-                bnode = BitsLiteral(literal(node))
-            else
-                if issum(node)
-                    bnode = BitsInnerNode(true)
-                    for (c, logp) in zip(children(node), node.log_probs)
-                       layer = bpc.edge_layers[node2layer[c]]
-                       edge = SumEdge(pid, node2label[c], logp)
-                       push!(layer, edge) 
-                    end
+            if ismaterialized_node(pc, node)
+                if isleaf(node)
+                    bnode = BitsLiteral(literal(node))
                 else
-                    @assert ismul(node)
-                    bnode = BitsInnerNode(false)
-                    for c in children(node)
-                       layer = bpc.edge_layers[node2layer[c]]
-                       edge = MulEdge(pid, node2label[c])
-                       push!(layer, edge) 
+                    if issum(node)
+                        bnode = BitsInnerNode(true)
+                        for (c, logp) in zip(children(node), node.log_probs)
+                            if ismaterialized_node(pc, c)
+                                layerid = node2layer[c]
+                                edge = SumEdge(pid, node2label[c], 0, logp)
+                            else
+                                # skip c - do not materialize
+                                prime, sub = children(c)
+                                layerid = max(node2layer[prime], node2layer[sub])
+                                edge = SumEdge(pid, node2label[prime],node2label[sub], logp)
+                            end
+                            layer = bpc.edge_layers[layerid]
+                            push!(layer, edge) 
+                        end
+                    else
+                        @assert ismul(node)
+                        bnode = BitsInnerNode(false)
+                        for c in children(node)
+                            if ismaterialized_node(pc, c)
+                                layerid = node2layer[c]
+                                edge = MulEdge(pid, node2label[c], 0)
+                            else
+                                # skip c - do not materialize
+                                prime, sub = children(c)
+                                layerid = max(node2layer[prime], node2layer[sub])
+                                edge = MulEdge(pid, node2label[prime],node2label[sub])
+                            end
+                            layer = bpc.edge_layers[layerid]
+                            push!(layer, edge) 
+                        end
                     end
                 end
+                bpc.nodes[pid] = bnode
             end
-            bpc.nodes[pid] = bnode
         end
         bpc, node2label
     end
@@ -187,14 +234,20 @@ function logmulexp(matrix::Array, i, j, v)
 end
 
 function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
-    child_prob = mars[edge.child_id, example_id]
+    child_prob = mars[edge.prime_id, example_id]
+    if edge.sub_id > 0
+        child_prob += mars[edge.sub_id, example_id]
+    end
     edge_prob = child_prob + edge.logprob
     logincexp(mars, edge.parent_id, example_id, edge_prob)
     nothing
 end
 
 function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
-    child_prob = mars[edge.child_id, example_id]
+    child_prob = mars[edge.prime_id, example_id]
+    if edge.sub_id > 0
+        child_prob += mars[edge.sub_id, example_id]
+    end
     logmulexp(mars, edge.parent_id, example_id, child_prob)
     nothing
 end
@@ -253,3 +306,12 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
 
 nothing
+
+# julia> @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+#   96.654 ms (861377 allocations: 30.69 MiB)
+
+# julia> @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+#   2.567 s (0 allocations: 0 bytes)
+
+# julia> @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
+#   38.916 ms (3359 allocations: 206.20 KiB)
