@@ -87,6 +87,41 @@ end
 
 Base.read(io::IO, ::Type{PlainProbCircuit}, ::JpcFormat) =
     parse(PlainProbCircuit, read(io, String), JpcFormat())
+    
+# fast brittle read
+function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat = JpcFormat())
+    # would be better using `Parsers.jl` but that package lacks documentation`
+    nodes = PlainProbCircuit[]
+    for line in eachline(input)
+        if startswith(line, "c")
+            # do nothing
+        else
+            tokens = split(line, " ")
+            if startswith(line, "jpc")
+                num_nodes = Base.parse(Int,tokens[2])
+                nodes = Vector{PlainProbCircuit}(undef,num_nodes)
+            else
+                id = Base.parse(Int,tokens[2]) + 1
+                if startswith(line, "L")
+                    lit = Base.parse(Lit,tokens[4])
+                    nodes[id] = PlainProbLiteralNode(lit)
+                elseif startswith(line, "P")
+                    child_ids = Base.parse.(Int, tokens[5:end]) .+ 1
+                    children = nodes[child_ids]
+                    nodes[id] = PlainMulNode(children)
+                elseif startswith(line, "S")
+                    child_ids = Base.parse.(Int, tokens[5:2:end]) .+ 1
+                    children = nodes[child_ids]
+                    log_probs = Base.parse.(Float64, tokens[6:2:end])
+                    nodes[id] = PlainSumNode(children, log_probs)
+                else
+                    error("Cannot parse line: $line")
+                end
+            end
+        end
+    end
+    nodes[end]
+end
 
 #  parse structured
 struct StructJpcParse <: JpcParse
@@ -145,7 +180,7 @@ c file syntax:
 c jpc count-of-jpc-nodes
 c L id-of-literal-jpc-node id-of-vtree literal
 c P id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
-c S id-of-product-jpc-node id-of-vtree number-of-children {child-id}+ {log-probability}+
+c S id-of-product-jpc-node id-of-vtree number-of-children {child-id log-probability}+
 c"""
 
 function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function = (x -> 0))
