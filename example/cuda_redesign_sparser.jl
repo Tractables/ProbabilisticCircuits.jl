@@ -2,12 +2,13 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools
 CUDA.allowscalar(false)
 
-# pc_file = "meihua_hclt.jpc"
+pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
-pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
+# pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
 
-pc = read(pc_file, ProbCircuit)
+# @time pc = read(pc_file, ProbCircuit)
+@time pc = ProbabilisticCircuits.read_fast(pc_file)
 num_nodes(pc), num_edges(pc)
 node_stats(pc)
 
@@ -18,7 +19,7 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batchsize = 512
+batchsize = 256
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
@@ -70,13 +71,25 @@ module BitsProbCircuits
         )
     end
 
+    nondupplicate(root, n) = if isduplicatenode(root, n) 
+            nondupplicate(root, children(n)[1]) 
+        else 
+            n 
+        end
+
     isduplicatenode(root, n) = begin
-       num_children(n)==1 && ismaterializednode(root, children(n)[1])
+       (n !== root) && num_children(n)==1 && ismaterializednode(root, nondupplicate(root, children(n)[1]) )
     end
 
     ismaterializednode(root, n) = begin
-        n==root && return true # always materialize the root
-        ismul(n) && num_children(n)==2 && return false # do not materialize "elements"
+        n===root && return true # always materialize the root
+        if (ismul(n) && num_children(n)==2) 
+            ndc = nondupplicate(root, children(n)[1])
+            !ismaterializednode(root, ndc) && error("Wanted to not materialize $n but its first non-duplicate child is $(ndc) which is not materialized")
+            ndc = nondupplicate(root, children(n)[2])
+            !ismaterializednode(root, ndc) && error("Wanted to not materialize $n but its second non-duplicate child is $(ndc) which is not materialized")
+            return false # do not materialize "elements"
+        end
         isduplicatenode(root, n) && return false # do not materialize duplicate pass-through nodes
         return true
     end
@@ -114,6 +127,7 @@ module BitsProbCircuits
     function BitsProbCircuit(pc)
         node2label, num_materialized_nodes = label_nodes_custom(pc)
         node2layer, num_layers = feedforward_layers_custom(pc)
+        @show num_materialized_nodes num_layers
         bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
         foreach(pc) do node 
             pid = node2label[node]
@@ -323,3 +337,5 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
 
 nothing
+
+# 37.938 ms (1091 allocations: 64.64 KiB)

@@ -98,6 +98,8 @@ module BitsProbCircuits
     function BitsProbCircuit(pc)
         node2label, num_materialized_nodes = label_nodes_custom(pc)
         node2layer, num_layers = feedforward_layers_custom(pc)
+        @show num_materialized_nodes
+        @show num_layers
         bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
         foreach(pc) do node 
             pid = node2label[node]
