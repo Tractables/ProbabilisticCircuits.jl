@@ -206,7 +206,6 @@ module BitsProbCircuits
 
 end
 
-
 function bit_node_stats(nodes::AbstractVector)
     groups = DirectedAcyclicGraphs.groupby(nodes) do n
         if n isa BitsProbCircuits.SumEdge
@@ -222,6 +221,15 @@ end
 bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
     bit_node_stats(reduce(vcat, bpc.edge_layers))
 
+# keep this here because slow
+@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
+@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+    
+# for i = 1:BitsProbCircuits.num_edge_layers(bpc)
+#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
+# end
+bit_node_stats(bpc)
+BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
 
 # custom MAR initialization kernels
 init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) = 
@@ -323,25 +331,24 @@ function eval_layer!(mars::Array, bpc, layer_id)
 end
 
 function eval_layer!_kernel(mars, layer)
-    x_work = ceil(Int, length(layer) / (blockDim().x * gridDim().x))
-    x_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * x_work + 1
-    # x_end = min(x_start + x_work - 1, length(layer))
+    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
+    edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
+    edge_end = min(edge_start + edge_work - 1, length(layer))
 
-    y_work = ceil(Int, size(mars,2) / (blockDim().y * gridDim().y))
-    y_start = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) * y_work + 1
+    ex_id = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) + 1
     # y_end = min(y_start + y_work - 1, size(mars,2))
 
     # if (blockIdx().x - 1) * blockDim().x + threadIdx().x == 42
     #     CUDA.@cushow x_work, y_work
     # end
 
-    if y_start <= size(mars,2)
+    if ex_id <= size(mars,2)
 
-        if x_start <= length(layer)
-        # for edge_id = x_start:x_end
-            eval_edge!(mars, layer[x_start], y_start)
-        # end
+        # if x_start <= length(layer)
+        for edge_id = edge_start:edge_end
+            eval_edge!(mars, layer[edge_id], ex_id)
         end
+        # end
     end
     nothing
 end
@@ -350,31 +357,60 @@ function balance_threads(num_nodes, num_examples, config; block_multiplier)
     # prefer to assign threads to examples, they do not require memory synchronization
     ex_threads = min(config.threads, num_examples)
     # make sure each thread deals with at most one example
-    ex_blocks = ceil(Int, num_examples / ex_threads)
+    ex_blocks = cld(num_examples, ex_threads)
     node_threads = config.threads ÷ ex_threads
-    node_blocks = ceil(Int, min(block_multiplier * config.blocks / ex_blocks, num_nodes / node_threads))
+    node_blocks = min(cld(block_multiplier * config.blocks, ex_blocks), cld(num_nodes, node_threads))
     ((node_threads, ex_threads), (node_blocks, ex_blocks))
 end
 
-function eval_layer!(mars, bpc, layer_id; block_multiplier)
+function eval_layer!(mars, bpc, layer_id; block_multiplier, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    # @show config
+    debug && @show config
     threads, blocks = balance_threads(length(layer), size(mars,2), config; block_multiplier)
-    # @show threads, blocks
+    debug && @show threads, blocks
+    debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
     kernel(mars, layer; threads, blocks)
     nothing
 end
 
 # run entire circuit
-function eval_circuit!(mars, bpc, data, example_ids; block_multiplier)
+function eval_circuit!(mars, bpc, data, example_ids; block_multiplier, debug=false)
     init_mar!(mars, bpc, data, example_ids)
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
-        eval_layer!(mars, bpc, i; block_multiplier)
+        eval_layer!(mars, bpc, i; block_multiplier, debug)
     end
     nothing
 end
+
+####################################################
+# benchmark node marginals for minibatch
+####################################################
+
+# allocate memory for MAR
+mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
+cu_mars = cu(mars);
+
+# initialize node marginals
+# @time init_mar!(mars, bpc, data, batch_i);
+CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+
+# run 1 layer
+# @time eval_layer!(mars, bpc, 1);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1000, debug=true);
+
+# run all layers
+# @time eval_circuit!(mars, bpc, data, batch_i);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000, debug=true);
+
+@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
+
+####################################################
+# benchmark marginal likelihood give data set
+####################################################
 
 function marginal2(bpc::BitsProbCircuits.BitsProbCircuit, data::CuArray; cu_mars = nothing, batch_size)
     num_examples = size(data)[2]
@@ -405,44 +441,6 @@ function marginal2(bpc::BitsProbCircuits.BitsProbCircuit, data::CuArray; cu_mars
     end
     return cu_ans
 end
-
-
-@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
-@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
-    
-# for i = 1:BitsProbCircuits.num_edge_layers(bpc)
-#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
-# end
-bit_node_stats(bpc)
-BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
-
-# allocate memory for MAR
-mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
-cu_mars = cu(mars);
-
-####################################################
-# benchmark node marginals for minibatch
-####################################################
-
-# initialize node marginals
-# @time init_mar!(mars, bpc, data, batch_i);
-CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-
-# run 1 layer
-# @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1000);
-
-# run all layers
-# @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000);
-
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
-
-####################################################
-# benchmark marginal likelihood give data set
-####################################################
 
 # new gpu w/ preallocated cu_mars
 cu_mars2 = cu(Matrix{Float32}(undef, length(bpc.nodes), batchsize));
