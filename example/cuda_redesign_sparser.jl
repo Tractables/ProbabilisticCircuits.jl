@@ -1,5 +1,5 @@
 using Pkg; Pkg.activate(@__DIR__)
-using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools
+using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
 pc_file = "meihua_hclt.jpc"
@@ -25,9 +25,9 @@ cu_batch_i = CuVector(1:batchsize);
 batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
 
 # try current MAR code
-pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-CUDA.@time reuse = marginal_all(pbc, batch_df);
-CUDA.@time marginal_all(pbc, batch_df, reuse);
+# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+# CUDA.@time reuse = marginal_all(pbc, batch_df);
+# CUDA.@time marginal_all(pbc, batch_df, reuse);
 
 # custom bits circuit
 
@@ -46,9 +46,13 @@ module BitsProbCircuits
 
     struct SumEdge 
         parent_id::Int
-        prime_id::Int
-        sub_id::Int # 0 means no sub
-        logprob::Float32
+        prime_id_1::Int
+        sub_id_1::Int # 0 means no sub
+        logprob_1::Float32
+        prime_id_2::Int # 0 means no second prime
+        sub_id_2::Int # 0 means no second sub
+        logprob_2::Float32
+        sync::Bool
     end
 
     struct MulEdge 
@@ -124,6 +128,17 @@ module BitsProbCircuits
         node2layer, num_layers
     end
 
+    function ids_and_layer(pc, c, node2label, node2layer)
+        if ismaterializednode(pc, c)
+            node2label[c], 0, node2layer[c]
+        else
+            prime, sub = children(c)
+            layerid = max(node2layer[prime], node2layer[sub])
+            node2label[prime], node2label[sub], layerid
+        end
+    end
+
+
     function BitsProbCircuit(pc)
         node2label, num_materialized_nodes = label_nodes_custom(pc)
         node2layer, num_layers = feedforward_layers_custom(pc)
@@ -135,34 +150,30 @@ module BitsProbCircuits
                 if isleaf(node)
                     bnode = BitsLiteral(literal(node))
                 else
+                    child_nodes = children(node)
                     if issum(node)
                         bnode = BitsInnerNode(true)
-                        for (c, logp) in zip(children(node), node.log_probs)
-                            if ismaterializednode(pc, c)
-                                layerid = node2layer[c]
-                                edge = SumEdge(pid, node2label[c], 0, logp)
+                        sync = (length(child_nodes) > 2)
+                        for i = 1:2:length(child_nodes)
+                            logp_1 = node.log_probs[i]
+                            primeid_1, subid_1, layerid_1 = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
+                            if i == length(child_nodes)
+                                logp_2 = 0.0                           
+                                primeid_2 = subid_2 = layerid_2 = 0     
                             else
-                                # skip c - do not materialize
-                                prime, sub = children(c)
-                                layerid = max(node2layer[prime], node2layer[sub])
-                                edge = SumEdge(pid, node2label[prime],node2label[sub], logp)
+                                logp_2 = node.log_probs[i+1]
+                                primeid_2, subid_2, layerid_2 = ids_and_layer(pc, child_nodes[i+1], node2label, node2layer)
                             end
-                            layer = bpc.edge_layers[layerid]
-                            push!(layer, edge) 
+                            edge = SumEdge(pid, primeid_1, subid_1, logp_1, primeid_2, subid_2, logp_2, sync)
+                            layer = bpc.edge_layers[max(layerid_1, layerid_2)]
+                            push!(layer, edge)
                         end
                     else
                         @assert ismul(node)
                         bnode = BitsInnerNode(false)
-                        for c in children(node)
-                            if ismaterializednode(pc, c)
-                                layerid = node2layer[c]
-                                edge = MulEdge(pid, node2label[c], 0)
-                            else
-                                # skip c - do not materialize
-                                prime, sub = children(c)
-                                layerid = max(node2layer[prime], node2layer[sub])
-                                edge = MulEdge(pid, node2label[prime],node2label[sub])
-                            end
+                        for c in child_nodes
+                            primeid, subid, layerid = ids_and_layer(pc, c, node2label, node2layer)
+                            edge = MulEdge(pid, primeid, subid)
                             layer = bpc.edge_layers[layerid]
                             push!(layer, edge) 
                         end
@@ -194,6 +205,23 @@ end
 
 @time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+
+function bit_node_stats(nodes::AbstractVector)
+    groups = DirectedAcyclicGraphs.groupby(nodes) do n
+        if n isa BitsProbCircuits.SumEdge
+            "Sum-$((n.prime_id_1 > 0) + (n.sub_id_1 > 0))-$((n.prime_id_2 > 0) + (n.sub_id_2 > 0))-$(n.sync)"
+        else
+            @assert n isa BitsProbCircuits.MulEdge
+            "Mul-$((n.prime_id > 0) + (n.sub_id > 0))"
+        end
+    end
+    DirectedAcyclicGraphs.map_values(v -> length(v), groups, Int)
+end
+
+bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
+    bit_node_stats(reduce(vcat, bpc.edge_layers))
+
+bit_node_stats(bpc)
 
 for i = 1:BitsProbCircuits.num_edge_layers(bpc)
     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
@@ -242,12 +270,16 @@ function logsumexp(x::Float32,y::Float32)::Float32
     end 
 end
 
-function logincexp(matrix::CuDeviceArray, i, j, v)
-    CUDA.@atomic matrix[i,j] = logsumexp(matrix[i,j], v)
+function logincexp(matrix::CuDeviceArray, i, j, v, sync)
+    if sync
+        CUDA.@atomic matrix[i,j] = logsumexp(matrix[i,j], v)
+    else
+        matrix[i,j] = logsumexp(matrix[i,j], v)
+    end
     nothing
 end
 
-function logincexp(matrix::Array, i, j, v)
+function logincexp(matrix::Array, i, j, v, sync)
     # should also be atomic for CPU multiprocessing?
     matrix[i,j] = logsumexp(matrix[i,j], v)
     nothing
@@ -265,12 +297,23 @@ function logmulexp(matrix::Array, i, j, v)
 end
 
 function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
-    child_prob = mars[edge.prime_id, example_id]
-    if edge.sub_id > 0
-        child_prob += mars[edge.sub_id, example_id]
+    # first child
+    child_prob_1 = mars[edge.prime_id_1, example_id]
+    if edge.sub_id_1 > 0
+        child_prob_1 += mars[edge.sub_id_1, example_id]
     end
-    edge_prob = child_prob + edge.logprob
-    logincexp(mars, edge.parent_id, example_id, edge_prob)
+    edge_prob = child_prob_1 + edge.logprob_1
+    # second child
+    if edge.prime_id_2 > 0
+        child_prob_2 = mars[edge.prime_id_2, example_id]
+        if edge.sub_id_2 > 0
+            child_prob_2 += mars[edge.sub_id_2, example_id]
+        end
+        edge_prob_2 = child_prob_2 + edge.logprob_2
+        edge_prob = logsumexp(edge_prob, edge_prob_2)
+    end
+    # increment node value
+    logincexp(mars, edge.parent_id, example_id, edge_prob, edge.sync)
     nothing
 end
 
@@ -292,29 +335,6 @@ function eval_layer!(mars::Array, bpc, layer_id)
     nothing
 end
 
-# using CUDA
-
-# function f(x)
-#     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-#     stride_x = blockDim().x * gridDim().x
-
-#     work_per_thread = length(x) ÷ stride_x
-#     if work_per_thread * stride_x < length(x)
-#         work_per_thread += 1
-#     end
-#     i_start = (index_x-1) * work_per_thread + 1
-#     i_end = min(i_start +  work_per_thread - 1, length(x))
-        
-#     for i = i_start:i_end
-#         x[i] = index_x
-#     end
-#     nothing
-# end
-
-# x = CUDA.zeros(13);
-# @cuda threads=4 blocks=2 f(x)
-# x'
-
 function eval_layer!_kernel(mars, layer)
     x_work = ceil(Int, length(layer) / (blockDim().x * gridDim().x))
     x_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * x_work + 1
@@ -325,9 +345,10 @@ function eval_layer!_kernel(mars, layer)
     y_end = min(y_start + y_work - 1, size(mars,2))
 
     for edge_id = x_start:x_end
-        for example_id = y_start:y_end
-            eval_edge!(mars, layer[edge_id], example_id)
-        end
+        # for example_id = y_start:y_end
+            example_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+            eval_edge!(mars, layer[edge_id], y_start)
+        # end
     end
     nothing
 end
