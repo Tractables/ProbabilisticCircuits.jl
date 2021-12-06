@@ -292,32 +292,71 @@ function eval_layer!(mars::Array, bpc, layer_id)
     nothing
 end
 
+# using CUDA
+
+# function f(x)
+#     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+#     stride_x = blockDim().x * gridDim().x
+
+#     work_per_thread = length(x) ÷ stride_x
+#     if work_per_thread * stride_x < length(x)
+#         work_per_thread += 1
+#     end
+#     i_start = (index_x-1) * work_per_thread + 1
+#     i_end = min(i_start +  work_per_thread - 1, length(x))
+        
+#     for i = i_start:i_end
+#         x[i] = index_x
+#     end
+#     nothing
+# end
+
+# x = CUDA.zeros(13);
+# @cuda threads=4 blocks=2 f(x)
+# x'
+
 function eval_layer!_kernel(mars, layer)
     index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     stride_x = blockDim().x * gridDim().x
     stride_y = blockDim().y * gridDim().y
-    for example_id = index_x:stride_x:size(mars,2)
-        for edge_id = index_y:stride_y:length(layer)
+
+    work_per_thread = length(layer) ÷ stride_x
+    if work_per_thread * stride_x < length(layer)
+        work_per_thread += 1
+    end
+    i_start = (index_x-1) * work_per_thread + 1
+    i_end = min(i_start +  work_per_thread - 1, length(layer))
+
+    for example_id = index_y:stride_y:size(mars,2)
+        for edge_id = i_start:i_end
             eval_edge!(mars, layer[edge_id], example_id)
         end
     end
     nothing
 end
 
+function balance_threads(num_nodes, num_examples, total_threads_per_block)
+    ex_threads = min(total_threads_per_block, num_examples)
+    ex_blocks = ceil(Int, num_examples / ex_threads)
+    node_threads = total_threads_per_block ÷ ex_threads
+    node_blocks = ceil(Int, num_nodes / node_threads)
+    ((node_threads, ex_threads), (node_blocks, ex_blocks))
+end
+
 function eval_layer!(mars, bpc, layer_id)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    # @show config
-    threads, blocks = LogicCircuits.balance_threads_2d(size(mars,2), length(layer), config.threads)
-    # @show threads, blocks
+    @show config
+    threads, blocks = balance_threads(length(layer), size(mars,2), config.threads)
+    @show threads, blocks
     kernel(mars, layer; threads, blocks)
     nothing
 end
 
 # run 1 layer
-@time eval_layer!(mars, bpc, 1);
+# @time eval_layer!(mars, bpc, 1);
 CUDA.@time eval_layer!(cu_mars, cu_bpc, 1);
 
 # run entire circuit
@@ -329,13 +368,12 @@ function eval_circuit!(mars, bpc, data, example_ids)
     nothing
 end
 
-@time eval_circuit!(mars, bpc, data, batch_i);
+# @time eval_circuit!(mars, bpc, data, batch_i);
 CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
-@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-@btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
 
 nothing
 
-# 37.938 ms (1091 allocations: 64.64 KiB)
