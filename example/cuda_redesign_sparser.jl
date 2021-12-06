@@ -2,10 +2,13 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-pc_file = "meihua_hclt.jpc"
+# cd(@__DIR__)
+# device!(collect(devices())[2])
+
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-# pc_file = "mnist_hclt_cat16.jpc"
+pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
 @time pc = ProbabilisticCircuits.read_fast(pc_file)
@@ -19,7 +22,7 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batchsize = 256
+batchsize = 1024
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
@@ -254,10 +257,6 @@ function init_mar!(mars, bpc, data, example_ids)
     end
 end
 
-# initialize node marginals
-@time init_mar!(mars, bpc, data, batch_i);
-CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
         y
@@ -372,10 +371,6 @@ function eval_layer!(mars, bpc, layer_id)
     nothing
 end
 
-# run 1 layer
-# @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1);
-
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids)
     init_mar!(mars, bpc, data, example_ids)
@@ -385,7 +380,62 @@ function eval_circuit!(mars, bpc, data, example_ids)
     nothing
 end
 
-# @time eval_circuit!(mars, bpc, data, batch_i);
+function marginal2(bpc::BitsProbCircuits.BitsProbCircuit, data::CuArray; cu_mars = nothing, batch_size = 1024)
+    num_examples = size(data)[2]
+    cu_ans = CuArray{Float32}(undef, num_examples)
+    
+    cu_bpc = BitsProbCircuits.CuProbCircuit(bpc); # Around 0.002252 seconds for mnist_hclt_cat16
+    if isnothing(cu_mars) || size(cu_mars)[2] != batch_size
+        cu_mars = cu(Matrix{Float32}(undef, length(bpc.nodes), batch_size)); # around 0.12 seconds for 4096 bach_size
+    end
+
+    for b_ind = 1 : ceil(Int32, num_examples / batch_size)
+        batch_start = (b_ind-1) * batch_size + 1
+        batch_end   = min(batch_start + batch_size - 1, num_examples)
+        
+        cu_batch_i = CuArray(batch_start:batch_end)
+        if batch_end == num_examples && (batch_end - batch_start + 1 != batch_size)
+            # Last batch smaller size
+            cur_batch_size = batch_end - batch_start + 1
+            init_mar!(cu_mars[:, 1:cur_batch_size], cu_bpc, cu_data, cu_batch_i);
+            eval_circuit!(cu_mars[:, 1:cur_batch_size], cu_bpc, cu_data, cu_batch_i);
+            cu_ans[cu_batch_i] .= cu_mars[end, 1:cur_batch_size]
+        else
+            init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+            eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+            cu_ans[cu_batch_i] .= cu_mars[end, :]
+        end        
+        
+    end
+    return cu_mars, cu_ans
+end
+
+###################################################################################################################
+###################################################################################################################
+###################################################################################################################
+###################################################################################################################
+
+@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
+@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+
+for i = 1:BitsProbCircuits.num_edge_layers(bpc)
+    println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
+end
+BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
+
+# allocate memory for MAR
+mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
+cu_mars = cu(mars);
+
+# initialize node marginals
+@time init_mar!(mars, bpc, data, batch_i);
+CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+
+# run 1 layer
+@time eval_layer!(mars, bpc, 1);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1);
+
+@time eval_circuit!(mars, bpc, data, batch_i);
 CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
 # @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
@@ -394,3 +444,17 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
 nothing
 
+
+# 37.938 ms (1091 allocations: 64.64 KiB)
+
+# data = Array{Union{Bool,Missing}}(replace(rand(0:2, num_variables(pc), 60000), 2 => missing));
+# data[1:100, :] .= missing;
+# cu_data = to_gpu(data);
+
+# bsize = 2048;
+# CUDA.@time cu_mars, cu_ans1 = marginal2(bpc, cu_data; batch_size=bsize);
+# CUDA.@time cu_mars, cu_ans2 = marginal2(bpc, cu_data; cu_mars, batch_size=bsize);
+
+# # old gpu batched
+# data_df_batched = to_gpu(batch(DataFrame(transpose(data), :auto), bsize));
+# CUDA.@time marginal_log_likelihood_avg(pbc, data_df_batched);
