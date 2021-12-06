@@ -2,6 +2,9 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
+# cd(@__DIR__)
+# device!(collect(devices())[2])
+
 pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
@@ -203,8 +206,6 @@ module BitsProbCircuits
 
 end
 
-@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
-@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
 function bit_node_stats(nodes::AbstractVector)
     groups = DirectedAcyclicGraphs.groupby(nodes) do n
@@ -221,16 +222,6 @@ end
 bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
     bit_node_stats(reduce(vcat, bpc.edge_layers))
 
-
-# for i = 1:BitsProbCircuits.num_edge_layers(bpc)
-#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
-# end
-bit_node_stats(bpc)
-BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
-
-# allocate memory for MAR
-mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
-cu_mars = cu(mars);
 
 # custom MAR initialization kernels
 init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) = 
@@ -407,6 +398,20 @@ function marginal2(bpc::BitsProbCircuits.BitsProbCircuit, data::CuArray; cu_mars
     return cu_ans
 end
 
+
+@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
+@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+    
+# for i = 1:BitsProbCircuits.num_edge_layers(bpc)
+#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
+# end
+bit_node_stats(bpc)
+BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
+
+# allocate memory for MAR
+mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
+cu_mars = cu(mars);
+
 ####################################################
 # benchmark node marginals for minibatch
 ####################################################
@@ -438,3 +443,5 @@ cu_mars2 = cu(Matrix{Float32}(undef, length(bpc.nodes), batchsize));
 # old gpu batched
 data_df_batched = to_gpu(batch(DataFrame(transpose(data), :auto), batchsize));
 @btime CUDA.@sync marginal_log_likelihood_avg(pbc, data_df_batched);
+
+nothing
