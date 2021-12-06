@@ -316,20 +316,16 @@ end
 # x'
 
 function eval_layer!_kernel(mars, layer)
-    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-    stride_x = blockDim().x * gridDim().x
-    stride_y = blockDim().y * gridDim().y
+    x_work = ceil(Int, length(layer) / (blockDim().x * gridDim().x))
+    x_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * x_work + 1
+    x_end = min(x_start + x_work - 1, length(layer))
 
-    work_per_thread = length(layer) ÷ stride_x
-    if work_per_thread * stride_x < length(layer)
-        work_per_thread += 1
-    end
-    i_start = (index_x-1) * work_per_thread + 1
-    i_end = min(i_start +  work_per_thread - 1, length(layer))
+    y_work = ceil(Int, size(mars,2) / (blockDim().y * gridDim().y))
+    y_start = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) * y_work + 1
+    y_end = min(y_start + y_work - 1, size(mars,2))
 
-    for example_id = index_y:stride_y:size(mars,2)
-        for edge_id = i_start:i_end
+    for edge_id = x_start:x_end
+        for example_id = y_start:y_end
             eval_edge!(mars, layer[edge_id], example_id)
         end
     end
@@ -348,9 +344,9 @@ function eval_layer!(mars, bpc, layer_id)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    @show config
+    # @show config
     threads, blocks = balance_threads(length(layer), size(mars,2), config.threads)
-    @show threads, blocks
+    # @show threads, blocks
     kernel(mars, layer; threads, blocks)
     nothing
 end
