@@ -2,13 +2,10 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-# cd(@__DIR__)
-# device!(collect(devices())[2])
-
-# pc_file = "meihua_hclt.jpc"
+pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-pc_file = "mnist_hclt_cat16.jpc"
+# pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
 @time pc = ProbabilisticCircuits.read_fast(pc_file)
@@ -22,11 +19,7 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-<<<<<<< HEAD
-batchsize = 1024
-=======
 batchsize = 512
->>>>>>> 3cff079 (cleanup)
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 
@@ -53,19 +46,19 @@ module BitsProbCircuits
 
     struct SumEdge 
         parent_id::Int
-        prime_id_1::Int
-        sub_id_1::Int # 0 means no sub
-        logprob_1::Float32
-        prime_id_2::Int # 0 means no second prime
-        sub_id_2::Int # 0 means no second sub
-        logprob_2::Float32
-        sync::Bool
+        prime_id::Int
+        sub_id::Int # 0 means no sub
+        logp::Float32
+        first::Bool
+        last::Bool
     end
 
     struct MulEdge 
         parent_id::Int
         prime_id::Int
         sub_id::Int # 0 means no sub
+        first::Bool
+        last::Bool
     end
 
     const BitsEdge = Union{SumEdge,MulEdge}
@@ -160,27 +153,23 @@ module BitsProbCircuits
                     child_nodes = children(node)
                     if issum(node)
                         bnode = BitsInnerNode(true)
-                        sync = (length(child_nodes) > 2)
-                        for i = 1:2:length(child_nodes)
-                            logp_1 = node.log_probs[i]
-                            primeid_1, subid_1, layerid_1 = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
-                            if i == length(child_nodes)
-                                logp_2 = 0.0                           
-                                primeid_2 = subid_2 = layerid_2 = 0     
-                            else
-                                logp_2 = node.log_probs[i+1]
-                                primeid_2, subid_2, layerid_2 = ids_and_layer(pc, child_nodes[i+1], node2label, node2layer)
-                            end
-                            edge = SumEdge(pid, primeid_1, subid_1, logp_1, primeid_2, subid_2, logp_2, sync)
-                            layer = bpc.edge_layers[max(layerid_1, layerid_2)]
+                        for i = 1:length(child_nodes)
+                            logp = node.log_probs[i]
+                            primeid, subid, layerid = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
+                            first = (i==1)
+                            last = (i==length(child_nodes))
+                            edge = SumEdge(pid, primeid, subid, logp, first, last)
+                            layer = bpc.edge_layers[layerid]
                             push!(layer, edge)
                         end
                     else
                         @assert ismul(node)
                         bnode = BitsInnerNode(false)
-                        for c in child_nodes
-                            primeid, subid, layerid = ids_and_layer(pc, c, node2label, node2layer)
-                            edge = MulEdge(pid, primeid, subid)
+                        for i = 1:length(child_nodes)
+                            primeid, subid, layerid = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
+                            first = (i==1)
+                            last = (i==length(child_nodes))
+                            edge = MulEdge(pid, primeid, subid, first, last)
                             layer = bpc.edge_layers[layerid]
                             push!(layer, edge) 
                         end
@@ -216,10 +205,10 @@ end
 function bit_node_stats(nodes::AbstractVector)
     groups = DirectedAcyclicGraphs.groupby(nodes) do n
         if n isa BitsProbCircuits.SumEdge
-            "Sum-$((n.prime_id_1 > 0) + (n.sub_id_1 > 0))-$((n.prime_id_2 > 0) + (n.sub_id_2 > 0))-$(n.sync)"
+            "Sum-$((n.prime_id > 0) + (n.sub_id > 0))-$(n.first)-$(n.last)"
         else
             @assert n isa BitsProbCircuits.MulEdge
-            "Mul-$((n.prime_id > 0) + (n.sub_id > 0))"
+            "Mul-$((n.prime_id > 0) + (n.sub_id > 0))-$(n.first)-$(n.last)"
         end
     end
     DirectedAcyclicGraphs.map_values(v -> length(v), groups, Int)
@@ -299,27 +288,6 @@ function logmulexp(matrix::Array, i, j, v)
     nothing
 end
 
-function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
-    # first child
-    child_prob_1 = mars[edge.prime_id_1, example_id]
-    if edge.sub_id_1 > 0
-        child_prob_1 += mars[edge.sub_id_1, example_id]
-    end
-    edge_prob = child_prob_1 + edge.logprob_1
-    # second child
-    if edge.prime_id_2 > 0
-        child_prob_2 = mars[edge.prime_id_2, example_id]
-        if edge.sub_id_2 > 0
-            child_prob_2 += mars[edge.sub_id_2, example_id]
-        end
-        edge_prob_2 = child_prob_2 + edge.logprob_2
-        edge_prob = logsumexp(edge_prob, edge_prob_2)
-    end
-    # increment node value
-    logincexp(mars, edge.parent_id, example_id, edge_prob, edge.sync)
-    nothing
-end
-
 function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     child_prob = mars[edge.prime_id, example_id]
     if edge.sub_id > 0
@@ -329,65 +297,60 @@ function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     nothing
 end
 
-function eval_layer!(mars::Array, bpc, layer_id)
-    for edge in bpc.edge_layers[layer_id]
-        for example_id in 1:size(mars,2)
-            eval_edge!(mars, edge, example_id)
-        end
-    end
-    nothing
-end
-
 function eval_layer!_kernel(mars, layer)
     x_work = ceil(Int, length(layer) / (blockDim().x * gridDim().x))
     x_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * x_work + 1
-    # x_end = min(x_start + x_work - 1, length(layer))
+    x_end = min(x_start + x_work - 1, length(layer))
 
     y_work = ceil(Int, size(mars,2) / (blockDim().y * gridDim().y))
     y_start = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) * y_work + 1
-    # y_end = min(y_start + y_work - 1, size(mars,2))
+    y_end = min(y_start + y_work - 1, size(mars,2))
 
-    # if (blockIdx().x - 1) * blockDim().x + threadIdx().x == 42
-    #     CUDA.@cushow x_work, y_work
-    # end
+    for example_id = y_start:y_end
+        acc = zero(Float32)
+        for edge_id = x_start:x_end
+            eval_edge!(mars, layer[edge_id], y_start)
 
-    if y_start <= size(mars,2)
-
-        if x_start <= length(layer)
-        # for edge_id = x_start:x_end
-            eval_edge!(mars, layer[x_start], y_start)
-        # end
+              # first child
+            child_prob_1 = mars[edge.prime_id_1, example_id]
+            if edge.sub_id_1 > 0
+                child_prob_1 += mars[edge.sub_id_1, example_id]
+            end
+            edge_prob = child_prob_1 + edge.logprob_1
+            # increment node value
+            logincexp(mars, edge.parent_id, example_id, edge_prob, edge.sync)
+            nothing
+            
         end
     end
     nothing
 end
 
-function balance_threads(num_nodes, num_examples, config; block_multiplier)
-    # prefer to assign threads to examples, they do not require memory synchronization
-    ex_threads = min(config.threads, num_examples)
-    # make sure each thread deals with at most one example
+function balance_threads(num_nodes, num_examples, total_threads_per_block)
+    ex_threads = min(total_threads_per_block, num_examples)
     ex_blocks = ceil(Int, num_examples / ex_threads)
-    node_threads = config.threads ÷ ex_threads
-    node_blocks = ceil(Int, min(block_multiplier * config.blocks / ex_blocks, num_nodes / node_threads))
+    node_threads = total_threads_per_block ÷ ex_threads
+    node_blocks = ceil(Int, num_nodes / node_threads)
+    # TODO use fewer blocks, more compute local to each thread?
     ((node_threads, ex_threads), (node_blocks, ex_blocks))
 end
 
-function eval_layer!(mars, bpc, layer_id; block_multiplier)
+function eval_layer!(mars, bpc, layer_id)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
     # @show config
-    threads, blocks = balance_threads(length(layer), size(mars,2), config; block_multiplier)
+    threads, blocks = balance_threads(length(layer), size(mars,2), config.threads)
     # @show threads, blocks
     kernel(mars, layer; threads, blocks)
     nothing
 end
 
 # run entire circuit
-function eval_circuit!(mars, bpc, data, example_ids; block_multiplier)
+function eval_circuit!(mars, bpc, data, example_ids)
     init_mar!(mars, bpc, data, example_ids)
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
-        eval_layer!(mars, bpc, i; block_multiplier)
+        eval_layer!(mars, bpc, i)
     end
     nothing
 end
@@ -432,15 +395,15 @@ CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1000);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1);
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
 
 ####################################################
 # benchmark marginal likelihood give data set
