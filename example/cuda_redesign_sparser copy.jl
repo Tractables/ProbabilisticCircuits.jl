@@ -2,10 +2,13 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-pc_file = "meihua_hclt.jpc"
+# cd(@__DIR__)
+# device!(collect(devices())[2])
+
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-# pc_file = "mnist_hclt_cat16.jpc"
+pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
 @time pc = ProbabilisticCircuits.read_fast(pc_file)
@@ -19,7 +22,7 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batchsize = 256
+batchsize = 1024
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
@@ -203,6 +206,7 @@ module BitsProbCircuits
 
 end
 
+<<<<<<< HEAD
 @time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
@@ -232,6 +236,8 @@ BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
 mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
 cu_mars = cu(mars);
 
+=======
+>>>>>>> a91fce280fc4868ea64fd33773311319e7862790
 # custom MAR initialization kernels
 init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) = 
     node.issum ? -Inf32 : zero(Float32)
