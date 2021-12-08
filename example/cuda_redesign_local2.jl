@@ -272,53 +272,55 @@ function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     child_prob
 end
 
-isfirst(x) = (x <= 1)
-islast(x) = (x == 0) || (x == 3)
+@inline isfirst(x) = (x <= 1)
+@inline islast(x) = (x == 0) || (x == 3)
 
 function eval_layer!_kernel(mars, layer)
     edge_work = cld(length(layer), (blockDim().x * gridDim().x))
     edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
     edge_end = min(edge_start + edge_work - 1, length(layer))
 
-    ex_id = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) + 1
+    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
     if ex_id <= size(mars,2)
-        acc = Float32(42)    
+        acc = zero(Float32)    
         local_node = false
         for edge_id = edge_start:edge_end
-
             edge = layer[edge_id]
 
             if isfirst(edge.first_or_last)
                 local_node = true
             end
 
+            # compute probability coming from child
             child_prob = mars[edge.prime_id, ex_id]
-            if edge.sub_id > 0
+            if edge.sub_id != 0
                 child_prob += mars[edge.sub_id, ex_id]
             end
-            if (edge isa BitsProbCircuits.SumEdge)
+            if edge isa BitsProbCircuits.SumEdge
                 child_prob += edge.logp
             end
 
+            # accumulate probability from child
             if isfirst(edge.first_or_last) || (edge_id == edge_start)  
                 acc = child_prob
-            elseif edge isa BitsProbCircuits.MulEdge
-                acc += child_prob
-            else
+            elseif edge isa BitsProbCircuits.SumEdge
                 acc = logsumexp(acc, child_prob)
+            else
+                acc += child_prob
             end
 
+            # write to global memory
             if islast(edge.first_or_last) || (edge_id == edge_end)   
                 pid = edge.parent_id
                 if islast(edge.first_or_last) && local_node
                     # no one else is writing to this global memory
                     mars[pid, ex_id] = acc
                 else
-                    if (edge isa BitsProbCircuits.MulEdge)
-                        CUDA.@atomic mars[pid, ex_id] += acc
-                    else
+                    if (edge isa BitsProbCircuits.SumEdge)
                         CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
+                    else
+                        CUDA.@atomic mars[pid, ex_id] += acc
                     end 
                 end             
             end
@@ -328,7 +330,7 @@ function eval_layer!_kernel(mars, layer)
     nothing
 end
 
-@device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
+# @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
 
 function balance_threads(num_nodes, num_examples, config; block_multiplier)
     # prefer to assign threads to examples, they do not require memory synchronization
@@ -360,7 +362,7 @@ end
 # @time eval_layer!(mars, bpc, 1);
 eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=true);
 
-@btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
+# @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
 
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids; block_multiplier, debug=false)
@@ -374,8 +376,6 @@ end
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
 CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500, debug=false);
-
-cu_mars
 
 ####################################################
 # benchmark node marginals for minibatch
