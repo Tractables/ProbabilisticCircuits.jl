@@ -330,25 +330,26 @@ function eval_layer!(mars::Array, bpc, layer_id)
     nothing
 end
 
-function eval_layer!_kernel(mars, layer)
+function eval_layer!_kernel_one_edge(mars, layer)
+    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
+    edge_id = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
+    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    if ex_id <= size(mars,2) && edge_id <= length(layer)
+        eval_edge!(mars, layer[edge_id], ex_id)
+    end
+    nothing
+end
+
+function eval_layer!_kernel_edge_loop(mars, layer)
     edge_work = cld(length(layer), (blockDim().x * gridDim().x))
     edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
     edge_end = min(edge_start + edge_work - 1, length(layer))
 
     ex_id = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) + 1
-    # y_end = min(y_start + y_work - 1, size(mars,2))
-
-    # if (blockIdx().x - 1) * blockDim().x + threadIdx().x == 42
-    #     CUDA.@cushow x_work, y_work
-    # end
-
     if ex_id <= size(mars,2)
-
-        # if x_start <= length(layer)
         for edge_id = edge_start:edge_end
             eval_edge!(mars, layer[edge_id], ex_id)
         end
-        # end
     end
     nothing
 end
@@ -365,13 +366,19 @@ end
 
 function eval_layer!(mars, bpc, layer_id; block_multiplier, debug=false)
     layer = bpc.edge_layers[layer_id]
-    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
+    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel_edge_loop(mars, layer) 
     config = launch_configuration(kernel.fun)
-    debug && @show config
     threads, blocks = balance_threads(length(layer), size(mars,2), config; block_multiplier)
-    debug && @show threads, blocks
+    debug && println("Layer $layer_id")
+    debug && @show config, threads, blocks
     debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
-    kernel(mars, layer; threads, blocks)
+    if length(layer) <= threads[1]*blocks[1]
+        debug && println("Per-edge kernel launch")
+        @cuda threads=threads blocks=blocks eval_layer!_kernel_one_edge(mars, layer) 
+    else
+        debug && println("General kernel launch")
+        kernel(mars, layer; threads, blocks)
+    end
     nothing
 end
 
@@ -398,15 +405,16 @@ CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1000, debug=true);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=10000000000, debug=false);
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000, debug=true);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=100000000, debug=true);
 
-@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+
+# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
+# @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
 
 ####################################################
 # benchmark marginal likelihood give data set
