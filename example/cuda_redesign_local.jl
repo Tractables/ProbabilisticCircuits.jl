@@ -289,9 +289,14 @@ function eval_layer!_kernel(mars, layer)
 
     if ex_id <= size(mars,2)
         acc = Float32(42)    
+        local_node = false
         for edge_id = edge_start:edge_end
 
             edge = layer[edge_id]
+
+            if edge.first
+                local_node = true
+            end
 
             child_prob = mars[edge.prime_id, ex_id]
             if edge.sub_id > 0
@@ -300,10 +305,6 @@ function eval_layer!_kernel(mars, layer)
             if (edge isa BitsProbCircuits.SumEdge)
                 child_prob += edge.logp
             end
-
-            # if acc == Float32(42)  
-            #     @cuassert edge.first || (edge_id == edge_start)
-            # end
 
             if edge.first || (edge_id == edge_start)  
                 acc = child_prob
@@ -315,13 +316,16 @@ function eval_layer!_kernel(mars, layer)
 
             if edge.last || (edge_id == edge_end)   
                 pid = edge.parent_id
-                if (edge isa BitsProbCircuits.MulEdge)
-                    CUDA.@atomic mars[pid, ex_id] += acc
+                if edge.last && local_node
+                    # no one else is writing to this global memory
+                    mars[pid, ex_id] = acc
                 else
-                    CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
-                end           
-                # # check if cleanup happens properly
-                # acc = Float32(42)    
+                    if (edge isa BitsProbCircuits.MulEdge)
+                        CUDA.@atomic mars[pid, ex_id] += acc
+                    else
+                        CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
+                    end 
+                end             
             end
             
         end
@@ -359,7 +363,9 @@ end
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1, debug=true);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=true);
+
+@btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
 
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids; block_multiplier, debug=false)
@@ -372,7 +378,7 @@ end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1, debug=false);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500, debug=false);
 
 cu_mars
 
@@ -382,4 +388,4 @@ cu_mars
 
 # @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-# @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500); # new GPU code
