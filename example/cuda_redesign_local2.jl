@@ -2,9 +2,9 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-pc_file = "meihua_hclt.jpc"
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
-# pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
+pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
@@ -332,21 +332,27 @@ end
 
 # @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
 
-function balance_threads(num_nodes, num_examples, config; block_multiplier)
+function balance_threads(num_edges, num_examples, config; mine=2, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
     ex_threads = min(config.threads, num_examples)
     # make sure each thread deals with at most one example
     ex_blocks = cld(num_examples, ex_threads)
-    node_threads = config.threads ÷ ex_threads
-    node_blocks = min(cld(block_multiplier * config.blocks, ex_blocks), cld(num_nodes, node_threads))
-    ((node_threads, ex_threads), (node_blocks, ex_blocks))
+    edge_threads = config.threads ÷ ex_threads
+    edge_blocks_min = cld(num_edges, edge_threads * maxe)
+    edge_blocks_max = cld(num_edges, edge_threads * mine)
+    edge_blocks_occupy = cld(config.blocks, ex_blocks)
+    # @show edge_blocks_min
+    # @show edge_blocks_occupy
+    # @show edge_blocks_max
+    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
+    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
 end
 
-function eval_layer!(mars, bpc, layer_id; block_multiplier, debug=false)
+function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), size(mars,2), config; block_multiplier)
+    threads, blocks = balance_threads(length(layer), size(mars,2), config; mine, maxe)
     debug && println("Layer $layer_id")
     debug && @show config, threads, blocks
     debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
@@ -360,29 +366,47 @@ end
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=true);
+eval_layer!(cu_mars, cu_bpc, 1; mine=8, maxe=32, debug=true);
 
 # @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
 
 # run entire circuit
-function eval_circuit!(mars, bpc, data, example_ids; block_multiplier, debug=false)
+function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     init_mar!(mars, bpc, data, example_ids)
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
-        eval_layer!(mars, bpc, i; block_multiplier, debug)
+        eval_layer!(mars, bpc, i; mine, maxe, debug)
     end
     nothing
 end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500, debug=false);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, debug=false);
 
 ####################################################
 # benchmark node marginals for minibatch
 ####################################################
 
 # try current MAR code
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500); # new GPU code
+function tune() 
+    for i=0:7
+        for j=i:7
+            minev = 2^i
+            maxev = 2^j
+            println("mine=$minev, maxe=$maxev")
+            @btime CUDA.@sync eval_circuit!($cu_mars, $cu_bpc, $cu_data, $cu_batch_i; mine=$minev, maxe=$maxev); # new GPU code
+        end
+    end
+end
+tune()
+# MNIST 512 mine=2, maxe=8
+# MNIST 2048 mine=1, maxe=8
+# RAT-SPN 512 mine=1, maxe=2
+# RAT-SPN 2048 mine=1, maxe=2
+# BIO-HCLT32 512 mine=2, maxe=32
+
+
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8);
 
 # batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
 # pbc = to_gpu(ParamBitCircuit(pc, batch_df));
