@@ -128,13 +128,12 @@ module BitsProbCircuits
         node2layer, num_layers
     end
 
-    function ids_and_layer(pc, c, node2label, node2layer)
+    function prime_sub_ids(pc, c, node2label)
         if ismaterializednode(pc, c)
-            node2label[c], 0, node2layer[c]
+            node2label[c], 0
         else
             prime, sub = children(c)
-            layerid = max(node2layer[prime], node2layer[sub])
-            node2label[prime], node2label[sub], layerid
+            node2label[prime], node2label[sub]
         end
     end
 
@@ -151,26 +150,25 @@ module BitsProbCircuits
                     bnode = BitsLiteral(literal(node))
                 else
                     child_nodes = children(node)
+                    layer = bpc.edge_layers[node2layer[node]-1]
                     if issum(node)
                         bnode = BitsInnerNode(true)
                         for i = 1:length(child_nodes)
                             logp = node.log_probs[i]
-                            primeid, subid, layerid = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
+                            primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
                             first = (i==1)
                             last = (i==length(child_nodes))
                             edge = SumEdge(pid, primeid, subid, logp, first, last)
-                            layer = bpc.edge_layers[layerid]
                             push!(layer, edge)
                         end
                     else
                         @assert ismul(node)
                         bnode = BitsInnerNode(false)
                         for i = 1:length(child_nodes)
-                            primeid, subid, layerid = ids_and_layer(pc, child_nodes[i], node2label, node2layer)
+                            primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
                             first = (i==1)
                             last = (i==length(child_nodes))
                             edge = MulEdge(pid, primeid, subid, first, last)
-                            layer = bpc.edge_layers[layerid]
                             push!(layer, edge) 
                         end
                     end
@@ -250,6 +248,10 @@ function init_mar!(mars, bpc, data, example_ids)
     end
 end
 
+# initialize node marginals
+# @time init_mar!(mars, bpc, data, batch_i);
+CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
         y
@@ -262,30 +264,12 @@ function logsumexp(x::Float32,y::Float32)::Float32
     end 
 end
 
-function logincexp(matrix::CuDeviceArray, i, j, v, sync)
-    if sync
-        CUDA.@atomic matrix[i,j] = logsumexp(matrix[i,j], v)
-    else
-        matrix[i,j] = logsumexp(matrix[i,j], v)
+function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
+    child_prob = edge.logp + mars[edge.prime_id, example_id]
+    if edge.sub_id > 0
+        child_prob += mars[edge.sub_id, example_id]
     end
-    nothing
-end
-
-function logincexp(matrix::Array, i, j, v, sync)
-    # should also be atomic for CPU multiprocessing?
-    matrix[i,j] = logsumexp(matrix[i,j], v)
-    nothing
-end
-
-function logmulexp(matrix::CuDeviceArray, i, j, v)
-    CUDA.@atomic matrix[i,j] += v
-    nothing
-end
-
-function logmulexp(matrix::Array, i, j, v)
-    # should also be atomic for CPU multiprocessing?
-    matrix[i,j] += v
-    nothing
+    child_prob
 end
 
 function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
@@ -293,126 +277,109 @@ function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     if edge.sub_id > 0
         child_prob += mars[edge.sub_id, example_id]
     end
-    logmulexp(mars, edge.parent_id, example_id, child_prob)
-    nothing
+    child_prob
 end
 
 function eval_layer!_kernel(mars, layer)
-    x_work = ceil(Int, length(layer) / (blockDim().x * gridDim().x))
-    x_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * x_work + 1
-    x_end = min(x_start + x_work - 1, length(layer))
+    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
+    edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
+    edge_end = min(edge_start + edge_work - 1, length(layer))
 
-    y_work = ceil(Int, size(mars,2) / (blockDim().y * gridDim().y))
-    y_start = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) * y_work + 1
-    y_end = min(y_start + y_work - 1, size(mars,2))
+    ex_id = ((blockIdx().y - 1) * blockDim().y + threadIdx().y - 1) + 1
 
-    for example_id = y_start:y_end
-        acc = zero(Float32)
-        for edge_id = x_start:x_end
-            eval_edge!(mars, layer[edge_id], y_start)
+    if ex_id <= size(mars,2)
+        acc = Float32(42)    
+        for edge_id = edge_start:edge_end
 
-              # first child
-            child_prob_1 = mars[edge.prime_id_1, example_id]
-            if edge.sub_id_1 > 0
-                child_prob_1 += mars[edge.sub_id_1, example_id]
+            edge = layer[edge_id]
+
+            child_prob = mars[edge.prime_id, ex_id]
+            if edge.sub_id > 0
+                child_prob += mars[edge.sub_id, ex_id]
             end
-            edge_prob = child_prob_1 + edge.logprob_1
-            # increment node value
-            logincexp(mars, edge.parent_id, example_id, edge_prob, edge.sync)
-            nothing
+            if (edge isa BitsProbCircuits.SumEdge)
+                child_prob += edge.logp
+            end
+
+            # if acc == Float32(42)  
+            #     @cuassert edge.first || (edge_id == edge_start)
+            # end
+
+            if edge.first || (edge_id == edge_start)  
+                acc = child_prob
+            elseif edge isa BitsProbCircuits.MulEdge
+                acc += child_prob
+            else
+                acc = logsumexp(acc, child_prob)
+            end
+
+            if edge.last || (edge_id == edge_end)   
+                pid = edge.parent_id
+                if (edge isa BitsProbCircuits.MulEdge)
+                    CUDA.@atomic mars[pid, ex_id] += acc
+                else
+                    CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
+                end           
+                # # check if cleanup happens properly
+                # acc = Float32(42)    
+            end
             
         end
     end
     nothing
 end
 
-function balance_threads(num_nodes, num_examples, total_threads_per_block)
-    ex_threads = min(total_threads_per_block, num_examples)
-    ex_blocks = ceil(Int, num_examples / ex_threads)
-    node_threads = total_threads_per_block ÷ ex_threads
-    node_blocks = ceil(Int, num_nodes / node_threads)
-    # TODO use fewer blocks, more compute local to each thread?
+@device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
+
+function balance_threads(num_nodes, num_examples, config; block_multiplier)
+    # prefer to assign threads to examples, they do not require memory synchronization
+    ex_threads = min(config.threads, num_examples)
+    # make sure each thread deals with at most one example
+    ex_blocks = cld(num_examples, ex_threads)
+    node_threads = config.threads ÷ ex_threads
+    node_blocks = min(cld(block_multiplier * config.blocks, ex_blocks), cld(num_nodes, node_threads))
     ((node_threads, ex_threads), (node_blocks, ex_blocks))
 end
 
-function eval_layer!(mars, bpc, layer_id)
+function eval_layer!(mars, bpc, layer_id; block_multiplier, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    # @show config
-    threads, blocks = balance_threads(length(layer), size(mars,2), config.threads)
-    # @show threads, blocks
-    kernel(mars, layer; threads, blocks)
+    threads, blocks = balance_threads(length(layer), size(mars,2), config; block_multiplier)
+    debug && println("Layer $layer_id")
+    debug && @show config, threads, blocks
+    debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
+    if debug
+        CUDA.@time kernel(mars, layer; threads, blocks)
+    else
+        kernel(mars, layer; threads, blocks)
+    end
     nothing
 end
+
+# run 1 layer
+# @time eval_layer!(mars, bpc, 1);
+CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=1, debug=true);
 
 # run entire circuit
-function eval_circuit!(mars, bpc, data, example_ids)
+function eval_circuit!(mars, bpc, data, example_ids; block_multiplier, debug=false)
     init_mar!(mars, bpc, data, example_ids)
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
-        eval_layer!(mars, bpc, i)
+        eval_layer!(mars, bpc, i; block_multiplier, debug)
     end
     nothing
 end
 
-function marginal2(bpc::BitsProbCircuits.BitsProbCircuit, data::CuArray; cu_mars = nothing, batch_size)
-    num_examples = size(data)[2]
-    cu_ans = CuArray{Float32}(undef, num_examples)
-    
-    cu_bpc = BitsProbCircuits.CuProbCircuit(bpc); # Around 0.002252 seconds for mnist_hclt_cat16
-    if isnothing(cu_mars) || size(cu_mars)[2] != batch_size
-        cu_mars = cu(Matrix{Float32}(undef, length(bpc.nodes), batch_size)); # around 0.12 seconds for 4096 bach_size
-    end
+# run all layers
+# @time eval_circuit!(mars, bpc, data, batch_i);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1, debug=false);
 
-    for b_ind = 1 : ceil(Int32, num_examples / batch_size)
-        batch_start = (b_ind-1) * batch_size + 1
-        batch_end   = min(batch_start + batch_size - 1, num_examples)
-        
-        cu_batch_i = CuArray(batch_start:batch_end)
-        if batch_end == num_examples && (batch_end - batch_start + 1 != batch_size)
-            # Last batch smaller size
-            cur_batch_size = batch_end - batch_start + 1
-            init_mar!(cu_mars[:, 1:cur_batch_size], cu_bpc, cu_data, cu_batch_i);
-            eval_circuit!(cu_mars[:, 1:cur_batch_size], cu_bpc, cu_data, cu_batch_i);
-            cu_ans[cu_batch_i] .= cu_mars[end, 1:cur_batch_size]
-        else
-            init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-            eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-            cu_ans[cu_batch_i] .= cu_mars[end, :]
-        end        
-        
-    end
-    return cu_ans
-end
+cu_mars
 
 ####################################################
 # benchmark node marginals for minibatch
 ####################################################
 
-# initialize node marginals
-# @time init_mar!(mars, bpc, data, batch_i);
-CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-
-# run 1 layer
-# @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1);
-
-# run all layers
-# @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-
-@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i); # new GPU code
-
-####################################################
-# benchmark marginal likelihood give data set
-####################################################
-
-# new gpu w/ preallocated cu_mars
-cu_mars2 = cu(Matrix{Float32}(undef, length(bpc.nodes), batchsize));
-@btime CUDA.@sync marginal2(bpc, cu_data; cu_mars=cu_mars2, batch_size=batchsize);
-
-# old gpu batched
-data_df_batched = to_gpu(batch(DataFrame(transpose(data), :auto), batchsize));
-@btime CUDA.@sync marginal_log_likelihood_avg(pbc, data_df_batched);
+# @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
