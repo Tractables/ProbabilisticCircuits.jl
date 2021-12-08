@@ -23,12 +23,6 @@ batchsize = 512
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 
-# try current MAR code
-batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
-pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-CUDA.@time reuse = marginal_all(pbc, batch_df);
-CUDA.@time marginal_all(pbc, batch_df, reuse);
-
 # custom bits circuit
 
 module BitsProbCircuits
@@ -45,20 +39,18 @@ module BitsProbCircuits
     const BitsNode = Union{BitsLiteral, BitsInnerNode}
 
     struct SumEdge 
-        parent_id::Int
-        prime_id::Int
-        sub_id::Int # 0 means no sub
+        parent_id::UInt32
+        prime_id::UInt32
+        sub_id::UInt32 # 0 means no sub
         logp::Float32
-        first::Bool
-        last::Bool
+        first_or_last::UInt8
     end
 
     struct MulEdge 
-        parent_id::Int
-        prime_id::Int
-        sub_id::Int # 0 means no sub
-        first::Bool
-        last::Bool
+        parent_id::UInt32
+        prime_id::UInt32
+        sub_id::UInt32 # 0 means no sub
+        first_or_last::UInt8
     end
 
     const BitsEdge = Union{SumEdge,MulEdge}
@@ -137,6 +129,8 @@ module BitsProbCircuits
         end
     end
 
+    first_or_last(i,n) =
+        (i == n == 1) ? 0 : (i == 1) ? 1 : (i<n) ? 2 : 3 
 
     function BitsProbCircuit(pc)
         node2label, num_materialized_nodes = label_nodes_custom(pc)
@@ -156,9 +150,8 @@ module BitsProbCircuits
                         for i = 1:length(child_nodes)
                             logp = node.log_probs[i]
                             primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
-                            first = (i==1)
-                            last = (i==length(child_nodes))
-                            edge = SumEdge(pid, primeid, subid, logp, first, last)
+                            fol = first_or_last(i, length(child_nodes))
+                            edge = SumEdge(pid, primeid, subid, logp, fol)
                             push!(layer, edge)
                         end
                     else
@@ -166,9 +159,8 @@ module BitsProbCircuits
                         bnode = BitsInnerNode(false)
                         for i = 1:length(child_nodes)
                             primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
-                            first = (i==1)
-                            last = (i==length(child_nodes))
-                            edge = MulEdge(pid, primeid, subid, first, last)
+                            fol = first_or_last(i, length(child_nodes))
+                            edge = MulEdge(pid, primeid, subid, fol)
                             push!(layer, edge) 
                         end
                     end
@@ -200,13 +192,13 @@ end
 @time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
-function bit_node_stats(nodes::AbstractVector)
-    groups = DirectedAcyclicGraphs.groupby(nodes) do n
-        if n isa BitsProbCircuits.SumEdge
-            "Sum-$((n.prime_id > 0) + (n.sub_id > 0))-$(n.first)-$(n.last)"
+function bit_node_stats(edges::AbstractVector)
+    groups = DirectedAcyclicGraphs.groupby(edges) do edge
+        if edge isa BitsProbCircuits.SumEdge
+            "Sum-$((edge.prime_id > 0) + (edge.sub_id > 0))-$(edge.first_or_last)"
         else
-            @assert n isa BitsProbCircuits.MulEdge
-            "Mul-$((n.prime_id > 0) + (n.sub_id > 0))-$(n.first)-$(n.last)"
+            @assert edge isa BitsProbCircuits.MulEdge
+            "Mul-$((edge.prime_id > 0) + (edge.sub_id > 0))-$(edge.first_or_last)"
         end
     end
     DirectedAcyclicGraphs.map_values(v -> length(v), groups, Int)
@@ -280,6 +272,9 @@ function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
     child_prob
 end
 
+isfirst(x) = (x <= 1)
+islast(x) = (x == 0) || (x == 3)
+
 function eval_layer!_kernel(mars, layer)
     edge_work = cld(length(layer), (blockDim().x * gridDim().x))
     edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
@@ -294,7 +289,7 @@ function eval_layer!_kernel(mars, layer)
 
             edge = layer[edge_id]
 
-            if edge.first
+            if isfirst(edge.first_or_last)
                 local_node = true
             end
 
@@ -306,7 +301,7 @@ function eval_layer!_kernel(mars, layer)
                 child_prob += edge.logp
             end
 
-            if edge.first || (edge_id == edge_start)  
+            if isfirst(edge.first_or_last) || (edge_id == edge_start)  
                 acc = child_prob
             elseif edge isa BitsProbCircuits.MulEdge
                 acc += child_prob
@@ -314,9 +309,9 @@ function eval_layer!_kernel(mars, layer)
                 acc = logsumexp(acc, child_prob)
             end
 
-            if edge.last || (edge_id == edge_end)   
+            if islast(edge.first_or_last) || (edge_id == edge_end)   
                 pid = edge.parent_id
-                if edge.last && local_node
+                if islast(edge.first_or_last) && local_node
                     # no one else is writing to this global memory
                     mars[pid, ex_id] = acc
                 else
@@ -363,7 +358,7 @@ end
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-CUDA.@time eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=true);
+eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=true);
 
 @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
 
@@ -378,7 +373,7 @@ end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500, debug=true);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500, debug=false);
 
 cu_mars
 
@@ -386,6 +381,13 @@ cu_mars
 # benchmark node marginals for minibatch
 ####################################################
 
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+# try current MAR code
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500); # new GPU code
+
+# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+# CUDA.@time reuse = marginal_all(pbc, batch_df);
+# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+
+# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+

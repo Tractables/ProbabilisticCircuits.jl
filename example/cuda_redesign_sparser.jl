@@ -414,7 +414,7 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=
 
 # @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-# @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=1000); # new GPU code
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; block_multiplier=500); # new GPU code
 
 ####################################################
 # benchmark marginal likelihood give data set
