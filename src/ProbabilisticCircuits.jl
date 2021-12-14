@@ -33,9 +33,12 @@ include("abstract_prob_nodes.jl")
 include("shared_prob_nodes.jl")
 include("plain_prob_nodes.jl")
 include("structured_prob_nodes.jl")
-include("parameter_learn/param_bit_circuit.jl")
+include("bit_circuits/param_bit_circuit.jl")
 include("parameter_learn/parameters.jl")
 include("parameter_learn/gradient_based_learning.jl")
+
+include("bit_circuits/edge_bit_circuit_local.jl")
+include("bit_circuits/edge_bit_circuit_sparser.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")

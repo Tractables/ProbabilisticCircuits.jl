@@ -1,31 +1,7 @@
-using Pkg; Pkg.activate(@__DIR__)
-using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
-CUDA.allowscalar(false)
+export bit_node_stats, init_mar, init_mar!, eval_circuit!, eval_layer!
 
-pc_file = "meihua_hclt.jpc"
-# pc_file = "meihua_hclt_small.jpc"
-# pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-# pc_file = "mnist_hclt_cat16.jpc"
 
-# @time pc = read(pc_file, ProbCircuit)
-@time pc = ProbabilisticCircuits.read_fast(pc_file)
-num_nodes(pc), num_edges(pc)
-node_stats(pc)
-
-# generate some fake data
-# TODO; figure out row vs col major
-data = Array{Union{Bool,Missing}}(replace(rand(0:2, num_variables(pc), 10000), 2 => missing));
-data[1,:] .= missing;
-cu_data = to_gpu(data);
-
-# create minibatch
-batchsize = 512
-batch_i = 1:batchsize;
-cu_batch_i = CuVector(1:batchsize);
-
-# custom bits circuit
-
-module BitsProbCircuits
+module LocalEdgeBitProbCircuits
         
     using DirectedAcyclicGraphs, ProbabilisticCircuits, CUDA
 
@@ -135,7 +111,7 @@ module BitsProbCircuits
     function BitsProbCircuit(pc)
         node2label, num_materialized_nodes = label_nodes_custom(pc)
         node2layer, num_layers = feedforward_layers_custom(pc)
-        @show num_materialized_nodes num_layers
+        #@show num_materialized_nodes num_layers
         bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
         foreach(pc) do node 
             pid = node2label[node]
@@ -187,152 +163,46 @@ module BitsProbCircuits
         end
     end
 
+    @inline isfirst(x) = (x <= 1)
+    @inline islast(x) = (x == 0) || (x == 3)
+
+    function logsumexp(x::Float32,y::Float32)::Float32
+        if x == -Inf32
+            y
+        elseif y == -Inf32
+            x
+        elseif x > y
+            x + log1p(exp(y-x))
+        else
+            y + log1p(exp(x-y))
+        end 
+    end
+
 end
 
-@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
-@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+const LocalEdgeProbCircuit = Union{LocalEdgeBitProbCircuits.BitsProbCircuit, LocalEdgeBitProbCircuits.CuProbCircuit}
 
-function bit_node_stats(edges::AbstractVector)
+
+#########################################################
+## Helpers
+#########################################################
+function bit_node_stats_local(edges::AbstractVector)
     groups = DirectedAcyclicGraphs.groupby(edges) do edge
-        if edge isa BitsProbCircuits.SumEdge
+        if edge isa LocalEdgeBitProbCircuits.SumEdge
             "Sum-$((edge.prime_id > 0) + (edge.sub_id > 0))-$(edge.first_or_last)"
         else
-            @assert edge isa BitsProbCircuits.MulEdge
+            @assert edge isa LocalEdgeBitProbCircuits.MulEdge
             "Mul-$((edge.prime_id > 0) + (edge.sub_id > 0))-$(edge.first_or_last)"
         end
     end
     DirectedAcyclicGraphs.map_values(v -> length(v), groups, Int)
 end
 
-bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
-    bit_node_stats(reduce(vcat, bpc.edge_layers))
+bit_node_stats(bpc::LocalEdgeBitProbCircuits.BitsProbCircuit) =
+    bit_node_stats_local(reduce(vcat, bpc.edge_layers))
 
 
-# for i = 1:BitsProbCircuits.num_edge_layers(bpc)
-#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
-# end
-bit_node_stats(bpc)
-BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
-
-# allocate memory for MAR
-mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
-cu_mars = cu(mars);
-
-# custom MAR initialization kernels
-init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) = 
-    node.issum ? -Inf32 : zero(Float32)
-
-function init_mar(leaf::BitsProbCircuits.BitsLiteral, data, example_id)
-    lit = leaf.literal
-    v = data[abs(lit), example_id]
-    if ismissing(v)
-        zero(Float32)
-    elseif (lit > 0) == v
-        zero(Float32)
-    else
-        -Inf32
-    end
-end
-
-function init_mar!(mars, bpc, data, example_ids)
-    broadcast!(mars, bpc.nodes, transpose(example_ids)) do node, example_id
-        init_mar(node, data, example_id)
-    end
-end
-
-# initialize node marginals
-# @time init_mar!(mars, bpc, data, batch_i);
-CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
-
-function logsumexp(x::Float32,y::Float32)::Float32
-    if x == -Inf32
-        y
-    elseif y == -Inf32
-        x
-    elseif x > y
-        x + log1p(exp(y-x))
-    else
-        y + log1p(exp(x-y))
-    end 
-end
-
-function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
-    child_prob = edge.logp + mars[edge.prime_id, example_id]
-    if edge.sub_id > 0
-        child_prob += mars[edge.sub_id, example_id]
-    end
-    child_prob
-end
-
-function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
-    child_prob = mars[edge.prime_id, example_id]
-    if edge.sub_id > 0
-        child_prob += mars[edge.sub_id, example_id]
-    end
-    child_prob
-end
-
-@inline isfirst(x) = (x <= 1)
-@inline islast(x) = (x == 0) || (x == 3)
-
-function eval_layer!_kernel(mars, layer)
-    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
-    edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
-    edge_end = min(edge_start + edge_work - 1, length(layer))
-
-    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
-
-    if ex_id <= size(mars,2)
-        acc = zero(Float32)    
-        local_node = false
-        for edge_id = edge_start:edge_end
-            edge = layer[edge_id]
-
-            if isfirst(edge.first_or_last)
-                local_node = true
-            end
-
-            # compute probability coming from child
-            child_prob = mars[edge.prime_id, ex_id]
-            if edge.sub_id != 0
-                child_prob += mars[edge.sub_id, ex_id]
-            end
-            if edge isa BitsProbCircuits.SumEdge
-                child_prob += edge.logp
-            end
-
-            # accumulate probability from child
-            if isfirst(edge.first_or_last) || (edge_id == edge_start)  
-                acc = child_prob
-            elseif edge isa BitsProbCircuits.SumEdge
-                acc = logsumexp(acc, child_prob)
-            else
-                acc += child_prob
-            end
-
-            # write to global memory
-            if islast(edge.first_or_last) || (edge_id == edge_end)   
-                pid = edge.parent_id
-                if islast(edge.first_or_last) && local_node
-                    # no one else is writing to this global memory
-                    mars[pid, ex_id] = acc
-                else
-                    if (edge isa BitsProbCircuits.SumEdge)
-                        CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
-                    else
-                        CUDA.@atomic mars[pid, ex_id] += acc
-                    end 
-                end             
-            end
-            
-        end
-    end
-    nothing
-end
-
-# @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
-
-function balance_threads(num_edges, num_examples, config; mine=2, maxe)
+function balance_threads_local(num_edges, num_examples, config; mine=2, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
     ex_threads = min(config.threads, num_examples)
     # make sure each thread deals with at most one example
@@ -348,11 +218,110 @@ function balance_threads(num_edges, num_examples, config; mine=2, maxe)
     ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
 end
 
-function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
+#############################################################
+###### Marginals
+#############################################################
+
+ 
+
+init_mar(node::LocalEdgeBitProbCircuits.BitsInnerNode, data, example_id) = 
+    node.issum ? -Inf32 : zero(Float32)
+
+function init_mar(leaf::LocalEdgeBitProbCircuits.BitsLiteral, data, example_id)
+    lit = leaf.literal
+    v = data[abs(lit), example_id]
+    if ismissing(v)
+        zero(Float32)
+    elseif (lit > 0) == v
+        zero(Float32)
+    else
+        -Inf32
+    end
+end
+
+function init_mar!(mars, bpc::LocalEdgeProbCircuit, data, example_ids)
+    broadcast!(mars, bpc.nodes, transpose(example_ids)) do node, example_id
+        init_mar(node, data, example_id)
+    end
+end
+
+function eval_edge!(mars, edge::LocalEdgeBitProbCircuits.SumEdge, example_id)
+    child_prob = edge.logp + mars[edge.prime_id, example_id]
+    if edge.sub_id > 0
+        child_prob += mars[edge.sub_id, example_id]
+    end
+    child_prob
+end
+
+function eval_edge!(mars, edge::LocalEdgeBitProbCircuits.MulEdge, example_id)
+    child_prob = mars[edge.prime_id, example_id]
+    if edge.sub_id > 0
+        child_prob += mars[edge.sub_id, example_id]
+    end
+    child_prob
+end
+
+function eval_layer!_kernel_local(mars, layer)
+    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
+    edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
+    edge_end = min(edge_start + edge_work - 1, length(layer))
+
+    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if ex_id <= size(mars,2)
+        acc = zero(Float32)    
+        local_node = false
+        for edge_id = edge_start:edge_end
+            edge = layer[edge_id]
+
+            if LocalEdgeBitProbCircuits.isfirst(edge.first_or_last)
+                local_node = true
+            end
+
+            # compute probability coming from child
+            child_prob = mars[edge.prime_id, ex_id]
+            if edge.sub_id != 0
+                child_prob += mars[edge.sub_id, ex_id]
+            end
+            if edge isa LocalEdgeBitProbCircuits.SumEdge
+                child_prob += edge.logp
+            end
+
+            # accumulate probability from child
+            if LocalEdgeBitProbCircuits.isfirst(edge.first_or_last) || (edge_id == edge_start)  
+                acc = child_prob
+            elseif edge isa LocalEdgeBitProbCircuits.SumEdge
+                acc = LocalEdgeBitProbCircuits.logsumexp(acc, child_prob)
+            else
+                acc += child_prob
+            end
+
+            # write to global memory
+            if LocalEdgeBitProbCircuits.islast(edge.first_or_last) || (edge_id == edge_end)   
+                pid = edge.parent_id
+                if LocalEdgeBitProbCircuits.islast(edge.first_or_last) && local_node
+                    # no one else is writing to this global memory
+                    mars[pid, ex_id] = acc
+                else
+                    if (edge isa LocalEdgeBitProbCircuits.SumEdge)
+                        CUDA.@atomic mars[pid, ex_id] = LocalEdgeBitProbCircuits.logsumexp(mars[pid, ex_id], acc)
+                    else
+                        CUDA.@atomic mars[pid, ex_id] += acc
+                    end 
+                end             
+            end
+            
+        end
+    end
+    nothing
+end
+
+
+function eval_layer!(mars, bpc::LocalEdgeProbCircuit, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
-    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
+    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel_local(mars, layer) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), size(mars,2), config; mine, maxe)
+    threads, blocks = balance_threads_local(length(layer), size(mars,2), config; mine, maxe)
     debug && println("Layer $layer_id")
     debug && @show config, threads, blocks
     debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
@@ -364,55 +333,11 @@ function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     nothing
 end
 
-# run 1 layer
-# @time eval_layer!(mars, bpc, 1);
-eval_layer!(cu_mars, cu_bpc, 1; mine=8, maxe=32, debug=true);
-
-# @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
-
 # run entire circuit
-function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
+function eval_circuit!(mars, bpc::LocalEdgeProbCircuit, data, example_ids; mine, maxe, debug=false)
     init_mar!(mars, bpc, data, example_ids)
-    for i in 1:BitsProbCircuits.num_edge_layers(bpc)
+    for i in 1:LocalEdgeBitProbCircuits.num_edge_layers(bpc)
         eval_layer!(mars, bpc, i; mine, maxe, debug)
     end
     nothing
 end
-
-# run all layers
-# @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, debug=false);
-
-####################################################
-# benchmark node marginals for minibatch
-####################################################
-
-# try current MAR code
-# function tune() 
-#     for i=0:7
-#         for j=i:7
-#             minev = 2^i
-#             maxev = 2^j
-#             println("mine=$minev, maxe=$maxev")
-#             @btime CUDA.@sync eval_circuit!($cu_mars, $cu_bpc, $cu_data, $cu_batch_i; mine=$minev, maxe=$maxev); # new GPU code
-#         end
-#     end
-# end
-# tune()
-# MNIST 512 mine=2, maxe=8
-# MNIST 2048 mine=1, maxe=8
-# RAT-SPN 512 mine=1, maxe=2
-# RAT-SPN 2048 mine=1, maxe=2
-# BIO-HCLT32 512 mine=2, maxe=32
-
-# TODO try transposing the MAR matrix
-
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
-
-# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
-# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-# CUDA.@time reuse = marginal_all(pbc, batch_df);
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-
-# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-
