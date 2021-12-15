@@ -358,3 +358,43 @@ function eval_circuit!(mars, bpc::SparserEdgeProbCircuit, data, example_ids; blo
     end
     nothing
 end
+
+
+#######################
+### Full Epoch Marginal
+######################
+
+function marginal2(bpc::SparserEdgeProbCircuit, data::CuArray; cu_mars = nothing, batch_size)
+    num_examples = size(data)[2]
+    cu_ans = CuArray{Float32}(undef, num_examples)
+    
+    if typeof(bpc) == SparserEdgeBitProbCircuits.BitsProbCircuit
+        cu_bpc = SparserEdgeBitProbCircuits.CuProbCircuit(bpc);
+    else
+        cu_bpc = bpc
+    end
+
+    if isnothing(cu_mars) || size(cu_mars)[2] != batch_size
+        cu_mars = cu(Matrix{Float32}(undef, length(bpc.nodes), batch_size));
+    end
+
+    for b_ind = 1 : ceil(Int32, num_examples / batch_size)
+        batch_start = (b_ind-1) * batch_size + 1
+        batch_end   = min(batch_start + batch_size - 1, num_examples)
+        
+        cu_batch_i = CuArray(batch_start:batch_end)
+        if batch_end == num_examples && (batch_end - batch_start + 1 != batch_size)
+            # Last batch smaller size
+            cur_batch_size = batch_end - batch_start + 1
+            init_mar!(cu_mars[:, 1:cur_batch_size], cu_bpc, data, cu_batch_i);
+            eval_circuit!(cu_mars[:, 1:cur_batch_size], cu_bpc, data, cu_batch_i);
+            cu_ans[cu_batch_i] .= cu_mars[end, 1:cur_batch_size]
+        else
+            init_mar!(cu_mars, cu_bpc, data, cu_batch_i);
+            eval_circuit!(cu_mars, cu_bpc, data, cu_batch_i);
+            cu_ans[cu_batch_i] .= cu_mars[end, :]
+        end        
+        
+    end
+    return cu_ans
+end
