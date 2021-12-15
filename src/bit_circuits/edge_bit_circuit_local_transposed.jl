@@ -338,8 +338,8 @@ function marginal2(bpc::TransposedLocalEdgeBitProbCircuit, data::CuArray; cu_mar
         cu_bpc = bpc
     end
 
-    if isnothing(cu_mars) || size(cu_mars)[2] != batch_size
-        cu_mars = cu(Matrix{Float32}(undef, length(bpc.nodes), batch_size));
+    if isnothing(cu_mars) || size(cu_mars)[1] != batch_size
+        cu_mars = cu(Matrix{Float32}(undef, batch_size, length(bpc.nodes)));
     end
 
     for b_ind = 1 : ceil(Int32, num_examples / batch_size)
@@ -350,13 +350,13 @@ function marginal2(bpc::TransposedLocalEdgeBitProbCircuit, data::CuArray; cu_mar
         if batch_end == num_examples && (batch_end - batch_start + 1 != batch_size)
             # Last batch smaller size
             cur_batch_size = batch_end - batch_start + 1
-            init_mar!(cu_mars[:, 1:cur_batch_size], cu_bpc, data, cu_batch_i);
-            eval_circuit!(cu_mars[:, 1:cur_batch_size], cu_bpc, data, cu_batch_i; mine, maxe);
-            cu_ans[cu_batch_i] .= cu_mars[end, 1:cur_batch_size]
+            init_mar!(cu_mars[1:cur_batch_size, :], cu_bpc, data, cu_batch_i);
+            eval_circuit!(cu_mars[1:cur_batch_size, :], cu_bpc, data, cu_batch_i; mine, maxe);
+            cu_ans[cu_batch_i] .= cu_mars[1:cur_batch_size, :]
         else
             init_mar!(cu_mars, cu_bpc, data, cu_batch_i);
             eval_circuit!(cu_mars, cu_bpc, data, cu_batch_i;  mine, maxe);
-            cu_ans[cu_batch_i] .= cu_mars[end, :]
+            cu_ans[cu_batch_i] .= cu_mars[:, end]
         end        
         
     end
