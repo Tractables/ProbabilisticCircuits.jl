@@ -2,13 +2,15 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-pc_file = "meihua_hclt.jpc"
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
 
+
 # @time pc = read(pc_file, ProbCircuit)
-@time pc = ProbabilisticCircuits.read_fast(pc_file)
+# @time pc = ProbabilisticCircuits.read_fast(pc_file)
+@time pc = zoo_psdd("plants.psdd")
 num_nodes(pc), num_edges(pc)
 node_stats(pc)
 
@@ -405,3 +407,5 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, 
 # @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 
 # @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+
+nothing
