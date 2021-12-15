@@ -329,7 +329,7 @@ end
 ######################
 
 function marginal2(bpc::TransposedLocalEdgeBitProbCircuit, data::CuArray; cu_mars = nothing, batch_size, mine, maxe)
-    num_examples = size(data)[2]
+    num_examples = size(data)[1]
     cu_ans = CuArray{Float32}(undef, num_examples)
     
     if typeof(bpc) == TransposedLocalEdgeBitProbCircuits.BitsProbCircuit
