@@ -39,6 +39,7 @@ include("parameter_learn/gradient_based_learning.jl")
 
 include("bit_circuits/edge_bit_circuit_local.jl")
 include("bit_circuits/edge_bit_circuit_sparser.jl")
+include("bit_circuits/edge_bit_circuit_local_transposed.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")
