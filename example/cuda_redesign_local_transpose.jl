@@ -14,8 +14,8 @@ node_stats(pc)
 
 # generate some fake data
 # TODO; figure out row vs col major
-data = Array{Union{Bool,Missing}}(replace(rand(0:2, num_variables(pc), 10000), 2 => missing));
-data[:,1] .= missing;
+data = Array{Union{Bool,Missing}}(replace(rand(0:2, 10000, num_variables(pc)), 2 => missing));
+data[1,:] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
@@ -224,7 +224,7 @@ init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) =
 
 function init_mar(leaf::BitsProbCircuits.BitsLiteral, data, example_id)
     lit = leaf.literal
-    v = data[abs(lit), example_id]
+    v = data[example_id, abs(lit)]
     if ismissing(v)
         zero(Float32)
     elseif (lit > 0) == v
@@ -391,7 +391,8 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, 
 
 # TODO try transposing the MAR matrix
 
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8);
 
 # transpose:   236.776 ms (3583 allocations: 175.78 KiB)
 # original:    324.247 ms (3580 allocations: 175.73 KiB)
+# transpose - also data: 246.559 ms (3583 allocations: 175.78 KiB)
