@@ -2,13 +2,18 @@ using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
-pc_file = "meihua_hclt.jpc"
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
-@time pc = ProbabilisticCircuits.read_fast(pc_file)
+# @time pc = ProbabilisticCircuits.read_fast(pc_file)
+
+@time pc = zoo_psdd("plants.psdd")
+num_nodes(pc), num_edges(pc)
+node_stats(pc)
+
 num_nodes(pc), num_edges(pc)
 node_stats(pc)
 
@@ -265,7 +270,7 @@ function init_mar!_kernel(mars, nodes, data, example_ids)
     nothing
 end
 
-@device_code_warntype @cuda init_mar!_kernel(cu_mars, cu_bpc.nodes, cu_data, cu_batch_i)
+# @device_code_warntype @cuda init_mar!_kernel(cu_mars, cu_bpc.nodes, cu_data, cu_batch_i)
 
 function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     @assert size(mars,1) == length(example_ids)
@@ -283,10 +288,10 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     nothing
 end
 
-# initialize node marginals
-init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
+# # initialize node marginals
+# init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
 
-@btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=false);
+# @btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=false);
 
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
@@ -393,7 +398,7 @@ end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, debug=true);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
 
 ####################################################
 # benchmark node marginals for minibatch
@@ -421,6 +426,11 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, 
 
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8);
 
-# transpose:   236.776 ms (3583 allocations: 175.78 KiB)
-# original:    324.247 ms (3580 allocations: 175.73 KiB)
-# transpose - also data: 246.559 ms (3583 allocations: 175.78 KiB)
+
+# OLD GPU CODE BENCHMARK
+batch_df = to_gpu(DataFrame(data[batch_i,:], :auto));
+pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+CUDA.@time reuse = marginal_all(pbc, batch_df);
+@btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
+
+nothing
