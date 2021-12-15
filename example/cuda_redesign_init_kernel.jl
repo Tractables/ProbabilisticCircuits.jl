@@ -6,13 +6,12 @@ CUDA.allowscalar(false)
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
 # pc_file = "mnist_hclt_cat16.jpc"
-
-# @time pc = read(pc_file, ProbCircuit)
 # @time pc = ProbabilisticCircuits.read_fast(pc_file)
 
-@time pc = zoo_psdd("plants.psdd")
-num_nodes(pc), num_edges(pc)
-node_stats(pc)
+pc_file = "ad_12_16.jpc.gz"
+@time pc = read(pc_file, ProbCircuit)
+
+# @time pc = zoo_psdd("plants.psdd")
 
 num_nodes(pc), num_edges(pc)
 node_stats(pc)
@@ -291,7 +290,7 @@ end
 # # initialize node marginals
 # init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
 
-# @btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=false);
+# @btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false);
 
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
@@ -398,33 +397,31 @@ end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
+CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
 
 ####################################################
 # benchmark node marginals for minibatch
 ####################################################
 
 # try current MAR code
-# function tune() 
-#     for i=0:7
-#         for j=i:7
-#             minev = 2^i
-#             maxev = 2^j
-#             println("mine=$minev, maxe=$maxev")
-#             @btime CUDA.@sync eval_circuit!($cu_mars, $cu_bpc, $cu_data, $cu_batch_i; mine=$minev, maxe=$maxev); # new GPU code
-#         end
-#     end
-# end
-# tune()
+function tune() 
+    for i=0:7
+        for j=i:7
+            minev = 2^i
+            maxev = 2^j
+            println("mine=$minev, maxe=$maxev")
+            @btime CUDA.@sync eval_circuit!($cu_mars, $cu_bpc, $cu_data, $cu_batch_i; mine=$minev, maxe=$maxev); # new GPU code
+        end
+    end
+end
+tune()
 # MNIST 512 mine=2, maxe=8
-# MNIST 2048 mine=1, maxe=8
-# RAT-SPN 512 mine=1, maxe=2
-# RAT-SPN 2048 mine=1, maxe=2
+# RAT-SPN 512 mine=2, maxe=8
 # BIO-HCLT32 512 mine=2, maxe=32
 
 # TODO try transposing the MAR matrix
 
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8);
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
 
 # OLD GPU CODE BENCHMARK
