@@ -186,29 +186,69 @@ const TransposedLocalEdgeBitProbCircuit = Union{TransposedLocalEdgeBitProbCircui
 ## Helpers
 #########################################################
 
+function balance_threads_local_t(num_edges, num_examples, config; mine=2, maxe)
+    # prefer to assign threads to examples, they do not require memory synchronization
+    ex_threads = min(config.threads, num_examples)
+    # make sure each thread deals with at most one example
+    ex_blocks = cld(num_examples, ex_threads)
+    edge_threads = config.threads ÷ ex_threads
+    edge_blocks_min = cld(num_edges, edge_threads * maxe)
+    edge_blocks_max = cld(num_edges, edge_threads * mine)
+    edge_blocks_occupy = cld(config.blocks, ex_blocks)
+    # @show edge_blocks_min
+    # @show edge_blocks_occupy
+    # @show edge_blocks_max
+    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
+    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
+end
 
 # custom MAR initialization kernels
-init_mar(node::TransposedLocalEdgeBitProbCircuits.BitsInnerNode, data, example_id) = 
-    node.issum ? -Inf32 : zero(Float32)
+function init_mar!_kernel(mars, nodes, data, example_ids)
+    node_work = cld(length(nodes), (blockDim().x * gridDim().x))
+    node_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * node_work + 1
+    node_end = min(node_start + node_work - 1, length(nodes))
 
-function init_mar(leaf::TransposedLocalEdgeBitProbCircuits.BitsLiteral, data, example_id)
-    lit = leaf.literal
-    v = data[example_id, abs(lit)]
-    if ismissing(v)
-        zero(Float32)
-    elseif (lit > 0) == v
-        zero(Float32)
+    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if ex_id <= size(mars,1)
+        for node_id = node_start:node_end
+            node = nodes[node_id]
+            mars[ex_id, node_id] = 
+                if (node isa TransposedLocalEdgeBitProbCircuits.BitsInnerNode)
+                    node.issum ? -Inf32 : zero(Float32)
+                else
+                    orig_ex_id = example_ids[ex_id]
+                    leaf = node::TransposedLocalEdgeBitProbCircuits.BitsLiteral
+                    lit = leaf.literal
+                    v = data[orig_ex_id, abs(lit)]
+                    if ismissing(v)
+                        zero(Float32)
+                    elseif (lit > 0) == v
+                        zero(Float32)
+                    else
+                        -Inf32
+                    end
+                end
+        end
+    end
+    nothing
+end
+
+function init_mar!(mars, bpc::TransposedLocalEdgeBitProbCircuit, data, example_ids; mine, maxe, debug=false)
+    @assert size(mars,1) == length(example_ids)
+    kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(mars, bpc.nodes, data,example_ids) 
+    config = launch_configuration(kernel.fun)
+    threads, blocks = balance_threads_local_t(length(bpc.nodes), length(example_ids), config; mine, maxe)
+    debug && println("Node initialization")
+    debug && @show config, threads, blocks
+    debug && println("Each thread processes $(Float32(length(bpc.nodes)/threads[1]/blocks[1])) nodes")
+    if debug
+        CUDA.@time kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
     else
-        -Inf32
+        kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
     end
+    nothing
 end
-
-function init_mar!(mars, bpc::TransposedLocalEdgeBitProbCircuit, data, example_ids)
-    broadcast!(transpose(mars), bpc.nodes, transpose(example_ids)) do node, example_id
-        init_mar(node, data, example_id)
-    end
-end
-
 
 function eval_layer!_kernel_local_transposed(mars, layer)
     edge_work = cld(length(layer), (blockDim().x * gridDim().x))
@@ -282,23 +322,6 @@ bit_node_stats(bpc::TransposedLocalEdgeBitProbCircuit) =
     bit_node_stats_local_t(reduce(vcat, bpc.edge_layers))
 
 
-
-function balance_threads_local_t(num_edges, num_examples, config; mine=2, maxe)
-    # prefer to assign threads to examples, they do not require memory synchronization
-    ex_threads = min(config.threads, num_examples)
-    # make sure each thread deals with at most one example
-    ex_blocks = cld(num_examples, ex_threads)
-    edge_threads = config.threads ÷ ex_threads
-    edge_blocks_min = cld(num_edges, edge_threads * maxe)
-    edge_blocks_max = cld(num_edges, edge_threads * mine)
-    edge_blocks_occupy = cld(config.blocks, ex_blocks)
-    # @show edge_blocks_min
-    # @show edge_blocks_occupy
-    # @show edge_blocks_max
-    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
-    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
-end
-
 function eval_layer!(mars, bpc::TransposedLocalEdgeBitProbCircuit, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel_local_transposed(mars, layer) 
@@ -317,7 +340,7 @@ end
 
 # run entire circuit
 function eval_circuit!(mars, bpc::TransposedLocalEdgeBitProbCircuit, data, example_ids; mine, maxe, debug=false)
-    init_mar!(mars, bpc, data, example_ids)
+    init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
     for i in 1:TransposedLocalEdgeBitProbCircuits.num_edge_layers(bpc)
         eval_layer!(mars, bpc, i; mine, maxe, debug)
     end
@@ -352,7 +375,7 @@ function marginal2(bpc::TransposedLocalEdgeBitProbCircuit, data::CuArray; cu_mar
             cur_batch_size = batch_end - batch_start + 1
             init_mar!(cu_mars[1:cur_batch_size, :], cu_bpc, data, cu_batch_i);
             eval_circuit!(cu_mars[1:cur_batch_size, :], cu_bpc, data, cu_batch_i; mine, maxe);
-            cu_ans[cu_batch_i] .= cu_mars[1:cur_batch_size, :]
+            cu_ans[cu_batch_i] .= cu_mars[1:cur_batch_size, end]
         else
             init_mar!(cu_mars, cu_bpc, data, cu_batch_i);
             eval_circuit!(cu_mars, cu_bpc, data, cu_batch_i;  mine, maxe);
