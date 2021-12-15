@@ -218,31 +218,75 @@ BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
 mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
 cu_mars = cu(mars);
 
-# custom MAR initialization kernels
-init_mar(node::BitsProbCircuits.BitsInnerNode, data, example_id) = 
-    node.issum ? -Inf32 : zero(Float32)
-
-function init_mar(leaf::BitsProbCircuits.BitsLiteral, data, example_id)
-    lit = leaf.literal
-    v = data[example_id, abs(lit)]
-    if ismissing(v)
-        zero(Float32)
-    elseif (lit > 0) == v
-        zero(Float32)
-    else
-        -Inf32
-    end
+function balance_threads(num_edges, num_examples, config; mine=2, maxe)
+    # prefer to assign threads to examples, they do not require memory synchronization
+    ex_threads = min(config.threads, num_examples)
+    # make sure each thread deals with at most one example
+    ex_blocks = cld(num_examples, ex_threads)
+    edge_threads = config.threads ÷ ex_threads
+    edge_blocks_min = cld(num_edges, edge_threads * maxe)
+    edge_blocks_max = cld(num_edges, edge_threads * mine)
+    edge_blocks_occupy = cld(config.blocks, ex_blocks)
+    # @show edge_blocks_min
+    # @show edge_blocks_occupy
+    # @show edge_blocks_max
+    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
+    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
 end
 
-function init_mar!(mars, bpc, data, example_ids)
-    broadcast!(transpose(mars), bpc.nodes, transpose(example_ids)) do node, example_id
-        init_mar(node, data, example_id)
+function init_mar!_kernel(mars, nodes, data, example_ids)
+    node_work = cld(length(nodes), (blockDim().x * gridDim().x))
+    node_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * node_work + 1
+    node_end = min(node_start + node_work - 1, length(nodes))
+
+    ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+
+    if ex_id <= size(mars,1)
+        for node_id = node_start:node_end
+            node = nodes[node_id]
+            mars[ex_id, node_id] = 
+                if (node isa BitsProbCircuits.BitsInnerNode)
+                    node.issum ? -Inf32 : zero(Float32)
+                else
+                    orig_ex_id = example_ids[ex_id]
+                    leaf = node::BitsProbCircuits.BitsLiteral
+                    lit = leaf.literal
+                    v = data[orig_ex_id, abs(lit)]
+                    if ismissing(v)
+                        zero(Float32)
+                    elseif (lit > 0) == v
+                        zero(Float32)
+                    else
+                        -Inf32
+                    end
+                end
+        end
     end
+    nothing
+end
+
+@device_code_warntype @cuda init_mar!_kernel(cu_mars, cu_bpc.nodes, cu_data, cu_batch_i)
+
+function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
+    @assert size(mars,1) == length(example_ids)
+    kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(mars, bpc.nodes, data,example_ids) 
+    config = launch_configuration(kernel.fun)
+    threads, blocks = balance_threads(length(bpc.nodes), length(example_ids), config; mine, maxe)
+    debug && println("Node initialization")
+    debug && @show config, threads, blocks
+    debug && println("Each thread processes $(Float32(length(bpc.nodes)/threads[1]/blocks[1])) nodes")
+    if debug
+        CUDA.@time kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
+    else
+        kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
+    end
+    nothing
 end
 
 # initialize node marginals
-# @time init_mar!(mars, bpc, data, batch_i);
-CUDA.@time init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i);
+init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
+
+@btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=false);
 
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
@@ -316,22 +360,6 @@ end
 
 # @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
 
-function balance_threads(num_edges, num_examples, config; mine=2, maxe)
-    # prefer to assign threads to examples, they do not require memory synchronization
-    ex_threads = min(config.threads, num_examples)
-    # make sure each thread deals with at most one example
-    ex_blocks = cld(num_examples, ex_threads)
-    edge_threads = config.threads ÷ ex_threads
-    edge_blocks_min = cld(num_edges, edge_threads * maxe)
-    edge_blocks_max = cld(num_edges, edge_threads * mine)
-    edge_blocks_occupy = cld(config.blocks, ex_blocks)
-    # @show edge_blocks_min
-    # @show edge_blocks_occupy
-    # @show edge_blocks_max
-    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
-    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
-end
-
 function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
@@ -356,12 +384,7 @@ eval_layer!(cu_mars, cu_bpc, 1; mine=8, maxe=32, debug=true);
 
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
-    debug && println("Node initialization")
-    if debug
-        CUDA.@time init_mar!(mars, bpc, data, example_ids)
-    else
-        init_mar!(mars, bpc, data, example_ids)
-    end
+    init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
         eval_layer!(mars, bpc, i; mine, maxe, debug)
     end
@@ -398,10 +421,6 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, 
 
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8);
 
-
-# batch_df = to_gpu(DataFrame(data[batch_i,:], :auto));
-# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-# CUDA.@time reuse = marginal_all(pbc, batch_df);
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-
-# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
+# transpose:   236.776 ms (3583 allocations: 175.78 KiB)
+# original:    324.247 ms (3580 allocations: 175.73 KiB)
+# transpose - also data: 246.559 ms (3583 allocations: 175.78 KiB)
