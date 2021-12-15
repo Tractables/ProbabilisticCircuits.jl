@@ -215,7 +215,7 @@ bit_node_stats(bpc)
 BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes)
 
 # allocate memory for MAR
-mars = Matrix{Float32}(undef, length(bpc.nodes), length(batch_i));
+mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
 cu_mars = cu(mars);
 
 # custom MAR initialization kernels
@@ -235,7 +235,7 @@ function init_mar(leaf::BitsProbCircuits.BitsLiteral, data, example_id)
 end
 
 function init_mar!(mars, bpc, data, example_ids)
-    broadcast!(mars, bpc.nodes, transpose(example_ids)) do node, example_id
+    broadcast!(transpose(mars), bpc.nodes, transpose(example_ids)) do node, example_id
         init_mar(node, data, example_id)
     end
 end
@@ -256,22 +256,6 @@ function logsumexp(x::Float32,y::Float32)::Float32
     end 
 end
 
-function eval_edge!(mars, edge::BitsProbCircuits.SumEdge, example_id)
-    child_prob = edge.logp + mars[edge.prime_id, example_id]
-    if edge.sub_id > 0
-        child_prob += mars[edge.sub_id, example_id]
-    end
-    child_prob
-end
-
-function eval_edge!(mars, edge::BitsProbCircuits.MulEdge, example_id)
-    child_prob = mars[edge.prime_id, example_id]
-    if edge.sub_id > 0
-        child_prob += mars[edge.sub_id, example_id]
-    end
-    child_prob
-end
-
 @inline isfirst(x) = (x <= 1)
 @inline islast(x) = (x == 0) || (x == 3)
 
@@ -282,7 +266,7 @@ function eval_layer!_kernel(mars, layer)
 
     ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
 
-    if ex_id <= size(mars,2)
+    if ex_id <= size(mars,1)
         acc = zero(Float32)    
         local_node = false
         for edge_id = edge_start:edge_end
@@ -293,9 +277,9 @@ function eval_layer!_kernel(mars, layer)
             end
 
             # compute probability coming from child
-            child_prob = mars[edge.prime_id, ex_id]
+            child_prob = mars[ex_id, edge.prime_id]
             if edge.sub_id != 0
-                child_prob += mars[edge.sub_id, ex_id]
+                child_prob += mars[ex_id, edge.sub_id]
             end
             if edge isa BitsProbCircuits.SumEdge
                 child_prob += edge.logp
@@ -315,12 +299,12 @@ function eval_layer!_kernel(mars, layer)
                 pid = edge.parent_id
                 if islast(edge.first_or_last) && local_node
                     # no one else is writing to this global memory
-                    mars[pid, ex_id] = acc
+                    mars[ex_id, pid] = acc
                 else
                     if (edge isa BitsProbCircuits.SumEdge)
-                        CUDA.@atomic mars[pid, ex_id] = logsumexp(mars[pid, ex_id], acc)
+                        CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
                     else
-                        CUDA.@atomic mars[pid, ex_id] += acc
+                        CUDA.@atomic mars[ex_id, pid] += acc
                     end 
                 end             
             end
@@ -352,7 +336,7 @@ function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), size(mars,2), config; mine, maxe)
+    threads, blocks = balance_threads(length(layer), size(mars,1), config; mine, maxe)
     debug && println("Layer $layer_id")
     debug && @show config, threads, blocks
     debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
@@ -409,10 +393,5 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=8, maxe=32, 
 
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
-# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
-# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-# CUDA.@time reuse = marginal_all(pbc, batch_df);
-# @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
-
-# @btime CUDA.@sync eval_circuit!(mars, bpc, data, batch_i); # new CPU code
-
+# transpose:   236.776 ms (3583 allocations: 175.78 KiB)
+# original:    324.247 ms (3580 allocations: 175.73 KiB)
