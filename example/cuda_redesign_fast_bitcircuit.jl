@@ -32,8 +32,6 @@ cu_batch_i = CuVector(1:batchsize);
 module BitsProbCircuits
         
     using DirectedAcyclicGraphs, ProbabilisticCircuits, CUDA
-    using TikzPictures # this is required for saving
-
 
     struct BitsLiteral
         literal::Int
@@ -42,6 +40,7 @@ module BitsProbCircuits
     struct BitsInnerNode
         issum::Bool
     end
+
     const BitsNode = Union{BitsLiteral, BitsInnerNode}
 
     struct SumEdge 
@@ -67,125 +66,17 @@ module BitsProbCircuits
     struct BitsProbCircuit <: AbstractBitsProbCircuit
         nodes::Vector{BitsNode}
         edge_layers::Vector{EdgeLayer}
-        BitsProbCircuit(nodes, edge_layers) = 
-            new(nodes, edge_layers)
-        BitsProbCircuit(num_nodes:: Int, num_layers::Int) = new(
-            Vector{BitsNode}(undef, num_nodes),
-            EdgeLayer[EdgeLayer() for i = 1:num_layers-1]
-        )
-    end
-
-    nondupplicate(root, n) = if isduplicatenode(root, n) 
-            nondupplicate(root, children(n)[1]) 
-        else 
-            n 
-        end
-
-    isduplicatenode(root, n) = begin
-       (n !== root) && num_children(n)==1 && ismaterializednode(root, nondupplicate(root, children(n)[1]) )
-    end
-
-    ismaterializednode(root, n) = begin
-        n===root && return true # always materialize the root
-        if (ismul(n) && num_children(n)==2) 
-            ndc = nondupplicate(root, children(n)[1])
-            !ismaterializednode(root, ndc) && error("Wanted to not materialize $n but its first non-duplicate child is $(ndc) which is not materialized")
-            ndc = nondupplicate(root, children(n)[2])
-            !ismaterializednode(root, ndc) && error("Wanted to not materialize $n but its second non-duplicate child is $(ndc) which is not materialized")
-            return false # do not materialize "elements"
-        end
-        isduplicatenode(root, n) && return false # do not materialize duplicate pass-through nodes
-        return true
-    end
-
-    function label_nodes_custom(root)
-        labeling = Dict{ProbCircuit,Int}()
-        i = 0
-        f_inner(n, call) = begin 
-            child_ids = map(call, children(n))
-            if isduplicatenode(root, n)
-                @assert length(child_ids) == 1
-                child_ids[1]
-            elseif !ismaterializednode(root, n) 
-                0 # this node will be collapsed into an edge
-            else
-                (i += 1)
-            end
-        end 
-        f_leaf(n) = (i += 1)
-        foldup(root, f_leaf, f_inner, Int, labeling)
-        labeling, i
-    end
-
-    function feedforward_layers_custom(root::DAG)
-        node2layer = Dict{DAG, Int}()
-        f_inner(n, call) = begin
-            cl = mapreduce(call, max, children(n))
-            ismaterializednode(root, n) ? cl + 1 : cl
-        end
-        f_leaf(n) = 1
-        num_layers = foldup(root, f_leaf, f_inner, Int, node2layer)
-        node2layer, num_layers
-    end
-
-    function prime_sub_ids(pc, c, node2label)
-        if ismaterializednode(pc, c)
-            node2label[c], 0
-        else
-            prime, sub = children(c)
-            node2label[prime], node2label[sub]
-        end
     end
 
     first_or_last(i,n) =
         (i == n == 1) ? 0 : (i == 1) ? 1 : (i<n) ? 2 : 3 
-
-    function BitsProbCircuit(pc)
-        node2label, num_materialized_nodes = label_nodes_custom(pc)
-        node2layer, num_layers = feedforward_layers_custom(pc)
-        @show num_materialized_nodes num_layers
-        bpc = BitsProbCircuit(num_materialized_nodes, num_layers)
-        foreach(pc) do node 
-            pid = node2label[node]
-            if ismaterializednode(pc, node)
-                if isleaf(node)
-                    bnode = BitsLiteral(literal(node))
-                else
-                    child_nodes = children(node)
-                    layer = bpc.edge_layers[node2layer[node]-1]
-                    if issum(node)
-                        bnode = BitsInnerNode(true)
-                        for i = 1:length(child_nodes)
-                            logp = node.log_probs[i]
-                            primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
-                            fol = first_or_last(i, length(child_nodes))
-                            edge = SumEdge(pid, primeid, subid, logp, fol)
-                            push!(layer, edge)
-                        end
-                    else
-                        @assert ismul(node)
-                        bnode = BitsInnerNode(false)
-                        for i = 1:length(child_nodes)
-                            primeid, subid = prime_sub_ids(pc, child_nodes[i], node2label)
-                            fol = first_or_last(i, length(child_nodes))
-                            edge = MulEdge(pid, primeid, subid, fol)
-                            push!(layer, edge) 
-                        end
-                    end
-                end
-                bpc.nodes[pid] = bnode
-            end
-        end
-        bpc, node2label
-    end
-
     struct NodeInfo
         prime_id::Int
         sub_id::Int
         layer_id::Int
     end
 
-    function BitsProbCircuit2(pc; eager_materialize=true)
+    function BitsProbCircuit(pc; eager_materialize=true)
         nodes = BitsNode[]
         layers = EdgeLayer[]
 
@@ -204,7 +95,6 @@ module BitsProbCircuits
         end
         
         f_inner(node, children_info) = begin
-            # do one pass counting how many parents request materialization?
             if (length(children_info) == 1 
                 && (!eager_materialize || children_info[1].sub_id == 0))
                 # this is a pass-through node
@@ -282,17 +172,14 @@ module BitsProbCircuits
 
 end
 
-@time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
-@time bpc2 = BitsProbCircuits.BitsProbCircuit2(pc);
-@time bpc3 = BitsProbCircuits.BitsProbCircuit2(pc; eager_materialize=false);
+@time bpc1 = BitsProbCircuits.BitsProbCircuit(pc);
+@time bpc2 = BitsProbCircuits.BitsProbCircuit(pc; eager_materialize=false);
 
-BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes), sum(length, bpc.edge_layers)
+BitsProbCircuits.num_edge_layers(bpc1), length(bpc.nodes), sum(length, bpc1.edge_layers)
 BitsProbCircuits.num_edge_layers(bpc2), length(bpc2.nodes), sum(length, bpc2.edge_layers)
-BitsProbCircuits.num_edge_layers(bpc3), length(bpc3.nodes), sum(length, bpc3.edge_layers)
 
-@time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+@time cu_bpc1 = BitsProbCircuits.CuProbCircuit(bpc1);
 @time cu_bpc2 = BitsProbCircuits.CuProbCircuit(bpc2);
-@time cu_bpc3 = BitsProbCircuits.CuProbCircuit(bpc3);
 
 @inline isfirst(x) = (x <= 1)
 @inline islast(x) = (x == 0) || (x == 3)
@@ -314,37 +201,29 @@ my_bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
 
 
 # for i = 1:BitsProbCircuits.num_edge_layers(bpc)
-#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc)): $(length(bpc.edge_layers[i])) edges")
+#     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc1)): $(length(bpc1.edge_layers[i])) edges")
 # end
 # for i = 1:BitsProbCircuits.num_edge_layers(bpc2)
 #     println("Layer $i/$(BitsProbCircuits.num_edge_layers(bpc2)): $(length(bpc2.edge_layers[i])) edges")
 # end
-my_bit_node_stats(bpc)
+my_bit_node_stats(bpc1)
 my_bit_node_stats(bpc2)
-my_bit_node_stats(bpc3)
 
 # allocate memory for MAR
-mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
-cu_mars = cu(mars);
+mars1 = Matrix{Float32}(undef, length(batch_i), length(bpc1.nodes));
+cu_mars1 = cu(mars);
 
 mars2 = Matrix{Float32}(undef, length(batch_i), length(bpc2.nodes));
 cu_mars2 = cu(mars2);
 
-mars3 = Matrix{Float32}(undef, length(batch_i), length(bpc3.nodes));
-cu_mars3 = cu(mars3);
-
 function balance_threads(num_edges, num_examples, config; mine=2, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
     ex_threads = min(config.threads, num_examples)
-    # make sure each thread deals with at most one example
     ex_blocks = cld(num_examples, ex_threads)
     edge_threads = config.threads ÷ ex_threads
     edge_blocks_min = cld(num_edges, edge_threads * maxe)
     edge_blocks_max = cld(num_edges, edge_threads * mine)
     edge_blocks_occupy = cld(config.blocks, ex_blocks)
-    # @show edge_blocks_min
-    # @show edge_blocks_occupy
-    # @show edge_blocks_max
     edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
     ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
 end
@@ -399,9 +278,9 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
 end
 
 # # initialize node marginals
-# init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
+# init_mar!(cu_mars1, cu_bpc1, cu_data, cu_batch_i; mine=2, maxe=8, debug=true);
 
-# @btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false);
+# @btime CUDA.@sync init_mar!(cu_mars1, cu_bpc1, cu_data, cu_batch_i; mine=2, maxe=16, debug=false);
 
 function logsumexp(x::Float32,y::Float32)::Float32
     if x == -Inf32
@@ -490,7 +369,7 @@ end
 
 # run 1 layer
 # @time eval_layer!(mars, bpc, 1);
-eval_layer!(cu_mars, cu_bpc, 1; mine=8, maxe=32, debug=true);
+eval_layer!(cu_mars1, cu_bpc1, 1; mine=8, maxe=32, debug=true);
 
 # @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 1; block_multiplier=500, debug=false);
 
@@ -505,7 +384,7 @@ end
 
 # run all layers
 # @time eval_circuit!(mars, bpc, data, batch_i);
-CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
+CUDA.@time eval_circuit!(cu_mars1, cu_bpc1, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
 
 ####################################################
 # benchmark node marginals for minibatch
@@ -529,9 +408,8 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, 
 
 # TODO try transposing the MAR matrix
 
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+@btime CUDA.@sync eval_circuit!(cu_mars1, cu_bpc1, cu_data, cu_batch_i; mine=2, maxe=16);
 @btime CUDA.@sync eval_circuit!(cu_mars2, cu_bpc2, cu_data, cu_batch_i; mine=2, maxe=16);
-@btime CUDA.@sync eval_circuit!(cu_mars3, cu_bpc3, cu_data, cu_batch_i; mine=2, maxe=16);
 
 # OLD GPU CODE BENCHMARK
 batch_df = to_gpu(DataFrame(data[batch_i,:], :auto));
@@ -539,8 +417,8 @@ pbc = to_gpu(ParamBitCircuit(pc, batch_df));
 CUDA.@time reuse = marginal_all(pbc, batch_df);
 @btime CUDA.@sync marginal_all(pbc, batch_df, reuse); # old GPU code
 
-size.([reuse, cu_mars, cu_mars2])
-
-hcat(reuse[:,end], cu_mars[:,end], cu_mars[:,end])
+# debugging info
+size.([reuse, cu_mars1, cu_mars2])
+hcat(reuse[:,end], cu_mars1[:,end], cu_mars2[:,end])
 
 nothing
