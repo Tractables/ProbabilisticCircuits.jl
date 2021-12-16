@@ -185,10 +185,9 @@ module BitsProbCircuits
         layer_id::Int
     end
 
-    function BitsProbCircuit2(pc)
+    function BitsProbCircuit2(pc; eager_materialize=true)
         nodes = BitsNode[]
         layers = EdgeLayer[]
-        # num_pars = num_parents(pc)
 
         add_edge(layer_id, edge) = begin
             while length(layers) < layer_id
@@ -206,58 +205,16 @@ module BitsProbCircuits
         
         f_inner(node, children_info) = begin
             # do one pass counting how many parents request materialization?
-            if length(children_info) == 1 && children_info[1].sub_id == 0 #&& num_pars[node] <= 1
-                if ismaterializednode(pc, node)
-                    println("Node: $node:")
-                    for i in 1:length(children_info)
-                        println("  * Child: $(node.children[i])")
-                        println("    Info: $(children_info[i])")
-                        isinner(node.children[i]) && for gc in node.children[i].children
-                            println("    - GrandChild: $(gc)")
-                            isinner(gc) && println("      Greatgrandchildren: $(gc.children)")
-                        end
-                    end
-                    println()
-                    TikzPictures.save(SVG("should_materialize"), plot(node))
-                    error("should be materialized")
-                end
+            if (length(children_info) == 1 
+                && (!eager_materialize || children_info[1].sub_id == 0))
                 # this is a pass-through node
                 children_info[1]
             elseif (ismul(node) && length(children_info) == 2 
-                    && children_info[1].sub_id == 0 && children_info[2].sub_id == 0
-                    )#&& num_pars[node] <= 1)
+                    && children_info[1].sub_id == 0 && children_info[2].sub_id == 0)
                 # this is a simple conjunctive element that we collapse into an edge
-                if ismaterializednode(pc, node)
-                    println("Node: $node:")
-                    for i in 1:length(children_info)
-                        println("  * Child: $(node.children[i])")
-                        println("    Info: $(children_info[i])")
-                        isinner(node.children[i]) && for gc in node.children[i].children
-                            println("    - GrandChild: $(gc)")
-                            isinner(gc) && println("      Greatgrandchildren: $(gc.children)")
-                        end
-                    end
-                    println()
-                    TikzPictures.save(SVG("should_materialize"), plot(node))
-                    error("should be materialized")
-                end
                 layer_id = max(children_info[1].layer_id, children_info[2].layer_id)
                 NodeInfo(children_info[1].prime_id, children_info[2].prime_id, layer_id)
             else
-                # if !ismaterializednode(pc, node)
-                #     println("Node: $node:")
-                #     for i in 1:length(children_info)
-                #         println("  * Child: $(node.children[i])")
-                #         println("    Info: $(children_info[i])")
-                #         for gc in node.children[i].children
-                #             println("    - GrandChild: $(gc)")
-                #             isinner(gc) && println("      Greatgrandchildren: $(gc.children)")
-                #         end
-                #     end
-                #     println()
-                #     TikzPictures.save(SVG("materialize"), plot(node))
-                #     error("should not be materialized")
-                # end
                 push!(nodes, BitsInnerNode(issum(node)))
                 node_id = length(nodes)
                 layer_id = maximum(x -> x.layer_id, children_info) + 1
@@ -271,10 +228,19 @@ module BitsProbCircuits
                     end
                 else
                     @assert ismul(node)
-                    # TODO use sub of multiplication edge when children are not elements!!!
-                    for i = 1:length(children_info)
-                        child_info = children_info[i]
-                        fol = first_or_last(i, length(children_info))
+                    single_infos = filter(x -> (x.sub_id == 0), children_info)
+                    double_infos = filter(x -> (x.sub_id != 0), children_info)
+                    for i = 1:2:length(single_infos)
+                        if i < length(single_infos)
+                            merged_layer_id = max(single_infos[i].layer_id, single_infos[i+1].layer_id)
+                            merged_info = NodeInfo(single_infos[i].prime_id, single_infos[i+1].prime_id, merged_layer_id)
+                            single_infos[i] = merged_info
+                        end
+                        push!(double_infos, single_infos[i])
+                    end
+                    for i = 1:length(double_infos)
+                        child_info = double_infos[i]
+                        fol = first_or_last(i, length(double_infos))
                         edge = MulEdge(node_id, child_info.prime_id, child_info.sub_id, fol)
                         add_edge(layer_id, edge)
                     end
@@ -318,12 +284,15 @@ end
 
 @time bpc, node2label = BitsProbCircuits.BitsProbCircuit(pc);
 @time bpc2 = BitsProbCircuits.BitsProbCircuit2(pc);
+@time bpc3 = BitsProbCircuits.BitsProbCircuit2(pc; eager_materialize=false);
 
 BitsProbCircuits.num_edge_layers(bpc), length(bpc.nodes), sum(length, bpc.edge_layers)
 BitsProbCircuits.num_edge_layers(bpc2), length(bpc2.nodes), sum(length, bpc2.edge_layers)
+BitsProbCircuits.num_edge_layers(bpc3), length(bpc3.nodes), sum(length, bpc3.edge_layers)
 
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 @time cu_bpc2 = BitsProbCircuits.CuProbCircuit(bpc2);
+@time cu_bpc3 = BitsProbCircuits.CuProbCircuit(bpc3);
 
 @inline isfirst(x) = (x <= 1)
 @inline islast(x) = (x == 0) || (x == 3)
@@ -352,6 +321,7 @@ my_bit_node_stats(bpc::BitsProbCircuits.BitsProbCircuit) =
 # end
 my_bit_node_stats(bpc)
 my_bit_node_stats(bpc2)
+my_bit_node_stats(bpc3)
 
 # allocate memory for MAR
 mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
@@ -359,6 +329,9 @@ cu_mars = cu(mars);
 
 mars2 = Matrix{Float32}(undef, length(batch_i), length(bpc2.nodes));
 cu_mars2 = cu(mars2);
+
+mars3 = Matrix{Float32}(undef, length(batch_i), length(bpc3.nodes));
+cu_mars3 = cu(mars3);
 
 function balance_threads(num_edges, num_examples, config; mine=2, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
@@ -558,6 +531,7 @@ CUDA.@time eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, 
 
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 @btime CUDA.@sync eval_circuit!(cu_mars2, cu_bpc2, cu_data, cu_batch_i; mine=2, maxe=16);
+@btime CUDA.@sync eval_circuit!(cu_mars3, cu_bpc3, cu_data, cu_batch_i; mine=2, maxe=16);
 
 # OLD GPU CODE BENCHMARK
 batch_df = to_gpu(DataFrame(data[batch_i,:], :auto));
