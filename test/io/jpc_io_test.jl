@@ -66,6 +66,23 @@ include("../helper/pc_equals.jl")
         test_my_circuit(pc3)
         test_pc_equals(pc1, pc3)
         @test vtree(pc1) == vtree(pc3)
+
+        # read/write compressed
+        write("$jpc_path.gz", pc1)
+        pc2 = read("$jpc_path.gz", ProbCircuit)
+        
+        test_my_circuit(pc2)
+        test_pc_equals(pc1, pc2)
+
+        # read/write compressed structured
+        paths = ("$jpc_path.gz", vtree_path)
+        write(paths, pc1)
+        pc3 = read(paths, StructProbCircuit) 
+        
+        @test pc3 isa StructProbCircuit
+        test_my_circuit(pc3)
+        test_pc_equals(pc1, pc3)
+        @test vtree(pc1) == vtree(pc3)
         
     end
 

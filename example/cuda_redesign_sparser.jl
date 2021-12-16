@@ -5,10 +5,10 @@ CUDA.allowscalar(false)
 # cd(@__DIR__)
 # device!(collect(devices())[2])
 
-pc_file = "meihua_hclt.jpc"
+# pc_file = "meihua_hclt.jpc"
 # pc_file = "meihua_hclt_small.jpc"
 # pc_file = "rat_mnist_r10_l10_d4_p20.jpc"
-# pc_file = "mnist_hclt_cat16.jpc"
+pc_file = "mnist_hclt_cat16.jpc"
 
 # @time pc = read(pc_file, ProbCircuit)
 @time pc = ProbabilisticCircuits.read_fast(pc_file)
@@ -22,7 +22,7 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batchsize = 512
+batchsize = 1024
 batch_i = 1:batchsize;
 cu_batch_i = CuVector(1:batchsize);
 

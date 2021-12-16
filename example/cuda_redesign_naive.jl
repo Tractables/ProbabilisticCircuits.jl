@@ -17,10 +17,13 @@ data[:,1] .= missing;
 cu_data = to_gpu(data);
 
 # create minibatch
-batch_i = 1:512;
-cu_batch_i = CuVector(batch_i);
+batchsize = 512
+batch_i = 1:batchsize;
+cu_batch_i = CuVector(1:batchsize);
 batch_df_cpu = DataFrame(transpose(data[:, batch_i]), :auto);
 batch_df = to_gpu(batch_df_cpu);
+# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+
 
 # try current MAR code
 pbc_cpu = ParamBitCircuit(pc, batch_df);

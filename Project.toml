@@ -1,7 +1,7 @@
 name = "ProbabilisticCircuits"
 uuid = "2396afbe-23d7-11ea-1e05-f1aa98e17a44"
 authors = ["Guy Van den Broeck <guyvdb@cs.ucla.edu>"]
-version = "0.3.1"
+version = "0.3.2"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -38,11 +38,11 @@ CUDA = "3"
 Clustering = "0.14"
 DataFrames = "1.2"
 DataStructures = "0.17, 0.18"
+DirectedAcyclicGraphs = "0.1.2"
 Distributions = "0.25"
-DirectedAcyclicGraphs = "0.1.1"
 Graphs = "1.4"
 Lerche = "0.5"
-LogicCircuits = "0.3.1"
+LogicCircuits = "0.3.2"
 LoopVectorization = "0.11, 0.12"
 MetaGraphs = "0.7"
 Metis = "1.0"

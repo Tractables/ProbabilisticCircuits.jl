@@ -4,6 +4,8 @@ export estimate_parameters!,
     update_pc_params_from_pbc!,
     estimate_parameters_em_multi_epochs!
 
+
+using DirectedAcyclicGraphs: parent_stats
 using LogicCircuits: num_nodes
 using StatsFuns: logsumexp, logaddexp, logsubexp
 using CUDA
@@ -440,7 +442,7 @@ Arguments:
 
 Keyword arguments:
 - `valid_data=nothing`: validation data, should be same device as `train_data` 
-` `test_data=nothing`: test data, data, should be same device as `train_data` 
+- `test_data=nothing`: test data, data, should be same device as `train_data` 
 - `entropy_reg::Float64 = 0.0`: Entropy regularization
 - `exp_update_factor_start::Float64 = 0.1`: 
 - `exp_update_factor_end::Float64 = 0.9`:
@@ -482,7 +484,7 @@ function estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data; 
             println(stat)
         end
         println("----Parent Stats-----")
-        for stat in LogicCircuits.Utils.parent_stats(circuit)
+        for stat in parent_stats(circuit)
             println(stat)
         end
     end
@@ -490,19 +492,19 @@ function estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data; 
     epoch_callback(iter_name, iter, total_iter, t) = begin
         if verbose & (iter % verbose_log_rate == 0)
             t = round(t, digits=2)
-            print("[$iter_name Iter $(iter)/$(total_iter); took $(t)s]")
+            print("[$iter_name Iter $(iter)/$(total_iter); last iter took $(t)s]")
             t = @elapsed begin
                 train_ll = marginal_log_likelihood_avg(pbc, train_data)
                 valid_ll = isnothing(valid_data) ? nothing : marginal_log_likelihood_avg(pbc, valid_data) 
                 test_ll  = isnothing(test_data)  ? nothing : marginal_log_likelihood_avg(pbc, test_data) 
             end
             t = round(t, digits=2)
-            println("[Marginal log-likelihoods Avg took $(t)s; train $(train_ll), valid $(valid_ll), test $(test_ll)]")
+            println("[Marginal log-likelihoods Avg last iter took $(t)s; train $(train_ll), valid $(valid_ll), test $(test_ll)]")
         end
         if !isnothing(save_path) && (iter % save_rate == 0)
             update_pc_params_from_pbc!(circuit, pbc)
             if verbose
-                println("\t - Saving circuit at $(save_path)")
+                println("- Saving circuit at $(save_path)")
                 write(save_path, circuit)
             end
         end
@@ -821,9 +823,9 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
 
     if data_batched
         v, f = reuse_v, reuse_f
-        if weights != nothing
+        if !isnothing(weights)
             map(zip(data, weights)) do (d, w)
-                if w != nothing
+                if !isnothing(w)
                     w = to_gpu(w)
                 end
                 v, f = marginal_flows(pbc, d, v, f; on_node = on_node, on_edge = on_edge, weights = w)
@@ -840,7 +842,7 @@ function estimate_parameters_gpu(pbc::ParamBitCircuit, data, pseudocount; weight
             nothing # Return nothing to save some time
         end
     else
-        if weights != nothing
+        if !isnothing(weights)
             weights = to_gpu(weights)
         end
         
