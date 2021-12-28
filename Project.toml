@@ -34,7 +34,7 @@ TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
-CUDA = "3"
+CUDA = "3.6"
 Clustering = "0.14"
 DataFrames = "1.2"
 DataStructures = "0.17, 0.18"
