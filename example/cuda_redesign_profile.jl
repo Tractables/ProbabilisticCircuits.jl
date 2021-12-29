@@ -1,5 +1,7 @@
 # nsys launch --trace=cuda julia --project=ProbabilisticCircuits/example/
+# sudo nv-nsight-cu-cli --mode=launch julia --project=ProbabilisticCircuits/example/
 
+# using Pkg; Pkg.activate(@__DIR__)
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
@@ -345,8 +347,10 @@ function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     nothing
 end
 
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
 CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
 # CUDA.@profile @btime eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+
+# exit()
