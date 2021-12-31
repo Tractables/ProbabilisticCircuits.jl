@@ -272,16 +272,16 @@ end
 ###################################################################################
 
 function logsumexp(x::Float32,y::Float32)
+    sum = max(x,y)
     if isfinite(x) && isfinite(y)
-        # note: @fastmath does not work with infinite values, so do not apply above
-        @fastmath max(x,y) + log1p(exp(-abs(x-y))) 
-    else
-        max(x,y)
+        # note: @fastmath does not work with infinite values, so do no apply above
+        sum += @fastmath log1p(exp(-abs(x-y))) 
     end
+    sum
 end
 
 
-function eval_layer!_kernel(mars, layer)
+function eval_layer!_kernel(mars, layer, stats, ::Val{Debug}) where Debug
 
     num_edges::Int32 = length(layer)
     @xrange edge_start edge_end num_edges
@@ -329,11 +329,22 @@ function eval_layer!_kernel(mars, layer)
                     if islastedge && local_node
                         # no one else is writing to this global memory
                         mars[ex_id, pid] = acc
+                        Debug && CUDA.@atomic stats[1] += 1
                     else
                         if (edge isa BitsProbCircuits.SumEdge)
                             CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
+                            Debug && if islastedge
+                                CUDA.@atomic stats[2] += 1
+                            else
+                                CUDA.@atomic stats[3] += 1
+                            end
                         else
                             CUDA.@atomic mars[ex_id, pid] += acc
+                            Debug && if islastedge
+                                CUDA.@atomic stats[4] += 1
+                            else
+                                CUDA.@atomic stats[5] += 1
+                            end
                         end 
                     end             
                 end
@@ -345,18 +356,18 @@ end
 
 # @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
 
-function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
+function eval_layer!(mars, bpc, layer_id, stats; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
-    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
+    kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer, stats, Val(debug)) 
     config = launch_configuration(kernel.fun)
     threads, blocks = balance_threads(length(layer), size(mars,1), config; mine, maxe)
     debug && println("Layer $layer_id")
     debug && @show config, threads, blocks
     debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
     if debug
-        CUDA.@time kernel(mars, layer; threads, blocks)
+        CUDA.@time kernel(mars, layer, stats, Val(debug); threads, blocks)
     else
-        kernel(mars, layer; threads, blocks)
+        kernel(mars, layer, stats, Val(debug); threads, blocks)
     end
     nothing
 end
@@ -364,13 +375,15 @@ end
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
+    stats = CuVector(Int32[0,0,0,0,0])
     for i in 1:BitsProbCircuits.num_edge_layers(bpc)
-        eval_layer!(mars, bpc, i; mine, maxe, debug)
+        eval_layer!(mars, bpc, i, stats; mine, maxe, debug)
     end
-    nothing
+    [Array(stats)..., sum(stats)] ./ 1_000_000
 end
 
-@time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug = false)
+@time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug = true)
+@time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=32, debug = true)
 
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
@@ -378,3 +391,59 @@ nothing
 
 ##################################################################################
 ##################################################################################
+
+# try current MAR code
+# function tune() 
+#     for i=0:7
+#         for j=i:7
+#             minev = 2^i
+#             maxev = 2^j
+#             println("mine=$minev, maxe=$maxev")
+#             @btime CUDA.@sync eval_circuit!($cu_mars, $cu_bpc, $cu_data, $cu_batch_i; mine=$minev, maxe=$maxev); # new GPU code
+#         end
+#     end
+# end
+# tune()
+
+function pad(bpc::BitsProbCircuits.BitsProbCircuit; k, l)
+    noop = BitsProbCircuits.MulEdge(0,0,0,4)
+    padded_layers = map(bpc.edge_layers) do layer
+        padded_layer = BitsProbCircuits.EdgeLayer()
+        for i in 1:length(layer)
+            edge = layer[i]
+            k_slot = length(padded_layer) % k + 1
+            if i < length(layer)-k && k_slot >= l
+                overflow_edge = layer[i+k-k_slot+1]
+                reachable_edge = layer[i+k+1]
+                if overflow_edge.parent_id == edge.parent_id && 
+                    (reachable_edge.parent_id != edge.parent_id || islast(reachable_edge.first_or_last) )
+                    for j = 1:k-k_slot+1
+                        push!(padded_layer, noop)
+                    end
+                end
+            end
+            push!(padded_layer, edge)
+        end
+        padded_layer
+    end
+    BitsProbCircuits.BitsProbCircuit(bpc.nodes, padded_layers)
+end
+
+num_bpc_edges(bpc) = sum(length, bpc.edge_layers)
+
+pbpc = pad(bpc; k=16, l=15);
+
+num_bpc_edges(pbpc) / num_bpc_edges(bpc)
+
+cu_pbpc = BitsProbCircuits.CuProbCircuit(pbpc);
+
+
+stats = CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
+pstats = CUDA.@sync eval_circuit!(cu_mars, cu_pbpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
+
+hcat(["local", "+lastedge", "+nextthread", "xlastedge", "xnextthread", "total"], stats, pstats)
+
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+@btime CUDA.@sync eval_circuit!(cu_mars, cu_pbpc, cu_data, cu_batch_i; mine=2, maxe=16);
+
+nothing
