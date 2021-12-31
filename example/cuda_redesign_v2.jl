@@ -297,46 +297,45 @@ function eval_layer!_kernel(mars, layer)
 
             edge = layer[edge_id]
 
-            if edge.first_or_last != 4
-                isfirstedge = isfirst(edge.first_or_last)
-                islastedge = islast(edge.first_or_last)
+            fol = edge.first_or_last
+            isfirstedge = isfirst(fol)
+            islastedge = islast(fol)
 
-                if isfirstedge
-                    local_node = true
-                end
+            if isfirstedge
+                local_node = true
+            end
 
-                # compute probability coming from child
-                child_prob = mars[ex_id, edge.prime_id]
-                if edge.sub_id != 0
-                    child_prob += mars[ex_id, edge.sub_id]
-                end
-                if edge isa BitsProbCircuits.SumEdge
-                    child_prob += edge.logp
-                end
+            # compute probability coming from child
+            child_prob = mars[ex_id, edge.prime_id]
+            if edge.sub_id != 0
+                child_prob += mars[ex_id, edge.sub_id]
+            end
+            if edge isa BitsProbCircuits.SumEdge
+                child_prob += edge.logp
+            end
 
-                # accumulate probability from child
-                if isfirstedge || (edge_id == edge_start)  
-                    acc = child_prob
-                elseif edge isa BitsProbCircuits.SumEdge
-                    acc = logsumexp(acc, child_prob)
+            # accumulate probability from child
+            if isfirstedge || (edge_id == edge_start)  
+                acc = child_prob
+            elseif edge isa BitsProbCircuits.SumEdge
+                acc = logsumexp(acc, child_prob)
+            else
+                acc += child_prob
+            end
+
+            # write to global memory
+            if islastedge || (edge_id == edge_end)   
+                pid = edge.parent_id
+                if islastedge && local_node
+                    # no one else is writing to this global memory
+                    mars[ex_id, pid] = acc
                 else
-                    acc += child_prob
-                end
-
-                # write to global memory
-                if islastedge || (edge_id == edge_end)   
-                    pid = edge.parent_id
-                    if islastedge && local_node
-                        # no one else is writing to this global memory
-                        mars[ex_id, pid] = acc
+                    if (edge isa BitsProbCircuits.SumEdge)
+                        CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
                     else
-                        if (edge isa BitsProbCircuits.SumEdge)
-                            CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
-                        else
-                            CUDA.@atomic mars[ex_id, pid] += acc
-                        end 
-                    end             
-                end
+                        CUDA.@atomic mars[ex_id, pid] += acc
+                    end 
+                end             
             end
         end
     end
@@ -378,3 +377,8 @@ nothing
 
 ##################################################################################
 ##################################################################################
+
+
+# sudo nv-nsight-cu-cli --mode=launch julia --project=ProbabilisticCircuits/example/
+
+CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
