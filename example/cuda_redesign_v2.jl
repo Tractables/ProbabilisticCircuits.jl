@@ -300,6 +300,7 @@ function eval_layer!_kernel(mars, layer)
             fol = edge.first_or_last
             isfirstedge = isfirst(fol)
             islastedge = islast(fol)
+            issum = edge isa BitsProbCircuits.SumEdge
 
             if isfirstedge
                 local_node = true
@@ -310,14 +311,14 @@ function eval_layer!_kernel(mars, layer)
             if edge.sub_id != 0
                 child_prob += mars[ex_id, edge.sub_id]
             end
-            if edge isa BitsProbCircuits.SumEdge
+            if issum
                 child_prob += edge.logp
             end
 
             # accumulate probability from child
             if isfirstedge || (edge_id == edge_start)  
                 acc = child_prob
-            elseif edge isa BitsProbCircuits.SumEdge
+            elseif issum
                 acc = logsumexp(acc, child_prob)
             else
                 acc += child_prob
@@ -330,7 +331,7 @@ function eval_layer!_kernel(mars, layer)
                     # no one else is writing to this global memory
                     mars[ex_id, pid] = acc
                 else
-                    if (edge isa BitsProbCircuits.SumEdge)
+                    if issum
                         CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
                     else
                         CUDA.@atomic mars[ex_id, pid] += acc
@@ -381,4 +382,4 @@ nothing
 
 # sudo nv-nsight-cu-cli --mode=launch julia --project=ProbabilisticCircuits/example/
 
-CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+# CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
