@@ -186,7 +186,7 @@ end
 mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
 cu_mars = cu(mars);
 
-function balance_threads(num_edges, num_examples, config; mine=2, maxe)
+function balance_threads(num_edges, num_examples, config; mine, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
     ex_threads = min(config.threads, num_examples)
     ex_blocks = cld(num_examples, ex_threads)
@@ -252,10 +252,9 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(mars, bpc.nodes, data,example_ids) 
     config = launch_configuration(kernel.fun)
     threads, blocks = balance_threads(length(bpc.nodes), length(example_ids), config; mine, maxe)
-    debug && println("Node initialization")
-    debug && @show config, threads, blocks
-    debug && println("Each thread processes $(Float32(length(bpc.nodes)/threads[1]/blocks[1])) nodes")
     if debug
+        println("Node initialization")
+        println("  config=$config, threads=$threads, blocks=$blocks, nodes/thread=$(Float32(length(bpc.nodes)/threads[1]/blocks[1]))")
         CUDA.@time kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
     else
         kernel(mars, bpc.nodes, data,example_ids; threads, blocks)
@@ -264,8 +263,6 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
 end
 
 # @time CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=true);
-# @time CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=1, maxe=1, debug=true);
-
 # @btime CUDA.@sync init_mar!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
 ##################################################################################
@@ -347,16 +344,17 @@ function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     kernel = @cuda name="eval_layer!" launch=false eval_layer!_kernel(mars, layer) 
     config = launch_configuration(kernel.fun)
     threads, blocks = balance_threads(length(layer), size(mars,1), config; mine, maxe)
-    debug && println("Layer $layer_id")
-    debug && @show config, threads, blocks
-    debug && println("Each thread processes $(Float32(length(layer)/threads[1]/blocks[1])) edges")
     if debug
+        println("Layer $layer_id")
+        println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
         CUDA.@time kernel(mars, layer; threads, blocks)
     else
         kernel(mars, layer; threads, blocks)
     end
     nothing
 end
+
+# @btime CUDA.@sync eval_layer!(cu_mars, cu_bpc, 2; mine=2, maxe=16, debug = false)
 
 # run entire circuit
 function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
@@ -367,8 +365,8 @@ function eval_circuit!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     nothing
 end
 
-@time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug = false)
 
+@time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false)
 @btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
 
 nothing
