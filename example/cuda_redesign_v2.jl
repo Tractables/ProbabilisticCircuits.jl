@@ -301,10 +301,7 @@ function eval_layer!_kernel(mars, layer)
             isfirstedge = isfirst(fol)
             islastedge = islast(fol)
             issum = edge isa BitsProbCircuits.SumEdge
-
-            if isfirstedge
-                local_node = true
-            end
+            local_node |= isfirstedge
 
             # compute probability coming from child
             child_prob = mars[ex_id, edge.prime_id]
@@ -379,7 +376,5 @@ nothing
 ##################################################################################
 ##################################################################################
 
-
 # sudo nv-nsight-cu-cli --mode=launch julia --project=ProbabilisticCircuits/example/
-
 # CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
