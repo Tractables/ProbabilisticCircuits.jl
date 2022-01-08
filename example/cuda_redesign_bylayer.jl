@@ -170,11 +170,51 @@ module BitsProbCircuits
         end
     end
 
+    function relabel_layered(bpc)
+        bijection = zeros(Int, length(bpc.nodes))
+        nid = 0
+        mapped_nodes = Vector{BitsNode}(undef, length(bpc.nodes))
+        for id in 1:length(bpc.nodes)
+            node = bpc.nodes[id]
+            if node isa BitsLiteral
+                id2 = (nid += 1)
+                bijection[id] = id2 
+                mapped_nodes[id2] = node
+            end
+        end
+        mapped_layers = Vector{EdgeLayer}(undef, length(bpc.edge_layers))
+        for j in 1:length(bpc.edge_layers)
+            layer = bpc.edge_layers[j]
+            mapped_layers[j] = EdgeLayer(undef, length(layer))
+            for i in 1:length(layer)
+                edge = layer[i] 
+                pid = edge.parent_id
+                if bijection[pid] == 0
+                    pid2 = (nid += 1)
+                    bijection[pid] = pid2 
+                    mapped_nodes[pid2] = bpc.nodes[pid]
+                else
+                    pid2 = bijection[pid]
+                end
+                prime_id2 = bijection[edge.prime_id]
+                sub_id2 = (edge.sub_id == 0) ? 0 : bijection[edge.sub_id]
+                mapped_layers[j][i] = if edge isa BitsProbCircuits.SumEdge
+                    SumEdge(pid2, prime_id2, sub_id2, edge.logp, edge.first_or_last)
+                else
+                    MulEdge(pid2, prime_id2, sub_id2, edge.first_or_last)
+                end
+            end
+        end
+        BitsProbCircuit(mapped_nodes, mapped_layers)
+    end
+
 end
 
 @time bpc = BitsProbCircuits.BitsProbCircuit(pc; eager_materialize=true);
+@time bpc2 = BitsProbCircuits.relabel_layered(bpc);
 
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
+@time cu_bpc2 = BitsProbCircuits.CuProbCircuit(bpc2);
 
 @inline isfirst(x) = (x <= one(x))
 @inline islast(x) = (x == zero(x)) || (x == 3)
@@ -370,6 +410,7 @@ end
 
 @time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false)
 @benchmark CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16)
+@benchmark CUDA.@sync eval_circuit!(cu_mars, cu_bpc2, cu_data, cu_batch_i; mine=2, maxe=16)
 
 nothing
 
