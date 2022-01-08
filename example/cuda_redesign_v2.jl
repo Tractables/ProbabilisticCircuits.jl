@@ -280,9 +280,9 @@ end
 
 function eval_layer!_kernel(mars, layer)
 
-    num_edges::Int32 = length(layer)
+    num_edges = length(layer) % Int32
     @xrange edge_start edge_end num_edges
-    num_examples::Int32 = size(mars,1)
+    num_examples = size(mars,1) % Int32
     @yindex ex_id
 
     @inbounds if ex_id <= num_examples
@@ -338,6 +338,7 @@ function eval_layer!_kernel(mars, layer)
 end
 
 # @device_code_warntype @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
+# @device_code_llvm debuginfo=:none @cuda eval_layer!_kernel(cu_mars, cu_bpc.edge_layers[1])
 
 function eval_layer!(mars, bpc, layer_id; mine, maxe, debug=false)
     layer = bpc.edge_layers[layer_id]
@@ -367,7 +368,7 @@ end
 
 
 @time CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false)
-@btime CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+@benchmark CUDA.@sync eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16)
 
 nothing
 
