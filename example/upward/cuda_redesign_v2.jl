@@ -67,8 +67,15 @@ module BitsProbCircuits
         edge_layers::Vector{EdgeLayer}
     end
 
-    first_or_last(i,n) =
-        (i == n == 1) ? 0 : (i == 1) ? 1 : (i<n) ? 2 : 3 
+    function first_or_last(i,n)
+        x = zero(UInt8)
+        (i==1) && (x |= one(UInt8))
+        (i==n) && (x |= (one(UInt8) << 1)) 
+        x
+    end
+    
+    @inline isfirst(x) = ((x & one(x)) != zero(x))
+    @inline islast(x) = ((x & one(x) << 1) != zero(x))
     struct NodeInfo
         prime_id::Int
         sub_id::Int
@@ -176,8 +183,6 @@ end
 
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
-@inline isfirst(x) = (x <= one(x))
-@inline islast(x) = (x == zero(x)) || (x == 3)
 
 
 ##################################################################################
@@ -296,8 +301,8 @@ function eval_layer!_kernel(mars, layer)
             edge = layer[edge_id]
 
             fol = edge.first_or_last
-            isfirstedge = isfirst(fol)
-            islastedge = islast(fol)
+            isfirstedge = BitsProbCircuits.isfirst(fol)
+            islastedge = BitsProbCircuits.islast(fol)
             issum = edge isa BitsProbCircuits.SumEdge
             local_node |= isfirstedge
 
