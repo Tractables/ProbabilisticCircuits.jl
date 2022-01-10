@@ -1,4 +1,4 @@
-using Pkg; Pkg.activate(@__DIR__)
+using Pkg; Pkg.activate("$(@__DIR__)/../")
 using CUDA, LogicCircuits, ProbabilisticCircuits, DataFrames, BenchmarkTools, DirectedAcyclicGraphs
 CUDA.allowscalar(false)
 
@@ -374,7 +374,18 @@ end
 nothing
 
 ##################################################################################
-##################################################################################
 
 # sudo nv-nsight-cu-cli --mode=launch julia --project=ProbabilisticCircuits/example/
 # CUDA.@profile eval_circuit!(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16);
+
+# try current MAR code
+# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+# CUDA.@time reuse = marginal_all(pbc, batch_df);
+# @benchmark CUDA.@sync marginal_all(pbc, batch_df, reuse);
+
+##################################################################################
+
+flow = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
+cu_flow = cu(flow);
+
