@@ -47,15 +47,21 @@ module BitsProbCircuits
         prime_id::UInt32
         sub_id::UInt32 # 0 means no sub
         logp::Float32
-        first_or_last::UInt8
+        tag::UInt8
     end
 
     struct MulEdge 
         parent_id::UInt32
         prime_id::UInt32
         sub_id::UInt32 # 0 means no sub
-        first_or_last::UInt8
+        tag::UInt8
     end
+
+    changetag(edge::SumEdge, tag) = 
+        SumEdge(edge.parent_id, edge.prime_id, edge.sub_id, edge.logp, tag)
+
+    changetag(edge::MulEdge, tag) = 
+        MulEdge(edge.parent_id, edge.prime_id, edge.sub_id, tag)
 
     const BitsEdge = Union{SumEdge,MulEdge}
     const EdgeLayer = Vector{BitsEdge}
@@ -66,9 +72,8 @@ module BitsProbCircuits
         nodes::Vector{BitsNode}
         edge_layers::Vector{EdgeLayer}
     end
-
     
-    function first_or_last(i,n)
+    function tag_index(i,n)
         x = zero(UInt8)
         (i==1) && (x |= one(UInt8))
         (i==n) && (x |= (one(UInt8) << 1)) 
@@ -77,30 +82,50 @@ module BitsProbCircuits
     
     @inline isfirst(x) = ((x & one(x)) != zero(x))
     @inline islast(x) = ((x & one(x) << 1) != zero(x))
+    @inline single_out_prime(x) = ((x & one(x) << 2) != zero(x))
+    @inline single_out_sub(x) = ((x & one(x) << 3) != zero(x))
     
     struct NodeInfo
         prime_id::Int
+        prime_layer_id::Int
         sub_id::Int
-        layer_id::Int
+        sub_layer_id::Int
     end
+
+    @inline combined_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
 
     function BitsProbCircuit(pc; eager_materialize=true, 
                                  collapse_elements=true)
         nodes = BitsNode[]
-        layers = EdgeLayer[]
+        node_infos = NodeInfo[]
+        outedges = EdgeLayer[]
+        uplayers = EdgeLayer[]
 
-        add_edge(layer_id, edge) = begin
-            while length(layers) < layer_id
-                push!(layers, EdgeLayer())
+        downlayers = Vector{Vector{Int}}[]
+
+        add_node(bitsnode, layer_id) = begin
+            push!(nodes, bitsnode)
+            push!(outedges, EdgeLayer())
+            length(nodes)
+        end
+
+        add_edge(parent_layer_id, edge, child_info) = begin
+            # record up edges for upward pass
+            while length(uplayers) < parent_layer_id
+                push!(uplayers, EdgeLayer())
             end
-            push!(layers[layer_id], edge)
+            push!(uplayers[parent_layer_id], edge)
+
+            # record out edges for downward pass
+            push!(outedges[child_info.prime_id], edge)
+            if child_info.sub_id != 0
+                push!(outedges[child_info.sub_id], edge)
+            end
         end
 
         f_leaf(node) = begin
-            push!(nodes, BitsLiteral(literal(node)))
-            node_id = length(nodes)
-            layer_id = 0
-            NodeInfo(node_id, 0, layer_id)
+            node_id = add_node(BitsLiteral(literal(node)), 0)
+            NodeInfo(node_id, 0, 0, 0)
         end
         
         f_inner(node, children_info) = begin
@@ -111,19 +136,20 @@ module BitsProbCircuits
             elseif (collapse_elements && ismul(node) && length(children_info) == 2 
                     && children_info[1].sub_id == 0 && children_info[2].sub_id == 0)
                 # this is a simple conjunctive element that we collapse into an edge
-                layer_id = max(children_info[1].layer_id, children_info[2].layer_id)
-                NodeInfo(children_info[1].prime_id, children_info[2].prime_id, layer_id)
+                prime_layer_id = children_info[1].prime_layer_id
+                sub_layer_id = children_info[2].prime_layer_id
+                NodeInfo(children_info[1].prime_id, prime_layer_id, 
+                         children_info[2].prime_id, sub_layer_id)
             else
-                push!(nodes, BitsInnerNode(issum(node)))
-                node_id = length(nodes)
-                layer_id = maximum(x -> x.layer_id, children_info) + 1
+                layer_id = maximum(combined_layer_id, children_info) + 1
+                node_id = add_node(BitsInnerNode(issum(node)), layer_id)
                 if issum(node)
                     for i = 1:length(children_info)
                         logp = node.log_probs[i]
                         child_info = children_info[i]
-                        fol = first_or_last(i, length(children_info))
-                        edge = SumEdge(node_id, child_info.prime_id, child_info.sub_id, logp, fol)
-                        add_edge(layer_id, edge)
+                        tag = tag_index(i, length(children_info))
+                        edge = SumEdge(node_id, child_info.prime_id, child_info.sub_id, logp, tag)
+                        add_edge(layer_id, edge, child_info)
                     end
                 else
                     @assert ismul(node)
@@ -131,20 +157,22 @@ module BitsProbCircuits
                     double_infos = filter(x -> (x.sub_id != 0), children_info)
                     for i = 1:2:length(single_infos)
                         if i < length(single_infos)
-                            merged_layer_id = max(single_infos[i].layer_id, single_infos[i+1].layer_id)
-                            merged_info = NodeInfo(single_infos[i].prime_id, single_infos[i+1].prime_id, merged_layer_id)
+                            prime_layer_id = single_infos[i].prime_layer_id
+                            sub_layer_id = single_infos[i+1].prime_layer_id
+                            merged_info = NodeInfo(single_infos[i].prime_id, prime_layer_id, 
+                                                   single_infos[i+1].prime_id, sub_layer_id)
                             single_infos[i] = merged_info
                         end
                         push!(double_infos, single_infos[i])
                     end
                     for i = 1:length(double_infos)
                         child_info = double_infos[i]
-                        fol = first_or_last(i, length(double_infos))
-                        edge = MulEdge(node_id, child_info.prime_id, child_info.sub_id, fol)
-                        add_edge(layer_id, edge)
+                        tag = tag_index(i, length(double_infos))
+                        edge = MulEdge(node_id, child_info.prime_id, child_info.sub_id, tag)
+                        add_edge(layer_id, edge, child_info)
                     end
                 end
-                NodeInfo(node_id, 0, layer_id)
+                NodeInfo(node_id, layer_id, 0, 0)
             end
         end
 
@@ -154,13 +182,33 @@ module BitsProbCircuits
             # manually materialize root node
             @assert ismul(pc)
             @assert num_children(pc) == 1
-            push!(nodes, BitsInnerNode(false))
-            node_id = length(nodes)
-            edge = MulEdge(node_id, root_info.prime_id, root_info.sub_id, first_or_last(1,1))
-            add_edge(root_info.layer_id + 1, edge)
+            layer_id = root_info.layer_id + 1
+            node_id = add_node(BitsInnerNode(false), layer_id)
+            edge = MulEdge(node_id, root_info.prime_id, root_info.sub_id, tag_index(1,1))
+            add_edge(layer_id, edge, root_info)
         end
 
-        BitsProbCircuit(nodes, layers)
+        tag_single_out(uplayers, outedges)
+
+        BitsProbCircuit(nodes, uplayers)
+    end
+
+    function tag_single_out(layers, outedges)
+        for layer in layers
+            for i in eachindex(layer)
+                edge = layer[i]
+                tag = edge.tag
+                if length(outedges[edge.prime_id]) == 1
+                    tag |= (one(UInt8) << 2)
+                end 
+                if edge.sub_id != 0 && length(outedges[edge.sub_id]) == 1
+                    tag |= (one(UInt8) << 3)
+                end 
+                if tag != edge.tag
+                    layer[i] = changetag(edge, tag)
+                end
+            end
+        end
     end
 
     num_edge_layers(bpc::AbstractBitsProbCircuit) = 
@@ -299,9 +347,9 @@ function layer_up_kernel(mars, layer)
 
             edge = layer[edge_id]
 
-            fol = edge.first_or_last
-            isfirstedge = BitsProbCircuits.isfirst(fol)
-            islastedge = BitsProbCircuits.islast(fol)
+            tag = edge.tag
+            isfirstedge = BitsProbCircuits.isfirst(tag)
+            islastedge = BitsProbCircuits.islast(tag)
             issum = edge isa BitsProbCircuits.SumEdge
             owned_node |= isfirstedge
 
@@ -373,7 +421,7 @@ end
 
 
 @time CUDA.@sync eval_circuit(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16, debug=false)
-# @benchmark CUDA.@sync eval_circuit(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16)
+@benchmark CUDA.@sync eval_circuit(cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=16)
 
 ##################################################################################
 
@@ -406,8 +454,8 @@ function layer_down_kernel(flows, mars, layer)
 
             issum = edge isa BitsProbCircuits.SumEdge
 
-            fol = edge.first_or_last
-            isfirstedge = BitsProbCircuits.isfirst(fol)
+            tag = edge.tag
+            isfirstedge = BitsProbCircuits.isfirst(tag)
             # islastedge = BitsProbCircuits.islast(fol)
             
             if isfirstedge || (edge_id == edge_start)  
@@ -427,9 +475,18 @@ function layer_down_kernel(flows, mars, layer)
                 edge_flow = edge_flow + child_prob - parent_mar
             end
 
-            CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], edge_flow)
+            if BitsProbCircuits.single_out_prime(tag)
+                flows[ex_id, prime_id] = edge_flow
+            else
+                CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], edge_flow)
+            end
+            
             if sub_id != 0 
-                CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+                if BitsProbCircuits.single_out_sub(tag)
+                    flows[ex_id, sub_id] = edge_flow
+                else
+                    CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+                end
             end
         end
     end
@@ -478,8 +535,29 @@ end
 
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
 
-
 nothing
+
+# function test(bpc)
+#     p = 0
+#     n = 0
+#     for edge in reduce(vcat,bpc.edge_layers)
+#         if BitsProbCircuits.single_out_prime(edge.tag) 
+#             p += 1
+#         else
+#             n+= 1
+#         end
+#         if edge.sub_id != 0
+#             if BitsProbCircuits.single_out_sub(edge.tag) 
+#                 p += 1
+#             else
+#                 n+= 1
+#             end
+#         end
+#     end
+#     p,n
+# end
+
+# test(bpc)
 
 ##################################################################################
 ##################################################################################
