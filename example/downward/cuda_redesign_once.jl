@@ -89,7 +89,7 @@ module BitsProbCircuits
     
     @inline isfirst(x) = ((x & one(x)) != zero(x))
     @inline islast(x) = ((x & one(x) << 1) != zero(x))
-    @inline process_sub(x) = ((x & one(x) << 2) != zero(x))
+    @inline ispartial(x) = ((x & one(x) << 2) != zero(x))
     
     struct NodeInfo
         prime_id::Int
@@ -103,8 +103,7 @@ module BitsProbCircuits
     @inline combined_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
 
     function BitsProbCircuit(pc; eager_materialize=true, 
-                                 collapse_elements=true,
-                                 merge_downflows=true)
+                                 collapse_elements=true)
         nodes = BitsNode[]
         node_layers = Vector{Int}[]
         outedges = EdgeLayer[]
@@ -207,33 +206,19 @@ module BitsProbCircuits
             add_edge(layer_id, edge, root_info)
         end
 
-        @assert allunique(reduce(vcat,node_layers))
-
         downlayers = EdgeLayer[]
         @assert length(node_layers[end]) == 1 && isempty(outedges[node_layers[end][1]])
-        skipped = Set{Int}()
-        tagged = Set{Int}()
         for node_layer in node_layers[end-1:-1:1]
             downlayer = EdgeLayer()
             for node_id in node_layer
-                node_edges = outedges[node_id]
-                # skip node when it is lower than the sibling, that is, when the node_id is sub by our order
-                if merge_downflows && length(node_edges) == 1 && hassub(node_edges[1]) && (node_edges[1].sub_id == node_id)
-                    push!(skipped, node_id)
-                else
-                    for i in 1:length(node_edges)
-                        edge = node_edges[i]
-                        tag = tag_index(i, length(node_edges))
-                        if edge.sub_id == node_id
-                            edge = rotate(edge)
-                        else
-                            @assert edge.prime_id == node_id
-                            # tag whether the sibling edge will be skipped
-                            if merge_downflows && hassub(edge) && length(outedges[edge.sub_id]) == 1
-                                tag |= (one(UInt8) << 2)
-                                push!(tagged, edge.sub_id)
-                            end
-                        end
+                prime_edges = filter(e -> e.prime_id == node_id, outedges[node_id])
+                partial = (length(prime_edges) != length(outedges[node_id]))
+                for i in 1:length(prime_edges)
+                    edge = prime_edges[i]
+                    if edge.prime_id == node_id
+                        tag = tag_index(i, length(prime_edges))
+                        # tag whether this series of edges is partial or complete
+                        partial && (tag |= (one(UInt8) << 2))
                         edge = changetag(edge, tag)
                         push!(downlayer, edge)
                     end
@@ -243,7 +228,6 @@ module BitsProbCircuits
                 push!(downlayers, downlayer)
             end
         end
-        @assert skipped == tagged
         
         BitsProbCircuit(nodes, uplayers, downlayers)
     end
@@ -270,8 +254,7 @@ end
 
 @time bpc = BitsProbCircuits.BitsProbCircuit(pc; 
                 eager_materialize=true, 
-                collapse_elements=true,
-                merge_downflows=true);
+                collapse_elements=true);
 
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
@@ -501,10 +484,14 @@ function layer_down_kernel(flows, _mars, layer)
             sub_id = edge.sub_id
 
             tag = edge.tag
-            isfirstedge = BitsProbCircuits.isfirst(tag)
-            islastedge = BitsProbCircuits.islast(tag)
+            firstedge = BitsProbCircuits.isfirst(tag)
+            lastedge = BitsProbCircuits.islast(tag)
+            partial = BitsProbCircuits.ispartial(tag)
             issum = edge isa BitsProbCircuits.SumEdge
-            owned_node |= isfirstedge
+
+            if firstedge
+                owned_node = !partial
+            end
             
             edge_flow = flows[ex_id, parent_id]
 
@@ -522,20 +509,18 @@ function layer_down_kernel(flows, _mars, layer)
                 edge_flow = edge_flow + child_prob - parent_mar
             end
 
-            if BitsProbCircuits.process_sub(tag)
-                flows[ex_id, sub_id] = edge_flow
-            end
+            CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
 
-            # accumulate probability from child
-            if isfirstedge || (edge_id == edge_start)  
+            # accumulate flows from parents
+            if firstedge || (edge_id == edge_start)  
                 acc = edge_flow
             else
                 acc = logsumexp(acc, edge_flow)
             end
 
             # write to global memory
-            if islastedge || (edge_id == edge_end)   
-                if islastedge && owned_node
+            if lastedge || (edge_id == edge_end)   
+                if lastedge && owned_node
                     # no one else is writing to this global memory
                     flows[ex_id, prime_id] = acc
                 else
@@ -588,6 +573,8 @@ end
 @time CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16, debug=false)
 cu_flows
 
+@assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
+
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
 
 # for i = 1:length(bpc.edge_layers_up)
@@ -597,25 +584,6 @@ cu_flows
 #     println("Down Layer $i/$(length(bpc.edge_layers_down)): $(length(bpc.edge_layers_down[i])) edges")
 # end
 
-
-function test(bpc)
-    p = 0
-    n = 0
-    for edge in reduce(vcat,bpc.edge_layers_down)
-        if edge.sub_id != 0
-            if BitsProbCircuits.process_sub(edge.tag) 
-                p += 1
-            else
-                n += 1
-            end
-        end
-    end
-    p,n
-end
-
-test(bpc)
-
-@assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
 
 ##################################################################################
 ##################################################################################
