@@ -385,7 +385,7 @@ function layer_up_kernel(mars, layer)
         local acc::Float32    
         owned_node::Bool = false
         
-        for edge_id = edge_start:edge_end
+        @inbounds for edge_id = edge_start:edge_end
 
             edge = layer[edge_id]
 
@@ -588,7 +588,10 @@ end
 @time CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16, debug=false)
 cu_flows
 
+@assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
+
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
+@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=32)
 
 # for i = 1:length(bpc.edge_layers_up)
 #     println("Up Layer $i/$(length(bpc.edge_layers_up)): $(length(bpc.edge_layers_up[i])) edges")
@@ -598,24 +601,23 @@ cu_flows
 # end
 
 
-function test(bpc)
-    p = 0
-    n = 0
-    for edge in reduce(vcat,bpc.edge_layers_down)
-        if edge.sub_id != 0
-            if BitsProbCircuits.process_sub(edge.tag) 
-                p += 1
-            else
-                n += 1
-            end
-        end
-    end
-    p,n
-end
+# function test(bpc)
+#     p = 0
+#     n = 0
+#     for edge in reduce(vcat,bpc.edge_layers_down)
+#         if edge.sub_id != 0
+#             if BitsProbCircuits.process_sub(edge.tag) 
+#                 p += 1
+#             else
+#                 n += 1
+#             end
+#         end
+#     end
+#     p,n
+# end
 
-test(bpc)
+# test(bpc)
 
-@assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
 
 ##################################################################################
 ##################################################################################

@@ -90,6 +90,7 @@ module BitsProbCircuits
     @inline isfirst(x) = ((x & one(x)) != zero(x))
     @inline islast(x) = ((x & one(x) << 1) != zero(x))
     @inline ispartial(x) = ((x & one(x) << 2) != zero(x))
+    @inline isonlysubedge(x) = ((x & one(x) << 3) != zero(x))
     
     struct NodeInfo
         prime_id::Int
@@ -219,6 +220,10 @@ module BitsProbCircuits
                         tag = tag_index(i, length(prime_edges))
                         # tag whether this series of edges is partial or complete
                         partial && (tag |= (one(UInt8) << 2))
+                        # tag whether this sub edge is the only outgoing edge from sub
+                        if hassub(edge) && length(outedges[edge.sub_id]) == 1
+                            tag |= (one(UInt8) << 3)
+                        end
                         edge = changetag(edge, tag)
                         push!(downlayer, edge)
                     end
@@ -471,7 +476,6 @@ function layer_down_kernel(flows, _mars, layer)
 
         local acc::Float32    
         local prime_mar::Float32
-        prime_mar_id = zero(Int32)
 
         owned_node::Bool = false
         
@@ -486,10 +490,10 @@ function layer_down_kernel(flows, _mars, layer)
             tag = edge.tag
             firstedge = BitsProbCircuits.isfirst(tag)
             lastedge = BitsProbCircuits.islast(tag)
-            partial = BitsProbCircuits.ispartial(tag)
             issum = edge isa BitsProbCircuits.SumEdge
 
             if firstedge
+                partial = BitsProbCircuits.ispartial(tag)
                 owned_node = !partial
             end
             
@@ -497,19 +501,20 @@ function layer_down_kernel(flows, _mars, layer)
 
             if issum
                 parent_mar = mars[ex_id, parent_id]
-                # compute probability coming from child
-                if prime_mar_id != prime_id
-                    prime_mar_id = prime_id
-                    prime_mar = mars[ex_id, prime_id]
-                end
-                child_prob = prime_mar + edge.logp
+                child_prob = mars[ex_id, prime_id] + edge.logp
                 if sub_id != 0
                     child_prob += mars[ex_id, sub_id]
                 end
                 edge_flow = edge_flow + child_prob - parent_mar
             end
 
-            CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+            if sub_id != 0 
+                if BitsProbCircuits.isonlysubedge(tag)
+                    flows[ex_id, sub_id] = edge_flow
+                else
+                    CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+                end
+            end
 
             # accumulate flows from parents
             if firstedge || (edge_id == edge_start)  
@@ -576,6 +581,7 @@ cu_flows
 @assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
 
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
+@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=32)
 
 # for i = 1:length(bpc.edge_layers_up)
 #     println("Up Layer $i/$(length(bpc.edge_layers_up)): $(length(bpc.edge_layers_up[i])) edges")
