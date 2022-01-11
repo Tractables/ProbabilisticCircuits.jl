@@ -354,17 +354,15 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
 end
 
 
-function logsumexp(x::Float32,y::Float32)::Float32
-    if x == -Inf32
-        y
-    elseif y == -Inf32
-        x
-    elseif x > y
-        x + log1p(exp(y-x))
+function logsumexp(x::Float32,y::Float32)
+    if isfinite(x) && isfinite(y)
+        # note: @fastmath does not work with infinite values, so do not apply above
+        @fastmath max(x,y) + log1p(exp(-abs(x-y))) 
     else
-        y + log1p(exp(x-y))
-    end 
+        max(x,y)
+    end
 end
+
 
 function eval_layer!_kernel(mars, layer)
     edge_work = cld(length(layer), (blockDim().x * gridDim().x))
@@ -459,13 +457,13 @@ end
 
 
 function eval_layer_down!_kernel(mars, flows, layer)
-    edge_work = cld(length(layer), (blockDim().x * gridDim().x))
+    edge_work = cld(length(layer) % Int32, (blockDim().x * gridDim().x))
     edge_start = ((blockIdx().x - 1) * blockDim().x + threadIdx().x - 1) * edge_work + 1
-    edge_end = min(edge_start + edge_work - 1, length(layer))
+    edge_end = min(edge_start + edge_work - 1, length(layer) % Int32)
     
     ex_id = (blockIdx().y - 1) * blockDim().y + threadIdx().y
     
-    if ex_id <= size(mars, 1)
+    @inbounds if ex_id <= size(mars, 1)
         acc = typemin(Float32)
         local_node = false
         for edge_id = edge_start : edge_end
@@ -559,6 +557,16 @@ pc_file = "meihua_hclt.jpc"
 @time bpc = BitsProbCircuits.BitsProbCircuit(pc);
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
+# generate some fake data
+data = Array{Union{Bool,Missing}}(replace(rand(0:2, 10000, num_variables(pc)), 2 => missing));
+data[1,:] .= missing;
+cu_data = to_gpu(data);
+
+# create minibatch
+batchsize = 512
+batch_i = 1:batchsize;
+cu_batch_i = CuVector(1:batchsize);
+
 # allocate memory for MAR and FLOW
 mars = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
 cu_mars = cu(mars);
@@ -572,10 +580,11 @@ cu_flows = cu(flows);
 ##################################################################################
 
 # try current MAR+flow code as baseline
-batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
-pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-reuse = marginal_all(pbc, batch_df);
-reuse2 = marginal_flows_down(pbc, reuse);
+# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+# reuse = marginal_all(pbc, batch_df);
+# reuse2 = marginal_flows_down(pbc, reuse);
 
-@benchmark CUDA.@sync marginal_all(pbc, batch_df, reuse)
-@benchmark CUDA.@sync marginal_flows_down(pbc, reuse, reuse2)
+# @benchmark CUDA.@sync marginal_all(pbc, batch_df, reuse)
+# @benchmark CUDA.@sync marginal_flows_down(pbc, reuse, reuse2)
+;

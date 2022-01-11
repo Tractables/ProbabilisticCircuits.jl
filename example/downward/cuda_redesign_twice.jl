@@ -98,10 +98,13 @@ module BitsProbCircuits
         sub_layer_id::Int
     end
 
+    hassub(x) = x.sub_id != 0
+
     @inline combined_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
 
     function BitsProbCircuit(pc; eager_materialize=true, 
-                                 collapse_elements=true)
+                                 collapse_elements=true,
+                                 merge_downflows=true)
         nodes = BitsNode[]
         node_layers = Vector{Int}[]
         outedges = EdgeLayer[]
@@ -127,9 +130,14 @@ module BitsProbCircuits
             end
             push!(uplayers[parent_layer_id], edge)
 
+            # introduce invariant that primes are never at a lower layer than subs 
+            if hassub(child_info) && child_info.prime_layer_id < child_info.sub_layer_id
+                edge = rotate(edge)
+            end
+
             # record out edges for downward pass
             push!(outedges[child_info.prime_id], edge)
-            if child_info.sub_id != 0
+            if hassub(child_info)
                 push!(outedges[child_info.sub_id], edge)
             end
         end
@@ -141,11 +149,11 @@ module BitsProbCircuits
         
         f_inner(node, children_info) = begin
             if (length(children_info) == 1 
-                && (!eager_materialize || children_info[1].sub_id == 0))
+                && (!eager_materialize || !hassub(children_info[1])))
                 # this is a pass-through node
                 children_info[1]
             elseif (collapse_elements && ismul(node) && length(children_info) == 2 
-                    && children_info[1].sub_id == 0 && children_info[2].sub_id == 0)
+                    && children_info[1].sub_id == 0 && !hassub(children_info[2]))
                 # this is a simple conjunctive element that we collapse into an edge
                 prime_layer_id = children_info[1].prime_layer_id
                 sub_layer_id = children_info[2].prime_layer_id
@@ -164,8 +172,8 @@ module BitsProbCircuits
                     end
                 else
                     @assert ismul(node)
-                    single_infos = filter(x -> (x.sub_id == 0), children_info)
-                    double_infos = filter(x -> (x.sub_id != 0), children_info)
+                    single_infos = filter(x -> !hassub(x), children_info)
+                    double_infos = filter(x -> hassub(x), children_info)
                     for i = 1:2:length(single_infos)
                         if i < length(single_infos)
                             prime_layer_id = single_infos[i].prime_layer_id
@@ -189,7 +197,7 @@ module BitsProbCircuits
 
         root_info = foldup_aggregate(pc, f_leaf, f_inner, NodeInfo)
 
-        if root_info.sub_id != 0
+        if hassub(root_info)
             # manually materialize root node
             @assert ismul(pc)
             @assert num_children(pc) == 1
@@ -208,24 +216,23 @@ module BitsProbCircuits
         for node_layer in node_layers[end-1:-1:1]
             downlayer = EdgeLayer()
             for node_id in node_layer
-                edges = outedges[node_id]
-                if length(edges) == 1 && edges[1].sub_id != 0 && 
-                    ((length(outedges[edges[1].prime_id]) != length(outedges[edges[1].sub_id])) || (edges[1].prime_id != node_id))
+                node_edges = outedges[node_id]
+                # skip node when it is lower than the sibling, that is, when the node_id is sub by our order
+                if merge_downflows && length(node_edges) == 1 && hassub(node_edges[1]) && (node_edges[1].sub_id == node_id)
                     push!(skipped, node_id)
-                    # println("skipped length $(length(outedges[edges[1].prime_id])), $(length(outedges[edges[1].sub_id])) ids $(edges[1].prime_id) - $(edges[1].sub_id) -> $(edges[1].parent_id)")
                 else
-                    for i in 1:length(edges)
-                        edge = edges[i]
-                        tag = tag_index(i, length(edges))
+                    for i in 1:length(node_edges)
+                        edge = node_edges[i]
+                        tag = tag_index(i, length(node_edges))
                         if edge.sub_id == node_id
                             edge = rotate(edge)
                         else
                             @assert edge.prime_id == node_id
-                        end
-                        if edge.sub_id != 0 && length(outedges[edge.sub_id]) == 1
-                            tag |= (one(UInt8) << 2)
-                            push!(tagged, edge.sub_id)
-                            # println("tagged length $(length(outedges[edge.prime_id])), $(length(outedges[edge.sub_id])) ids $(edge.prime_id) - $(edge.sub_id)")
+                            # tag whether the sibling edge will be skipped
+                            if merge_downflows && hassub(edge) && length(outedges[edge.sub_id]) == 1
+                                tag |= (one(UInt8) << 2)
+                                push!(tagged, edge.sub_id)
+                            end
                         end
                         edge = changetag(edge, tag)
                         push!(downlayer, edge)
@@ -236,29 +243,10 @@ module BitsProbCircuits
                 push!(downlayers, downlayer)
             end
         end
-        @assert issetequal(skipped, tagged)
-        # @show skipped, tagged
+        @assert skipped == tagged
         
         BitsProbCircuit(nodes, uplayers, downlayers)
     end
-
-    # function tag_single_out(layers, outedges)
-    #     for layer in layers
-    #         for i in eachindex(layer)
-    #             edge = layer[i]
-    #             tag = edge.tag
-    #             if length(outedges[edge.prime_id]) == 1
-    #                 tag |= (one(UInt8) << 2)
-    #             end 
-    #             if edge.sub_id != 0 && length(outedges[edge.sub_id]) == 1
-    #                 tag |= (one(UInt8) << 3)
-    #             end 
-    #             if tag != edge.tag
-    #                 layer[i] = changetag(edge, tag)
-    #             end
-    #         end
-    #     end
-    # end
 
     num_edge_layers(bpc::AbstractBitsProbCircuit) = 
         length(bpc.edge_layers)
@@ -280,7 +268,10 @@ module BitsProbCircuits
 
 end
 
-@time bpc = BitsProbCircuits.BitsProbCircuit(pc; eager_materialize=true);
+@time bpc = BitsProbCircuits.BitsProbCircuit(pc; 
+                eager_materialize=true, 
+                collapse_elements=true,
+                merge_downflows=true);
 
 @time cu_bpc = BitsProbCircuits.CuProbCircuit(bpc);
 
@@ -389,7 +380,8 @@ function layer_up_kernel(mars, layer)
     num_examples = size(mars,1) % Int32
     @yindex ex_id
 
-    @inbounds if ex_id <= num_examples
+    # @inbounds 
+    if ex_id <= num_examples
 
         local acc::Float32    
         owned_node::Bool = false
@@ -484,7 +476,10 @@ end
 flows = Matrix{Float32}(undef, length(batch_i), length(bpc.nodes));
 cu_flows = cu(flows);
 
-function layer_down_kernel(flows, mars, layer)
+function layer_down_kernel(flows, _mars, layer)
+
+    mars = Base.Experimental.Const(_mars)
+
     num_edges = length(layer) % Int32
     @xrange edge_start edge_end num_edges
     num_examples = size(mars,1) % Int32
@@ -596,9 +591,6 @@ cu_flows
 
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
 
-nothing
-
-
 # for i = 1:length(bpc.edge_layers_up)
 #     println("Up Layer $i/$(length(bpc.edge_layers_up)): $(length(bpc.edge_layers_up[i])) edges")
 # end
@@ -607,24 +599,24 @@ nothing
 # end
 
 
-# function test(bpc)
-#     p = 0
-#     n = 0
-#     for edge in reduce(vcat,bpc.edge_layers_down)
-#         if edge.sub_id != 0
-#             if BitsProbCircuits.process_sub(edge.tag) 
-#                 p += 1
-#             else
-#                 n += 1
-#             end
-#         end
-#     end
-#     p,n
-# end
+function test(bpc)
+    p = 0
+    n = 0
+    for edge in reduce(vcat,bpc.edge_layers_down)
+        if edge.sub_id != 0
+            if BitsProbCircuits.process_sub(edge.tag) 
+                p += 1
+            else
+                n += 1
+            end
+        end
+    end
+    p,n
+end
 
-# test(bpc)
+test(bpc)
 
-# @assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
+@assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
 
 ##################################################################################
 ##################################################################################
@@ -637,3 +629,5 @@ nothing
 
 # @benchmark CUDA.@sync marginal_all(pbc, batch_df, reuse)
 # @benchmark CUDA.@sync marginal_flows_down(pbc, reuse, reuse2)
+
+nothing
