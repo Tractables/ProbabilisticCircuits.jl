@@ -488,7 +488,6 @@ function layer_down_kernel(flows, _mars, layer)
 
         local acc::Float32    
         local prime_mar::Float32
-        prime_mar_id = zero(Int32)
 
         owned_node::Bool = false
         
@@ -510,11 +509,7 @@ function layer_down_kernel(flows, _mars, layer)
 
             if issum
                 parent_mar = mars[ex_id, parent_id]
-                # compute probability coming from child
-                if prime_mar_id != prime_id
-                    prime_mar_id = prime_id
-                    prime_mar = mars[ex_id, prime_id]
-                end
+                prime_mar = mars[ex_id, prime_id]
                 child_prob = prime_mar + edge.logp
                 if sub_id != 0
                     child_prob += mars[ex_id, sub_id]

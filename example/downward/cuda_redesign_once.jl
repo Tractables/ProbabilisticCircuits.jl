@@ -580,27 +580,31 @@ cu_flows
 
 @assert all(isapprox.(collect(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2])), 1.0; atol=0.01)) "$(exp.(cu_flows[:,1]) .+ exp.(cu_flows[:,2]))"
 
-@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
-@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=32)
+# @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=16)
+# @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc; mine=2, maxe=32)
 
-# for i = 1:length(bpc.edge_layers_up)
-#     println("Up Layer $i/$(length(bpc.edge_layers_up)): $(length(bpc.edge_layers_up[i])) edges")
-# end
-# for i = 1:length(bpc.edge_layers_down)
-#     println("Down Layer $i/$(length(bpc.edge_layers_down)): $(length(bpc.edge_layers_down[i])) edges")
-# end
 
+function probs_flows_circuit(flows, mars, bpc, data, example_ids; mine, maxe, debug=false)
+    eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug)
+    flows_circuit(flows, mars, bpc; mine, maxe, debug)
+    nothing
+end
+
+@time CUDA.@sync probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=32, debug=false)
+
+@benchmark CUDA.@sync probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_data, cu_batch_i; mine=2, maxe=32, debug=false)
 
 ##################################################################################
 ##################################################################################
 
 # try current MAR+flow code as baseline
-# batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
-# pbc = to_gpu(ParamBitCircuit(pc, batch_df));
-# reuse = marginal_all(pbc, batch_df);
-# reuse2 = marginal_flows_down(pbc, reuse);
+batch_df = to_gpu(DataFrame(transpose(data[:, batch_i]), :auto));
+pbc = to_gpu(ParamBitCircuit(pc, batch_df));
+reuse = marginal_all(pbc, batch_df);
+reuse2 = marginal_flows_down(pbc, reuse);
 
 # @benchmark CUDA.@sync marginal_all(pbc, batch_df, reuse)
 # @benchmark CUDA.@sync marginal_flows_down(pbc, reuse, reuse2)
+@benchmark marginal_flows(pbc, batch_df, reuse, reuse2)
 
 nothing
