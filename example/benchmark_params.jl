@@ -1,7 +1,7 @@
 using Pkg; Pkg.activate("$(@__DIR__)")
 
 using MLDatasets, ProbabilisticCircuits, CUDA, BenchmarkTools
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit
 
 # load data
 train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
@@ -37,15 +37,22 @@ cu_batch = CuVector(1:batchsize);
 cu_mars = CuMatrix{Float32}(undef, batchsize, length(cu_bpc.nodes));
 cu_flows = similar(cu_mars);
 
-CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
-@btime loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
+# set up data
+CUDA.@time probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
 
-function tune() 
-    for i=5:16
-        local b = 2^i
-        @show b
-        mars_mem = CuMatrix{Float32}(undef, b, length(cu_bpc.nodes));
-        @btime loglikelihood($cu_train, $cu_bpc; batch_size = $b, mars_mem = $mars_mem)
-    end
+# benchmark downward pass without parameter estimation
+@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize; mine=2, maxe=32, debug=false)
+
+# allocate memory for parameter estimation
+node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
+edge_aggr = [CuVector{Float32}(undef, length(cu_bpc.edge_layers_down[i])) for i=1:length(cu_bpc.edge_layers_down)];
+
+function reset_aggr()
+    node_aggr .= 0
+    foreach(x -> x.= 0, edge_aggr) 
 end
-tune()
+
+# benchmark downward pass with parameter estimation
+@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=32, debug=false)) setup=(reset_aggr())
+
+nothing 

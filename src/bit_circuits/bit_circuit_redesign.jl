@@ -401,13 +401,27 @@ end
 # Downward pass
 ##################################################################################
 
-function layer_down_kernel(flows, mars, layer, num_examples)
+function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_aggr)
 
-    # mars = Base.Experimental.Const(_mars)
+    mars = Base.Experimental.Const(_mars)
+    @yindex ex_id
 
     num_edges = length(layer) % Int32
     @xrange edge_start edge_end num_edges
-    @yindex ex_id
+    
+    blockdim = blockDim().x
+
+    edge_work = cld(num_edges, (blockdim * gridDim().x))
+    edge_start = ((blockIdx().x - one(Int32)) * blockdim + threadIdx().x - one(Int32)) * edge_work + one(Int32)
+    edge_end = min(edge_start + edge_work - one(Int32), num_edges)
+
+    block_edge_start = ((blockIdx().x - one(Int32)) * blockdim) * edge_work + one(Int32)
+    # linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x
+    
+    if !isnothing(edge_aggr)
+        edges_per_block = cld(num_edges, gridDim().x)
+        shmem = CuDynamicSharedArray(Float32, (num_examples, edges_per_block))
+    end
 
     @inbounds if ex_id <= num_examples
 
@@ -433,9 +447,8 @@ function layer_down_kernel(flows, mars, layer, num_examples)
                 partial = ispartial(tag)
                 owned_node = !partial
             end
-            
-            edge_flow = flows[ex_id, parent_id]
 
+            edge_flow = flows[ex_id, parent_id]
             if issum
                 parent_mar = mars[ex_id, parent_id]
                 child_prob = mars[ex_id, prime_id] + edge.logp
@@ -444,6 +457,11 @@ function layer_down_kernel(flows, mars, layer, num_examples)
                 end
                 edge_flow = edge_flow + child_prob - parent_mar
             end
+                
+            if !isnothing(edge_aggr) && isfinite(edge_flow)
+                exp_edge_flow = @fastmath exp(edge_flow)
+                shmem[ex_id, edge_id-block_edge_start+one(Int32)] = exp_edge_flow
+            end    
 
             if sub_id != 0 
                 if isonlysubedge(tag)
@@ -467,30 +485,70 @@ function layer_down_kernel(flows, mars, layer, num_examples)
                     flows[ex_id, prime_id] = acc
                 else
                     CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], acc)
-                end             
+                end         
             end
         end
     end
+
+    if !isnothing(edge_aggr)
+        
+        # perform a reduction
+        # d = 1
+        # while d < num_examples
+        #     sync_threads()
+        #     index = 2 * d * (ex_id-1) + 1
+        #     @inbounds if index <= num_examples
+        #         for edge_id = edge_start:edge_end
+        #             other_val = if index + d <= num_examples
+        #                 shmem[index+d, edge_id]
+        #             else
+        #                 zero(Float32)
+        #             end
+        #             shmem[index, edge_id] += other_val
+        #         end
+        #     end
+        #     d *= 2
+        # end
+
+        # load the final value on the first thread
+        # if thread == 1
+        #     for edge_id = edge_start:edge_end
+        #         val = @inbounds shared[thread]
+        # end
+        # sync_threads()
+        # if linear_threadidx <= edges_per_block
+            # CUDA.@atomic edge_aggr[block_edge_start+linear_threadidx] += shmem[linear_threadidx]
+        # end
+        sync_threads()
+        if ex_id == 1
+            for edge_id = edge_start:edge_end
+                CUDA.@atomic edge_aggr[edge_id] += shmem[1, edge_id-block_edge_start+1]
+            end
+        end
+    end
+
     nothing
 end
 
-function layer_down(flows, mars, bpc, layer_id, num_examples; mine, maxe, debug=false)
+function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
     layer = bpc.edge_layers_down[layer_id]
-    kernel = @cuda name="layer_down" launch=false layer_down_kernel(flows, mars, layer, num_examples) 
+    kernel = @cuda name="layer_down" launch=false layer_down_kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr) 
     config = launch_configuration(kernel.fun)
     threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
+    edges_per_block = cld(length(layer), blocks[1])
+    shmem = isnothing(edge_aggr) ? 0 : num_examples*edges_per_block*sizeof(Float32)
     if debug
         println("Layer $layer_id")
         println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
         CUDA.@time kernel(flows, mars, layer; threads, blocks)
     else
-        kernel(flows, mars, layer, num_examples; threads, blocks)
+        kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr; threads, blocks, shmem)
     end
     nothing
 end
 
 # run entire circuit
-function flows_circuit(flows, mars, bpc, num_examples; mine, maxe, debug=false)
+function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggrs=nothing; mine, maxe, debug=false)
     if debug
         println("Initializing flows")
         CUDA.@time CUDA.@sync begin 
@@ -502,7 +560,8 @@ function flows_circuit(flows, mars, bpc, num_examples; mine, maxe, debug=false)
         flows[:,end] .= zero(Float32)
     end
     for i in 1:length(bpc.edge_layers_down)
-        layer_down(flows, mars, bpc, i, num_examples; mine, maxe, debug)
+        edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
+        layer_down(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
     end
     nothing
 end
@@ -512,6 +571,7 @@ function probs_flows_circuit(flows, mars, bpc, data, example_ids; mine, maxe, de
     flows_circuit(flows, mars, bpc, length(example_ids); mine, maxe, debug)
     nothing
 end
+
 
 #######################
 ### Full Epoch Marginal
