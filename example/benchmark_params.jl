@@ -43,8 +43,6 @@ CUDA.@time probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_train, cu_batch; mi
 # benchmark downward pass without parameter estimation
 @benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize; mine=2, maxe=32, debug=false)
 
-@benchmark CUDA.@sync ProbabilisticCircuits.flows_circuit2(cu_flows, cu_mars, cu_bpc, batchsize; mine=2, maxe=32, debug=false)
-
 # allocate memory for parameter estimation
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
 edge_aggr = [CuVector{Float32}(undef, length(cu_bpc.edge_layers_down[i])) for i=1:length(cu_bpc.edge_layers_down)];
@@ -55,11 +53,10 @@ function reset_aggr()
 end
 
 # benchmark downward pass with parameter estimation
-@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=16, debug=false)) setup=(reset_aggr())
+@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=32, debug=false)) setup=(reset_aggr())
 
-@benchmark (CUDA.@sync ProbabilisticCircuits.flows_circuit2(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=16, debug=false)) setup=(reset_aggr())
-
-@time reset_aggr(); CUDA.@sync ProbabilisticCircuits.flows_circuit2(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=16, debug=false)
-
+# also works with partial batches
+reset_aggr(); flows_circuit(cu_flows, cu_mars, cu_bpc, 178, node_aggr, edge_aggr; mine=2, maxe=32, debug=true)
+sum(edge_aggr[1])
 
 nothing 

@@ -402,133 +402,17 @@ end
 # Downward pass
 ##################################################################################
 
-function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_aggr)
+function layer_down_kernel(flows, _mars, layer, 
+            num_ex_threads::Int32, num_examples::Int32, edge_work::Int32, num_edges::Int32, 
+            node_aggr, edge_aggr)
 
     mars = Base.Experimental.Const(_mars)
-    @yindex ex_id
-
-    num_edges = length(layer) % Int32
-    @xrange edge_start edge_end num_edges
-    
-    blockdimx = blockDim().x
-
-    edge_work = cld(num_edges, (blockdimx * gridDim().x))
-    edge_start = ((blockIdx().x - one(Int32)) * blockdimx + threadIdx().x - one(Int32)) * edge_work + one(Int32)
-    edge_end = min(edge_start + edge_work - one(Int32), num_edges)
-
-    block_edge_start = ((blockIdx().x - one(Int32)) * blockdimx) * edge_work + one(Int32)
-    linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x        
- 
-    local edges_per_block::Int32
-
-    if !isnothing(edge_aggr)
-        edges_per_block = cld(num_edges, gridDim().x)
-        shmem = CuDynamicSharedArray(Float32, (num_examples, edges_per_block))
-    end
-
-    @inbounds if ex_id <= num_examples
-
-        local acc::Float32    
-        local prime_mar::Float32
-
-        owned_node::Bool = false
         
-        for edge_id = edge_start:edge_end
-
-            edge = layer[edge_id]
-
-            parent_id = edge.parent_id
-            prime_id = edge.prime_id
-            sub_id = edge.sub_id
-
-            tag = edge.tag
-            firstedge = isfirst(tag)
-            lastedge = islast(tag)
-            issum = edge isa SumEdge
-
-            if firstedge
-                partial = ispartial(tag)
-                owned_node = !partial
-            end
-
-            edge_flow = flows[ex_id, parent_id]
-            if issum
-                parent_mar = mars[ex_id, parent_id]
-                child_prob = mars[ex_id, prime_id] + edge.logp
-                if sub_id != 0
-                    child_prob += mars[ex_id, sub_id]
-                end
-                edge_flow = edge_flow + child_prob - parent_mar
-            end
-                
-            if !isnothing(edge_aggr) && isfinite(edge_flow)
-                exp_edge_flow = @fastmath exp(edge_flow)
-                shmem[ex_id, edge_id-block_edge_start+one(Int32)] = exp_edge_flow
-            end    
-
-            if sub_id != 0 
-                if isonlysubedge(tag)
-                    flows[ex_id, sub_id] = edge_flow
-                else
-                    CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
-                end
-            end
-
-            # accumulate flows from parents
-            if firstedge || (edge_id == edge_start)  
-                acc = edge_flow
-            else
-                acc = logsumexp(acc, edge_flow)
-            end
-
-            # write to global memory
-            if lastedge || (edge_id == edge_end)   
-                if lastedge && owned_node
-                    # no one else is writing to this global memory
-                    flows[ex_id, prime_id] = acc
-                else
-                    CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], acc)
-                end         
-            end
-        end
-    end
-
-    @inbounds if !isnothing(edge_aggr)
-        while num_examples > 1
-            sync_threads()
-            fold = cld(num_examples, 2)
-            if num_examples >= ex_id > fold
-                for edge_id = edge_start:edge_end
-                    shmem[ex_id-fold, edge_id-block_edge_start+one(Int32)] += shmem[ex_id, edge_id-block_edge_start+one(Int32)]
-                end
-            end
-            num_examples = cld(num_examples, 2)
-        end
-        sync_threads()
-        if ex_id == 1
-            for edge_id = edge_start:edge_end
-                CUDA.@atomic edge_aggr[edge_id] += shmem[1, edge_id-block_edge_start+one(Int32)]
-            end
-        end
-    end
-
-    nothing
-end
-
-function layer_down_kernel3(flows, _mars, layer, num_ex_threads, num_examples, node_aggr, edge_aggr)
-
-    mars = Base.Experimental.Const(_mars)
-    
-    num_edges = length(layer) % Int32
-    
     threadid_block = threadIdx().x
     threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadid_block 
 
     edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
-    grid_num_threads = gridDim().x * blockDim().x
-    num_edge_batches = cld(grid_num_threads, num_ex_threads)
-    edge_work = cld(num_edges, num_edge_batches)
     edge_start = (edge_batch-one(Int32))*edge_work + one(Int32)
     edge_end = min(edge_start + edge_work - one(Int32), num_edges)
    
@@ -578,7 +462,7 @@ function layer_down_kernel3(flows, _mars, layer, num_ex_threads, num_examples, n
             if warp_lane == 1
                 CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
             end
-        end    
+        end
 
         if ex_id <= num_examples
 
@@ -614,39 +498,29 @@ end
 
 function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
     layer = bpc.edge_layers_down[layer_id]
-    kernel = @cuda name="layer_down" launch=false layer_down_kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr) 
+    num_edges::Int32 = length(layer)
+    dummy_args = (flows, mars, layer, Int32(32), Int32(num_examples), Int32(32), num_edges, node_aggr, edge_aggr)
+    kernel = @cuda name="layer_down" launch=false layer_down_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
-    edges_per_block = cld(length(layer), blocks[1])
-    shmem = isnothing(edge_aggr) ? 0 : num_examples*edges_per_block*sizeof(Float32)
+
+    # configure thread/block balancing
+    threads_dims, blocks_dims = balance_threads(length(layer), num_examples, config; mine, maxe)
+    threads = threads_dims[1] * threads_dims[2]
+    blocks = blocks_dims[1] * blocks_dims[2]
+    num_example_threads::Int32 = threads_dims[2]
+    edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
+    
+    args = (flows, mars, layer, num_example_threads, Int32(num_examples), edge_work, num_edges, node_aggr, edge_aggr)
     if debug
         println("Layer $layer_id")
-        println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
-        CUDA.@time kernel(flows, mars, layer; threads, blocks)
+        @show num_example_threads, Int32(num_examples), edge_work, num_edges
+        CUDA.@time kernel(args...; threads, blocks)
     else
-        kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr; threads, blocks, shmem)
+        kernel(args...; threads, blocks)
     end
     nothing
 end
 
-function layer_down2(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
-    layer = bpc.edge_layers_down[layer_id]
-    kernel = @cuda name="layer_down3" launch=false layer_down_kernel3(flows, mars, layer, Int32(32), Int32(num_examples), node_aggr, edge_aggr) 
-    config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
-    num_example_threads = threads[2]
-    if debug
-        println("Layer $layer_id")
-        println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
-        CUDA.@time kernel(flows, mars, layer; threads, blocks)
-    else
-        kernel(flows, mars, layer, Int32(num_example_threads), Int32(num_examples), node_aggr, edge_aggr; 
-                threads = threads[1]*threads[2], blocks = blocks[1]*blocks[2])
-    end
-    nothing
-end
-
-# run entire circuit
 function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggrs=nothing; mine, maxe, debug=false)
     if debug
         println("Initializing flows")
@@ -661,24 +535,6 @@ function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_a
     for i in 1:length(bpc.edge_layers_down)
         edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
         layer_down(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
-    end
-    nothing
-end
-
-function flows_circuit2(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggrs=nothing; mine, maxe, debug=false)
-    if debug
-        println("Initializing flows")
-        CUDA.@time CUDA.@sync begin 
-            flows .= -Inf32
-            flows[:,end] .= zero(Float32)
-        end
-    else
-        flows .= -Inf32
-        flows[:,end] .= zero(Float32)
-    end
-    for i in 1:length(bpc.edge_layers_down)
-        edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
-        layer_down2(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
     end
     nothing
 end
