@@ -531,9 +531,9 @@ function layer_down_kernel3(flows, _mars, layer, num_ex_threads, num_examples, n
     edge_work = cld(num_edges, num_edge_batches)
     edge_start = (edge_batch-one(Int32))*edge_work + one(Int32)
     edge_end = min(edge_start + edge_work - one(Int32), num_edges)
-
+   
     warp_lane = mod1(threadid_block, warpsize())
-                
+
     local acc::Float32    
     local prime_mar::Float32
 
