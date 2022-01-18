@@ -492,8 +492,7 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
         end
     end
 
-    if !isnothing(edge_aggr)
-        
+    @inbounds if !isnothing(edge_aggr)
         while num_examples > 1
             sync_threads()
             fold = cld(num_examples, 2)
@@ -505,9 +504,10 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
             num_examples = cld(num_examples, 2)
         end
         sync_threads()
-        CUDA.@assert blockDim().y * blockDim().x >= edges_per_block
-        if linear_threadidx <= edges_per_block
-            CUDA.@atomic edge_aggr[block_edge_start+linear_threadidx-1] += shmem[1, linear_threadidx]
+        if ex_id == 1
+            for edge_id = edge_start:edge_end
+                CUDA.@atomic edge_aggr[edge_id] += shmem[1, edge_id-block_edge_start+one(Int32)]
+            end
         end
     end
 
