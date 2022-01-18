@@ -409,15 +409,17 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
     num_edges = length(layer) % Int32
     @xrange edge_start edge_end num_edges
     
-    blockdim = blockDim().x
+    blockdimx = blockDim().x
 
-    edge_work = cld(num_edges, (blockdim * gridDim().x))
-    edge_start = ((blockIdx().x - one(Int32)) * blockdim + threadIdx().x - one(Int32)) * edge_work + one(Int32)
+    edge_work = cld(num_edges, (blockdimx * gridDim().x))
+    edge_start = ((blockIdx().x - one(Int32)) * blockdimx + threadIdx().x - one(Int32)) * edge_work + one(Int32)
     edge_end = min(edge_start + edge_work - one(Int32), num_edges)
 
-    block_edge_start = ((blockIdx().x - one(Int32)) * blockdim) * edge_work + one(Int32)
-    # linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x
+    block_edge_start = ((blockIdx().x - one(Int32)) * blockdimx) * edge_work + one(Int32)
+    linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x
     
+    local edges_per_block::Int32
+
     if !isnothing(edge_aggr)
         edges_per_block = cld(num_edges, gridDim().x)
         shmem = CuDynamicSharedArray(Float32, (num_examples, edges_per_block))
@@ -492,38 +494,20 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
 
     if !isnothing(edge_aggr)
         
-        # perform a reduction
-        # d = 1
-        # while d < num_examples
-        #     sync_threads()
-        #     index = 2 * d * (ex_id-1) + 1
-        #     @inbounds if index <= num_examples
-        #         for edge_id = edge_start:edge_end
-        #             other_val = if index + d <= num_examples
-        #                 shmem[index+d, edge_id]
-        #             else
-        #                 zero(Float32)
-        #             end
-        #             shmem[index, edge_id] += other_val
-        #         end
-        #     end
-        #     d *= 2
-        # end
-
-        # load the final value on the first thread
-        # if thread == 1
-        #     for edge_id = edge_start:edge_end
-        #         val = @inbounds shared[thread]
-        # end
-        # sync_threads()
-        # if linear_threadidx <= edges_per_block
-            # CUDA.@atomic edge_aggr[block_edge_start+linear_threadidx] += shmem[linear_threadidx]
-        # end
-        sync_threads()
-        if ex_id == 1
-            for edge_id = edge_start:edge_end
-                CUDA.@atomic edge_aggr[edge_id] += shmem[1, edge_id-block_edge_start+1]
+        while num_examples > 1
+            sync_threads()
+            fold = cld(num_examples, 2)
+            if num_examples >= ex_id > fold
+                for edge_id = edge_start:edge_end
+                    shmem[ex_id-fold, edge_id-block_edge_start+one(Int32)] += shmem[ex_id, edge_id-block_edge_start+one(Int32)]
+                end
             end
+            num_examples = cld(num_examples, 2)
+        end
+        sync_threads()
+        CUDA.@assert blockDim().y * blockDim().x >= edges_per_block
+        if linear_threadidx <= edges_per_block
+            CUDA.@atomic edge_aggr[block_edge_start+linear_threadidx-1] += shmem[1, linear_threadidx]
         end
     end
 
