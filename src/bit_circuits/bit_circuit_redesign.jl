@@ -416,8 +416,8 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
     edge_end = min(edge_start + edge_work - one(Int32), num_edges)
 
     block_edge_start = ((blockIdx().x - one(Int32)) * blockdimx) * edge_work + one(Int32)
-    linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x
-    
+    linear_threadidx = threadIdx().x + (threadIdx().y-one(Int32)) * gridDim().x        
+ 
     local edges_per_block::Int32
 
     if !isnothing(edge_aggr)
@@ -514,6 +514,99 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
     nothing
 end
 
+function layer_down_kernel3(flows, _mars, layer, num_examples::Int32, node_aggr, edge_aggr)
+
+    mars = Base.Experimental.Const(_mars)
+    
+    num_edges = length(layer) % Int32
+    
+    threadid_block = threadIdx().x
+    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadid_block 
+
+    edge_batch, ex_id = fldmod1(threadid, num_examples)
+
+    grid_num_threads = gridDim().x * blockDim().x
+    num_edge_batches = cld(grid_num_threads, num_examples)
+    edge_work = cld(num_edges, num_edge_batches)
+    edge_start = (edge_batch-one(Int32))*edge_work + one(Int32)
+    edge_end = min(edge_start + edge_work - one(Int32), num_edges)
+
+    warp_id, warp_lane = fldmod1(threadid_block, warpsize())
+                
+    @inbounds if ex_id <= num_examples
+
+        local acc::Float32    
+        local prime_mar::Float32
+
+        owned_node::Bool = false
+        
+        for edge_id = edge_start:edge_end
+
+            edge = layer[edge_id]
+
+            parent_id = edge.parent_id
+            prime_id = edge.prime_id
+            sub_id = edge.sub_id
+
+            tag = edge.tag
+            firstedge = isfirst(tag)
+            lastedge = islast(tag)
+            issum = edge isa SumEdge
+
+            if firstedge
+                partial = ispartial(tag)
+                owned_node = !partial
+            end
+
+            edge_flow = flows[ex_id, parent_id]
+            if issum
+                parent_mar = mars[ex_id, parent_id]
+                child_prob = mars[ex_id, prime_id] + edge.logp
+                if sub_id != 0
+                    child_prob += mars[ex_id, sub_id]
+                end
+                edge_flow = edge_flow + child_prob - parent_mar
+            end
+                
+            if !isnothing(edge_aggr)
+                exp_edge_flow = exp(edge_flow)
+                # TODO: what happens if a thread in the warp did not pass the `if ex_id <= num_examples` check?
+                exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
+                if warp_lane == 1
+                    CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
+                end
+            end    
+
+            if sub_id != 0 
+                if isonlysubedge(tag)
+                    flows[ex_id, sub_id] = edge_flow
+                else
+                    CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+                end
+            end
+
+            # accumulate flows from parents
+            if firstedge || (edge_id == edge_start)  
+                acc = edge_flow
+            else
+                acc = logsumexp(acc, edge_flow)
+            end
+
+            # write to global memory
+            if lastedge || (edge_id == edge_end)   
+                if lastedge && owned_node
+                    # no one else is writing to this global memory
+                    flows[ex_id, prime_id] = acc
+                else
+                    CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], acc)
+                end         
+            end
+        end
+    end
+
+    nothing
+end
+
 function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
     layer = bpc.edge_layers_down[layer_id]
     kernel = @cuda name="layer_down" launch=false layer_down_kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr) 
@@ -527,6 +620,24 @@ function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_ag
         CUDA.@time kernel(flows, mars, layer; threads, blocks)
     else
         kernel(flows, mars, layer, num_examples, node_aggr, edge_aggr; threads, blocks, shmem)
+    end
+    nothing
+end
+
+function layer_down2(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
+    layer = bpc.edge_layers_down[layer_id]
+    kernel = @cuda name="layer_down3" launch=false layer_down_kernel3(flows, mars, layer, Int32(num_examples), node_aggr, edge_aggr) 
+    config = launch_configuration(kernel.fun)
+    threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
+    edges_per_block = cld(length(layer), blocks[1])
+    shmem = isnothing(edge_aggr) ? 0 : num_examples*edges_per_block*sizeof(Float32)
+    if debug
+        println("Layer $layer_id")
+        println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
+        CUDA.@time kernel(flows, mars, layer; threads, blocks)
+    else
+        kernel(flows, mars, layer, Int32(num_examples), node_aggr, edge_aggr; 
+                threads = threads[1]*threads[2], blocks = blocks[1]*blocks[2], shmem)
     end
     nothing
 end
@@ -546,6 +657,24 @@ function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_a
     for i in 1:length(bpc.edge_layers_down)
         edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
         layer_down(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
+    end
+    nothing
+end
+
+function flows_circuit2(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggrs=nothing; mine, maxe, debug=false)
+    if debug
+        println("Initializing flows")
+        CUDA.@time CUDA.@sync begin 
+            flows .= -Inf32
+            flows[:,end] .= zero(Float32)
+        end
+    else
+        flows .= -Inf32
+        flows[:,end] .= zero(Float32)
+    end
+    for i in 1:length(bpc.edge_layers_down)
+        edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
+        layer_down2(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
     end
     nothing
 end
