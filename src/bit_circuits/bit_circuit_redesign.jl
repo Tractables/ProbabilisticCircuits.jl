@@ -226,7 +226,8 @@ end
 
 function balance_threads(num_edges, num_examples, config; mine, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
-    ex_threads = min(config.threads, num_examples)
+    # make sure the number of example threads is a multiple of 32
+    ex_threads = min(config.threads, cld(num_examples,32)*32)
     ex_blocks = cld(num_examples, ex_threads)
     edge_threads = config.threads ÷ ex_threads
     edge_blocks_min = cld(num_edges, edge_threads * maxe)
@@ -514,7 +515,7 @@ function layer_down_kernel(flows, _mars, layer, num_examples, node_aggr, edge_ag
     nothing
 end
 
-function layer_down_kernel3(flows, _mars, layer, num_examples::Int32, node_aggr, edge_aggr)
+function layer_down_kernel3(flows, _mars, layer, num_ex_threads, num_examples, node_aggr, edge_aggr)
 
     mars = Base.Experimental.Const(_mars)
     
@@ -523,41 +524,40 @@ function layer_down_kernel3(flows, _mars, layer, num_examples::Int32, node_aggr,
     threadid_block = threadIdx().x
     threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadid_block 
 
-    edge_batch, ex_id = fldmod1(threadid, num_examples)
+    edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
     grid_num_threads = gridDim().x * blockDim().x
-    num_edge_batches = cld(grid_num_threads, num_examples)
+    num_edge_batches = cld(grid_num_threads, num_ex_threads)
     edge_work = cld(num_edges, num_edge_batches)
     edge_start = (edge_batch-one(Int32))*edge_work + one(Int32)
     edge_end = min(edge_start + edge_work - one(Int32), num_edges)
 
-    warp_id, warp_lane = fldmod1(threadid_block, warpsize())
+    warp_lane = mod1(threadid_block, warpsize())
                 
-    @inbounds if ex_id <= num_examples
+    local acc::Float32    
+    local prime_mar::Float32
 
-        local acc::Float32    
-        local prime_mar::Float32
+    owned_node::Bool = false
+    
+    @inbounds for edge_id = edge_start:edge_end
 
-        owned_node::Bool = false
-        
-        for edge_id = edge_start:edge_end
+        edge = layer[edge_id]
 
-            edge = layer[edge_id]
+        parent_id = edge.parent_id
+        prime_id = edge.prime_id
+        sub_id = edge.sub_id
 
-            parent_id = edge.parent_id
-            prime_id = edge.prime_id
-            sub_id = edge.sub_id
+        tag = edge.tag
+        firstedge = isfirst(tag)
+        lastedge = islast(tag)
+        issum = edge isa SumEdge
 
-            tag = edge.tag
-            firstedge = isfirst(tag)
-            lastedge = islast(tag)
-            issum = edge isa SumEdge
+        if firstedge
+            partial = ispartial(tag)
+            owned_node = !partial
+        end
 
-            if firstedge
-                partial = ispartial(tag)
-                owned_node = !partial
-            end
-
+        if ex_id <= num_examples
             edge_flow = flows[ex_id, parent_id]
             if issum
                 parent_mar = mars[ex_id, parent_id]
@@ -567,15 +567,20 @@ function layer_down_kernel3(flows, _mars, layer, num_examples::Int32, node_aggr,
                 end
                 edge_flow = edge_flow + child_prob - parent_mar
             end
-                
-            if !isnothing(edge_aggr)
-                exp_edge_flow = exp(edge_flow)
-                # TODO: what happens if a thread in the warp did not pass the `if ex_id <= num_examples` check?
-                exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
-                if warp_lane == 1
-                    CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
-                end
-            end    
+        else
+            edge_flow = -Inf32
+        end
+        
+        # make sure this is run on all warp threads, regardless of `ex_id`
+        if !isnothing(edge_aggr)
+            exp_edge_flow = exp(edge_flow)
+            exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
+            if warp_lane == 1
+                CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
+            end
+        end    
+
+        if ex_id <= num_examples
 
             if sub_id != 0 
                 if isonlysubedge(tag)
@@ -626,18 +631,17 @@ end
 
 function layer_down2(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
     layer = bpc.edge_layers_down[layer_id]
-    kernel = @cuda name="layer_down3" launch=false layer_down_kernel3(flows, mars, layer, Int32(num_examples), node_aggr, edge_aggr) 
+    kernel = @cuda name="layer_down3" launch=false layer_down_kernel3(flows, mars, layer, Int32(32), Int32(num_examples), node_aggr, edge_aggr) 
     config = launch_configuration(kernel.fun)
     threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
-    edges_per_block = cld(length(layer), blocks[1])
-    shmem = isnothing(edge_aggr) ? 0 : num_examples*edges_per_block*sizeof(Float32)
+    num_example_threads = threads[2]
     if debug
         println("Layer $layer_id")
         println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
         CUDA.@time kernel(flows, mars, layer; threads, blocks)
     else
-        kernel(flows, mars, layer, Int32(num_examples), node_aggr, edge_aggr; 
-                threads = threads[1]*threads[2], blocks = blocks[1]*blocks[2], shmem)
+        kernel(flows, mars, layer, Int32(num_example_threads), Int32(num_examples), node_aggr, edge_aggr; 
+                threads = threads[1]*threads[2], blocks = blocks[1]*blocks[2])
     end
     nothing
 end
