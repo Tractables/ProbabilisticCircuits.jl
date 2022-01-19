@@ -1,7 +1,7 @@
 using Pkg; Pkg.activate("$(@__DIR__)")
 
 using MLDatasets, ProbabilisticCircuits, CUDA, BenchmarkTools
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params, full_batch_em_step
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params, full_batch_em_step, full_batch_em
 
 # load data
 train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
@@ -47,9 +47,11 @@ CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
 @benchmark (CUDA.@sync update_params(cu_bpc, node_aggr, edge_aggr))
 
 cu_bpc = CuBitsProbCircuit(bpc);
-CUDA.@time full_batch_em_step(cu_train, cu_bpc; batch_size=512, 
+
+CUDA.@time full_batch_em(cu_bpc, cu_train, 10; batch_size=512, 
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine=2, maxe=32, debug=false)
+
 CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
 
 nothing 

@@ -738,10 +738,10 @@ end
 ### Full-Batch EM
 ######################
 
-function full_batch_em_step(data::CuArray, bpc::CuBitsProbCircuit; 
-    batch_size=512, pseudocount=1f0,
-    mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
-    mine=2, maxe=32, debug=false)
+function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
+    batch_size, pseudocount,
+    mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
+    mine, maxe, debug)
 
     num_examples = size(data)[1]
     num_nodes = length(bpc.nodes)
@@ -795,4 +795,22 @@ function full_batch_em_step(data::CuArray, bpc::CuBitsProbCircuit;
     update_params(bpc, node_aggr, edge_aggr)
 
     return log_likelihood / num_examples
+end
+
+function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations; 
+    batch_size=512, pseudocount=1f0,
+    mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
+    mine=2, maxe=32, debug=false)
+
+    log_likelihood = -Inf32
+
+    for i=1:num_iterations
+        log_likelihood = full_batch_em_step(bpc, data; 
+            batch_size, pseudocount,
+            mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
+            mine, maxe, debug)
+        println("EM iteration $i: log-likelihood = $log_likelihood")
+    end
+
+    log_likelihood
 end
