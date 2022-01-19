@@ -447,14 +447,17 @@ function layer_down_kernel(flows, _mars, edges,
         firstedge = isfirst(tag)
         lastedge = islast(tag)
         issum = edge isa SumEdge
-
+        active = (ex_id <= num_examples)
+        
         if firstedge
             partial = ispartial(tag)
             owned_node = !partial
         end
 
-        if ex_id <= num_examples
+        if active
+            
             edge_flow = flows[ex_id, parent_id]
+
             if issum
                 parent_mar = mars[ex_id, parent_id]
                 child_prob = mars[ex_id, prime_id] + edge.logp
@@ -463,28 +466,26 @@ function layer_down_kernel(flows, _mars, edges,
                 end
                 edge_flow = edge_flow + child_prob - parent_mar
             end
-        else
-            edge_flow = -Inf32
-        end
-        
-        # make sure this is run on all warp threads, regardless of `ex_id`
-        if !isnothing(edge_aggr)
-            exp_edge_flow = exp(edge_flow)
-            exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
-            if warp_lane == 1
-                CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
-            end
-        end
-
-        if ex_id <= num_examples
 
             if sub_id != 0 
                 if isonlysubedge(tag)
                     flows[ex_id, sub_id] = edge_flow
                 else
                     CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
-                end
+                end            
             end
+        end
+        
+        # make sure this is run on all warp threads, regardless of `active`
+        if !isnothing(edge_aggr)
+            exp_edge_flow = active ? exp(edge_flow) : zero(Float32)
+            exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
+            if warp_lane == 1
+                CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
+            end
+        end
+
+        if active
 
             # accumulate flows from parents
             if firstedge || (edge_id == edge_start)  
@@ -500,9 +501,25 @@ function layer_down_kernel(flows, _mars, edges,
                     flows[ex_id, prime_id] = acc
                 else
                     CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], acc)
-                end         
+                end
             end
         end
+
+        if !isnothing(node_aggr) && 
+            (sub_id != 0 || lastedge || (edge_id == edge_end))  
+
+            exp_acc = active ? exp(acc) : zero(Float32)
+            exp_acc = CUDA.reduce_warp(+, exp_acc)
+            if warp_lane == 1 
+                if sub_id != 0
+                    CUDA.@atomic node_aggr[sub_id] += exp_acc
+                end
+                if lastedge || (edge_id == edge_end)   
+                    CUDA.@atomic node_aggr[prime_id] += exp_acc
+                end
+            end
+        end
+        
     end
 
     nothing
