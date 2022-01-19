@@ -468,23 +468,23 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
     num_nodes = length(bpc.nodes)
 
     marginals = if isnothing(mars_mem)
-    CuMatrix{Float32}(undef, batch_size, num_nodes)
+        CuMatrix{Float32}(undef, batch_size, num_nodes)
     else
-    @assert size(mars_mem, 1) >= batch_size
-    @assert size(mars_mem, 2) == num_nodes
-    mars_mem
+        @assert size(mars_mem, 1) >= batch_size
+        @assert size(mars_mem, 2) == num_nodes
+        mars_mem
     end
 
     log_likelihood = zero(Float64)
 
     for batch_start = 1:batch_size:num_examples
 
-    batch_end = min(batch_start+batch_size-1, num_examples)
-    batch = batch_start:batch_end
+        batch_end = min(batch_start+batch_size-1, num_examples)
+        batch = batch_start:batch_end
 
-    eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
+        eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
 
-    log_likelihood += sum(marginals[:,end])        
+        log_likelihood += sum(marginals[:,end])        
     end
     return log_likelihood / num_examples
 end
@@ -668,6 +668,8 @@ function aggr_node_flows_kernel(node_aggr, edges, _edge_aggr)
 end
 
 function aggr_node_flows(node_aggr, bpc, edge_aggr)
+    # reset aggregates
+    node_aggr .= zero(Float32)
     edges = bpc.edge_layers_down.vectors
     args = (node_aggr, edges, edge_aggr)
     kernel = @cuda name="aggr_node_flows" launch=false aggr_node_flows_kernel(args...) 
@@ -682,45 +684,115 @@ end
 # Update parameters
 ##################################################################################
 
-function update_params_kernel(edges1, edges2, _node_aggr, _edge_aggr)
+function update_params_kernel(edges_down, edges_up, _down2upedge, _node_aggr, _edge_aggr)
     node_aggr = Base.Experimental.Const(_node_aggr)
     edge_aggr = Base.Experimental.Const(_edge_aggr)
-    edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+    down2upedge = Base.Experimental.Const(_down2upedge)
+    
+    edge_id_down = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    @inbounds if edge_id <= length(edges1)
-        edge1 = edges1[edge_id]
-        if edge1 isa SumEdge 
-            parent_id = edge1.parent_id
-            parent_flow = node_aggr[parent_id]
-            edge_flow = edge_aggr[edge_id]
-            new_log_param = log(edge_flow / parent_flow)
-            edges1[edge_id] = SumEdge(parent_id, edge1.prime_id, edge1.sub_id, 
-                                     new_log_param, edge1.tag)
-        end
-        edge2 = edges2[edge_id]
-        if edge2 isa SumEdge 
-            parent_id = edge2.parent_id
-            parent_flow = node_aggr[parent_id]
-            edge_flow = edge_aggr[edge_id]
-            # TODO no mapping to other edge id :\
-            new_log_param = log(edge_flow / parent_flow)
-            edges1[edge_id] = SumEdge(parent_id, edge1.prime_id, edge1.sub_id, 
-                                     new_log_param, edge1.tag)
+    @inbounds if edge_id_down <= length(edges_down)
+        edge_down = edges_down[edge_id_down]
+        if edge_down isa SumEdge 
+            
+            edge_id_up = down2upedge[edge_id_down]
+            # only difference is the tag
+            edge_up_tag = edges_up[edge_id_up].tag
+
+            if !(isfirst(edge_up_tag) && islast(edge_up_tag))
+                parent_id = edge_down.parent_id
+                parent_flow = node_aggr[parent_id]
+                edge_flow = edge_aggr[edge_id_down]
+
+                new_log_param = log(edge_flow / parent_flow)
+
+                edges_down[edge_id_down] = 
+                    SumEdge(parent_id, edge_down.prime_id, edge_down.sub_id, 
+                            new_log_param, edge_down.tag)
+
+
+                edges_up[edge_id_up] = 
+                    SumEdge(parent_id, edge_down.prime_id, edge_down.sub_id, 
+                            new_log_param, edge_up_tag)
+            end
         end
     end      
     nothing
 end
 
 function update_params(bpc, node_aggr, edge_aggr)
-    edges1 = bpc.edge_layers_down.vectors
-    edges2 = bpc.edge_layers_up.vectors
-    @assert length(edges1) == length(edges2)
-    args = (edges1, edges2, node_aggr, edge_aggr)
-    @device_code_warntype @cuda update_params_kernel(args...) 
+    edges_down = bpc.edge_layers_down.vectors
+    edges_up = bpc.edge_layers_up.vectors
+    down2upedge = bpc.down2upedge
+    @assert length(edges_down) == length(down2upedge) == length(edges_up)
+    args = (edges_down, edges_up, down2upedge, node_aggr, edge_aggr)
     kernel = @cuda name="update_params" launch=false update_params_kernel(args...) 
     config = launch_configuration(kernel.fun)
     threads = config.threads
-    blocks = cld(length(edges1), threads)
+    blocks = cld(length(edges_down), threads)
     kernel(args...; threads, blocks)
     nothing
+end
+
+#######################
+### Full-Batch EM
+######################
+
+function full_batch_em_step(data::CuArray, bpc::CuBitsProbCircuit; 
+    batch_size=512, pseudocount=1f0,
+    mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
+    mine=2, maxe=32, debug=false)
+
+    num_examples = size(data)[1]
+    num_nodes = length(bpc.nodes)
+    num_edges = length(bpc.edge_layers_down.vectors)
+
+    marginals = if isnothing(mars_mem)
+        CuMatrix{Float32}(undef, batch_size, num_nodes)
+    else
+        @assert ndims(mars_mem) == 2
+        @assert size(mars_mem, 1) >= batch_size
+        @assert size(mars_mem, 2) == num_nodes
+        mars_mem
+    end
+
+    flows = if isnothing(flows_mem)
+        CuMatrix{Float32}(undef, batch_size, num_nodes)
+    else
+        @assert ndims(flows_mem) == 2
+        @assert size(flows_mem, 1) >= batch_size
+        @assert size(flows_mem, 2) == num_nodes
+        flows_mem
+    end
+
+    node_aggr = if isnothing(node_aggr_mem)
+        CuVector{Float32}(undef, num_nodes)
+    else
+        @assert size(node_aggr_mem) == (num_nodes,)
+        node_aggr_mem
+    end
+
+    edge_aggr = if isnothing(edge_aggr_mem)
+        CuVector{Float32}(undef, num_edges)
+    else
+        @assert size(edge_aggr_mem) == (num_edges,)
+        edge_aggr_mem
+    end
+
+    log_likelihood = zero(Float64)
+    edge_aggr.= pseudocount
+    
+    for batch_start = 1:batch_size:num_examples
+
+        batch_end = min(batch_start+batch_size-1, num_examples)
+        batch = batch_start:batch_end
+
+        probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; mine, maxe, debug)
+        log_likelihood += sum(marginals[:,end])        
+    end
+
+    aggr_node_flows(node_aggr, bpc, edge_aggr)
+    update_params(bpc, node_aggr, edge_aggr)
+
+    return log_likelihood / num_examples
 end
