@@ -429,7 +429,7 @@ function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, d
     threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
     threads = threads_dims[1] * threads_dims[2]
     blocks = blocks_dims[1] * blocks_dims[2]
-    num_example_threads::Int32 = threads_dims[2]
+    num_example_threads::Int32 = threads_dims[2] * blocks_dims[2]
     edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
     
     args = (mars, edges, 
@@ -437,7 +437,8 @@ function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, d
             Int32(layer_start), edge_work, Int32(layer_end))
     if debug
         println("Layer $layer_start:$layer_end")
-        @show num_example_threads, Int32(num_examples), edge_work, num_edges
+        @show threads_dims blocks_dims
+        @show num_example_threads Int32(num_examples) edge_work num_edges
         CUDA.@time kernel(args...; threads, blocks)
     else
         kernel(args...; threads, blocks)
@@ -481,10 +482,11 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
 
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
+        num_batch_examples = length(batch)
 
         eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
 
-        log_likelihood += sum(marginals[:,end])        
+        log_likelihood += sum(marginals[1:num_batch_examples,end])        
     end
     return log_likelihood / num_examples
 end
@@ -604,7 +606,7 @@ function layer_down(flows, edge_aggr, bpc, mars,
     threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
     threads = threads_dims[1] * threads_dims[2]
     blocks = blocks_dims[1] * blocks_dims[2]
-    num_example_threads::Int32 = threads_dims[2]
+    num_example_threads::Int32 = threads_dims[2] * blocks_dims[2]
     edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
     
     args = (flows, edge_aggr, edges, mars, 
@@ -786,9 +788,18 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
+        num_batch_examples = length(batch)
 
         probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; mine, maxe, debug)
-        log_likelihood += sum(marginals[:,end])        
+        log_likelihood += sum(marginals[1:num_batch_examples,end])    
+        if !isfinite(log_likelihood)   
+            @show batch 
+            @show num_batch_examples
+            @show sum(marginals[1:num_batch_examples,end])  
+            eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
+            @show sum(marginals[1:num_batch_examples,end])  
+            error("bad ll")
+        end
     end
 
     aggr_node_flows(node_aggr, bpc, edge_aggr)
@@ -798,14 +809,14 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 end
 
 function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations; 
-    batch_size=512, pseudocount=1f0,
+    batch_size, pseudocount,
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
 
     log_likelihood = -Inf32
 
     for i=1:num_iterations
-        log_likelihood = full_batch_em_step(bpc, data; 
+        log_likelihood = CUDA.@time full_batch_em_step(bpc, data; 
             batch_size, pseudocount,
             mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
             mine, maxe, debug)

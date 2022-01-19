@@ -31,14 +31,21 @@ cu_test = to_gpu(test_bits);
 @time bpc = BitsProbCircuit(pc);
 @time cu_bpc = CuBitsProbCircuit(bpc);
 
+mine=2
+maxe=32
+debug=false
+
 # allocate memory for MAR and flows
 batchsize = 512
 cu_batch = CuVector(1:batchsize);
 cu_mars = CuMatrix{Float32}(undef, batchsize, length(cu_bpc.nodes));
-cu_flows = similar(cu_mars);
 
-CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
-@benchmark loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
+# try single batch first
+CUDA.@time eval_circuit(cu_mars, cu_bpc, cu_train, cu_batch; mine, maxe, debug)
+
+CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars, mine, maxe, debug)
+
+@benchmark loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars, mine, maxe, debug)
 
 # function tune() 
 #     for i=5:16

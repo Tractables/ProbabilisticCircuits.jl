@@ -58,6 +58,9 @@ sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
 
 @benchmark (CUDA.@sync flows_circuit(cu_flows, edge_aggr, cu_bpc, cu_mars, batchsize; mine=2, maxe=32, debug=false)) setup=(edge_aggr .= 0)
 
+# up + down + aggr on single batch
+@benchmark (CUDA.@sync probs_flows_circuit(cu_flows, cu_mars, edge_aggr, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)) setup=(edge_aggr .= 0)
+
 # compute separate node aggregation
 node_aggr .= 0; CUDA.@time aggr_node_flows(node_aggr, cu_bpc, edge_aggr)
 node_aggr[end]
@@ -66,6 +69,12 @@ node_aggr[end]
 # actually update the parameters in the edges
 CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
 @benchmark (CUDA.@sync update_params(cu_bpc, node_aggr, edge_aggr))
-# TODO also upward edge parameters
+
+# set up aggregate data
+CUDA.@time probs_flows_circuit(cu_flows, cu_mars, edge_aggr, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
+
+# actually update the parameters in the edges
+CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
+@benchmark (CUDA.@sync update_params(cu_bpc, node_aggr, edge_aggr))
 
 nothing 

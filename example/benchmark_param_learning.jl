@@ -32,26 +32,27 @@ cu_test = to_gpu(test_bits);
 @time cu_bpc = CuBitsProbCircuit(bpc);
 
 # allocate memory for MAR and flows
-batchsize = 512
-cu_batch = CuVector(1:batchsize);
-cu_mars = CuMatrix{Float32}(undef, batchsize, length(cu_bpc.nodes));
+batch_size = 4096
+mine=2
+maxe=16
+debug=false
+cu_batch = CuVector(1:batch_size);
+cu_mars = CuMatrix{Float32}(undef, batch_size, length(cu_bpc.nodes));
 cu_flows = similar(cu_mars);
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
 edge_aggr = CuVector{Float32}(undef, length(cu_bpc.edge_layers_down.vectors));
 
-# set up aggregate data
-CUDA.@time probs_flows_circuit(cu_flows, cu_mars, edge_aggr, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
-
-# actually update the parameters in the edges
-CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
-@benchmark (CUDA.@sync update_params(cu_bpc, node_aggr, edge_aggr))
-
 cu_bpc = CuBitsProbCircuit(bpc);
+pseudocount = 0.1f0
 
-CUDA.@time full_batch_em(cu_bpc, cu_train, 10; batch_size=512, 
+CUDA.@time (CUDA.@sync full_batch_em(cu_bpc, cu_train, 1; batch_size, pseudocount,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
-    mine=2, maxe=32, debug=false)
+    mine, maxe, debug))
 
-CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
+CUDA.@time CUDA.@sync full_batch_em(cu_bpc, cu_train, 1000; batch_size, pseudocount,
+    mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
+    mine, maxe, debug)
+
+CUDA.@time CUDA.@sync loglikelihood(cu_train, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
 
 nothing 
