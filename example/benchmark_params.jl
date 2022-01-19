@@ -1,7 +1,7 @@
 using Pkg; Pkg.activate("$(@__DIR__)")
 
 using MLDatasets, ProbabilisticCircuits, CUDA, BenchmarkTools
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params
 
 # load data
 train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
@@ -62,5 +62,9 @@ node_aggr .= 0; CUDA.@time aggr_node_flows(node_aggr, edge_aggr, cu_bpc)
 node_aggr[end]
 @benchmark (CUDA.@sync aggr_node_flows(node_aggr, edge_aggr, cu_bpc)) setup=(node_aggr .= 0)
 
+# actually update the parameters in the edges
+CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
+@benchmark (CUDA.@sync update_params(cu_bpc, node_aggr, edge_aggr))
+# TODO also upward edge parameters
 
 nothing 

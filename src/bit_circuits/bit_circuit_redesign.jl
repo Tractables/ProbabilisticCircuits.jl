@@ -628,3 +628,38 @@ function aggr_node_flows(node_aggr, edge_aggr, bpc)
     kernel(args...; threads, blocks)
     nothing
 end
+
+##################################################################################
+# Update parameters
+##################################################################################
+
+function update_params_kernel(edges, _node_aggr, _edge_aggr)
+    node_aggr = Base.Experimental.Const(_node_aggr)
+    edge_aggr = Base.Experimental.Const(_edge_aggr)
+    edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    # TODO: would be better to do this on a lattened upward edge layers
+    if edge_id <= length(edges)
+        edge = edges[edge_id]
+        if edge isa SumEdge 
+            parent_id = edge.parent_id
+            parent_flow = node_aggr[parent_id]
+            edge_flow = edge_aggr[edge_id]
+            new_log_param = log(edge_flow / parent_flow)
+            edges[edge_id] = SumEdge(parent_id, edge.prime_id, edge.sub_id, 
+                                     new_log_param, edge.tag)
+        end
+    end      
+    nothing
+end
+
+function update_params(bpc, node_aggr, edge_aggr)
+    edges = bpc.edge_layers_down.vectors
+    args = (edges, node_aggr, edge_aggr)
+    kernel = @cuda name="update_params" launch=false update_params_kernel(args...) 
+    config = launch_configuration(kernel.fun)
+    threads = config.threads
+    blocks = cld(length(edges), threads)
+    kernel(args...; threads, blocks)
+    nothing
+end
