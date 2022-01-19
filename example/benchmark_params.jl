@@ -1,7 +1,7 @@
 using Pkg; Pkg.activate("$(@__DIR__)")
 
 using MLDatasets, ProbabilisticCircuits, CUDA, BenchmarkTools
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows
 
 # load data
 train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
@@ -41,32 +41,26 @@ cu_flows = similar(cu_mars);
 CUDA.@time probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
 
 # benchmark downward pass without parameter estimation
-@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize; mine=2, maxe=32, debug=false)
+@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, nothing, batchsize; mine=2, maxe=32, debug=false)
 
 # allocate memory for parameter estimation
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
 edge_aggr = CuVector{Float32}(undef, length(cu_bpc.edge_layers_down.vectors));
 
-function reset_aggr()
-    node_aggr .= 0
-    edge_aggr .= 0
-end
-
-# benchmark downward pass with parameter estimation
-@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, batchsize, node_aggr, edge_aggr; mine=2, maxe=32, debug=false)) setup=(reset_aggr())
-
-# also works with partial batches
-reset_aggr(); flows_circuit(cu_flows, cu_mars, cu_bpc, 178, node_aggr, edge_aggr; mine=2, maxe=32, debug=true)
+# benchmark downward pass with edge flow aggregation
+edge_aggr .= 0; CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, batchsize; mine=2, maxe=32, debug=false)
 sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
 
-# external node aggregation
-function aggregate_node_flows(node_aggr, flows)
-    Base.mapreducedim!(exp, +, reshape(node_aggr, 1,:), flows)
-    nothing
-end
+@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, batchsize; mine=2, maxe=32, debug=false)) setup=(edge_aggr .= 0)
 
-@benchmark (CUDA.@sync aggregate_node_flows(node_aggr, cu_flows)) setup=(reset_aggr())
+# also works with partial batches
+edge_aggr .= 0; flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, 178; mine=2, maxe=32, debug=false)
+sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
 
-reset_aggr(); CUDA.@time aggregate_node_flows(node_aggr, cu_flows)
+# compute separate node aggregation
+node_aggr .= 0; CUDA.@time aggr_node_flows(node_aggr, edge_aggr, cu_bpc)
+node_aggr[end]
+@benchmark (CUDA.@sync aggr_node_flows(node_aggr, edge_aggr, cu_bpc)) setup=(node_aggr .= 0)
+
 
 nothing 

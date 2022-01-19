@@ -408,15 +408,46 @@ function eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug=false)
     nothing
 end
 
+#######################
+### Full Epoch Likelihood
+######################
+
+function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit; 
+    batch_size=512, mars_mem = nothing, 
+    mine=2, maxe=32, debug=false)
+
+num_examples = size(data)[1]
+num_nodes = length(bpc.nodes)
+
+marginals = if isnothing(mars_mem)
+CuMatrix{Float32}(undef, batch_size, num_nodes)
+else
+@assert size(mars_mem, 1) >= batch_size
+@assert size(mars_mem, 2) == num_nodes
+mars_mem
+end
+
+log_likelihood = zero(Float64)
+
+for batch_start = 1:batch_size:num_examples
+
+batch_end = min(batch_start+batch_size-1, num_examples)
+batch = batch_start:batch_end
+
+eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
+
+log_likelihood += sum(marginals[:,end])        
+end
+return log_likelihood / num_examples
+end
 
 ##################################################################################
 # Downward pass
 ##################################################################################
 
-function layer_down_kernel(flows, _mars, edges, 
+function layer_down_kernel(flows, _mars, edges, edge_aggr,
             num_ex_threads::Int32, num_examples::Int32, 
-            layer_start::Int32, edge_work::Int32, layer_end::Int32, 
-            node_aggr, edge_aggr)
+            layer_start::Int32, edge_work::Int32, layer_end::Int32)
 
     mars = Base.Experimental.Const(_mars)
         
@@ -504,33 +535,19 @@ function layer_down_kernel(flows, _mars, edges,
                 end
             end
         end
-
-        if !isnothing(node_aggr) && 
-            (sub_id != 0 || lastedge || (edge_id == edge_end))  
-
-            exp_acc = active ? exp(acc) : zero(Float32)
-            exp_acc = CUDA.reduce_warp(+, exp_acc)
-            if warp_lane == 1 
-                if sub_id != 0
-                    CUDA.@atomic node_aggr[sub_id] += exp_acc
-                end
-                if lastedge || (edge_id == edge_end)   
-                    CUDA.@atomic node_aggr[prime_id] += exp_acc
-                end
-            end
-        end
         
     end
 
     nothing
 end
 
-function layer_down(flows, mars, edges, 
-        layer_start, layer_end, num_examples, 
-        node_aggr, edge_aggr; 
-        mine, maxe, debug=false)
+function layer_down(flows, mars, edges, edge_aggr,
+                    layer_start, layer_end, num_examples; 
+                    mine, maxe, debug=false)
     num_edges = layer_end-layer_start
-    dummy_args = (flows, mars, edges, Int32(32), Int32(num_examples), Int32(1), Int32(1), Int32(2), node_aggr, edge_aggr)
+    dummy_args = (flows, mars, edges, edge_aggr, 
+                  Int32(32), Int32(num_examples), 
+                  Int32(1), Int32(1), Int32(2))
     kernel = @cuda name="layer_down" launch=false layer_down_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
@@ -541,7 +558,9 @@ function layer_down(flows, mars, edges,
     num_example_threads::Int32 = threads_dims[2]
     edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
     
-    args = (flows, mars, edges, num_example_threads, Int32(num_examples), Int32(layer_start), edge_work, Int32(layer_end), node_aggr, edge_aggr)
+    args = (flows, mars, edges, edge_aggr, 
+            num_example_threads, Int32(num_examples), 
+            Int32(layer_start), edge_work, Int32(layer_end))
     if debug
         println("Layer $layer_start:$layer_end")
         @show num_example_threads, Int32(num_examples), edge_work, num_edges
@@ -552,7 +571,7 @@ function layer_down(flows, mars, edges,
     nothing
 end
 
-function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggr=nothing; mine, maxe, debug=false)
+function flows_circuit(flows, mars, bpc, edge_aggr, num_examples; mine, maxe, debug=false)
     if debug
         println("Initializing flows")
         CUDA.@time CUDA.@sync begin 
@@ -566,7 +585,9 @@ function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_a
 
     layer_start = 1
     for layer_end in bpc.edge_layers_down.ends
-        layer_down(flows, mars, bpc.edge_layers_down.vectors, layer_start, layer_end, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
+        layer_down(flows, mars, bpc.edge_layers_down.vectors, edge_aggr, 
+                   layer_start, layer_end, num_examples; 
+                   mine, maxe, debug)
         layer_start = layer_end + 1
     end
     nothing
@@ -578,36 +599,32 @@ function probs_flows_circuit(flows, mars, bpc, data, example_ids; mine, maxe, de
     nothing
 end
 
+##################################################################################
+# Aggregate node flows
+##################################################################################
 
-#######################
-### Full Epoch Marginal
-######################
+function aggr_node_flows_kernel(node_aggr, _edge_aggr, edges)
+    edge_aggr = Base.Experimental.Const(_edge_aggr)
+    edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit; 
-            batch_size=512, mars_mem = nothing, 
-            mine=2, maxe=32, debug=false)
-    
-    num_examples = size(data)[1]
-    num_nodes = length(bpc.nodes)
-    
-    marginals = if isnothing(mars_mem)
-        CuMatrix{Float32}(undef, batch_size, num_nodes)
-    else
-        @assert size(mars_mem, 1) >= batch_size
-        @assert size(mars_mem, 2) == num_nodes
-        mars_mem
-    end
+    if edge_id <= length(edges)
+        edge = edges[edge_id]
+        if edge isa SumEdge
+            parent_id = edge.parent_id
+            edge_flow = edge_aggr[edge_id]
+            CUDA.@atomic node_aggr[parent_id] += edge_flow
+        end
+    end      
+    nothing
+end
 
-    log_likelihood = zero(Float64)
-
-    for batch_start = 1:batch_size:num_examples
-
-        batch_end = min(batch_start+batch_size-1, num_examples)
-        batch = batch_start:batch_end
-
-        eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
-
-        log_likelihood += sum(marginals[:,end])        
-    end
-    return log_likelihood / num_examples
+function aggr_node_flows(node_aggr, edge_aggr, bpc)
+    edges = bpc.edge_layers_down.vectors
+    args = (node_aggr, edge_aggr, edges)
+    kernel = @cuda name="aggr_node_flows" launch=false aggr_node_flows_kernel(args...) 
+    config = launch_configuration(kernel.fun)
+    threads = config.threads
+    blocks = cld(length(edges), threads)
+    kernel(args...; threads, blocks)
+    nothing
 end
