@@ -45,11 +45,11 @@ CUDA.@time probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_train, cu_batch; mi
 
 # allocate memory for parameter estimation
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
-edge_aggr = [CuVector{Float32}(undef, length(cu_bpc.edge_layers_down[i])) for i=1:length(cu_bpc.edge_layers_down)];
+edge_aggr = CuVector{Float32}(undef, length(cu_bpc.edge_layers_down.vectors));
 
 function reset_aggr()
     node_aggr .= 0
-    foreach(x -> x.= 0, edge_aggr) 
+    edge_aggr .= 0
 end
 
 # benchmark downward pass with parameter estimation
@@ -57,6 +57,16 @@ end
 
 # also works with partial batches
 reset_aggr(); flows_circuit(cu_flows, cu_mars, cu_bpc, 178, node_aggr, edge_aggr; mine=2, maxe=32, debug=true)
-sum(edge_aggr[1])
+sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
+
+# external node aggregation
+function aggregate_node_flows(node_aggr, flows)
+    Base.mapreducedim!(exp, +, reshape(node_aggr, 1,:), flows)
+    nothing
+end
+
+@benchmark (CUDA.@sync aggregate_node_flows(node_aggr, cu_flows)) setup=(reset_aggr())
+
+reset_aggr(); CUDA.@time aggregate_node_flows(node_aggr, cu_flows)
 
 nothing 

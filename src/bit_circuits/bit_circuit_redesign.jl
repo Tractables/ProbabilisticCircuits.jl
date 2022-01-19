@@ -55,12 +55,22 @@ rotate(edge::MulEdge) =
 
 const EdgeLayer = Vector{BitsEdge}
 
+struct FlatVector{V <: AbstractVector}
+    vectors::V
+    ends::Vector{Int}
+end
+
+function FlatVector(vectors)
+    FlatVector(vcat(vectors...), 
+                cumsum(map(length, vectors)))
+end
+
 abstract type AbstractBitsProbCircuit end
 
 struct BitsProbCircuit <: AbstractBitsProbCircuit
     nodes::Vector{BitsNode}
     edge_layers_up::Vector{EdgeLayer}
-    edge_layers_down::Vector{EdgeLayer}
+    edge_layers_down::FlatVector{EdgeLayer}
 end
 
 struct NodeInfo
@@ -203,19 +213,20 @@ function BitsProbCircuit(pc; eager_materialize=true,
         end
     end
     
-    BitsProbCircuit(nodes, uplayers, downlayers)
+    BitsProbCircuit(nodes, uplayers, FlatVector(downlayers))
 end
 
 const CuEdgeLayer = CuVector{BitsEdge}
 
 struct CuBitsProbCircuit <: AbstractBitsProbCircuit
     nodes::CuVector{BitsNode}
-    edge_layers_up::Vector{CuEdgeLayer}
-    edge_layers_down::Vector{CuEdgeLayer}
+    edge_layers_up::Vector{<:CuEdgeLayer}
+    edge_layers_down::FlatVector{<:CuEdgeLayer}
     CuBitsProbCircuit(bpc::BitsProbCircuit) = begin
         nodes = cu(bpc.nodes)
         edge_layers_up = map(cu, bpc.edge_layers_up)
-        edge_layers_down = map(cu, bpc.edge_layers_down)
+        edge_layers_down = FlatVector(cu(bpc.edge_layers_down.vectors), 
+                                      bpc.edge_layers_down.ends)
         new(nodes, edge_layers_up, edge_layers_down)
     end
 end
@@ -402,8 +413,9 @@ end
 # Downward pass
 ##################################################################################
 
-function layer_down_kernel(flows, _mars, layer, 
-            num_ex_threads::Int32, num_examples::Int32, edge_work::Int32, num_edges::Int32, 
+function layer_down_kernel(flows, _mars, edges, 
+            num_ex_threads::Int32, num_examples::Int32, 
+            layer_start::Int32, edge_work::Int32, layer_end::Int32, 
             node_aggr, edge_aggr)
 
     mars = Base.Experimental.Const(_mars)
@@ -413,8 +425,8 @@ function layer_down_kernel(flows, _mars, layer,
 
     edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
-    edge_start = (edge_batch-one(Int32))*edge_work + one(Int32)
-    edge_end = min(edge_start + edge_work - one(Int32), num_edges)
+    edge_start = layer_start + (edge_batch-one(Int32))*edge_work 
+    edge_end = min(edge_start + edge_work - one(Int32), layer_end)
    
     warp_lane = mod1(threadid_block, warpsize())
 
@@ -425,7 +437,7 @@ function layer_down_kernel(flows, _mars, layer,
     
     @inbounds for edge_id = edge_start:edge_end
 
-        edge = layer[edge_id]
+        edge = edges[edge_id]
 
         parent_id = edge.parent_id
         prime_id = edge.prime_id
@@ -496,23 +508,25 @@ function layer_down_kernel(flows, _mars, layer,
     nothing
 end
 
-function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_aggr; mine, maxe, debug=false)
-    layer = bpc.edge_layers_down[layer_id]
-    num_edges::Int32 = length(layer)
-    dummy_args = (flows, mars, layer, Int32(32), Int32(num_examples), Int32(32), num_edges, node_aggr, edge_aggr)
+function layer_down(flows, mars, edges, 
+        layer_start, layer_end, num_examples, 
+        node_aggr, edge_aggr; 
+        mine, maxe, debug=false)
+    num_edges = layer_end-layer_start
+    dummy_args = (flows, mars, edges, Int32(32), Int32(num_examples), Int32(1), Int32(1), Int32(2), node_aggr, edge_aggr)
     kernel = @cuda name="layer_down" launch=false layer_down_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
     # configure thread/block balancing
-    threads_dims, blocks_dims = balance_threads(length(layer), num_examples, config; mine, maxe)
+    threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
     threads = threads_dims[1] * threads_dims[2]
     blocks = blocks_dims[1] * blocks_dims[2]
     num_example_threads::Int32 = threads_dims[2]
     edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
     
-    args = (flows, mars, layer, num_example_threads, Int32(num_examples), edge_work, num_edges, node_aggr, edge_aggr)
+    args = (flows, mars, edges, num_example_threads, Int32(num_examples), Int32(layer_start), edge_work, Int32(layer_end), node_aggr, edge_aggr)
     if debug
-        println("Layer $layer_id")
+        println("Layer $layer_start:$layer_end")
         @show num_example_threads, Int32(num_examples), edge_work, num_edges
         CUDA.@time kernel(args...; threads, blocks)
     else
@@ -521,7 +535,7 @@ function layer_down(flows, mars, bpc, layer_id, num_examples, node_aggr, edge_ag
     nothing
 end
 
-function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggrs=nothing; mine, maxe, debug=false)
+function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_aggr=nothing; mine, maxe, debug=false)
     if debug
         println("Initializing flows")
         CUDA.@time CUDA.@sync begin 
@@ -532,9 +546,11 @@ function flows_circuit(flows, mars, bpc, num_examples, node_aggr=nothing, edge_a
         flows .= -Inf32
         flows[:,end] .= zero(Float32)
     end
-    for i in 1:length(bpc.edge_layers_down)
-        edge_aggr = isnothing(edge_aggrs) ? nothing : edge_aggrs[i]
-        layer_down(flows, mars, bpc, i, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
+
+    layer_start = 1
+    for layer_end in bpc.edge_layers_down.ends
+        layer_down(flows, mars, bpc.edge_layers_down.vectors, layer_start, layer_end, num_examples, node_aggr, edge_aggr; mine, maxe, debug)
+        layer_start = layer_end + 1
     end
     nothing
 end
