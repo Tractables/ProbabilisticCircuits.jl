@@ -71,6 +71,13 @@ struct BitsProbCircuit <: AbstractBitsProbCircuit
     nodes::Vector{BitsNode}
     edge_layers_up::FlatVector{EdgeLayer}
     edge_layers_down::FlatVector{EdgeLayer}
+    down2upedge::Vector{Int32}
+    BitsProbCircuit(n,e1,e2,d) = begin
+        @assert length(e1.vectors) == length(e2.vectors)
+        @assert allunique(e1.ends) "No empty layers allowed"
+        @assert allunique(e2.ends) "No empty layers allowed"
+        new(n,e1,e2,d)
+    end
 end
 
 struct NodeInfo
@@ -86,13 +93,13 @@ function BitsProbCircuit(pc; eager_materialize=true,
                              collapse_elements=true)
     nodes = BitsNode[]
     node_layers = Vector{Int}[]
-    outedges = EdgeLayer[]
+    outedges = Vector{Tuple{BitsEdge,Int,Int}}[]
     uplayers = EdgeLayer[]
 
     add_node(bitsnode, layer_id) = begin
         # add node globally
         push!(nodes, bitsnode)
-        push!(outedges, EdgeLayer())
+        push!(outedges, Vector{Tuple{BitsEdge,Int,Int}}())
         id = length(nodes)
         # add node to node layers 
         while length(node_layers) <= layer_id
@@ -103,21 +110,26 @@ function BitsProbCircuit(pc; eager_materialize=true,
     end
 
     add_edge(parent_layer_id, edge, child_info) = begin
-        # record up edges for upward pass
-        while length(uplayers) < parent_layer_id
-            push!(uplayers, EdgeLayer())
-        end
-        push!(uplayers[parent_layer_id], edge)
 
         # introduce invariant that primes are never at a lower layer than subs 
         if hassub(child_info) && child_info.prime_layer_id < child_info.sub_layer_id
             edge = rotate(edge)
         end
 
+        # record up edges for upward pass
+        while length(uplayers) < parent_layer_id
+            push!(uplayers, EdgeLayer())
+        end
+        push!(uplayers[parent_layer_id], edge)
+
         # record out edges for downward pass
-        push!(outedges[child_info.prime_id], edge)
+        id_within_uplayer = length(uplayers[parent_layer_id])
+        upedgeinfo = (edge, parent_layer_id, id_within_uplayer)
+        @assert uplayers[upedgeinfo[2]][upedgeinfo[3]] == edge "upedge $(uplayers[upedgeinfo[2]][upedgeinfo[3]]) does not equal $edge"
+
+        push!(outedges[child_info.prime_id], upedgeinfo)
         if hassub(child_info)
-            push!(outedges[child_info.sub_id], edge)
+            push!(outedges[child_info.sub_id], upedgeinfo)
         end
     end
 
@@ -186,16 +198,25 @@ function BitsProbCircuit(pc; eager_materialize=true,
         add_edge(layer_id, edge, root_info)
     end
 
-    downlayers = EdgeLayer[]
+    flatuplayers = FlatVector(uplayers)
+
+    downedges = EdgeLayer()
+    downlayerends = Int[]
+    down2upedges = Int32[]
+    uplayerstarts = [1, map(x -> x+1, flatuplayers.ends[1:end-1])...]
     @assert length(node_layers[end]) == 1 && isempty(outedges[node_layers[end][1]])
     for node_layer in node_layers[end-1:-1:1]
-        downlayer = EdgeLayer()
         for node_id in node_layer
-            prime_edges = filter(e -> e.prime_id == node_id, outedges[node_id])
+            prime_edges = filter(e -> e[1].prime_id == node_id, outedges[node_id])
             partial = (length(prime_edges) != length(outedges[node_id]))
             for i in 1:length(prime_edges)
-                edge = prime_edges[i]
+                edge = prime_edges[i][1]
                 if edge.prime_id == node_id
+                    # record the index in flatuplayers corresponding to this downedge
+                    upedgeindex = uplayerstarts[prime_edges[i][2]] + prime_edges[i][3] - 1
+                    push!(down2upedges, upedgeindex)
+
+                    # update the tag and record down edge
                     tag = tag_index(i, length(prime_edges))
                     # tag whether this series of edges is partial or complete
                     partial && (tag |= (one(UInt8) << 2))
@@ -204,16 +225,17 @@ function BitsProbCircuit(pc; eager_materialize=true,
                         tag |= (one(UInt8) << 3)
                     end
                     edge = changetag(edge, tag)
-                    push!(downlayer, edge)
+                    push!(downedges, edge)
                 end
             end
         end
-        if !isempty(downlayer)
-            push!(downlayers, downlayer)
+        # record new end of layer
+        if (!isempty(downedges) && isempty(downlayerends)) || (length(downedges) > downlayerends[end])
+            push!(downlayerends, length(downedges))
         end
     end
     
-    BitsProbCircuit(nodes, FlatVector(uplayers), FlatVector(downlayers))
+    BitsProbCircuit(nodes, flatuplayers, FlatVector(downedges, downlayerends), down2upedges)
 end
 
 const CuEdgeLayer = CuVector{BitsEdge}
@@ -223,6 +245,7 @@ struct CuBitsProbCircuit <: AbstractBitsProbCircuit
     nodes::CuVector{BitsNode}
     edge_layers_up::FlatVector{<:CuEdgeLayer}
     edge_layers_down::FlatVector{<:CuEdgeLayer}
+    down2upedge::CuVector{Int32}
 
     CuBitsProbCircuit(bpc::BitsProbCircuit) = begin
         nodes = cu(bpc.nodes)
@@ -230,7 +253,8 @@ struct CuBitsProbCircuit <: AbstractBitsProbCircuit
                             bpc.edge_layers_up.ends)
         edge_layers_down = FlatVector(cu(bpc.edge_layers_down.vectors), 
                                       bpc.edge_layers_down.ends)
-        new(nodes, edge_layers_up, edge_layers_down)
+        down2upedge = cu(bpc.down2upedge)
+        new(nodes, edge_layers_up, edge_layers_down, down2upedge)
     end
 end
 
@@ -469,7 +493,7 @@ end
 # Downward pass
 ##################################################################################
 
-function layer_down_kernel(flows, _mars, edges, edge_aggr,
+function layer_down_kernel(flows, edge_aggr, edges, _mars,
             num_ex_threads::Int32, num_examples::Int32, 
             layer_start::Int32, edge_work::Int32, layer_end::Int32)
 
@@ -565,12 +589,12 @@ function layer_down_kernel(flows, _mars, edges, edge_aggr,
     nothing
 end
 
-function layer_down(flows, mars, bpc, edge_aggr,
+function layer_down(flows, edge_aggr, bpc, mars, 
                     layer_start, layer_end, num_examples; 
                     mine, maxe, debug=false)
     edges = bpc.edge_layers_down.vectors
     num_edges = layer_end-layer_start
-    dummy_args = (flows, mars, edges, edge_aggr, 
+    dummy_args = (flows, edge_aggr, edges, mars, 
                   Int32(32), Int32(num_examples), 
                   Int32(1), Int32(1), Int32(2))
     kernel = @cuda name="layer_down" launch=false layer_down_kernel(dummy_args...) 
@@ -583,7 +607,7 @@ function layer_down(flows, mars, bpc, edge_aggr,
     num_example_threads::Int32 = threads_dims[2]
     edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
     
-    args = (flows, mars, edges, edge_aggr, 
+    args = (flows, edge_aggr, edges, mars, 
             num_example_threads, Int32(num_examples), 
             Int32(layer_start), edge_work, Int32(layer_end))
     if debug
@@ -596,7 +620,7 @@ function layer_down(flows, mars, bpc, edge_aggr,
     nothing
 end
 
-function flows_circuit(flows, mars, bpc, edge_aggr, num_examples; mine, maxe, debug=false)
+function flows_circuit(flows, edge_aggr, bpc, mars, num_examples; mine, maxe, debug=false)
     init_flows() = begin 
         flows .= -Inf32
         flows[:,end] .= zero(Float32)
@@ -610,7 +634,7 @@ function flows_circuit(flows, mars, bpc, edge_aggr, num_examples; mine, maxe, de
 
     layer_start = 1
     for layer_end in bpc.edge_layers_down.ends
-        layer_down(flows, mars, bpc, edge_aggr, 
+        layer_down(flows, edge_aggr, bpc, mars, 
                    layer_start, layer_end, num_examples; 
                    mine, maxe, debug)
         layer_start = layer_end + 1
@@ -618,9 +642,9 @@ function flows_circuit(flows, mars, bpc, edge_aggr, num_examples; mine, maxe, de
     nothing
 end
 
-function probs_flows_circuit(flows, mars, bpc, data, example_ids; mine, maxe, debug=false)
+function probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine, maxe, debug=false)
     eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug)
-    flows_circuit(flows, mars, bpc, length(example_ids); mine, maxe, debug)
+    flows_circuit(flows, edge_aggr, bpc, mars, length(example_ids); mine, maxe, debug)
     nothing
 end
 
@@ -628,7 +652,7 @@ end
 # Aggregate node flows
 ##################################################################################
 
-function aggr_node_flows_kernel(node_aggr, _edge_aggr, edges)
+function aggr_node_flows_kernel(node_aggr, edges, _edge_aggr)
     edge_aggr = Base.Experimental.Const(_edge_aggr)
     edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
@@ -643,9 +667,9 @@ function aggr_node_flows_kernel(node_aggr, _edge_aggr, edges)
     nothing
 end
 
-function aggr_node_flows(node_aggr, edge_aggr, bpc)
+function aggr_node_flows(node_aggr, bpc, edge_aggr)
     edges = bpc.edge_layers_down.vectors
-    args = (node_aggr, edge_aggr, edges)
+    args = (node_aggr, edges, edge_aggr)
     kernel = @cuda name="aggr_node_flows" launch=false aggr_node_flows_kernel(args...) 
     config = launch_configuration(kernel.fun)
     threads = config.threads
@@ -658,33 +682,45 @@ end
 # Update parameters
 ##################################################################################
 
-function update_params_kernel(edges, _node_aggr, _edge_aggr)
+function update_params_kernel(edges1, edges2, _node_aggr, _edge_aggr)
     node_aggr = Base.Experimental.Const(_node_aggr)
     edge_aggr = Base.Experimental.Const(_edge_aggr)
     edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    # TODO: would be better to do this on a flattened upward edge layers
-    @inbounds if edge_id <= length(edges)
-        edge = edges[edge_id]
-        if edge isa SumEdge 
-            parent_id = edge.parent_id
+    @inbounds if edge_id <= length(edges1)
+        edge1 = edges1[edge_id]
+        if edge1 isa SumEdge 
+            parent_id = edge1.parent_id
             parent_flow = node_aggr[parent_id]
             edge_flow = edge_aggr[edge_id]
             new_log_param = log(edge_flow / parent_flow)
-            edges[edge_id] = SumEdge(parent_id, edge.prime_id, edge.sub_id, 
-                                     new_log_param, edge.tag)
+            edges1[edge_id] = SumEdge(parent_id, edge1.prime_id, edge1.sub_id, 
+                                     new_log_param, edge1.tag)
+        end
+        edge2 = edges2[edge_id]
+        if edge2 isa SumEdge 
+            parent_id = edge2.parent_id
+            parent_flow = node_aggr[parent_id]
+            edge_flow = edge_aggr[edge_id]
+            # TODO no mapping to other edge id :\
+            new_log_param = log(edge_flow / parent_flow)
+            edges1[edge_id] = SumEdge(parent_id, edge1.prime_id, edge1.sub_id, 
+                                     new_log_param, edge1.tag)
         end
     end      
     nothing
 end
 
 function update_params(bpc, node_aggr, edge_aggr)
-    edges = bpc.edge_layers_down.vectors
-    args = (edges, node_aggr, edge_aggr)
+    edges1 = bpc.edge_layers_down.vectors
+    edges2 = bpc.edge_layers_up.vectors
+    @assert length(edges1) == length(edges2)
+    args = (edges1, edges2, node_aggr, edge_aggr)
+    @device_code_warntype @cuda update_params_kernel(args...) 
     kernel = @cuda name="update_params" launch=false update_params_kernel(args...) 
     config = launch_configuration(kernel.fun)
     threads = config.threads
-    blocks = cld(length(edges), threads)
+    blocks = cld(length(edges1), threads)
     kernel(args...; threads, blocks)
     nothing
 end

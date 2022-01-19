@@ -49,3 +49,5 @@ CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
 #     end
 # end
 # tune()
+
+nothing

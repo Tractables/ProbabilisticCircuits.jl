@@ -38,29 +38,30 @@ cu_mars = CuMatrix{Float32}(undef, batchsize, length(cu_bpc.nodes));
 cu_flows = similar(cu_mars);
 
 # set up data
-CUDA.@time probs_flows_circuit(cu_flows, cu_mars, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
+CUDA.@time probs_flows_circuit(cu_flows, cu_mars, nothing, cu_bpc, cu_train, cu_batch; mine=2, maxe=32, debug=false)
 
 # benchmark downward pass without parameter estimation
-@benchmark CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, nothing, batchsize; mine=2, maxe=32, debug=false)
+@benchmark CUDA.@sync flows_circuit(cu_flows, nothing, cu_bpc, cu_mars, batchsize; mine=2, maxe=32, debug=false)
 
 # allocate memory for parameter estimation
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
 edge_aggr = CuVector{Float32}(undef, length(cu_bpc.edge_layers_down.vectors));
 
-# benchmark downward pass with edge flow aggregation
-edge_aggr .= 0; CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, batchsize; mine=2, maxe=32, debug=false)
-sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
-
-@benchmark (CUDA.@sync flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, batchsize; mine=2, maxe=32, debug=false)) setup=(edge_aggr .= 0)
-
+# downward pass with edge flow aggregation
 # also works with partial batches
-edge_aggr .= 0; flows_circuit(cu_flows, cu_mars, cu_bpc, edge_aggr, 178; mine=2, maxe=32, debug=false)
+edge_aggr .= 0; flows_circuit(cu_flows, edge_aggr, cu_bpc, cu_mars, 178; mine=2, maxe=32, debug=false)
 sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
+
+# works with full batches
+edge_aggr .= 0; CUDA.@sync flows_circuit(cu_flows, edge_aggr, cu_bpc, cu_mars, batchsize; mine=2, maxe=32, debug=false)
+sum(edge_aggr[1:cu_bpc.edge_layers_down.ends[1]])
+
+@benchmark (CUDA.@sync flows_circuit(cu_flows, edge_aggr, cu_bpc, cu_mars, batchsize; mine=2, maxe=32, debug=false)) setup=(edge_aggr .= 0)
 
 # compute separate node aggregation
-node_aggr .= 0; CUDA.@time aggr_node_flows(node_aggr, edge_aggr, cu_bpc)
+node_aggr .= 0; CUDA.@time aggr_node_flows(node_aggr, cu_bpc, edge_aggr)
 node_aggr[end]
-@benchmark (CUDA.@sync aggr_node_flows(node_aggr, edge_aggr, cu_bpc)) setup=(node_aggr .= 0)
+@benchmark (CUDA.@sync aggr_node_flows(node_aggr, cu_bpc, edge_aggr)) setup=(node_aggr .= 0)
 
 # actually update the parameters in the edges
 CUDA.@time update_params(cu_bpc, node_aggr, edge_aggr)
