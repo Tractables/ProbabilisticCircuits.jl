@@ -69,7 +69,7 @@ abstract type AbstractBitsProbCircuit end
 
 struct BitsProbCircuit <: AbstractBitsProbCircuit
     nodes::Vector{BitsNode}
-    edge_layers_up::Vector{EdgeLayer}
+    edge_layers_up::FlatVector{EdgeLayer}
     edge_layers_down::FlatVector{EdgeLayer}
 end
 
@@ -213,18 +213,21 @@ function BitsProbCircuit(pc; eager_materialize=true,
         end
     end
     
-    BitsProbCircuit(nodes, uplayers, FlatVector(downlayers))
+    BitsProbCircuit(nodes, FlatVector(uplayers), FlatVector(downlayers))
 end
 
 const CuEdgeLayer = CuVector{BitsEdge}
 
 struct CuBitsProbCircuit <: AbstractBitsProbCircuit
+    
     nodes::CuVector{BitsNode}
-    edge_layers_up::Vector{<:CuEdgeLayer}
+    edge_layers_up::FlatVector{<:CuEdgeLayer}
     edge_layers_down::FlatVector{<:CuEdgeLayer}
+
     CuBitsProbCircuit(bpc::BitsProbCircuit) = begin
         nodes = cu(bpc.nodes)
-        edge_layers_up = map(cu, bpc.edge_layers_up)
+        edge_layers_up = FlatVector(cu(bpc.edge_layers_up.vectors), 
+                            bpc.edge_layers_up.ends)
         edge_layers_down = FlatVector(cu(bpc.edge_layers_down.vectors), 
                                       bpc.edge_layers_down.ends)
         new(nodes, edge_layers_up, edge_layers_down)
@@ -326,11 +329,16 @@ function logsumexp(x::Float32,y::Float32)
     end
 end
 
-function layer_up_kernel(mars, layer, num_examples)
+function layer_up_kernel(mars, edges, 
+            num_ex_threads::Int32, num_examples::Int32, 
+            layer_start::Int32, edge_work::Int32, layer_end::Int32)
 
-    num_edges = length(layer) % Int32
-    @xrange edge_start edge_end num_edges
-    @yindex ex_id
+    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
+
+    edge_start = layer_start + (edge_batch-one(Int32))*edge_work 
+    edge_end = min(edge_start + edge_work - one(Int32), layer_end)
 
     @inbounds if ex_id <= num_examples
 
@@ -339,7 +347,7 @@ function layer_up_kernel(mars, layer, num_examples)
         
         for edge_id = edge_start:edge_end
 
-            edge = layer[edge_id]
+            edge = edges[edge_id]
 
             tag = edge.tag
             isfirstedge = isfirst(tag)
@@ -384,17 +392,31 @@ function layer_up_kernel(mars, layer, num_examples)
     nothing
 end
 
-function layer_up(mars, bpc, layer_id, num_examples; mine, maxe, debug=false)
-    layer = bpc.edge_layers_up[layer_id]
-    kernel = @cuda name="layer_up" launch=false layer_up_kernel(mars, layer, num_examples) 
+function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, debug=false)
+    edges = bpc.edge_layers_up.vectors
+    num_edges = layer_end-layer_start
+    dummy_args = (mars, edges, 
+                  Int32(32), Int32(num_examples), 
+                  Int32(1), Int32(1), Int32(2))
+    kernel = @cuda name="layer_up" launch=false layer_up_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(layer), num_examples, config; mine, maxe)
+
+    # configure thread/block balancing
+    threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
+    threads = threads_dims[1] * threads_dims[2]
+    blocks = blocks_dims[1] * blocks_dims[2]
+    num_example_threads::Int32 = threads_dims[2]
+    edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
+    
+    args = (mars, edges, 
+            num_example_threads, Int32(num_examples), 
+            Int32(layer_start), edge_work, Int32(layer_end))
     if debug
-        println("Layer $layer_id")
-        println("  config=$config, threads=$threads, blocks=$blocks, edges/thread=$(Float32(length(layer)/threads[1]/blocks[1]))")
-        CUDA.@time kernel(mars, layer; threads, blocks)
+        println("Layer $layer_start:$layer_end")
+        @show num_example_threads, Int32(num_examples), edge_work, num_edges
+        CUDA.@time kernel(args...; threads, blocks)
     else
-        kernel(mars, layer, num_examples; threads, blocks)
+        kernel(args...; threads, blocks)
     end
     nothing
 end
@@ -402,8 +424,10 @@ end
 # run entire circuit
 function eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug=false)
     init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
-    for i in 1:length(bpc.edge_layers_up)
-        layer_up(mars, bpc, i, length(example_ids); mine, maxe, debug)
+    layer_start = 1
+    for layer_end in bpc.edge_layers_up.ends
+        layer_up(mars, bpc, layer_start, layer_end, length(example_ids); mine, maxe, debug)
+        layer_start = layer_end + 1
     end
     nothing
 end
@@ -416,29 +440,29 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
     batch_size=512, mars_mem = nothing, 
     mine=2, maxe=32, debug=false)
 
-num_examples = size(data)[1]
-num_nodes = length(bpc.nodes)
+    num_examples = size(data)[1]
+    num_nodes = length(bpc.nodes)
 
-marginals = if isnothing(mars_mem)
-CuMatrix{Float32}(undef, batch_size, num_nodes)
-else
-@assert size(mars_mem, 1) >= batch_size
-@assert size(mars_mem, 2) == num_nodes
-mars_mem
-end
+    marginals = if isnothing(mars_mem)
+    CuMatrix{Float32}(undef, batch_size, num_nodes)
+    else
+    @assert size(mars_mem, 1) >= batch_size
+    @assert size(mars_mem, 2) == num_nodes
+    mars_mem
+    end
 
-log_likelihood = zero(Float64)
+    log_likelihood = zero(Float64)
 
-for batch_start = 1:batch_size:num_examples
+    for batch_start = 1:batch_size:num_examples
 
-batch_end = min(batch_start+batch_size-1, num_examples)
-batch = batch_start:batch_end
+    batch_end = min(batch_start+batch_size-1, num_examples)
+    batch = batch_start:batch_end
 
-eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
+    eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
 
-log_likelihood += sum(marginals[:,end])        
-end
-return log_likelihood / num_examples
+    log_likelihood += sum(marginals[:,end])        
+    end
+    return log_likelihood / num_examples
 end
 
 ##################################################################################
@@ -541,9 +565,10 @@ function layer_down_kernel(flows, _mars, edges, edge_aggr,
     nothing
 end
 
-function layer_down(flows, mars, edges, edge_aggr,
+function layer_down(flows, mars, bpc, edge_aggr,
                     layer_start, layer_end, num_examples; 
                     mine, maxe, debug=false)
+    edges = bpc.edge_layers_down.vectors
     num_edges = layer_end-layer_start
     dummy_args = (flows, mars, edges, edge_aggr, 
                   Int32(32), Int32(num_examples), 
@@ -572,20 +597,20 @@ function layer_down(flows, mars, edges, edge_aggr,
 end
 
 function flows_circuit(flows, mars, bpc, edge_aggr, num_examples; mine, maxe, debug=false)
-    if debug
-        println("Initializing flows")
-        CUDA.@time CUDA.@sync begin 
-            flows .= -Inf32
-            flows[:,end] .= zero(Float32)
-        end
-    else
+    init_flows() = begin 
         flows .= -Inf32
         flows[:,end] .= zero(Float32)
+    end
+    if debug
+        println("Initializing flows")
+        CUDA.@time CUDA.@sync init_flows()
+    else
+        init_flows()
     end
 
     layer_start = 1
     for layer_end in bpc.edge_layers_down.ends
-        layer_down(flows, mars, bpc.edge_layers_down.vectors, edge_aggr, 
+        layer_down(flows, mars, bpc, edge_aggr, 
                    layer_start, layer_end, num_examples; 
                    mine, maxe, debug)
         layer_start = layer_end + 1
@@ -607,7 +632,7 @@ function aggr_node_flows_kernel(node_aggr, _edge_aggr, edges)
     edge_aggr = Base.Experimental.Const(_edge_aggr)
     edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    if edge_id <= length(edges)
+    @inbounds if edge_id <= length(edges)
         edge = edges[edge_id]
         if edge isa SumEdge
             parent_id = edge.parent_id
@@ -638,8 +663,8 @@ function update_params_kernel(edges, _node_aggr, _edge_aggr)
     edge_aggr = Base.Experimental.Const(_edge_aggr)
     edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    # TODO: would be better to do this on a lattened upward edge layers
-    if edge_id <= length(edges)
+    # TODO: would be better to do this on a flattened upward edge layers
+    @inbounds if edge_id <= length(edges)
         edge = edges[edge_id]
         if edge isa SumEdge 
             parent_id = edge.parent_id

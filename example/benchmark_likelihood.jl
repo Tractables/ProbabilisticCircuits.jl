@@ -38,14 +38,14 @@ cu_mars = CuMatrix{Float32}(undef, batchsize, length(cu_bpc.nodes));
 cu_flows = similar(cu_mars);
 
 CUDA.@time loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
-@btime loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
+@benchmark loglikelihood(cu_train, cu_bpc; mars_mem = cu_mars)
 
-function tune() 
-    for i=5:16
-        local b = 2^i
-        @show b
-        mars_mem = CuMatrix{Float32}(undef, b, length(cu_bpc.nodes));
-        @btime loglikelihood($cu_train, $cu_bpc; batch_size = $b, mars_mem = $mars_mem)
-    end
-end
-tune()
+# function tune() 
+#     for i=5:16
+#         local b = 2^i
+#         @show b
+#         mars_mem = CuMatrix{Float32}(undef, b, length(cu_bpc.nodes));
+#         @btime loglikelihood($cu_train, $cu_bpc; batch_size = $b, mars_mem = $mars_mem)
+#     end
+# end
+# tune()
