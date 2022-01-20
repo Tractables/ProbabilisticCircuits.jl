@@ -262,20 +262,6 @@ end
 # Init marginals
 ###################################################################################
 
-function balance_threads_old(num_edges, num_examples, config; mine, maxe)
-    # prefer to assign threads to examples, they do not require memory synchronization
-    # make sure the number of example threads is a multiple of 32
-    ex_threads = min(config.threads, cld(num_examples,32)*32)
-    ex_blocks = cld(num_examples, ex_threads)
-    edge_threads = config.threads ÷ ex_threads
-    edge_blocks_min = cld(num_edges, edge_threads * maxe)
-    edge_blocks_max = cld(num_edges, edge_threads * mine)
-    edge_blocks_occupy = cld(config.blocks, ex_blocks)
-    edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
-    ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
-end
-
-
 function balance_threads(num_edges, num_examples, config; mine, maxe)
     block_threads = config.threads
     # make sure the number of example threads is a multiple of 32
@@ -286,34 +272,23 @@ function balance_threads(num_edges, num_examples, config; mine, maxe)
                         cld(example_threads * num_edges, mine * block_threads))
     end
     edge_work = cld(num_edges * example_threads, num_blocks * block_threads)
+    @assert edge_work*block_threads*num_blocks >= example_threads*num_edges
     block_threads, num_blocks, example_threads, edge_work
 end
 
-macro xrange(x_start, x_end, length)
-    return quote
-        blockdim = blockDim().x
-        x_work::Int32 = cld($(esc(length))::Int32, (blockdim * gridDim().x))
-        $(esc(x_start))::Int32 = ((blockIdx().x - one(Int32)) * blockdim + threadIdx().x - one(Int32)) * x_work + one(Int32)
-        $(esc(x_end))::Int32 = min($(esc(x_start)) + x_work - one(Int32), $(esc(length))::Int32)       
-    end
-end
-
-macro yindex(y_id)
-    return quote
-        $(esc(y_id))::Int32 = (blockIdx().y - one(Int32)) * blockDim().y + threadIdx().y
-    end
-end
-
-function init_mar!_kernel(mars, nodes, data, example_ids)
+function init_mar!_kernel(mars, nodes, data, example_ids,
+            num_ex_threads::Int32, node_work::Int32)
     # this kernel follows the structure of the layer eval kernel, would probably be faster to have 1 thread process multiple examples, rather than multiple nodes 
     
-    num_nodes::Int32 = length(nodes)
-    @xrange node_start node_end num_nodes
-    num_examples::Int32 = length(example_ids)
-    @yindex ex_id
+    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    # TODO can the first bounds check be dropped?
-    @inbounds if ex_id <= num_examples
+    node_batch, ex_id = fldmod1(threadid, num_ex_threads)
+
+    node_start = one(Int32) + (node_batch-one(Int32))*node_work 
+    node_end = min(node_start + node_work - one(Int32), length(nodes))
+    
+    # @inbounds 
+    if ex_id <= length(example_ids)
         for node_id = node_start:node_end
             node = nodes[node_id]
             mars[ex_id, node_id] = 
@@ -338,16 +313,24 @@ function init_mar!_kernel(mars, nodes, data, example_ids)
 end
 
 function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
-    @assert size(mars,1) >= length(example_ids)
-    kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(mars, bpc.nodes, data,example_ids) 
+    num_examples = length(example_ids)
+    num_nodes = length(bpc.nodes)
+    
+    dummy_args = (mars, bpc.nodes, data, example_ids, Int32(1), Int32(1))
+    kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads_old(length(bpc.nodes), length(example_ids), config; mine, maxe)
+
+    threads, blocks, num_example_threads, node_work = 
+        balance_threads(num_nodes, num_examples, config; mine, maxe)
+    
+    args = (mars, bpc.nodes, data, example_ids, 
+            Int32(num_example_threads), Int32(node_work))
     if debug
         println("Node initialization")
-        println("  config=$config, threads=$threads, blocks=$blocks, nodes/thread=$(Float32(length(bpc.nodes)/threads[1]/blocks[1]))")
-        CUDA.@time kernel(mars, bpc.nodes, data, example_ids; threads, blocks)
+        @show threads blocks num_example_threads node_work num_nodes num_examples
+        CUDA.@time kernel(args...; threads, blocks)
     else
-        kernel(mars, bpc.nodes, data, example_ids; threads, blocks)
+        kernel(args...; threads, blocks)
     end
     nothing
 end
@@ -375,10 +358,11 @@ function layer_up_kernel(mars, edges,
 
     edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
-    edge_start = layer_start + (edge_batch-one(Int32))*edge_work 
+    edge_start = layer_start + (edge_batch-one(Int32)) * edge_work 
     edge_end = min(edge_start + edge_work - one(Int32), layer_end)
 
-    @inbounds if ex_id <= num_examples
+    # @inbounds
+    if ex_id <= num_examples
 
         local acc::Float32    
         owned_node::Bool = false
@@ -386,7 +370,7 @@ function layer_up_kernel(mars, edges,
         for edge_id = edge_start:edge_end
 
             edge = edges[edge_id]
-
+                        
             tag = edge.tag
             isfirstedge = isfirst(tag)
             islastedge = islast(tag)
@@ -423,7 +407,7 @@ function layer_up_kernel(mars, edges,
                     else
                         CUDA.@atomic mars[ex_id, pid] += acc
                     end 
-                end             
+                end 
             end
         end
     end
@@ -432,7 +416,7 @@ end
 
 function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, debug=false)
     edges = bpc.edge_layers_up.vectors
-    num_edges = layer_end-layer_start
+    num_edges = layer_end-layer_start+1
     dummy_args = (mars, edges, 
                   Int32(32), Int32(num_examples), 
                   Int32(1), Int32(1), Int32(2))
@@ -498,12 +482,12 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
         batch_index += 1
 
         eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
-
-        @views marginals[1:num_batch_examples,end:end]
         
         @views sum!(log_likelihoods[batch_index:batch_index, 1:1], 
                     marginals[1:num_batch_examples,end:end])
+
     end
+
     return sum(log_likelihoods) / num_examples
 end
 
@@ -611,7 +595,7 @@ function layer_down(flows, edge_aggr, bpc, mars,
                     layer_start, layer_end, num_examples; 
                     mine, maxe, debug=false)
     edges = bpc.edge_layers_down.vectors
-    num_edges = layer_end-layer_start
+    num_edges = layer_end-layer_start+1
     dummy_args = (flows, edge_aggr, edges, mars, 
                   Int32(32), Int32(num_examples), 
                   Int32(1), Int32(1), Int32(2))
@@ -803,7 +787,8 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         batch = batch_start:batch_end
         num_batch_examples = length(batch)
 
-        probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; mine, maxe, debug)
+        probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
+                            mine, maxe, debug)
         log_likelihood  = @views sum(marginals[1:num_batch_examples,end])  
         if !isfinite(log_likelihood)
             @show log_likelihood batch
