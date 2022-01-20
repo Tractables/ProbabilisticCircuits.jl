@@ -262,7 +262,7 @@ end
 # Init marginals
 ###################################################################################
 
-function balance_threads(num_edges, num_examples, config; mine, maxe)
+function balance_threads_old(num_edges, num_examples, config; mine, maxe)
     # prefer to assign threads to examples, they do not require memory synchronization
     # make sure the number of example threads is a multiple of 32
     ex_threads = min(config.threads, cld(num_examples,32)*32)
@@ -273,6 +273,20 @@ function balance_threads(num_edges, num_examples, config; mine, maxe)
     edge_blocks_occupy = cld(config.blocks, ex_blocks)
     edge_blocks = min(max(edge_blocks_min, edge_blocks_occupy), edge_blocks_max)
     ((edge_threads, ex_threads), (edge_blocks, ex_blocks))
+end
+
+
+function balance_threads(num_edges, num_examples, config; mine, maxe)
+    block_threads = config.threads
+    # make sure the number of example threads is a multiple of 32
+    example_threads = cld(num_examples,32)*32
+    num_blocks = cld(example_threads * num_edges, maxe * block_threads)
+    if num_blocks < config.blocks
+        num_blocks = min(config.blocks, 
+                        cld(example_threads * num_edges, mine * block_threads))
+    end
+    edge_work = cld(num_edges * example_threads, num_blocks * block_threads)
+    block_threads, num_blocks, example_threads, edge_work
 end
 
 macro xrange(x_start, x_end, length)
@@ -327,7 +341,7 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     @assert size(mars,1) >= length(example_ids)
     kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(mars, bpc.nodes, data,example_ids) 
     config = launch_configuration(kernel.fun)
-    threads, blocks = balance_threads(length(bpc.nodes), length(example_ids), config; mine, maxe)
+    threads, blocks = balance_threads_old(length(bpc.nodes), length(example_ids), config; mine, maxe)
     if debug
         println("Node initialization")
         println("  config=$config, threads=$threads, blocks=$blocks, nodes/thread=$(Float32(length(bpc.nodes)/threads[1]/blocks[1]))")
@@ -426,19 +440,15 @@ function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, d
     config = launch_configuration(kernel.fun)
 
     # configure thread/block balancing
-    threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
-    threads = threads_dims[1] * threads_dims[2]
-    blocks = blocks_dims[1] * blocks_dims[2]
-    num_example_threads::Int32 = threads_dims[2] * blocks_dims[2]
-    edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
+    threads, blocks, num_example_threads, edge_work = 
+        balance_threads(num_edges, num_examples, config; mine, maxe)
     
     args = (mars, edges, 
-            num_example_threads, Int32(num_examples), 
-            Int32(layer_start), edge_work, Int32(layer_end))
+            Int32(num_example_threads), Int32(num_examples), 
+            Int32(layer_start), Int32(edge_work), Int32(layer_end))
     if debug
         println("Layer $layer_start:$layer_end")
-        @show threads_dims blocks_dims
-        @show num_example_threads Int32(num_examples) edge_work num_edges
+        @show num_edges num_examples threads blocks num_example_threads edge_work
         CUDA.@time kernel(args...; threads, blocks)
     else
         kernel(args...; threads, blocks)
@@ -462,33 +472,39 @@ end
 ######################
 
 function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit; 
-    batch_size=512, mars_mem = nothing, 
+    batch_size, mars_mem = nothing, 
     mine=2, maxe=32, debug=false)
 
     num_examples = size(data)[1]
     num_nodes = length(bpc.nodes)
+    num_batches = cld(num_examples, batch_size)
 
     marginals = if isnothing(mars_mem)
         CuMatrix{Float32}(undef, batch_size, num_nodes)
     else
-        @assert size(mars_mem, 1) >= batch_size
+        @assert size(mars_mem, 1) >= batch_size "$(size(mars_mem, 1)) < $batch_size"
         @assert size(mars_mem, 2) == num_nodes
         mars_mem
     end
 
-    log_likelihood = zero(Float64)
+    log_likelihoods = CUDA.zeros(Float32, num_batches, 1)
 
+    batch_index = 0
     for batch_start = 1:batch_size:num_examples
 
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
         num_batch_examples = length(batch)
+        batch_index += 1
 
         eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
 
-        log_likelihood += sum(marginals[1:num_batch_examples,end])        
+        @views marginals[1:num_batch_examples,end:end]
+        
+        @views sum!(log_likelihoods[batch_index:batch_index, 1:1], 
+                    marginals[1:num_batch_examples,end:end])
     end
-    return log_likelihood / num_examples
+    return sum(log_likelihoods) / num_examples
 end
 
 ##################################################################################
@@ -603,18 +619,15 @@ function layer_down(flows, edge_aggr, bpc, mars,
     config = launch_configuration(kernel.fun)
 
     # configure thread/block balancing
-    threads_dims, blocks_dims = balance_threads(num_edges, num_examples, config; mine, maxe)
-    threads = threads_dims[1] * threads_dims[2]
-    blocks = blocks_dims[1] * blocks_dims[2]
-    num_example_threads::Int32 = threads_dims[2] * blocks_dims[2]
-    edge_work::Int32 = cld(num_edges, threads_dims[1]*blocks_dims[1])
+    threads, blocks, num_example_threads, edge_work = 
+        balance_threads(num_edges, num_examples, config; mine, maxe)
     
     args = (flows, edge_aggr, edges, mars, 
-            num_example_threads, Int32(num_examples), 
-            Int32(layer_start), edge_work, Int32(layer_end))
+            Int32(num_example_threads), Int32(num_examples), 
+            Int32(layer_start), Int32(edge_work), Int32(layer_end))
     if debug
         println("Layer $layer_start:$layer_end")
-        @show num_example_threads, Int32(num_examples), edge_work, num_edges
+        @show threads blocks num_example_threads edge_work, num_edges num_examples
         CUDA.@time kernel(args...; threads, blocks)
     else
         kernel(args...; threads, blocks)
@@ -781,7 +794,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         edge_aggr_mem
     end
 
-    log_likelihood = zero(Float64)
+    # log_likelihood = zero(Float64)
     edge_aggr.= pseudocount
     
     for batch_start = 1:batch_size:num_examples
@@ -791,21 +804,18 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         num_batch_examples = length(batch)
 
         probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; mine, maxe, debug)
-        log_likelihood += sum(marginals[1:num_batch_examples,end])    
-        if !isfinite(log_likelihood)   
-            @show batch 
-            @show num_batch_examples
-            @show sum(marginals[1:num_batch_examples,end])  
-            eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
-            @show sum(marginals[1:num_batch_examples,end])  
-            error("bad ll")
+        log_likelihood  = @views sum(marginals[1:num_batch_examples,end])  
+        if !isfinite(log_likelihood)
+            @show log_likelihood batch
+            error("-Inf likelihood")
         end
     end
 
     aggr_node_flows(node_aggr, bpc, edge_aggr)
     update_params(bpc, node_aggr, edge_aggr)
 
-    return log_likelihood / num_examples
+    # return log_likelihood / num_examples
+    nothing
 end
 
 function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations; 
@@ -813,15 +823,17 @@ function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations;
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
 
-    log_likelihood = -Inf32
+    # log_likelihood = -Inf32
 
     for i=1:num_iterations
-        log_likelihood = CUDA.@time full_batch_em_step(bpc, data; 
+        # log_likelihood = CUDA.@time 
+        full_batch_em_step(bpc, data; 
             batch_size, pseudocount,
             mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
             mine, maxe, debug)
-        println("EM iteration $i: log-likelihood = $log_likelihood")
+        # println("EM iteration $i: log-likelihood = $log_likelihood")
     end
 
-    log_likelihood
+    # log_likelihood
+    nothing
 end

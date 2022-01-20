@@ -1,29 +1,9 @@
 using Pkg; Pkg.activate("$(@__DIR__)")
 
-using MLDatasets, ProbabilisticCircuits, CUDA, BenchmarkTools
+using ProbabilisticCircuits, CUDA, BenchmarkTools
 using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params
 
-# load data
-train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
-test_int = transpose(reshape(MNIST.testtensor(UInt8), 28*28, :));
-
-function bitsfeatures(data_int)
-    data_bits = zeros(Bool, size(data_int,1), 28*28*8)
-    for ex = 1:size(data_int,1), pix = 1:size(data_int,2)
-        x = data_int[ex,pix]
-        for b = 0:7
-            if (x & (one(UInt8) << b)) != zero(UInt8)
-                data_bits[ex, (pix-1)*8+b+1] = true
-            end
-        end
-    end
-    data_bits
-end
-
-train_bits = bitsfeatures(train_int);
-test_bits = bitsfeatures(train_int);
-cu_train = to_gpu(train_bits);
-cu_test = to_gpu(test_bits);
+include("load_mnist.jl")
 
 # read HCLT structure
 @time pc = ProbabilisticCircuits.read_fast("mnist_bits_hclt_32.jpc")
