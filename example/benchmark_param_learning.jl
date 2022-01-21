@@ -31,7 +31,7 @@ CUDA.@time full_batch_em(cu_bpc, cu_train, 1; batch_size, pseudocount,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
-CUDA.@time full_batch_em(cu_bpc, cu_train, 1000; batch_size, pseudocount,
+CUDA.@time full_batch_em(cu_bpc, cu_train, 5; batch_size, pseudocount,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 

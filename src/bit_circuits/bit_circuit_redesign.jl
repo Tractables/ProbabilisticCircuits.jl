@@ -794,11 +794,6 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 
         probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                             mine, maxe, debug)
-        log_likelihood  = @views sum(marginals[1:num_batch_examples,end])  
-        if !isfinite(log_likelihood)
-            @show log_likelihood batch
-            error("-Inf likelihood")
-        end
     end
 
     aggr_node_flows(node_aggr, bpc, edge_aggr)
