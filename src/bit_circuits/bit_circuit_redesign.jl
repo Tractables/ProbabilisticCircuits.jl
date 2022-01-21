@@ -262,18 +262,21 @@ end
 # Init marginals
 ###################################################################################
 
-function balance_threads(num_edges, num_examples, config; mine, maxe)
+function balance_threads(num_items, num_examples, config; mine, maxe, contiguous_warps=true)
     block_threads = config.threads
     # make sure the number of example threads is a multiple of 32
-    example_threads = cld(num_examples,32)*32
-    num_blocks = cld(example_threads * num_edges, maxe * block_threads)
+    example_threads = contiguous_warps ? (cld(num_examples,32) * 32) : num_examples
+    num_item_batches = cld(num_items, maxe)
+    num_blocks = cld(num_item_batches * example_threads, block_threads)
     if num_blocks < config.blocks
-        num_blocks = min(config.blocks, 
-                        cld(example_threads * num_edges, mine * block_threads))
+        max_num_item_batch = cld(num_items, mine)
+        max_num_blocks = cld(max_num_item_batch * example_threads, block_threads)
+        num_blocks = min(config.blocks, max_num_blocks)
+        num_item_batches = (num_blocks * block_threads) ÷ example_threads
     end
-    edge_work = cld(num_edges * example_threads, num_blocks * block_threads)
-    @assert edge_work*block_threads*num_blocks >= example_threads*num_edges
-    block_threads, num_blocks, example_threads, edge_work
+    item_work = cld(num_items, num_item_batches)
+    @assert item_work*block_threads*num_blocks >= example_threads*num_items
+    block_threads, num_blocks, example_threads, item_work
 end
 
 function init_mar!_kernel(mars, nodes, data, example_ids,
@@ -284,13 +287,14 @@ function init_mar!_kernel(mars, nodes, data, example_ids,
 
     node_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
-    node_start = one(Int32) + (node_batch-one(Int32))*node_work 
+    node_start = one(Int32) + (node_batch - one(Int32)) * node_work 
     node_end = min(node_start + node_work - one(Int32), length(nodes))
-    
-    # @inbounds 
-    if ex_id <= length(example_ids)
+
+    @inbounds if ex_id <= length(example_ids)
         for node_id = node_start:node_end
+
             node = nodes[node_id]
+            
             mars[ex_id, node_id] = 
                 if (node isa BitsInnerNode)
                     node.issum ? -Inf32 : zero(Float32)
@@ -358,11 +362,10 @@ function layer_up_kernel(mars, edges,
 
     edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
-    edge_start = layer_start + (edge_batch-one(Int32)) * edge_work 
+    edge_start = layer_start + (edge_batch - one(Int32)) * edge_work 
     edge_end = min(edge_start + edge_work - one(Int32), layer_end)
 
-    # @inbounds
-    if ex_id <= num_examples
+    @inbounds if ex_id <= num_examples
 
         local acc::Float32    
         owned_node::Bool = false
@@ -370,7 +373,7 @@ function layer_up_kernel(mars, edges,
         for edge_id = edge_start:edge_end
 
             edge = edges[edge_id]
-                        
+
             tag = edge.tag
             isfirstedge = isfirst(tag)
             islastedge = islast(tag)
@@ -398,6 +401,7 @@ function layer_up_kernel(mars, edges,
             # write to global memory
             if islastedge || (edge_id == edge_end)   
                 pid = edge.parent_id
+
                 if islastedge && owned_node
                     # no one else is writing to this global memory
                     mars[ex_id, pid] = acc
@@ -407,7 +411,7 @@ function layer_up_kernel(mars, edges,
                     else
                         CUDA.@atomic mars[ex_id, pid] += acc
                     end 
-                end 
+                end    
             end
         end
     end
@@ -416,7 +420,7 @@ end
 
 function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, debug=false)
     edges = bpc.edge_layers_up.vectors
-    num_edges = layer_end-layer_start+1
+    num_edges = layer_end - layer_start + 1
     dummy_args = (mars, edges, 
                   Int32(32), Int32(num_examples), 
                   Int32(1), Int32(1), Int32(2))
@@ -507,7 +511,7 @@ function layer_down_kernel(flows, edge_aggr, edges, _mars,
     edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
     edge_start = layer_start + (edge_batch-one(Int32))*edge_work 
-    edge_end = min(edge_start + edge_work - one(Int32), layer_end)
+    edge_end = min(edge_start + edge_work - one(Int32), layer_end) 
    
     warp_lane = mod1(threadid_block, warpsize())
 
@@ -604,7 +608,7 @@ function layer_down(flows, edge_aggr, bpc, mars,
 
     # configure thread/block balancing
     threads, blocks, num_example_threads, edge_work = 
-        balance_threads(num_edges, num_examples, config; mine, maxe)
+        balance_threads(num_edges, num_examples, config; mine, maxe, contiguous_warps=true)
     
     args = (flows, edge_aggr, edges, mars, 
             Int32(num_example_threads), Int32(num_examples), 
@@ -709,7 +713,6 @@ function update_params_kernel(edges_down, edges_up, _down2upedge, _node_aggr, _e
                     SumEdge(parent_id, edge_down.prime_id, edge_down.sub_id, 
                             new_log_param, edge_down.tag)
 
-
                 edges_up[edge_id_up] = 
                     SumEdge(parent_id, edge_down.prime_id, edge_down.sub_id, 
                             new_log_param, edge_up_tag)
@@ -724,9 +727,11 @@ function update_params(bpc, node_aggr, edge_aggr)
     edges_up = bpc.edge_layers_up.vectors
     down2upedge = bpc.down2upedge
     @assert length(edges_down) == length(down2upedge) == length(edges_up)
+
     args = (edges_down, edges_up, down2upedge, node_aggr, edge_aggr)
     kernel = @cuda name="update_params" launch=false update_params_kernel(args...) 
     config = launch_configuration(kernel.fun)
+
     threads = config.threads
     blocks = cld(length(edges_down), threads)
     kernel(args...; threads, blocks)
