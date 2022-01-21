@@ -652,6 +652,62 @@ function probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; min
 end
 
 ##################################################################################
+# Count siblings
+##################################################################################
+
+function count_siblings_kernel(node_aggr, edges)
+    edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+    @inbounds if edge_id <= length(edges)
+        edge = edges[edge_id]
+        if edge isa SumEdge
+            parent_id = edge.parent_id
+            CUDA.@atomic node_aggr[parent_id] += one(Float32)
+        end
+    end      
+    nothing
+end
+
+function count_siblings(node_aggr, bpc)
+    # reset aggregates
+    node_aggr .= zero(Float32)
+    edges = bpc.edge_layers_down.vectors
+    args = (node_aggr, edges)
+    kernel = @cuda name="count_siblings" launch=false count_siblings_kernel(args...) 
+    threads = launch_configuration(kernel.fun).threads
+    blocks = cld(length(edges), threads)
+    kernel(args...; threads, blocks)
+    nothing
+end
+
+##################################################################################
+# Pseudocounts
+##################################################################################
+
+function add_pseudocount_kernel(edge_aggr, edges, _node_aggr, pseudocount)
+    node_aggr = Base.Experimental.Const(_node_aggr)
+    edge_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+    @inbounds if edge_id <= length(edges)
+        edge = edges[edge_id]
+        if edge isa SumEdge
+            parent_id = edge.parent_id
+            CUDA.@atomic edge_aggr[edge_id] += pseudocount / node_aggr[parent_id]
+        end
+    end      
+    nothing
+end
+
+function add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
+    count_siblings(node_aggr, bpc)
+    edges = bpc.edge_layers_down.vectors
+    args = (edge_aggr, edges, node_aggr, Float32(pseudocount))
+    kernel = @cuda name="add_pseudocount" launch=false add_pseudocount_kernel(args...) 
+    threads = launch_configuration(kernel.fun).threads
+    blocks = cld(length(edges), threads)
+    kernel(args...; threads, blocks)
+    nothing
+end
+
+##################################################################################
 # Aggregate node flows
 ##################################################################################
 
@@ -788,7 +844,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         log_likelihoods = CUDA.zeros(Float32, num_batches, 1)
     end
     
-    edge_aggr.= pseudocount
+    edge_aggr.= zero(Float32)
     batch_index = 0
     
     for batch_start = 1:batch_size:num_examples
@@ -807,7 +863,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
                 marginals[1:num_batch_examples,end:end])
         end
     end
-
+    add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
     aggr_node_flows(node_aggr, bpc, edge_aggr)
     update_params(bpc, node_aggr, edge_aggr)
 

@@ -14,7 +14,7 @@ include("load_mnist.jl")
 mine=2
 maxe=32
 debug=false
-pseudocount = 1f0
+pseudocount = 0.01f0
 
 # allocate memory for MAR and flows
 node_aggr = CuVector{Float32}(undef, size(cu_flows, 2));
