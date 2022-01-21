@@ -487,9 +487,9 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
 
         eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
         
-        @views sum!(log_likelihoods[batch_index:batch_index, 1:1], 
-                    marginals[1:num_batch_examples,end:end])
-
+        @views sum!(
+            log_likelihoods[batch_index:batch_index, 1:1], 
+            marginals[1:num_batch_examples,end:end])
     end
 
     return sum(log_likelihoods) / num_examples
@@ -743,13 +743,14 @@ end
 ######################
 
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
-    batch_size, pseudocount,
+    batch_size, pseudocount, report_ll=true,
     mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
     mine, maxe, debug)
 
     num_examples = size(data)[1]
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
+    num_batches = cld(num_examples, batch_size)
 
     marginals = if isnothing(mars_mem)
         CuMatrix{Float32}(undef, batch_size, num_nodes)
@@ -783,42 +784,50 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         edge_aggr_mem
     end
 
-    # log_likelihood = zero(Float64)
+    if report_ll 
+        log_likelihoods = CUDA.zeros(Float32, num_batches, 1)
+    end
+    
     edge_aggr.= pseudocount
+    batch_index = 0
     
     for batch_start = 1:batch_size:num_examples
 
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
         num_batch_examples = length(batch)
+        batch_index += 1
 
         probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                             mine, maxe, debug)
+
+        if report_ll
+            @views sum!(
+                log_likelihoods[batch_index:batch_index, 1:1], 
+                marginals[1:num_batch_examples,end:end])
+        end
     end
 
     aggr_node_flows(node_aggr, bpc, edge_aggr)
     update_params(bpc, node_aggr, edge_aggr)
 
-    # return log_likelihood / num_examples
-    nothing
+    return report_ll ? sum(log_likelihoods) / num_examples : 0.0
 end
 
 function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations; 
-    batch_size, pseudocount,
+    batch_size, pseudocount, report_ll=true,
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
 
-    # log_likelihood = -Inf32
+    log_likelihood = -Inf32
 
     for i=1:num_iterations
-        # log_likelihood = CUDA.@time 
-        full_batch_em_step(bpc, data; 
-            batch_size, pseudocount,
+        log_likelihood = full_batch_em_step(bpc, data; 
+            batch_size, pseudocount, report_ll,
             mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
             mine, maxe, debug)
-        # println("EM iteration $i: log-likelihood = $log_likelihood")
+        println("EM iteration $i: log-likelihood = $log_likelihood")
     end
 
-    # log_likelihood
-    nothing
+    log_likelihood
 end
