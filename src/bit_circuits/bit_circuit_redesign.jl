@@ -834,7 +834,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     for batch_start = 1:batch_size:num_examples
 
         batch_end = min(batch_start+batch_size-1, num_examples)
-        batch = ex_ids[batch_start:batch_end]
+        batch = batch_start:batch_end
         num_batch_examples = batch_end - batch_start + 1
         batch_index += 1
 
