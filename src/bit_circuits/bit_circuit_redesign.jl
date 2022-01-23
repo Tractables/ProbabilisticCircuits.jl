@@ -918,3 +918,49 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_iterations;
 
     nothing
 end
+
+function mini_batch_em2(bpc::CuBitsProbCircuit, data::CuArray, num_iterations; 
+    batch_size, pseudocount, report_ll_each=cld(size(data)[1], batch_size),
+    mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
+    mine=2, maxe=32, debug=false)
+
+    num_examples = size(data)[1]
+    num_nodes = length(bpc.nodes)
+    num_edges = length(bpc.edge_layers_down.vectors)
+    
+    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
+    flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
+    node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
+    edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+    edge_aggr .= zero(Float32)
+
+    output_layer = @view marginals[1:batch_size,end]
+
+    batch_cpu = Vector{Int32}(undef, batch_size)
+    batch = CuVector{Int32}(undef, batch_size)
+
+    for i in 1:num_iterations
+
+        # slowly forget old edge aggregates
+        edge_aggr .*= one(Float32) - (batch_size+pseudocount) / (num_examples+pseudocount)
+
+        rand!(batch_cpu, 1:num_examples)
+        copyto!(batch, batch_cpu)
+
+        probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
+                            mine, maxe, debug)
+
+
+        add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
+        aggr_node_flows(node_aggr, bpc, edge_aggr)
+        update_params(bpc, node_aggr, edge_aggr)
+
+        if i % report_ll_each == 0
+            ll = @views sum(output_layer) / batch_size
+            println("Mini-batch EM iteration $i: log-likelihood = $ll, node flows counted = $(node_aggr[end])")
+        end
+    end
+
+    nothing
+end
+

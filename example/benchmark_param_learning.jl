@@ -14,7 +14,6 @@ include("load_mnist.jl")
 mine=2
 maxe=32
 debug=false
-pseudocount = 0.01f0
 
 # allocate memory for MAR and flows
 node_aggr = CuVector{Float32}(undef, length(cu_bpc.nodes));
@@ -26,8 +25,10 @@ cu_mars = CuMatrix{Float32}(undef, batch_size, length(cu_bpc.nodes));
 cu_flows = similar(cu_mars);
 
 cu_bpc = CuBitsProbCircuit(bpc);
+# cu_bpc_1 = cu_bpc;
 
 # Full batch EM
+pseudocount = 0.01f0
 num_epochs = 3
 CUDA.@time full_batch_em(cu_bpc, cu_train, num_epochs; batch_size, pseudocount,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
@@ -39,31 +40,39 @@ CUDA.@time CUDA.@sync loglikelihood(cu_train, cu_bpc; batch_size, mars_mem = cu_
 CUDA.@time CUDA.@sync loglikelihood(cu_test, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
 
 # Mini batch EM
-num_minibatches = 2000
-inertia = 0.98
+pseudocount = 0.01f0
+num_minibatches = 20000
+inertia = 0.95
 CUDA.@time mini_batch_em(cu_bpc, cu_train, num_minibatches; batch_size, pseudocount, inertia,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
+# Mini batch EM other approach
+pseudocount = 0.001f0
+num_minibatches = 500
+CUDA.@time ProbabilisticCircuits.mini_batch_em2(cu_bpc, cu_train, num_minibatches; batch_size, pseudocount,
+    mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
+    mine, maxe, debug)
 
-for i = 1:10000
-    # Full batch EM
-    num_epochs = 5
-    full_batch_em(cu_bpc, cu_train, num_epochs; batch_size, pseudocount,
-        mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
-        mine, maxe, debug)
 
-    # Train and test evaluation
-    @show loglikelihood(cu_train, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
+# for i = 1:10000
+#     # Full batch EM
+#     num_epochs = 5
+#     full_batch_em(cu_bpc, cu_train, num_epochs; batch_size, pseudocount,
+#         mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
+#         mine, maxe, debug)
 
-    @show loglikelihood(cu_test, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
+#     # Train and test evaluation
+#     @show loglikelihood(cu_train, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
 
-    # Mini batch EM
-    num_minibatches = 2000
-    inertia = 0.98
-    mini_batch_em(cu_bpc, cu_train, num_minibatches; batch_size, pseudocount, inertia,
-        mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
-        mine, maxe, debug)
-end
+#     @show loglikelihood(cu_test, cu_bpc; batch_size, mars_mem = cu_mars, mine, maxe, debug)
+
+#     # Mini batch EM
+#     num_minibatches = 500
+#     inertia = 0.999
+#     mini_batch_em(cu_bpc, cu_train, num_minibatches; batch_size, pseudocount, inertia,
+#         mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
+#         mine, maxe, debug)
+# end
 
 nothing 
