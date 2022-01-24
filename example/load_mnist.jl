@@ -16,7 +16,7 @@ function bitsfeatures(data_int)
     data_bits
 end
 
-train_bits = bitsfeatures(train_int);
-test_bits = bitsfeatures(test_int);
-cu_train = to_gpu(train_bits);
-cu_test = to_gpu(test_bits);
+train_cpu = bitsfeatures(train_int);
+test_cpu = bitsfeatures(test_int);
+train_gpu = to_gpu(train_cpu);
+test_gpu = to_gpu(test_cpu);
