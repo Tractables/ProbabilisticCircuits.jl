@@ -18,5 +18,3 @@ end
 
 train_cpu = bitsfeatures(train_int);
 test_cpu = bitsfeatures(test_int);
-train_gpu = to_gpu(train_cpu);
-test_gpu = to_gpu(test_cpu);

@@ -502,6 +502,8 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
             marginals[1:num_batch_examples,end:end])
     end
 
+    marginals !== mars_mem && CUDA.unsafe_free!(marginals)
+
     return sum(log_likelihoods) / num_examples
 end
 
@@ -937,10 +939,11 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
             aggr_node_flows(node_aggr, bpc, edge_aggr)
             update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia)
 
-            log_likelihood += @views sum(output_layer) / batch_size
+            log_likelihood += sum(output_layer) / batch_size
         end
             
         log_likelihood /= num_batches
+        Threads.threadid() == 4 && println("($(Threads.threadid())) L")
         total_flow = CUDA.@allowscalar node_aggr[end]
         println("Mini-batch EM iter $epoch; flows $total_flow; train LL $log_likelihood")
     end
