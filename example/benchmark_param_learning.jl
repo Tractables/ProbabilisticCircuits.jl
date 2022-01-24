@@ -27,7 +27,7 @@ cu_flows = similar(cu_mars);
 cu_bpc = CuBitsProbCircuit(bpc);
 
 # Full batch EM
-CUDA.@time full_batch_em(cu_bpc, cu_train, 5; batch_size, pseudocount = 0.01f0,
+CUDA.@time full_batch_em(cu_bpc, cu_train, 30; batch_size, pseudocount = 0.01f0,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
@@ -38,13 +38,18 @@ CUDA.@time CUDA.@sync loglikelihood(cu_test, cu_bpc; batch_size, mars_mem = cu_m
 
 # Mini batch EM
 
-CUDA.@time mini_batch_em(cu_bpc, cu_train, 500; batch_size, 
+CUDA.@time mini_batch_em(cu_bpc, cu_train, 50000; batch_size, 
     pseudocount = 0.001f0, param_inertia = 0.98, flow_memory=0,  
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
-CUDA.@time mini_batch_em(cu_bpc, cu_train, 500; batch_size, 
+CUDA.@time mini_batch_em(cu_bpc, cu_train, 50000; batch_size, 
     pseudocount = 0.001f0, param_inertia = 0, flow_memory=50000,  
+    mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
+    mine, maxe, debug)
+
+CUDA.@time mini_batch_em(cu_bpc, cu_train, 5000000; batch_size, 
+    pseudocount = 0.001f0, param_inertia = 0.5, flow_memory=20000,  
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
