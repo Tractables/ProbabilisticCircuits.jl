@@ -22,11 +22,7 @@ end
 
 mutable struct Experiment
     training_phases::Vector{TrainingPhase}
-    bpc
 end
-
-Base.show(io::IO, ex::Experiment) =
-    Base.show(io, ex.training_phases) # hide bpc
 
 function setup_gpu_memory(bpc, batch_size)
     node_aggr_mem = CuVector{Float32}(undef, length(bpc.nodes));
@@ -38,7 +34,7 @@ function setup_gpu_memory(bpc, batch_size)
     node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem
 end
 
-function execute(bpc, phase::FullTrainingPhase, train_data)
+function execute(phase::FullTrainingPhase, bpc, train_data)
 
     node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem = 
         setup_gpu_memory(bpc, phase.batch_size)
@@ -52,7 +48,7 @@ function execute(bpc, phase::FullTrainingPhase, train_data)
     nothing
 end
 
-function execute(bpc, phase::MiniTrainingPhase, train_data)
+function execute(phase::MiniTrainingPhase, bpc, train_data)
 
     node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem = 
         setup_gpu_memory(bpc, phase.batch_size)
@@ -68,69 +64,30 @@ function execute(bpc, phase::MiniTrainingPhase, train_data)
     nothing
 end
 
-function execute(exper::Experiment, bpc::BitsProbCircuit, train_data::Array, logfile)
-    
-    exper.bpc = CuBitsProbCircuit(bpc);
-
-    cu_train = cu(train_data)
-
+function execute(exper::Experiment, bpc, train_data; logfile)  
     println("Starting experiment: $exper")
-
     for phase in exper.training_phases
         println("Starting phase: $phase")
-        execute(exper.bpc, phase, cu_train)
+        execute(phase, bpc, train_data)
         phase.last_train_ll = 
-            loglikelihood(cu_train, exper.bpc; batch_size = phase.batch_size)
+            loglikelihood(train_data, bpc; batch_size = phase.batch_size)
         println("Done with phase: $phase")
     end
     open(logfile, "a") do io
         println(io, exper)
     end;
     println("Done with experiment: $exper")
-    nothing
+    exper
 end
 
-# function execute_threaded(experiments::Vector{Experiment}, bpc::BitsProbCircuit, train_data::Array; 
-#     logfile = "experiments.log", gpus = collect(devices()))
-#     println("Starting $(length(experiments)) experiments")
-#     open(logfile, "a") do io
-#         println(io, "=== Starting $(length(experiments)) experiments ===")
-#     end;
-#     gpu_init = falses(Threads.nthreads())    
-#     Threads.@threads for exper in experiments
-#         tid = Threads.threadid()
-#         if !gpu_init[tid]
-#             println("(Initializing GPU")
-#             gpu = gpus[mod1(tid,length(gpus))]
-#             device!(gpu) # needs to be first statement?
-#             gpu_init[tid] = true
-#             println("(Initialized GPU $gpu")
-#         end
-#         try 
-#             execute(exper, bpc, train_data, logfile) 
-#         catch e
-#             println("ERROR in thread $(Threads.threadid())") 
-#             @show e
-#             @error(exception = (e, catch_backtrace()))
-#             exit()
-#         end
-        
-#     end
-#     open(logfile, "a") do io
-#         println(io, "=== Done with $(length(experiments)) experiments ===")
-#     end;
-#     println("Done with $(length(experiments)) experiments")
-#     nothing
-# end
-
-function execute(experiments::Vector{Experiment}, bpc::BitsProbCircuit, train_data::Array; 
+function execute(experiments::Vector{Experiment}, bpc, train_data; 
     logfile = "experiments.log")
     println("Starting $(length(experiments)) experiments")  
     open(logfile, "a") do io
         println(io, "=== Starting $(length(experiments)) experiments ===")
     end;
     done_experiments = pmap(experiments) do exper
-        execute(exper, bpc, train_data, logfile) 
+        execute(exper, bpc(), train_data(); logfile) 
     end
     open(logfile, "a") do io
         println(io, "=== Done with $(length(experiments)) experiments ===")
