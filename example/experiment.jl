@@ -9,8 +9,8 @@ experiments = begin
     batch_size = 512
     epochs_1 = 230
     epochs_2 = 120
-    for pseudocount in [0.1, 0.01, 0.001, 0.0001]
-        for softness in [0.1, 0.01, 0.001, 0.0001]
+    for pseudocount in [0.01, 0.001, 0.0001, 0]
+        for softness in [0.01, 0.001, 0.0001, 0]
             for shuffle in [:each_batch] #:each_epoch
                 push!(exps, Experiment([
                     MiniTrainingPhase(
