@@ -37,8 +37,8 @@ function summate end
 @inline issum(n) = GateType(n) isa ⋁Gate
 
 "Count the number of parameters in the circuit"
-@inline num_parameters(c::ProbCircuit) = 
-    sum(n -> num_parameters_node(n), sum_nodes(c))
+@inline num_parameters(c::ProbCircuit; independent=true) = 
+    sum(n -> num_parameters_node(n; independent), sum_nodes(c))
 
 #####################
 # methods to easily construct circuits

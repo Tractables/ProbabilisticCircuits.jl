@@ -7,73 +7,51 @@ include("gpu_workers.jl");
 experiments = begin 
     exps = Experiment[]
     batch_size = 512
-    epochs_1 = 200
-    epochs_2 = 100
-    for pseudocount in [0.1, 0.001]
-        begin
-            phases = [FullTrainingPhase(epochs_1 + epochs_2, batch_size, pseudocount, NaN)]
-            push!(exps, Experiment(phases))
-        end
-        for shuffle in [:each_epoch, :each_batch]
-            for param_inertia in [0.90, 0.95, 0.99, 0.999]
-                for flow_memory in [0]
-                    phases = [MiniTrainingPhase(
-                                epochs_1, 
-                                batch_size, 
-                                pseudocount,
-                                param_inertia,
-                                flow_memory,
-                                shuffle, NaN),
-                            FullTrainingPhase(
-                                epochs_2, 
-                                batch_size, 
-                                pseudocount, NaN)]
-                                
-                    push!(exps, Experiment(phases))
-                end
-            end
-            for param_inertia in [0]
-                for flow_memory in [60000, 30000, 10000]
-                    phases = [MiniTrainingPhase(
-                                epochs_1, 
-                                batch_size, 
-                                pseudocount,
-                                param_inertia,
-                                flow_memory,
-                                shuffle, NaN),
-                            FullTrainingPhase(
-                                epochs_2, 
-                                batch_size, 
-                                pseudocount, NaN)]
-                                
-                    push!(exps, Experiment(phases))
-                end
+    epochs_1 = 230
+    epochs_2 = 120
+    for pseudocount in [0.1, 0.01, 0.001, 0.0001]
+        for softness in [0.1, 0.01, 0.001, 0.0001]
+            for shuffle in [:each_batch] #:each_epoch
+                push!(exps, Experiment([
+                    MiniTrainingPhase(
+                        epochs_1, batch_size, 
+                        pseudocount, softness,
+                        0, 1,
+                        0, 0,
+                        shuffle, NaN),
+                    FullTrainingPhase(
+                        epochs_2, batch_size, 
+                        pseudocount, softness, NaN)]))
             end
         end
     end
     exps
 end;
 
+# main process does no work
 train_data() = nothing
+test_data() = nothing
 pc_model() = nothing
 
+# workers do work
 @everywhere workers() begin
     println("Loading Data")
     include("load_mnist.jl");
     train_gpu, test_gpu = mnist_gpu()
     train_data() = train_gpu
+    test_data() = test_gpu
 
     println("Loading Circuit")
     using ProbabilisticCircuits: BitsProbCircuit
     pc = ProbabilisticCircuits.read_fast("mnist_bits_hclt_32.jpc");
     bpc = BitsProbCircuit(pc)
-    bpc_gpu = CuBitsProbCircuit(bpc)
-    pc_model() = bpc_gpu
+    # make sure to get a fresh circuit each time, to reset the parameters
+    pc_model() = CuBitsProbCircuit(bpc)
 end
 
-experiments_done = execute(experiments, pc_model, train_data)
+experiments_done = execute(experiments, pc_model, train_data, test_data; logfile = "experiments2.log")
 
 best_experiments = sort(experiments_done, by = e -> e.training_phases[end].last_train_ll)
 foreach(e -> println(e), best_experiments)
 
-    nothing
+nothing

@@ -305,10 +305,23 @@ function init_mar!_kernel(mars, nodes, data, example_ids,
                     v = data[orig_ex_id, abs(lit)]
                     if ismissing(v)
                         zero(Float32)
-                    elseif (lit > 0) == v
-                        zero(Float32)
                     else
-                        -Inf32
+                        # data could be Bool, or Float after "data softening"
+                        if nonmissingtype(eltype(data)) == Bool
+                            if (lit > 0) == v
+                                zero(Float32)
+                            else
+                                -Inf32
+                            end
+                        elseif nonmissingtype(eltype(data)) <: AbstractFloat
+                            if (lit > 0)
+                                log(v)
+                            else
+                                log(one(Float32)-v)
+                            end
+                        else
+                            error("Unknown data type $(nonmissingtype(eltype(data)))")
+                        end
                     end
                 end
         end
@@ -811,6 +824,13 @@ end
 ### Full-Batch EM
 ######################
 
+"Turn binary data into floating point data close to 0 and 1."
+function soften_data(data; softness, pseudocount=1)
+    data_marginals = ((sum(data; dims=1) .+ Float32(pseudocount/2)) 
+                        ./ Float32(size(data, 1) + pseudocount))
+    Float32(1-softness) * data .+ Float32(softness) * data_marginals
+end
+
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
     batch_size, pseudocount, report_ll=true,
     mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
@@ -857,9 +877,13 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 end
 
 function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs; 
-    batch_size, pseudocount, report_ll=true,
+    batch_size, pseudocount, softness, report_ll=true,
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
+
+    if !iszero(softness)
+        data = soften_data(data; softness)
+    end
 
     for epoch = 1:num_epochs
         log_likelihood = full_batch_em_step(bpc, data; 
@@ -876,13 +900,18 @@ end
 ######################
 
 function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs; 
-    batch_size, pseudocount, param_inertia, flow_memory, shuffle=:each_epoch,  
+    batch_size, pseudocount, softness, 
+    param_inertia, param_inertia_end = param_inertia, 
+    flow_memory, flow_memory_end = flow_memory, 
+    shuffle=:each_epoch,  
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
 
     @assert pseudocount >= 0
-    @assert 0 <= param_inertia < 1
+    @assert 0 <= param_inertia <= 1
+    @assert param_inertia <= param_inertia_end <= 1
     @assert 0 <= flow_memory  
+    @assert flow_memory <= flow_memory_end  
     @assert shuffle ∈ [:never, :once, :each_epoch, :each_batch]
 
     num_examples = size(data)[1]
@@ -896,8 +925,11 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-    
     edge_aggr .= zero(Float32)
+
+    if !iszero(softness)
+        data = soften_data(data; softness)
+    end
 
     output_layer = @view marginals[1:batch_size,end]
 
@@ -913,6 +945,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
 
     (shuffle == :once) && do_shuffle()
 
+    Δparam_inertia = (param_inertia_end-param_inertia)/num_epochs
+    Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
 
     for epoch in 1:num_epochs
 
@@ -928,7 +962,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
                 edge_aggr .= zero(Float32)
             else
                 # slowly forget old edge aggregates
-                edge_aggr .*= one(Float32) - (batch_size + pseudocount) / flow_memory
+                edge_aggr .*= max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
             end
 
             probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
@@ -943,9 +977,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
         end
             
         log_likelihood /= num_batches
-        Threads.threadid() == 4 && println("($(Threads.threadid())) L")
-        total_flow = CUDA.@allowscalar node_aggr[end]
-        println("Mini-batch EM iter $epoch; flows $total_flow; train LL $log_likelihood")
+        println("Mini-batch EM iter $epoch; train LL $log_likelihood")
+
+        param_inertia += Δparam_inertia
+        flow_memory += Δflow_memory
     end
 
     nothing

@@ -35,16 +35,16 @@ reuse_f = similar(reuse_v);
 # Full batch EM
 full_iters = 2
 for iter = 1 : full_iters
-    CUDA.@time CUDA.@sync estimate_parameters_em!(cu_bpc, cu_train_batched; 
+    CUDA.@time estimate_parameters_em!(cu_bpc, cu_train_batched; 
         reuse_v, reuse_f, reuse_counts, pseudocount=0.01)
 end
 update_pc_params_from_pbc!(pc, cu_bpc)
 
 
 # Train and test evaluation
-CUDA.@time CUDA.@sync marginal_log_likelihood_avg(cu_bpc, cu_train_batched)
+CUDA.@time marginal_log_likelihood_avg(cu_bpc, cu_train_batched)
 
-CUDA.@time CUDA.@sync marginal_log_likelihood_avg(cu_bpc, cu_test)
+CUDA.@time marginal_log_likelihood_avg(cu_bpc, cu_test)
 
 
 # Mini batch EM
@@ -54,7 +54,7 @@ e_end = 0.9
 mini_iters = 2
 for iter = 1 : mini_iters
     e_update = e_start + (iter - 1) * (e_end - e_start) / (mini_iters - 1)
-    CUDA.@time CUDA.@sync estimate_parameters_em_per_batch!(pc, cu_bpc, cu_train_batched;
+    CUDA.@time estimate_parameters_em_per_batch!(pc, cu_bpc, cu_train_batched;
         reuse_v, reuse_f, reuse_counts, pseudocount = 0.001, 
         entropy_reg=0.0, exp_update_factor = e_update)
 end
