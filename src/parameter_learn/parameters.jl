@@ -503,10 +503,8 @@ function estimate_parameters_em_multi_epochs!(circuit::ProbCircuit, train_data; 
         end
         if !isnothing(save_path) && (iter % save_rate == 0)
             update_pc_params_from_pbc!(circuit, pbc)
-            if verbose
-                println("- Saving circuit at $(save_path)")
-                write(save_path, circuit)
-            end
+            verbose && println("- Saving circuit at $(save_path)")
+            write(save_path, circuit)
         end
     end
 
