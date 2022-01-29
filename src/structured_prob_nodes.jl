@@ -74,7 +74,8 @@ import LogicCircuits: children, vtree, vtree_safe, respects_vtree # make availab
 respects_vtree(circuit::StructProbCircuit) = 
     respects_vtree(circuit, vtree(circuit))
 
-@inline num_parameters_node(n::StructSumNode) = num_children(n)
+@inline num_parameters_node(n::StructSumNode; independent=true) = 
+    independent ? num_children(n)-1 : num_children(n)
 
 #####################
 # constructors and compilation
