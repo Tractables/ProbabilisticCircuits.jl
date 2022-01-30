@@ -292,30 +292,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
             probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                                 mine, maxe, debug)
             
-                                print("+")
             log_likelihood += sum(output_layer) / batch_size
-            print("|")
-            debug && if !isfinite(log_likelihood)
-                error("Training has collapsed to likelihood zero.")
-            end
-            debug && if any(iszero, edge_aggr)
-                error("Edge aggregates collapsed")
-            end
             add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
-            debug && if any(iszero, edge_aggr) || !all(isfinite, edge_aggr)
-                error("Edge aggregates collapsed")
-            end
             aggr_node_flows(node_aggr, bpc, edge_aggr)
-            debug && if !all(isfinite, node_aggr)
-                error("Node aggregates collapsed")
-            end
             update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia)
-            debug && if !all(x -> (x isa MulEdge) || isfinite(x.logp), bpc.edge_layers_up.vectors)
-                error("Parameters up collapsed")
-            end
-            debug && if !all(x -> (x isa MulEdge) || isfinite(x.logp), bpc.edge_layers_down.vectors)
-                error("Parameters down collapsed")
-            end
             
         end
             

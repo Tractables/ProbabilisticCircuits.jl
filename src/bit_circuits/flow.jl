@@ -54,28 +54,24 @@ function layer_down_kernel(flows, edge_aggr, edges, _mars,
                 if sub_id != 0
                     child_prob += mars[ex_id, sub_id]
                 end
-                edge_flow = edge_flow + child_prob - parent_mar
+                edge_flow = edge_flow * exp(child_prob - parent_mar)
             end
 
             if sub_id != 0 
                 if isonlysubedge(tag)
                     flows[ex_id, sub_id] = edge_flow
                 else
-                    CUDA.@atomic flows[ex_id, sub_id] = logsumexp(flows[ex_id, sub_id], edge_flow)
+                    CUDA.@atomic flows[ex_id, sub_id] += edge_flow
                 end            
             end
         end
         
         # make sure this is run on all warp threads, regardless of `active`
         if !isnothing(edge_aggr)
-            exp_edge_flow = active ? exp(edge_flow) : zero(Float32)
-            exp_edge_flow = CUDA.reduce_warp(+, exp_edge_flow)
+            !active && (edge_flow = zero(Float32))
+            edge_flow_warp = CUDA.reduce_warp(+, edge_flow)
             if warp_lane == 1
-                if iszero(exp_edge_flow) 
-                    CUDA.@cushow edge_flow
-                end
-                CUDA.@cuassert !iszero(exp_edge_flow)
-                CUDA.@atomic edge_aggr[edge_id] += exp_edge_flow
+                CUDA.@atomic edge_aggr[edge_id] += edge_flow_warp
             end
         end
 
@@ -85,7 +81,7 @@ function layer_down_kernel(flows, edge_aggr, edges, _mars,
             if firstedge || (edge_id == edge_start)  
                 acc = edge_flow
             else
-                acc = logsumexp(acc, edge_flow)
+                acc += edge_flow
             end
 
             # write to global memory
@@ -94,7 +90,7 @@ function layer_down_kernel(flows, edge_aggr, edges, _mars,
                     # no one else is writing to this global memory
                     flows[ex_id, prime_id] = acc
                 else
-                    CUDA.@atomic flows[ex_id, prime_id] = logsumexp(flows[ex_id, prime_id], acc)
+                    CUDA.@atomic flows[ex_id, prime_id] += acc
                 end
             end
         end
@@ -134,8 +130,8 @@ end
 
 function flows_circuit(flows, edge_aggr, bpc, mars, num_examples; mine, maxe, debug=false)
     init_flows() = begin 
-        flows .= -Inf32
-        flows[:,end] .= zero(Float32)
+        flows .= zero(Float32)
+        flows[:,end] .= one(Float32)
     end
     if debug
         println("Initializing flows")

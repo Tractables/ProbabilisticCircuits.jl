@@ -1,49 +1,44 @@
 using Distributed 
 
-num = 2
-addprocs(num)
+# num = 2
+# addprocs(num)
 
-@everywhere begin
-    struct testParams{F}
-        f::F
-        args::Tuple
-        kwargs::Pairs
-        testParams(f, args...; kwargs...) = new{typeof(f)}(f, args, kwargs)
-    end        
+# @everywhere begin
+#     struct testParams{F}
+#         f::F
+#         args::Tuple
+#         kwargs::Pairs
+#         testParams(f, args...; kwargs...) = new{typeof(f)}(f, args, kwargs)
+#     end        
 
-    function worker(input, output)
-        while true
-            p = take!(input)
-            put!(output, (myid(), p.f(1.0, p.args...)))
-        end
-    end
-end
+#     function worker(input, output)
+#         while true
+#             p = take!(input)
+#             put!(output, (myid(), p.f(1.0, p.args...)))
+#         end
+#     end
+# end
 
-# channels to send and receive data from workers
-input = RemoteChannel(()->Channel{testParams}(num))
-output = RemoteChannel(()->Channel{Tuple}(num))
+# # channels to send and receive data from workers
+# input = RemoteChannel(()->Channel{testParams}(num))
+# output = RemoteChannel(()->Channel{Tuple}(num))
 
-for i in 1:num
-    errormonitor(@async put!(input, testParams(*, 2)))
-end
+# for i in 1:num
+#     errormonitor(@async put!(input, testParams(*, 2)))
+# end
 
-# run workers
-for w in workers()
-    remote_do(worker, w, input, output)
-end
+# # run workers
+# for w in workers()
+#     remote_do(worker, w, input, output)
+# end
 
-# collect results
-for i in 1:num
-    @async begin 
-        w, ans = take!(output)
-        println("worker $w: $ans")
-    end
-end
-
-
-
-
-
+# # collect results
+# for i in 1:num
+#     @async begin 
+#         w, ans = take!(output)
+#         println("worker $w: $ans")
+#     end
+# end
 
 mutable struct Experiment
     training_phases::Vector{TrainingPhase}
