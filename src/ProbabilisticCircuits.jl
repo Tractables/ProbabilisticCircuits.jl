@@ -38,6 +38,9 @@ include("parameter_learn/parameters.jl")
 include("parameter_learn/gradient_based_learning.jl")
 
 include("bit_circuits/bit_circuit_redesign.jl")
+include("bit_circuits/likelihood.jl")
+include("bit_circuits/flow.jl")
+include("bit_circuits/em.jl")
 
 include("queries/likelihood.jl")
 include("queries/marginal_flow.jl")

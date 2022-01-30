@@ -8,15 +8,6 @@ include("load_mnist.jl");
 train_cpu, test_cpu = mnist_cpu()
 train_gpu, test_gpu = mnist_gpu()
 
-"Turn binary data into floating point data close to 0 and 1."
-function soften_data(data; softness, pseudocount=1)
-    data_marginals = ((sum(data; dims=1) .+ Float32(pseudocount/2)) 
-                        ./ Float32(size(data, 1) + pseudocount))
-    Float32(1-softness) * data .+ Float32(softness) * data_marginals
-end
-
-@time train_soft_gpu = soften_data(train_gpu);
-train = train_soft_gpu;
 train = train_gpu;
 
 # read HCLT structure
@@ -40,9 +31,11 @@ cu_flows = similar(cu_mars);
 
 cu_bpc = CuBitsProbCircuit(bpc);
 
+pseudocount = 0.0; softness = 0.1
+
 # Full batch EM
-CUDA.@time full_batch_em(cu_bpc, train, 5; batch_size, pseudocount = 0.01f0, 
-    softness = 0.001,
+CUDA.@time full_batch_em(cu_bpc, train, 5; batch_size, 
+    pseudocount, softness,
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
 
@@ -53,10 +46,9 @@ CUDA.@time CUDA.@sync loglikelihood(test_gpu, cu_bpc; batch_size, mars_mem = cu_
 
 # Mini batch EM
 
-CUDA.@time mini_batch_em(cu_bpc, train, 5; batch_size, 
-    pseudocount = 0.001f0, softness = 0.001,param_inertia = 0.98, flow_memory=0,  
+CUDA.@time mini_batch_em(cu_bpc, train, 200; batch_size, 
+    pseudocount, softness, param_inertia = 0, param_inertia_end = 1, flow_memory=0,  
     mars_mem = cu_mars, flows_mem = cu_flows, node_aggr_mem = node_aggr, edge_aggr_mem=edge_aggr,
     mine, maxe, debug)
-
 
 nothing 

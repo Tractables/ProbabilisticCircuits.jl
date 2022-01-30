@@ -1,28 +1,49 @@
-using ProbabilisticCircuits, CUDA
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihood, full_batch_em, mini_batch_em
+using Distributed 
 
-abstract type TrainingPhase end
+num = 2
+addprocs(num)
 
-mutable struct FullTrainingPhase <: TrainingPhase
-    epochs
-    batch_size
-    pseudocount
-    softness
-    last_train_ll
+@everywhere begin
+    struct testParams{F}
+        f::F
+        args::Tuple
+        kwargs::Pairs
+        testParams(f, args...; kwargs...) = new{typeof(f)}(f, args, kwargs)
+    end        
+
+    function worker(input, output)
+        while true
+            p = take!(input)
+            put!(output, (myid(), p.f(1.0, p.args...)))
+        end
+    end
 end
 
-mutable struct MiniTrainingPhase <: TrainingPhase
-    epochs
-    batch_size
-    pseudocount
-    softness
-    param_inertia
-    param_inertia_end
-    flow_memory
-    flow_memory_end
-    shuffle
-    last_train_ll
+# channels to send and receive data from workers
+input = RemoteChannel(()->Channel{testParams}(num))
+output = RemoteChannel(()->Channel{Tuple}(num))
+
+for i in 1:num
+    errormonitor(@async put!(input, testParams(*, 2)))
 end
+
+# run workers
+for w in workers()
+    remote_do(worker, w, input, output)
+end
+
+# collect results
+for i in 1:num
+    @async begin 
+        w, ans = take!(output)
+        println("worker $w: $ans")
+    end
+end
+
+
+
+
+
 
 mutable struct Experiment
     training_phases::Vector{TrainingPhase}
@@ -31,27 +52,11 @@ mutable struct Experiment
     Experiment(phases) = new(phases, NaN, NaN)
 end
 
-function setup_gpu_memory(bpc, batch_size)
-    node_aggr_mem = CuVector{Float32}(undef, length(bpc.nodes));
-    edge_aggr_mem = CuVector{Float32}(undef, length(bpc.edge_layers_down.vectors));
-
-    mars_mem = CuMatrix{Float32}(undef, batch_size, length(bpc.nodes));
-    flows_mem = similar(mars_mem);
-
-    node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem
-end
-
 function execute(phase::FullTrainingPhase, bpc, train_data)
-
-    node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem = 
-        setup_gpu_memory(bpc, phase.batch_size)
 
     full_batch_em(bpc, train_data, phase.epochs; 
         batch_size = phase.batch_size, 
-        pseudocount = phase.pseudocount, softness = phase.softness,
-        mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem)
-
-    CUDA.unsafe_free!.([node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem])
+        pseudocount = phase.pseudocount, softness = phase.softness)
 
     nothing
 end
