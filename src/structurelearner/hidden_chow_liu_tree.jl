@@ -86,11 +86,11 @@ function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
     num_vars = size(data, 2) # num_features(data) # not supported for CuMatrix
 
     # Chow-Liu Tree (CLT) given data
-    println("Learning a CLT")
-    @time edges = ChowLiuTrees.learn_chow_liu_tree(data;
+    # println("Learning a CLT")
+    edges = ChowLiuTrees.learn_chow_liu_tree(data;
             num_trees=num_tree_candidates, 
             dropout_prob, weights, pseudocount, Float)
-    @time clts = clt_edges2graphs(edges)
+    clts = clt_edges2graphs(edges)
     
     # Sample `num_trees` trees from the `num_tree_candidates` candidates
     if tree_sample_type == "random"
@@ -100,9 +100,9 @@ function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
     end
     
     # compile hclt from clt
-    println("Compiling to HCLT")
+    # println("Compiling to HCLT")
     observed_leafs = categorical_leaves(num_vars, num_cats, T)
-    @time circuits = map(clts) do clt
+    circuits = map(clts) do clt
         hclt_from_clt(clt::MetaDiGraph, num_cats; num_hidden_cats, leaves=observed_leafs)
     end
     
