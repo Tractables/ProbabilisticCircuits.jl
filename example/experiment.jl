@@ -7,9 +7,9 @@ include("gpu_workers.jl");
 experiments = begin 
     exps = Experiment[]
     batch_size = 512
-    epochs_1 = 230
-    epochs_2 = 120
-    for pseudocount in [0.01, 0.001, 0.0001, 0]
+    epochs_1 = 300
+    epochs_2 = 100
+    for pseudocount in [0.01, 0.001, 0.0001, 0.00001]
         for softness in [0.01, 0.001, 0.0001, 0]
             for shuffle in [:each_batch] #:each_epoch
                 push!(exps, Experiment([
