@@ -1,5 +1,6 @@
 using Distributed 
 
+
 # num = 2
 # addprocs(num)
 
@@ -40,6 +41,33 @@ using Distributed
 #     end
 # end
 
+abstract type TrainingPhase end
+
+using ProbabilisticCircuits, CUDA, BenchmarkTools
+
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params, full_batch_em_step, full_batch_em, mini_batch_em, soften
+
+mutable struct FullTrainingPhase <: TrainingPhase
+    epochs
+    batch_size
+    pseudocount
+    softness
+    last_train_ll
+end
+
+mutable struct MiniTrainingPhase <: TrainingPhase
+    epochs
+    batch_size
+    pseudocount
+    softness
+    param_inertia
+    param_inertia_end
+    flow_memory
+    flow_memory_end
+    shuffle
+    last_train_ll
+end
+
 mutable struct Experiment
     training_phases::Vector{TrainingPhase}
     test_ll
@@ -58,18 +86,12 @@ end
 
 function execute(phase::MiniTrainingPhase, bpc, train_data)
 
-    node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem = 
-        setup_gpu_memory(bpc, phase.batch_size)
-
     mini_batch_em(bpc, train_data, phase.epochs; 
         batch_size = phase.batch_size, 
         pseudocount = phase.pseudocount, softness = phase.softness, 
         param_inertia = phase.param_inertia, param_inertia_end = phase.param_inertia_end, 
         flow_memory = phase.flow_memory, flow_memory_end = phase.flow_memory_end,
-        shuffle = phase.shuffle,
-        mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem)
-
-    CUDA.unsafe_free!.([node_aggr_mem, edge_aggr_mem, mars_mem, flows_mem])
+        shuffle = phase.shuffle)
 
     nothing
 end

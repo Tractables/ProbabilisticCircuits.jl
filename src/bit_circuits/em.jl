@@ -157,18 +157,11 @@ end
 
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
     batch_size, pseudocount, report_ll=true,
-    mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
+    marginals, flows, node_aggr, edge_aggr,
     mine, maxe, debug)
 
     num_examples = size(data)[1]
-    num_nodes = length(bpc.nodes)
-    num_edges = length(bpc.edge_layers_down.vectors)
     num_batches = cld(num_examples, batch_size)
-
-    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
-    flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
-    node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
-    edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
     
     if report_ll 
         log_likelihoods = CUDA.zeros(Float32, num_batches, 1)
@@ -200,30 +193,40 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     return report_ll ? sum(log_likelihoods) / num_examples : 0.0
 end
 
-function full_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs; 
+function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
     batch_size, pseudocount, softness, report_ll=true,
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)
+    
+    num_nodes = length(bpc.nodes)
+    num_edges = length(bpc.edge_layers_down.vectors)
+    data = iszero(softness) ? raw_data : soften_data(raw_data; softness)
 
-    if !iszero(softness)
-        data = soften_data(data; softness)
-    end
+    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
+    flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
+    node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
+    edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+
 
     for epoch = 1:num_epochs
         log_likelihood = full_batch_em_step(bpc, data; 
             batch_size, pseudocount, report_ll,
-            mars_mem, flows_mem, node_aggr_mem, edge_aggr_mem,
+            marginals, flows, node_aggr, edge_aggr,
             mine, maxe, debug)
         println("Full-batch EM epoch $epoch; train LL $log_likelihood")
     end
     
+    cleanup_memory((data, raw_data), (flows, flows_mem), 
+        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
+
+    log_likelihood
 end
 
 #######################
 ### Mini-Batch EM
 ######################
 
-function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs; 
+function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
     batch_size, pseudocount, softness, 
     param_inertia, param_inertia_end = param_inertia, 
     flow_memory, flow_memory_end = flow_memory, 
@@ -238,23 +241,21 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
     @assert flow_memory <= flow_memory_end  
     @assert shuffle ∈ [:never, :once, :each_epoch, :each_batch]
 
-    num_examples = size(data)[1]
+    num_examples = size(raw_data)[1]
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
     num_batches = num_examples ÷ batch_size # drop last incomplete batch
 
     @assert batch_size <= num_examples
     
+    data = iszero(softness) ? raw_data : soften_data(raw_data; softness)
+
     marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+
     edge_aggr .= zero(Float32)
-
-    if !iszero(softness)
-        data = soften_data(data; softness)
-    end
-
     output_layer = @view marginals[1:batch_size,end]
 
     shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
@@ -305,6 +306,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, data::CuArray, num_epochs;
         param_inertia += Δparam_inertia
         flow_memory += Δflow_memory
     end
+
+    cleanup_memory((data, raw_data), (flows, flows_mem), 
+        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
+    CUDA.unsafe_free!(shuffled_indices)
 
     nothing
 end

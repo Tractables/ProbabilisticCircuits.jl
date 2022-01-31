@@ -230,6 +230,18 @@ function prep_memory(reuse, sizes, exact = map(x -> true, sizes))
     end
 end
 
+function cleanup_memory(used::CuArray, reused)
+    if used !== reused
+        CUDA.unsafe_free!(used)
+    end
+end
+
+function cleanup_memory(used_reused::Tuple...)
+    for (used, reused) in used_reused
+        cleanup_memory(used, reused)
+    end
+end
+
 function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit; 
     batch_size, mars_mem = nothing, 
     mine=2, maxe=32, debug=false)
@@ -257,7 +269,7 @@ function loglikelihood(data::CuArray, bpc::CuBitsProbCircuit;
             marginals[1:num_batch_examples,end:end])
     end
 
-    marginals !== mars_mem && CUDA.unsafe_free!(marginals)
+    cleanup_memory(marginals, mars_mem)
 
     return sum(log_likelihoods) / num_examples
 end
