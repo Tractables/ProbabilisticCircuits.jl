@@ -1,53 +1,15 @@
 using Distributed 
 
-
-# num = 2
-# addprocs(num)
-
-# @everywhere begin
-#     struct testParams{F}
-#         f::F
-#         args::Tuple
-#         kwargs::Pairs
-#         testParams(f, args...; kwargs...) = new{typeof(f)}(f, args, kwargs)
-#     end        
-
-#     function worker(input, output)
-#         while true
-#             p = take!(input)
-#             put!(output, (myid(), p.f(1.0, p.args...)))
-#         end
-#     end
-# end
-
-# # channels to send and receive data from workers
-# input = RemoteChannel(()->Channel{testParams}(num))
-# output = RemoteChannel(()->Channel{Tuple}(num))
-
-# for i in 1:num
-#     errormonitor(@async put!(input, testParams(*, 2)))
-# end
-
-# # run workers
-# for w in workers()
-#     remote_do(worker, w, input, output)
-# end
-
-# # collect results
-# for i in 1:num
-#     @async begin 
-#         w, ans = take!(output)
-#         println("worker $w: $ans")
-#     end
-# end
-
-abstract type TrainingPhase end
-
 using ProbabilisticCircuits, CUDA, BenchmarkTools
-
 using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, probs_flows_circuit, eval_circuit, loglikelihood, flows_circuit, aggr_node_flows, update_params, full_batch_em_step, full_batch_em, mini_batch_em, soften
+mutable struct StructLearningPhase
+    cats
+    num_params
+    StructLearningPhase(c) = new(c, NaN)
+end
 
-mutable struct FullTrainingPhase <: TrainingPhase
+abstract type ParamTrainingPhase end
+mutable struct FullTrainingPhase <: ParamTrainingPhase
     epochs
     batch_size
     pseudocount
@@ -55,7 +17,7 @@ mutable struct FullTrainingPhase <: TrainingPhase
     last_train_ll
 end
 
-mutable struct MiniTrainingPhase <: TrainingPhase
+mutable struct MiniTrainingPhase <: ParamTrainingPhase
     epochs
     batch_size
     pseudocount
@@ -69,10 +31,18 @@ mutable struct MiniTrainingPhase <: TrainingPhase
 end
 
 mutable struct Experiment
-    training_phases::Vector{TrainingPhase}
+    struct_learning::StructLearningPhase
+    training_phases::Vector{ParamTrainingPhase}
     test_ll
     time
-    Experiment(phases) = new(phases, NaN, NaN)
+    Experiment(sl, phases) = new(sl, phases, NaN, NaN)
+end
+
+function execute(phase::StructLearningPhase, train_data)
+    circuit = hclt(train_data; num_cats=2, num_hidden_cats = phase.cats)
+    phase.num_params = num_parameters(circuit)
+    uniform_parameters!(circuit; perturbation = 0.4)
+    CuBitsProbCircuit(BitsProbCircuit(circuit))
 end
 
 function execute(phase::FullTrainingPhase, bpc, train_data)
@@ -96,8 +66,11 @@ function execute(phase::MiniTrainingPhase, bpc, train_data)
     nothing
 end
 
-function execute(exper::Experiment, bpc, train_data, test_data; logfile)  
+function execute(exper::Experiment, train_data, test_data; logfile)  
     println("Starting experiment: $exper")
+    println("Starting phase: $(exper.struct_learning)")
+    bpc = execute(exper.struct_learning, train_data)
+    println("Done with phase: $(exper.struct_learning)")
     exper.time = @elapsed for phase in exper.training_phases
         println("Starting phase: $phase")
         execute(phase, bpc, train_data)
@@ -114,14 +87,14 @@ function execute(exper::Experiment, bpc, train_data, test_data; logfile)
     exper
 end
 
-function execute(experiments::Vector{Experiment}, bpc, train_data, test_data; 
+function execute(experiments::Vector{Experiment}, train_data, test_data; 
     logfile = "experiments.log")
     println("Starting $(length(experiments)) experiments")  
     open(logfile, "a") do io
         println(io, "=== Starting $(length(experiments)) experiments ===")
     end;
     done_experiments = pmap(experiments) do exper
-        execute(exper, bpc(), train_data(), test_data(); logfile) 
+        execute(exper, train_data(), test_data(); logfile) 
     end
     open(logfile, "a") do io
         println(io, "=== Done with $(length(experiments)) experiments ===")

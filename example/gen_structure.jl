@@ -4,7 +4,8 @@ include("load_mnist.jl")
 
 # construct HCLT structure
 train_gpu, test_gpu = mnist_gpu()
-num_hidden_cats = 32
+
+num_hidden_cats = 64
 
 @time circuit = hclt(train_gpu; num_cats=2, num_hidden_cats)
 
