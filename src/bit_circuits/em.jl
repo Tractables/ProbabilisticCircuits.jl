@@ -229,7 +229,7 @@ end
 function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
     batch_size, pseudocount, softness, 
     param_inertia, param_inertia_end = param_inertia, 
-    flow_memory, flow_memory_end = flow_memory, 
+    flow_memory = 0, flow_memory_end = flow_memory, 
     shuffle=:each_epoch,  
     mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem=nothing,
     mine=2, maxe=32, debug=false)

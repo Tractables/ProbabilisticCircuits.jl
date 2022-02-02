@@ -10,8 +10,8 @@ experiments = begin
     epochs_1 = 300
     epochs_2 = 100
     for pseudocount in [0.1, 0.01]
-        for softness in [.005]
-            for cats in [4*16, 5*16, 6*16, 7*16]
+        for softness in [.003]
+            for cats in [9*8,10*8,11*8,12*8]
                 for shuffle in [:each_batch] #:each_epoch
                     push!(exps, Experiment(
                         StructLearningPhase(cats),
@@ -19,7 +19,7 @@ experiments = begin
                         MiniTrainingPhase(
                             epochs_1, batch_size, 
                             pseudocount, softness,
-                            0, 1,
+                            0.05, 1.0,
                             0, 0,
                             shuffle, NaN),
                         FullTrainingPhase(
