@@ -8,10 +8,10 @@ include("load_mnist.jl");
 train, test = mnist_gpu()
 
 function experiment(train, test, epochs1, epochs2, epochs3, latents;
-    batch_size=512, pseudocount, softness, param_inertia1, param_inertia_end1, param_inertia2, param_inertia_end2, shuffle=:each_epoch)
+    batch_size=512, latent_heuristic="vanila", pseudocount, softness, param_inertia1, param_inertia_end1, param_inertia2, param_inertia_end2, shuffle=:each_epoch)
 
-    println("Generating HCLT structure with $latents latents")
-    circuit = hclt(train; num_cats=2, num_hidden_cats = latents)
+    println("Generating HCLT structure with $latents latents and latent_heuristic=$latent_heuristic")
+    circuit = hclt(train; num_cats=2, latent_heuristic, num_hidden_cats = latents)
     uniform_parameters!(circuit; perturbation = 0.4)
 
     println("Number of free parameters: $(num_parameters(circuit))")
