@@ -40,12 +40,15 @@ include("helper/plain_dummy_circuits.jl")
     @test dist(left_most_descendent(s1)).sign == true
     @test dist(right_most_descendent(s1)).sign == false
 
-    # v1, v2, v3 = literals(ProbCircuit, 3)
-    # r = v1[1] * 0.3 + 0.7 * v1[2]
-    # @test r isa PlainSumNode
-    # @test all(children(r) .== [v1[1], v1[2]])
-    # @test all(ProbabilisticCircuits.params(r) .≈ log.([0.3, 0.7]))
-    # @test r * v2[1] isa PlainMulNode
-    # @test num_children(v1[1] * v2[1] * v3[1]) == 3
-    # @test num_children(v1[1] + v2[1] + v3[1]) == 3
+    lt = [PlainInputNode(i,LiteralDist(true)) for i=1:3]
+    lf = [PlainInputNode(i,LiteralDist(false)) for i=1:3]
+
+    r = lt[1] * 0.3 + 0.7 * lf[1]
+    @test r isa PlainSumNode
+    @test all(randvar.(inputs(r)) .== PCs.Var(1))
+    @test all(params(r) .≈ log.([0.3, 0.7]))
+    @test r * lt[2] isa PlainMulNode
+    @test num_inputs(lt[1] * lt[2] * lt[3]) == 3
+    @test num_inputs(lt[1] + lt[2] + lt[3]) == 3
+    
 end

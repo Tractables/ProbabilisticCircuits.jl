@@ -112,6 +112,22 @@ Base.:*(xs::ProbCircuit...) = multiply(xs...)
 Base.:+(x::ProbCircuit, y::ProbCircuit) = summate(x,y)
 Base.:+(xs::ProbCircuit...) = summate(xs...)
 
+# circuit construction with arithmetic operators
+struct WeightProbCircuit 
+    weight::Float32
+    pc::ProbCircuit
+end
+
+Base.:*(w::Real, x::ProbCircuit) = WeightProbCircuit(w, x)
+Base.:*(x::ProbCircuit, w::Real) = w * x
+
+function Base.:+(x::WeightProbCircuit...)
+    terms = collect(x)
+    pc = summate(map(x -> x.pc, terms))
+    params(pc) .= log.(map(x -> x.weight, terms))
+    pc
+end
+
 #####################
 # debugging tools
 #####################
