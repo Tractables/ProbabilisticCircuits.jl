@@ -40,13 +40,6 @@ include("helper/plain_dummy_circuits.jl")
     @test dist(left_most_descendent(s1)).sign == true
     @test dist(right_most_descendent(s1)).sign == false
 
-    # r1 = fully_factorized_circuit(ProbCircuit,10)
-    # @test num_parameters(r1) == 2*10+1
-
-    # @test length(mul_nodes(r1)) == 1
-
-    # # compilation tests
-    # @test_throws Exception compile(ProbCircuit, true)
     # v1, v2, v3 = literals(ProbCircuit, 3)
     # r = v1[1] * 0.3 + 0.7 * v1[2]
     # @test r isa PlainSumNode
