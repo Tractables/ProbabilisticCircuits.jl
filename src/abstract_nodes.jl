@@ -30,8 +30,7 @@ DAGs.NodeType(::InputNode) = DAGs.Leaf()
 "Get the inputs of a PC node"
 function inputs end
 
-# inputs correspond to reverse directed edges 
-# TODO: swap the meaning of children and parents in DirectedAcyclicGraphs.jl
+# DirectedAcyclicGraphs.jl has the convention that edges are directed away from the root
 DAGs.children(pc::ProbCircuit) = inputs(pc)
 
 "Get the parameters associated with a sum node"
@@ -84,6 +83,15 @@ Base.:*(x::ProbCircuit, y::ProbCircuit) = multiply(x,y)
 Base.:*(xs::ProbCircuit...) = multiply(xs...)
 Base.:+(x::ProbCircuit, y::ProbCircuit) = summate(x,y)
 Base.:+(xs::ProbCircuit...) = summate(xs...)
+
+function ProbCircuit(pc::ProbCircuit)
+    f_con(n) = compile(PlainLogicCircuit, constant(n)) 
+    f_lit(n) = compile(PlainLogicCircuit, literal(n))
+    f_a(_, cns) = conjoin(cns)
+    f_o(_, cns) = disjoin(cns)
+    foldup_aggregate(circuit, f_con, f_lit, f_a, f_o, PlainLogicCircuit)
+end
+
 
 #####################
 # debugging tools
