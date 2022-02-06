@@ -7,7 +7,7 @@ abstract type PlainProbCircuit <: ProbCircuit end
 
 "A probabilistic input node"
 struct PlainInputNode{D <: InputDist} <: PlainProbCircuit 
-    randvar::UInt32
+    randvar::Var
     dist::D
 end
 
@@ -48,6 +48,8 @@ NodeType(::Type{<:PlainSumNode}) = SumNode()
 #####################
 
 inputs(n::PlainInnerNode) = n.inputs
+dist(n::PlainInputNode) = n.dist
+randvar(n::PlainInputNode) = n.randvar
 
 num_parameters_node(n::PlainInputNode, independent) = 
     num_parameters(dist(n), independent)
@@ -75,4 +77,11 @@ function summate(args::Vector{<:PlainProbCircuit}; reuse=nothing)
     else
         PlainSumNode(args)
     end
+end
+
+function PlainProbCircuit(pc::ProbCircuit)
+    f_i(n) = PlainInputNode(randvar(n), dist(n))
+    f_m(_, ins) = multiply(ins)
+    f_s(_, ins) = summate(ins)
+    foldup_aggregate(pc, f_i, f_m, f_s, PlainProbCircuit)
 end

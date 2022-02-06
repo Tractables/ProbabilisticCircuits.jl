@@ -18,7 +18,7 @@ num_parameters(n::LiteralDist, independent) = 0
 #####################
 
 "A Bernoulli input distribution node"
-struct BernoulliDist <: InputDist
+mutable struct BernoulliDist <: InputDist
     logp::Float32
 end
 

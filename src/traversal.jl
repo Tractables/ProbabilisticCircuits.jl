@@ -39,5 +39,5 @@ Values of type `T` are passed up the circuit and given to `f_m` and `f_s` in an 
 """
 function foldup_aggregate(node::ProbCircuit, f_i::Function, f_m::Function, f_s::Function, ::Type{T}, cache=nothing) where T
     f_inner(n, cs) = issum(n) ? f_s(n, cs)::T : f_m(n, cs)::T
-    foldup_aggregate(node, f_leaf::Function, f_inner::Function, T, cache)::T
+    foldup_aggregate(node, f_i, f_inner, T, cache)::T
 end

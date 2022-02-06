@@ -1,7 +1,7 @@
-using Test
-using ProbabilisticCircuits
-using ProbabilisticCircuits: PlainSumNode, PlainMulNode
+using Test, DirectedAcyclicGraphs, ProbabilisticCircuits
+using ProbabilisticCircuits: PlainSumNode, PlainMulNode, PlainProbCircuit
 import ProbabilisticCircuits as PCs
+
 
 include("helper/plain_dummy_circuits.jl")
 
@@ -19,26 +19,26 @@ include("helper/plain_dummy_circuits.jl")
     @test PCs.NodeType(s1) isa PCs.SumNode
     @test PCs.NodeType(m1) isa PCs.MulNode
     @test length(mulnodes(s1)) == 4
+    @test length(inputnodes(s1)) == 6
+    @test length(sumnodes(s1)) == 5
+    
     @test num_nodes(s1) == 15
     @test num_edges(s1) == 18
+    
+    s1_copy = PlainProbCircuit(s1)
+    @test all(isinput, intersect(linearize(s1), linearize(s1_copy))) 
+
+    @test isinput(left_most_descendent(s1))
+    @test isinput(right_most_descendent(s1))
+    
     @test num_parameters_node(s1, true) == 1
     @test num_parameters_node(s1, false) == 2
+    @test num_parameters(s1) == 5
 
-    # @test all(isleaf, intersect(linearize(ProbCircuit(c1)), linearize(ProbCircuit(c1))))
-    
-    # p1 = ProbCircuit(c1)
-    # lit3 = children(children(p1)[1])[1]
-    # @test lit3 isa PlainProbLiteralNode
-
-    
-    # # methods
-    # @test num_parameters(p1) == 10
-
-    # # extension methods
-    # @test literal(lit3) === literal(children(children(c1)[1])[1])
-    # @test variable(left_most_descendent(p1)) == Var(3)
-    # @test ispositive(left_most_descendent(p1))
-    # @test !isnegative(left_most_descendent(p1))
+    @test randvar(left_most_descendent(s1)) == randvar(left_most_descendent(s1_copy))
+    @test randvar(left_most_descendent(s1)) == PCs.Var(3)
+    @test dist(left_most_descendent(s1)).sign == true
+    @test dist(right_most_descendent(s1)).sign == false
 
     # r1 = fully_factorized_circuit(ProbCircuit,10)
     # @test num_parameters(r1) == 2*10+1
