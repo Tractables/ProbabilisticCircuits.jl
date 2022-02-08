@@ -13,4 +13,6 @@ module ProbabilisticCircuits
 
     include("traversal.jl")
 
+    include("structurelearner/hclts.jl")
+
 end
