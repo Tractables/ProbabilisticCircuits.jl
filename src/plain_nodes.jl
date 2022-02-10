@@ -7,12 +7,14 @@ abstract type PlainProbCircuit <: ProbCircuit end
 
 "A probabilistic input node"
 struct PlainInputNode{D <: InputDist} <: PlainProbCircuit 
-    randvar::Var
+    randvars::Vector{Var}
     dist::D
 end
 
-PlainInputNode(randvar, dist) = 
-    PlainInputNode(convert(UInt32,randvar), dist)
+PlainInputNode(randvars::Vector, dist) = 
+    PlainInputNode(convert(Vector{UInt32}, randvars), dist)
+PlainInputNode(randvar::Integer, dist) = 
+    PlainInputNode(convert(Vector{UInt32}, [randvar]), dist)
 
 "A probabilistic inner node"
 abstract type PlainInnerNode <: PlainProbCircuit end
@@ -49,7 +51,11 @@ NodeType(::Type{<:PlainSumNode}) = SumNode()
 
 inputs(n::PlainInnerNode) = n.inputs
 dist(n::PlainInputNode) = n.dist
-randvar(n::PlainInputNode) = n.randvar
+randvar(n::PlainInputNode) = begin
+    @assert length(n.randvars) == 1 "Calling `randvar` on an input node with more than 1 variable"
+    n.randvars[1]
+end
+randvars(n::PlainInnerNode) = n.randvars
 
 num_parameters_node(n::PlainInputNode, independent) = 
     num_parameters(dist(n), independent)
