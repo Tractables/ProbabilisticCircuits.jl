@@ -13,9 +13,10 @@ abstract type InputDist end
 #    - dist_type_id
 #    - num_parameters
 #    - num_bpc_parameters
-# 2. In queries/likelihood.jl, add code around line 52
-# 3. In queries/flow.jl, add code around line line 177
-# 4. In queries/em.jl, modify the following functions:
+# 2. In queries/bit_circuit.jl, add code around lines 355 and 285
+# 3. In queries/likelihood.jl, add code around line 52
+# 4. In queries/flow.jl, add code around line line 177
+# 5. In queries/em.jl, modify the following functions:
 #    - add_pseudocount_input_kernel
 #    - aggr_node_flows_input_kernel
 #    - update_params_input_kernel
