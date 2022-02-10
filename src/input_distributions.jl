@@ -9,7 +9,17 @@ abstract type InputDist end
 # Whenevery adding a new instance of InputDist, please specify an *UNIQUE* id using `dist_type_id`.
 # The bit circuit needs this information to encode different types of input nodes.
 # In order for the bit circuit code to work for new distributions, please also modify the following:
-# TBD..
+# 1. In this file, add methods: 
+#    - dist_type_id
+#    - num_parameters
+#    - num_bpc_parameters
+# 2. In queries/likelihood.jl, add code around line 52
+# 3. In queries/flow.jl, add code around line line 177
+# 4. In queries/em.jl, modify the following functions:
+#    - add_pseudocount_input_kernel
+#    - aggr_node_flows_input_kernel
+#    - update_params_input_kernel
+# Cheers!
 
 #####################
 # logical literals

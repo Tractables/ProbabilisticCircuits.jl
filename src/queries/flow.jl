@@ -176,6 +176,7 @@ function input_flows_circuit_kernel(flows, nodes, inparams_aggr, input_node_idxs
 
             if dist_type == UInt8(1) # LiteralDist
                 nothing # need to do nothing
+
             elseif dist_type == UInt8(2) # BernoulliDist
                 var = input_node_vars[glob_id, 1]::UInt32
                 v = data[orig_ex_id, var]
@@ -186,12 +187,14 @@ function input_flows_circuit_kernel(flows, nodes, inparams_aggr, input_node_idxs
                         CUDA.@atomic inparams_aggr[glob_id, 2] += node_flow
                     end
                 end
+
             elseif dist_type == UInt8(3) # CategoricalDist
                 var = input_node_vars[glob_id, 1]::UInt32
                 v = data[orig_ex_id, var]
                 if !ismissing(v)
                     CUDA.@atomic inparams_aggr[glob_id, v] += node_flow
                 end
+                
             else
                 @assert false
             end
