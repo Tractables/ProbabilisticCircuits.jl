@@ -5,6 +5,7 @@ export BitsProbCircuit, CuBitsProbCircuit, bit_circuit
 struct BitsInputNode
     global_id::UInt32 # unique identifier for every input node
     dist_type::UInt8 # distribution of the input node
+    num_params::UInt32 # number of parameters in `input_node_params` consumed by this node
 end
 
 struct BitsInnerNode
@@ -72,16 +73,19 @@ abstract type AbstractBitsProbCircuit end
 
 struct BitsProbCircuit <: AbstractBitsProbCircuit
     nodes::Vector{BitsNode}
+    input_node_idxs::Vector{UInt32}
     edge_layers_up::FlatVector{EdgeLayer}
     edge_layers_down::FlatVector{EdgeLayer}
     down2upedge::Vector{Int32}
     input_node_vars::Matrix{UInt32}
     input_node_params::Matrix{Float32}
-    BitsProbCircuit(n, e1, e2, d, iv, ip) = begin
+    inparams_aggr_size::Int32
+    BitsProbCircuit(n, in, e1, e2, d, iv, ip, is) = begin
+        @assert length(in) > 0
         @assert length(e1.vectors) == length(e2.vectors)
         @assert allunique(e1.ends) "No empty layers allowed"
         @assert allunique(e2.ends) "No empty layers allowed"
-        new(n, e1, e2, d, iv, ip)
+        new(n, in, e1, e2, d, iv, ip, is)
     end
 end
 
@@ -99,6 +103,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
     assign_input_node_ids!(pc) # assign every input node an unique id
 
     nodes = BitsNode[]
+    input_node_idxs = Vector{UInt32}()
     node_layers = Vector{Int}[]
     outedges = Vector{Tuple{BitsEdge,Int,Int}}[]
     uplayers = EdgeLayer[]
@@ -108,6 +113,10 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
         push!(nodes, bitsnode)
         push!(outedges, Vector{Tuple{BitsEdge,Int,Int}}())
         id = length(nodes)
+        # add index for input nodes
+        if bitsnode isa BitsInputNode
+            push!(input_node_idxs, convert(UInt32, id))
+        end
         # add node to node layers 
         while length(node_layers) <= layer_id
             push!(node_layers, Int[])
@@ -141,7 +150,10 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
     end
 
     f_leaf(node) = begin
-        node_id = add_node(BitsInputNode(global_id(node), dist_type_id(dist(node))), 0)
+        node_id = add_node(
+            BitsInputNode(global_id(node), dist_type_id(dist(node)), num_parameters_node(node, true)), 
+            0
+        )
         NodeInfo(node_id, 0, 0, 0)
     end
     
@@ -248,7 +260,6 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
 
     input_node_vars = zeros(UInt32, ninput_nodes, max_nvars)
     input_node_params = zeros(Float32, ninput_nodes, max_nparams)
-    @inbounds @views input_node_params .= NaN32
     
     foreach(pc) do n
         if n isa PlainInputNode
@@ -268,9 +279,11 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
             end
         end
     end
+
+    inparams_aggr_size = max_nedgeaggrs_per_input(pc)
     
-    BitsProbCircuit(nodes, flatuplayers, FlatVector(downedges, downlayerends), down2upedges,
-                    input_node_vars, input_node_params)
+    BitsProbCircuit(nodes, input_node_idxs, flatuplayers, FlatVector(downedges, downlayerends), 
+                    down2upedges, input_node_vars, input_node_params, inparams_aggr_size)
 end
 
 const CuEdgeLayer = CuVector{BitsEdge}
@@ -278,14 +291,17 @@ const CuEdgeLayer = CuVector{BitsEdge}
 struct CuBitsProbCircuit <: AbstractBitsProbCircuit
     
     nodes::CuVector{BitsNode}
+    input_node_idxs::CuVector{UInt32}
     edge_layers_up::FlatVector{<:CuEdgeLayer}
     edge_layers_down::FlatVector{<:CuEdgeLayer}
     down2upedge::CuVector{Int32}
     input_node_vars::CuMatrix{UInt32}
     input_node_params::CuMatrix{Float32}
+    inparams_aggr_size::Int32
 
     CuBitsProbCircuit(bpc::BitsProbCircuit) = begin
         nodes = cu(bpc.nodes)
+        input_node_idxs = cu(bpc.input_node_idxs)
         edge_layers_up = FlatVector(cu(bpc.edge_layers_up.vectors), 
                             bpc.edge_layers_up.ends)
         edge_layers_down = FlatVector(cu(bpc.edge_layers_down.vectors), 
@@ -293,7 +309,8 @@ struct CuBitsProbCircuit <: AbstractBitsProbCircuit
         down2upedge = cu(bpc.down2upedge)
         input_node_vars = cu(bpc.input_node_vars)
         input_node_params = cu(bpc.input_node_params)
-        new(nodes, edge_layers_up, edge_layers_down, down2upedge, input_node_vars, input_node_params)
+        new(nodes, input_node_idxs, edge_layers_up, edge_layers_down, down2upedge, input_node_vars, 
+            input_node_params, bpc.inparams_aggr_size)
     end
 end
 

@@ -68,6 +68,9 @@ num_parameters_node(n::PlainMulNode, _) = 0
 num_parameters_node(n::PlainSumNode, independent) = 
     length(params(n)) - (independent ? 1 : 0)
 
+num_bpc_parameters(n::PlainInputNode) = 
+    num_bpc_parameters(dist(n))
+
 function assign_input_node_ids!(pc::PlainProbCircuit)
     global_id::UInt32 = zero(UInt32)
     foreach(pc) do n
@@ -96,6 +99,17 @@ function max_nparams_per_input(pc::PlainProbCircuit)
         if n isa PlainInputNode
             if num_parameters_node(n, true) > max_nparams
                 max_nparams = num_parameters_node(n, true)
+            end
+        end
+    end
+    max_nparams
+end
+function max_nedgeaggrs_per_input(pc::PlainProbCircuit)
+    max_nparams::UInt32 = zero(UInt32)
+    foreach(pc) do n
+        if n isa PlainInputNode
+            if num_bpc_parameters(n) > max_nparams
+                max_nparams = num_bpc_parameters(n)
             end
         end
     end

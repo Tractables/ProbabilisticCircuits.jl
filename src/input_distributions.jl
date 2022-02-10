@@ -23,6 +23,7 @@ end
 dist_type_id(::LiteralDist)::UInt8 = UInt8(1)
 
 num_parameters(n::LiteralDist, independent) = 1 # set to 1 since we need to store the sign
+num_bpc_parameters(n::LiteralDist) = 1 
 
 function input_node(::Type{<:ProbCircuit}, ::Type{LiteralDist}, var; sign::Bool = true)
     PlainInputNode(var, LiteralDist(sign))
@@ -45,6 +46,7 @@ end
 dist_type_id(::BernoulliDist)::UInt8 = UInt8(2)
 
 num_parameters(n::BernoulliDist, independent) = 1
+num_bpc_parameters(n::BernoulliDist) = 2
 
 function input_node(::Type{<:ProbCircuit}, ::Type{BernoulliDist}, var; p::Float32 = 0.5)
     PlainInputNode(var, BernoulliDist(log(p)))
@@ -71,6 +73,7 @@ end
 dist_type_id(::CategoricalDist)::UInt8 = UInt8(3)
 
 num_parameters(n::CategoricalDist, independent) = length(n.logps)
+num_bpc_parameters(n::CategoricalDist) = length(n.logps)
 
 function input_node(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, var; num_cats)
     PlainInputNode(var, CategoricalDist(num_cats))
