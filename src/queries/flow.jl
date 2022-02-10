@@ -168,11 +168,11 @@ function input_flows_circuit_kernel(flows, nodes, inparams_aggr, input_node_idxs
         for node_id = node_start : node_end
             orig_ex_id::Int32 = example_ids[ex_id]
 
-            orig_node_id::UInt32 = input_node_idxs[node_id]
+            orig_node_id = input_node_idxs[node_id]::UInt32
             node_flow::Float32 = flows[orig_ex_id, orig_node_id]
-            node::BitsInputNode = nodes[orig_node_id]
+            node = nodes[orig_node_id]::BitsInputNode
             glob_id = node.global_id::UInt32
-            dist_type = leaf.dist_type::UInt8
+            dist_type = node.dist_type::UInt8
 
             if dist_type == UInt8(1) # LiteralDist
                 nothing # need to do nothing
