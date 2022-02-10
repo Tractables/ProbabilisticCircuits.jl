@@ -9,10 +9,10 @@ import ProbabilisticCircuits as PCs
     n = input_node(ProbCircuit, LiteralDist, 1; sign = true)
     @test randvar(n) == 1
 
-    n = input_node(ProbCircuit, BernoulliDist, 1; sign = true)
+    n = input_node(ProbCircuit, BernoulliDist, 1; p = Float32(0.5))
     @test randvar(n) == 1
 
-    n = input_node(ProbCircuit, CategoricalDist, 1; sign = true)
+    n = input_node(ProbCircuit, CategoricalDist, 1; num_cats = 4)
     @test randvar(n) == 1
     
     ns = input_nodes(ProbCircuit, LiteralDist, 3; sign = true)

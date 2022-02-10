@@ -92,7 +92,7 @@ num_inputs(pc, ::InnerNode) = length(inputs(pc))
 Get a bitset of variables mentioned in the circuit.
 """
 function randvars(pc::ProbCircuit, cache = nothing)::BitSet
-    f_leaf(n) = BitSet(variable(n))
+    f_leaf(n) = BitSet(randvars(n))
     f_inner(n, call) = mapreduce(call, union, inputs(n))
     foldup(pc, f_leaf, f_inner, BitSet, cache)
 end

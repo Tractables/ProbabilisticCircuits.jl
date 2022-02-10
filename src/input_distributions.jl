@@ -3,6 +3,15 @@ export InputDist, LiteralDist, BernoulliDist, CategoricalDist, input_node, input
 abstract type InputDist end
 
 #####################
+# **Important notes for developers**
+#####################
+
+# Whenevery adding a new instance of InputDist, please specify an *UNIQUE* id using `dist_type_id`.
+# The bit circuit needs this information to encode different types of input nodes.
+# In order for the bit circuit code to work for new distributions, please also modify the following:
+# TBD..
+
+#####################
 # logical literals
 #####################
 
@@ -11,7 +20,9 @@ struct LiteralDist <: InputDist
     sign::Bool
 end
 
-num_parameters(n::LiteralDist, independent) = 0
+dist_type_id(::LiteralDist)::UInt8 = UInt8(1)
+
+num_parameters(n::LiteralDist, independent) = 1 # set to 1 since we need to store the sign
 
 function input_node(::Type{<:ProbCircuit}, ::Type{LiteralDist}, var; sign::Bool = true)
     PlainInputNode(var, LiteralDist(sign))
@@ -30,6 +41,8 @@ end
 mutable struct BernoulliDist <: InputDist
     logp::Float32
 end
+
+dist_type_id(::BernoulliDist)::UInt8 = UInt8(2)
 
 num_parameters(n::BernoulliDist, independent) = 1
 
@@ -54,6 +67,8 @@ mutable struct CategoricalDist <: InputDist
         new(logps)
     end
 end
+
+dist_type_id(::CategoricalDist)::UInt8 = UInt8(3)
 
 num_parameters(n::CategoricalDist, independent) = length(n.logps)
 
