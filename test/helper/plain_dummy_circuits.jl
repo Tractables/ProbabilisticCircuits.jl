@@ -22,3 +22,17 @@ function little_3var()
     mul2 = neg * sum2
     mul1 + mul2
 end
+
+function little_3var_bernoulli(; p::Float32 = Float32(0.5))
+    n1 = input_node(ProbCircuit, BernoulliDist, 1; p)
+    n2 = input_node(ProbCircuit, BernoulliDist, 2; p)
+    n3 = input_node(ProbCircuit, BernoulliDist, 3; p)
+    summate(multiply(n1, n2, n3))
+end
+
+function little_3var_categorical(; num_cats::UInt32 = UInt32(3))
+    n1 = input_node(ProbCircuit, CategoricalDist, 1; num_cats)
+    n2 = input_node(ProbCircuit, CategoricalDist, 2; num_cats)
+    n3 = input_node(ProbCircuit, CategoricalDist, 3; num_cats)
+    summate(multiply(n1, n2, n3))
+end

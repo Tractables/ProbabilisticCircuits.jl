@@ -248,6 +248,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
 
     input_node_vars = zeros(UInt32, ninput_nodes, max_nvars)
     input_node_params = zeros(Float32, ninput_nodes, max_nparams)
+    @inbounds @views input_node_params .= NaN32
     
     foreach(pc) do n
         if n isa PlainInputNode
@@ -260,8 +261,8 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
             elseif d isa BernoulliDist
                 @inbounds input_node_params[idx, 1] = d.logp
             elseif d isa CategoricalDist
-                ncats = length(n.logps)
-                @inbounds @views input_node_params[idx, 1:ncats] .= n.logps
+                ncats = length(d.logps)
+                @inbounds @views input_node_params[idx, 1:ncats] .= d.logps
             else
                 error("Unknown distribution type $(typeof(d)).")
             end

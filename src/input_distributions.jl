@@ -62,8 +62,8 @@ end
 "A Categorical input distribution node"
 mutable struct CategoricalDist <: InputDist
     logps::Vector{Float32}
-    CategoricalDist(num_cats::Int) = begin
-        logps = ones(Float32, num_cats) * log(1.0 / num_cats)
+    CategoricalDist(num_cats) = begin
+        logps = ones(Float32, num_cats) .* convert(Float32, log(1.0 / num_cats))
         new(logps)
     end
 end
@@ -72,10 +72,10 @@ dist_type_id(::CategoricalDist)::UInt8 = UInt8(3)
 
 num_parameters(n::CategoricalDist, independent) = length(n.logps)
 
-function input_node(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, var; num_cats::Int)
+function input_node(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, var; num_cats)
     PlainInputNode(var, CategoricalDist(num_cats))
 end
-function input_nodes(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, num_vars; num_cats::Int)
+function input_nodes(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, num_vars; num_cats)
     map(one(Var):Var(num_vars)) do v
         PlainInputNode(v, CategoricalDist(num_cats))
     end

@@ -16,4 +16,5 @@ module ProbabilisticCircuits
     include("structurelearner/hclts.jl")
 
     include("queries/bit_circuit.jl")
+    include("queries/likelihood.jl")
 end
