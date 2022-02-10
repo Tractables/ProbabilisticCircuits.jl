@@ -1,5 +1,7 @@
 using CUDA, Random
 
+export full_batch_em, mini_batch_em
+
 ##################################################################################
 # Count siblings
 ##################################################################################
@@ -76,9 +78,9 @@ function add_pseudocount_input_kernel(inparams_aggr, nodes, input_node_idxs, pse
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node::BitsInputNode = nodes[orig_node_id]
+            node = nodes[orig_node_id]::BitsInputNode
             glob_id = node.global_id::UInt32
-            dist_type = leaf.dist_type::UInt8
+            dist_type = node.dist_type::UInt8
 
             if dist_type == UInt8(1) # LiteralDist
                 nothing # need to do nothing
@@ -153,8 +155,10 @@ end
 # Aggregate node flows for inputs
 ##################################################################################
 
-function aggr_node_flows_input_kernel(inparams_aggr, innode_aggr, nodes, input_node_idxs, pseudocount, 
+function aggr_node_flows_input_kernel(_inparams_aggr, innode_aggr, nodes, input_node_idxs, 
                                       num_node_threads::Int32, param_work::Int32)
+
+    inparams_aggr = Base.Experimental.Const(_inparams_aggr)
 
     threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
 
@@ -169,9 +173,9 @@ function aggr_node_flows_input_kernel(inparams_aggr, innode_aggr, nodes, input_n
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node::BitsInputNode = nodes[orig_node_id]
+            node = nodes[orig_node_id]::BitsInputNode
             glob_id = node.global_id::UInt32
-            dist_type = leaf.dist_type::UInt8
+            dist_type = node.dist_type::UInt8
 
             if dist_type == UInt8(1) # LiteralDist
                 nothing # need to do nothing
@@ -196,6 +200,8 @@ end
 function aggr_node_flows_input(inparams_aggr, innode_aggr, bpc; mine=2, maxe=32)
     nodes = bpc.nodes
     input_node_idxs = bpc.input_node_idxs
+
+    innode_aggr .= zero(Float32)
 
     dummy_args = (inparams_aggr, innode_aggr, nodes, input_node_idxs, Int32(1), Int32(1))
     kernel = @cuda name="aggr_node_flows_input" launch=false aggr_node_flows_input_kernel(dummy_args...)
@@ -286,9 +292,9 @@ function update_params_input_kernel(inparams_aggr, innode_aggr, nodes, input_nod
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node::BitsInputNode = nodes[orig_node_id]
+            node = nodes[orig_node_id]::BitsInputNode
             glob_id = node.global_id::UInt32
-            dist_type = leaf.dist_type::UInt8
+            dist_type = node.dist_type::UInt8
 
             if dist_type == UInt8(1) # LiteralDist
                 nothing # need to do nothing
@@ -394,10 +400,10 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 end
 
 function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
-                       batch_size, pseudocount, softness, report_ll=true,
+                       batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, 
                        edge_aggr_mem = nothing, inparams_aggr_mem = nothing, innode_aggr_mem = nothing, 
-                       mine=2, maxe=32, debug = false)
+                       mine=2, maxe=32, debug = false, verbose = true)
     
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
@@ -410,19 +416,25 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     inparams_aggr = prep_memory(inparams_aggr_mem, (length(bpc.input_node_idxs), bpc.inparams_aggr_size), (true, true))
     innode_aggr = prep_memory(innode_aggr_mem, (length(bpc.input_node_idxs),))
 
+    log_likelihoods = Vector{Float32}()
+
     for epoch = 1:num_epochs
         log_likelihood = full_batch_em_step(bpc, data; 
             batch_size, pseudocount, report_ll,
             marginals, flows, node_aggr, edge_aggr, inparams_aggr, innode_aggr,
             mine, maxe, debug)
-        println("Full-batch EM epoch $epoch; train LL $log_likelihood")
+        push!(log_likelihoods, log_likelihood)
+
+        if verbose
+            println("Full-batch EM epoch $epoch; train LL $log_likelihood")
+        end
     end
     
     cleanup_memory((data, raw_data), (flows, flows_mem), 
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem), 
         (inparams_aggr, inparams_aggr_mem), (innode_aggr, innode_aggr_mem))
 
-    log_likelihood
+    log_likelihoods
 end
 
 #######################
@@ -430,13 +442,14 @@ end
 ######################
 
 function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
-                       batch_size, pseudocount, softness, 
+                       batch_size, pseudocount, 
                        param_inertia, param_inertia_end = param_inertia, 
                        flow_memory = 0, flow_memory_end = flow_memory, 
+                       softness = 0, 
                        shuffle=:each_epoch,  
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
                        inparams_aggr_mem = nothing, innode_aggr_mem = nothing,
-                       mine=2, maxe=32, debug=false)
+                       mine = 2, maxe = 32, debug = false, verbose = true)
 
     @assert pseudocount >= 0
     @assert 0 <= param_inertia <= 1
@@ -480,6 +493,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     Δparam_inertia = (param_inertia_end-param_inertia)/num_epochs
     Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
 
+    log_likelihoods = Vector{Float32}()
+
     for epoch in 1:num_epochs
 
         log_likelihood = zero(Float32)
@@ -492,7 +507,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
 
             if iszero(flow_memory)
                 edge_aggr .= zero(Float32)
-                inparams_aggr .= zeros(Float32)
+                inparams_aggr .= zero(Float32)
             else
                 # slowly forget old edge aggregates
                 rate = max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
@@ -516,7 +531,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         end
             
         log_likelihood /= num_batches
-        println("Mini-batch EM iter $epoch; train LL $log_likelihood")
+        push!(log_likelihoods, log_likelihood)
+        if verbose
+            println("Mini-batch EM iter $epoch; train LL $log_likelihood")
+        end
 
         param_inertia += Δparam_inertia
         flow_memory += Δflow_memory
@@ -527,5 +545,5 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         (inparams_aggr, inparams_aggr_mem), (innode_aggr, innode_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
 
-    nothing
+    log_likelihoods
 end

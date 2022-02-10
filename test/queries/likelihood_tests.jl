@@ -12,8 +12,8 @@ include("../helper/plain_dummy_circuits.jl")
 
     data = cu([true true false; false true false; false false false])
 
-    lls = loglikelihoods(data, bpc; batch_size = 32)
-    avg_ll = avg_loglikelihood(data, bpc; batch_size = 32)
+    lls = loglikelihoods(bpc, data; batch_size = 32)
+    avg_ll = avg_loglikelihood(bpc, data; batch_size = 32)
     
     @test lls[1] ≈ log(Float32(0.125))
     @test lls[2] ≈ log(Float32(0.125))
@@ -23,7 +23,7 @@ include("../helper/plain_dummy_circuits.jl")
     pc = little_3var_bernoulli(; p = Float32(0.6))
     bpc = bit_circuit(pc)
 
-    lls = loglikelihoods(data, bpc; batch_size = 32)
+    lls = loglikelihoods(bpc, data; batch_size = 32)
 
     @test lls[1] ≈ log(Float32(0.6 * 0.6 * 0.4))
     @test lls[2] ≈ log(Float32(0.4 * 0.6 * 0.4))
@@ -34,7 +34,7 @@ include("../helper/plain_dummy_circuits.jl")
     pc = little_3var_categorical(; num_cats = UInt32(5))
     bpc = bit_circuit(pc)
 
-    lls = loglikelihoods(data, bpc; batch_size = 32)
+    lls = loglikelihoods(bpc, data; batch_size = 32)
 
     @test lls[1] ≈ log(Float32(0.2^3))
 

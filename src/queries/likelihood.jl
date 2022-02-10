@@ -281,7 +281,7 @@ function cleanup_memory(used_reused::Tuple...)
     end
 end
 
-function loglikelihoods(data::CuArray, bpc::CuBitsProbCircuit; 
+function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; 
                         batch_size, mars_mem = nothing, 
                         mine=2, maxe=32, debug=false)
 
@@ -311,10 +311,10 @@ function loglikelihoods(data::CuArray, bpc::CuBitsProbCircuit;
     return log_likelihoods
 end
 
-function avg_loglikelihood(data::CuArray, bpc::CuBitsProbCircuit; 
+function avg_loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
                            batch_size, mars_mem = nothing, 
                            mine=2, maxe=32, debug=false)
-    lls = loglikelihoods(data, bpc; batch_size, mars_mem, mine, maxe, debug)
+    lls = loglikelihoods(bpc, data; batch_size, mars_mem, mine, maxe, debug)
 
     return sum(lls) / length(lls)
 end
