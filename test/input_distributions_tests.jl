@@ -5,6 +5,15 @@ import ProbabilisticCircuits as PCs
 
 
 @testset "input distributions" begin
+
+    n = input_node(ProbCircuit, LiteralDist, 1; sign = true)
+    @test randvar(n) == 1
+
+    n = input_node(ProbCircuit, BernoulliDist, 1; sign = true)
+    @test randvar(n) == 1
+
+    n = input_node(ProbCircuit, CategoricalDist, 1; sign = true)
+    @test randvar(n) == 1
     
     ns = input_nodes(ProbCircuit, LiteralDist, 3; sign = true)
     @test length(ns) == 3

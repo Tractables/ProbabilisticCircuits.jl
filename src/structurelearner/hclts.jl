@@ -24,35 +24,20 @@ function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
     clt = clt_edges2graphs(edges)[1]
     
     # compile hclt from clt
-    observed_leafs = categorical_leaves(num_vars, num_cats, input_type, T)
-    pc = hclt_from_clt_vanila(clt::MetaDiGraph, num_cats; num_hidden_cats, leaves=observed_leafs)
+    pc = hclt_from_clt_vanila(clt::MetaDiGraph, num_cats; num_hidden_cats, input_type)
     
     pc
 end
 
 
 function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T} = ProbCircuit;
-            num_hidden_cats::Integer = 16, leaves = nothing, input_type::Type{<:InputDist} = LiteralDist) where T
-    
-    # Circuits representing the leaves
-    # hidden_leafs = categorical_leafs(num_vars, num_hidden_cats, T; var_idx_offset)
+                              num_hidden_cats::Integer = 16, input_type::Type{<:InputDist} = LiteralDist) where T
     
     num_vars = nv(clt)
 
-    if isnothing(leaves)
-        leaves = categorical_leaves(num_vars, num_cats, input_type, T)
-    end
-    
-    # meaning: `joined_leafs[i,j]` is a distribution of the hidden variable `i` having value `j` 
+    # meaning: `joined_leaves[i,j]` is a distribution of the hidden variable `i` having value `j` 
     # conditioned on the observed variable `i`
-    gen_joined_leaf(var_idx, _) = begin
-        # This line encodes the hidden leafs explicitly
-        # summate([multiply(hidden_leafs[var_idx, hidden_cat_idx], observed_leafs[var_idx, i]) for i = 1 : num_cats])
-        
-        # This line does not encode the hidden leafs
-        summate(leaves[var_idx, :])
-    end
-    joined_leafs = gen_joined_leaf.(1:num_vars, (1:num_hidden_cats)')
+    joined_leaves = categorical_leaves(num_vars, num_cats, input_type, T; num_hidden_cats)
     
     # Construct the CLT circuit bottom-up
     node_seq = bottom_up_order(clt)
@@ -66,7 +51,7 @@ function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T} = P
         if length(out_neighbors) == 0
             # Leaf node
             # We do not add hidden variables for leaf nodes
-            circuits = [summate(leaves[curr_node, :]) for idx = 1 : num_hidden_cats]
+            circuits = joined_leaves[curr_node, :]
             set_prop!(clt, curr_node, :circuits, circuits)
         else
             # Inner node
@@ -80,7 +65,7 @@ function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T} = P
                 child_circuits = child_circuits[1]
             end
             # Pr(X_1)...Pr(X_k) -> Pr(Y)Pr(X_1|Y)...Pr(X_k|Y)
-            circuits = [summate(multiply.(child_circuits, joined_leafs[curr_node, :])) for cat_idx = 1 : num_hidden_cats]
+            circuits = [summate(multiply.(child_circuits, joined_leaves[curr_node, :])) for cat_idx = 1 : num_hidden_cats]
             set_prop!(clt, curr_node, :circuits, circuits)
         end
     end
@@ -90,7 +75,7 @@ end
 
 
 clt_edges2graphs(edges::Vector{<:Vector}) = map(edges) do e
-        clt_edges2graphs(e)
+    clt_edges2graphs(e)
 end
 
 
@@ -116,7 +101,7 @@ end
 
 
 function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDist},Type{BernoulliDist}}, 
-                            ::Type{T} = ProbCircuit) where T
+                            ::Type{T} = ProbCircuit; num_hidden_cats::Integer) where T
     num_bits = num_bits_per_cat(num_cats)
 
     if input_type == LiteralDist
@@ -143,7 +128,21 @@ function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDi
         end
     end
 
-    cat_leaf.(1:num_vars, (1:num_cats)')
+    leaves = cat_leaf.(1:num_vars, (1:num_cats)')
+
+    gen_joined_leaf(var, _) = begin
+        summate(leaves[var, :])
+    end
+
+    gen_joined_leaf.(1:num_vars, (1:num_hidden_cats)')
+end
+function categorical_leaves(num_vars, num_cats, input_type::Type{CategoricalDist}, ::Type{T} = ProbCircuit;
+                            num_hidden_cats::Integer) where T
+    cat_leaf(var, hidden_cat) = begin
+        input_node(T, CategoricalDist, var; num_cats)
+    end
+
+    cat_leaf.(1:num_vars, (1:num_hidden_cats)')
 end
 
 

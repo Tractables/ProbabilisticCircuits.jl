@@ -1,4 +1,4 @@
-export InputDist, LiteralDist, BernoulliDist, CategoricalDist, input_nodes
+export InputDist, LiteralDist, BernoulliDist, CategoricalDist, input_node, input_nodes
 
 abstract type InputDist end
 
@@ -13,6 +13,9 @@ end
 
 num_parameters(n::LiteralDist, independent) = 0
 
+function input_node(::Type{<:ProbCircuit}, ::Type{LiteralDist}, var; sign::Bool = true)
+    PlainInputNode(var, LiteralDist(sign))
+end
 function input_nodes(::Type{<:ProbCircuit}, ::Type{LiteralDist}, num_vars; sign::Bool = true)
     map(one(Var):Var(num_vars)) do v
         PlainInputNode(v, LiteralDist(sign))
@@ -30,6 +33,9 @@ end
 
 num_parameters(n::BernoulliDist, independent) = 1
 
+function input_node(::Type{<:ProbCircuit}, ::Type{BernoulliDist}, var; p::Float32 = 0.5)
+    PlainInputNode(var, BernoulliDist(log(p)))
+end
 function input_nodes(::Type{<:ProbCircuit}, ::Type{BernoulliDist}, num_vars; p::Float32 = 0.5)
     map(one(Var):Var(num_vars)) do v
         PlainInputNode(v, BernoulliDist(log(p)))
@@ -51,6 +57,9 @@ end
 
 num_parameters(n::CategoricalDist, independent) = length(n.logps)
 
+function input_node(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, var; num_cats::Int)
+    PlainInputNode(var, CategoricalDist(num_cats))
+end
 function input_nodes(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, num_vars; num_cats::Int)
     map(one(Var):Var(num_vars)) do v
         PlainInputNode(v, CategoricalDist(num_cats))
