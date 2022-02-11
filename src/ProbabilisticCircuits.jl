@@ -13,7 +13,7 @@ module ProbabilisticCircuits
 
     include("traversal.jl")
 
-    include("structurelearner/hclts.jl")
+    include("structures/hclts.jl")
 
     include("queries/bit_circuit.jl")
     include("queries/likelihood.jl")

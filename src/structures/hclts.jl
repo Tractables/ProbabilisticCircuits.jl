@@ -105,12 +105,11 @@ function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDi
     num_bits = num_bits_per_cat(num_cats)
 
     if input_type == LiteralDist
-        plits = input_nodes(ProbCircuit, LiteralDist, num_vars * num_bits; sign = true)
-        nlits = input_nodes(ProbCircuit, LiteralDist, num_vars * num_bits; sign = false)
+        plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars * num_bits]
+        nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars * num_bits]
     else
         @assert input_type == BernoulliDist
-        plits = input_nodes(ProbCircuit, BernoulliDist, num_vars * num_bits; p = Float32(0.9))
-        nlits = input_nodes(ProbCircuit, BernoulliDist, num_vars * num_bits; p = Float32(0.1))
+        error("TODO: implement way of replacing sum nodes by Berns")
     end
     
     cat_leaf(var, cat) = begin
@@ -136,10 +135,11 @@ function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDi
 
     gen_joined_leaf.(1:num_vars, (1:num_hidden_cats)')
 end
+
 function categorical_leaves(num_vars, num_cats, input_type::Type{CategoricalDist}, ::Type{T} = ProbCircuit;
                             num_hidden_cats::Integer) where T
     cat_leaf(var, hidden_cat) = begin
-        input_node(T, CategoricalDist, var; num_cats)
+        PlainInputNode(var, CategoricalDist(num_cats))
     end
 
     cat_leaf.(1:num_vars, (1:num_hidden_cats)')

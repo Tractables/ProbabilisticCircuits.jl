@@ -4,7 +4,7 @@ export ProbCircuit,
     inputnodes, mulnodes, sumnodes, 
     num_parameters, num_parameters_node, params,
     inputs, num_inputs,
-    dist, randvars
+    dist, randvars, randvar
 
 const Var = UInt32
 
@@ -65,10 +65,10 @@ ismul(n) = (NodeType(n) isa MulNode)
 "Is the node a summation?"
 issum(n) = (NodeType(n) isa SumNode)
 
-"Get all multiplication nodes in a given circuit"
+"Get all input nodes in a given circuit"
 inputnodes(pc) = filter(isinput, pc)
 
-"Get all input nodes in a given circuit"
+"Get all multiplication nodes in a given circuit"
 mulnodes(pc) = filter(ismul, pc)
 
 "Get all summation nodes in a given circuit"
@@ -88,10 +88,15 @@ num_inputs(pc, ::InnerNode) = length(inputs(pc))
 
 Get a bitset of variables mentioned in the circuit.
 """
-function randvars(pc::ProbCircuit, cache = nothing)::BitSet
-    f_leaf(n) = BitSet(randvars(n))
+function randvars(pc, cache = nothing)::BitSet
     f_inner(n, call) = mapreduce(call, union, inputs(n))
-    foldup(pc, f_leaf, f_inner, BitSet, cache)
+    foldup(pc, randvars, f_inner, BitSet, cache)
+end
+
+function randvar(pc)
+    rvs = randvars(pc)
+    @assert length(rvs) == 1 "Calling `randvar` on an input node with more than 1 variable"
+    first(rvs)
 end
 
 "Number of variables in the data structure"

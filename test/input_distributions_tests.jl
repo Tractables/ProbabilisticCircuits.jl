@@ -2,8 +2,6 @@ using Test, DirectedAcyclicGraphs, ProbabilisticCircuits
 using ProbabilisticCircuits: PlainSumNode, PlainMulNode, PlainProbCircuit
 import ProbabilisticCircuits as PCs
 
-
-
 @testset "input distributions" begin
 
     n = input_node(ProbCircuit, LiteralDist, 1; sign = true)

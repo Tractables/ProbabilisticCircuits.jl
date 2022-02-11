@@ -31,19 +31,10 @@ struct LiteralDist <: InputDist
     sign::Bool
 end
 
-dist_type_id(::LiteralDist)::UInt8 = UInt8(1)
-
 num_parameters(n::LiteralDist, independent) = 1 # set to 1 since we need to store the sign
 num_bpc_parameters(n::LiteralDist) = 1 
 
-function input_node(::Type{<:ProbCircuit}, ::Type{LiteralDist}, var; sign::Bool = true)
-    PlainInputNode(var, LiteralDist(sign))
-end
-function input_nodes(::Type{<:ProbCircuit}, ::Type{LiteralDist}, num_vars; sign::Bool = true)
-    map(one(Var):Var(num_vars)) do v
-        PlainInputNode(v, LiteralDist(sign))
-    end
-end
+sign(d::LiteralDist) = d.sign
 
 #####################
 # coin flips
@@ -54,19 +45,12 @@ mutable struct BernoulliDist <: InputDist
     logp::Float32
 end
 
-dist_type_id(::BernoulliDist)::UInt8 = UInt8(2)
+BernoulliDist() = BernoulliDist(log(0.5))
 
 num_parameters(n::BernoulliDist, independent) = 1
 num_bpc_parameters(n::BernoulliDist) = 2
 
-function input_node(::Type{<:ProbCircuit}, ::Type{BernoulliDist}, var; p::Float32 = 0.5)
-    PlainInputNode(var, BernoulliDist(log(p)))
-end
-function input_nodes(::Type{<:ProbCircuit}, ::Type{BernoulliDist}, num_vars; p::Float32 = 0.5)
-    map(one(Var):Var(num_vars)) do v
-        PlainInputNode(v, BernoulliDist(log(p)))
-    end
-end
+logp(d::BernoulliDist) = d.logp
 
 #####################
 # categorical
@@ -75,22 +59,17 @@ end
 "A Categorical input distribution node"
 mutable struct CategoricalDist <: InputDist
     logps::Vector{Float32}
-    CategoricalDist(num_cats) = begin
-        logps = ones(Float32, num_cats) .* convert(Float32, log(1.0 / num_cats))
-        new(logps)
-    end
 end
 
-dist_type_id(::CategoricalDist)::UInt8 = UInt8(3)
-
-num_parameters(n::CategoricalDist, independent) = length(n.logps)
-num_bpc_parameters(n::CategoricalDist) = length(n.logps)
-
-function input_node(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, var; num_cats)
-    PlainInputNode(var, CategoricalDist(num_cats))
+function CategoricalDist(num_cats::Int)
+    logps = zeros(Float32, num_cats) .- log(num_cats) 
+    CategoricalDist(logps)
 end
-function input_nodes(::Type{<:ProbCircuit}, ::Type{CategoricalDist}, num_vars; num_cats)
-    map(one(Var):Var(num_vars)) do v
-        PlainInputNode(v, CategoricalDist(num_cats))
-    end
-end
+
+num_parameters(n::CategoricalDist, independent) = 
+    num_categories(n) - independent ? 1 : 0
+num_bpc_parameters(n::CategoricalDist) = num_categories(n.logps)
+
+logps(d::CategoricalDist) = d.logps
+
+num_categories(d::CategoricalDist) = length(logps(d))
