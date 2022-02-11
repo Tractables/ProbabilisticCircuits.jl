@@ -38,6 +38,8 @@ num_bpc_parameters(n::Indicator) = 1
 
 value(d) = d.value
 
+bits(d::Indicator, _ = nothing) = d
+
 #####################
 # categorical
 #####################
@@ -70,9 +72,10 @@ num_parameters(n::CategoricalDist, independent) =
 
 
 "A Bernoulli input distribution node"
-mutable struct BernoulliDist <: CategoricalDist
-    # note that we special case Bernoullis from Categoricals in order to 
+struct BernoulliDist <: CategoricalDist
+    # 1/ note that we special case Bernoullis from Categoricals in order to 
     # perhaps speed up memory loads on the GPU, since the logp here does not need a pointer
+    # 2/ note that containers of BernoulliDist are mutable, so this struct can remain immutable and isbits
     logp::Float32
 end
 
@@ -84,11 +87,13 @@ num_bpc_parameters(n::BernoulliDist) = 2
 
 logp(d::BernoulliDist) = d.logp
 
+bits(d::BernoulliDist, _ = nothing) = d
+
 #####################
 # categorical with more than two values
 #####################
 
-mutable struct PolytomousDist <: CategoricalDist
+struct PolytomousDist <: CategoricalDist
     logps::Vector{Float32}
 end
 
@@ -100,3 +105,10 @@ num_bpc_parameters(n::PolytomousDist) = num_categories(n.logps)
 logps(d::PolytomousDist) = d.logps
 
 num_categories(d::PolytomousDist) = length(logps(d))
+struct BitsPolytomousDist
+    logp_start::UInt32
+    logp_end::UInt32
+end
+
+bits(d::PolytomousDist, heap) = 
+    BitsPolytomousDist(1,1) #TODO

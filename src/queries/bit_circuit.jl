@@ -1,18 +1,24 @@
-using CUDA, Random
+using CUDA
 
-export BitsProbCircuit, CuBitsProbCircuit, bit_circuit, cache_parameters!
+export BitsProbCircuit, CuBitsProbCircuit, copy_parameters!
 
-struct BitsInputNode
-    global_id::UInt32 # unique identifier for every input node
-    dist_type::UInt8 # distribution of the input node
-    num_params::UInt32 # number of parameters in `input_node_params` consumed by this node
+
+abstract type BitsNode end
+
+struct BitsInputNode{D} <: BitsNode
+    variable::UInt32
+    dist::D
 end
 
-struct BitsInnerNode
+function bits(in::PlainInputNode, heap)
+    vars = UInt32.(randvars(in))
+    bits_dist = bits(dist(in), heap)
+    BitsInputNode(vars..., bits_dist)
+end
+
+struct BitsInnerNode <: BitsNode
     issum::Bool
 end
-
-const BitsNode = Union{BitsInputNode, BitsInnerNode}
 
 struct SumEdge 
     parent_id::UInt32
@@ -347,7 +353,7 @@ end
 # map parameters back to ProbCircuit
 #####################
 
-function cache_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
+function copy_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
     edge_layers = unflatten(bpc.edge_layers_up)
     input_node_params = bpc.input_node_params
     sumnode2edges = bpc.sumnode2edges
@@ -377,7 +383,7 @@ function cache_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
     end
     nothing
 end
-function cache_parameters!(pc::ProbCircuit, bpc::CuBitsProbCircuit)
+function copy_parameters!(pc::ProbCircuit, bpc::CuBitsProbCircuit)
     nodes = Array(bpc.nodes)
     input_node_idxs = Array(bpc.input_node_idxs)
     edge_layers_up = FlatVector(Array(bpc.edge_layers_up.vectors),
@@ -391,5 +397,5 @@ function cache_parameters!(pc::ProbCircuit, bpc::CuBitsProbCircuit)
                           input_node_vars, input_node_params, bpc.inparams_aggr_size, 
                           bpc.sumnode2edges)
                     
-    cache_parameters!(pc, bpc)
+    copy_parameters!(pc, bpc)
 end
