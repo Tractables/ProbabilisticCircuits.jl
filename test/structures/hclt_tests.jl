@@ -17,9 +17,9 @@ import ProbabilisticCircuits as PCs
     @test pc isa ProbCircuit
     @test num_inputs(pc) == 4
     @test randvar(pc.inputs[1].inputs[2].inputs[1]) == UInt32(1)
-    @test pc.inputs[1].inputs[2].inputs[1].dist.sign == true
+    @test value(dist(pc.inputs[1].inputs[2].inputs[1])) == true
     @test randvar(pc.inputs[1].inputs[2].inputs[2]) == UInt32(1)
-    @test pc.inputs[1].inputs[2].inputs[2].dist.sign == false
+    @test value(dist(pc.inputs[1].inputs[2].inputs[2])) == false
     
     # TODO FIX
     # pc = hclt(data, 4; input_type = BernoulliDist)
@@ -32,6 +32,6 @@ import ProbabilisticCircuits as PCs
     pc = hclt(data, 4; input_type = CategoricalDist)
     
     @test randvar(pc.inputs[1].inputs[2]) == UInt32(1)
-    @test all(pc.inputs[1].inputs[2].dist.logps .≈ [log(0.5), log(0.5)])
+    @test pc.inputs[1].inputs[2].dist.logp ≈ log(0.5)
     
 end

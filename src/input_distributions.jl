@@ -1,4 +1,4 @@
-export InputDist, LiteralDist, BernoulliDist, CategoricalDist, input_node, input_nodes
+export InputDist, Indicator, LiteralDist, BernoulliDist, CategoricalDist
 
 abstract type InputDist end
 
@@ -23,53 +23,80 @@ abstract type InputDist end
 # Cheers!
 
 #####################
-# logical literals
+# indicators or logical literals
 #####################
 
 "A logical literal input distribution node"
-struct LiteralDist <: InputDist
-    sign::Bool
+struct Indicator{T} <: InputDist
+    value::T
 end
 
-num_parameters(n::LiteralDist, independent) = 1 # set to 1 since we need to store the sign
-num_bpc_parameters(n::LiteralDist) = 1 
+const LiteralDist = Indicator{Bool}
 
-sign(d::LiteralDist) = d.sign
+num_parameters(n::Indicator, independent) = 1 # set to 1 since we need to store the value
+num_bpc_parameters(n::Indicator) = 1 
 
-#####################
-# coin flips
-#####################
-
-"A Bernoulli input distribution node"
-mutable struct BernoulliDist <: InputDist
-    logp::Float32
-end
-
-BernoulliDist() = BernoulliDist(log(0.5))
-
-num_parameters(n::BernoulliDist, independent) = 1
-num_bpc_parameters(n::BernoulliDist) = 2
-
-logp(d::BernoulliDist) = d.logp
+value(d) = d.value
 
 #####################
 # categorical
 #####################
 
 "A Categorical input distribution node"
-mutable struct CategoricalDist <: InputDist
-    logps::Vector{Float32}
+abstract type CategoricalDist <: InputDist end
+
+function CategoricalDist(logps::Vector)
+    @assert sum(exp.(logps)) ≈ 1
+    if length(logps) == 2
+        BernoulliDist(logps[2])
+    else
+        @assert length(logps) > 2 "Categorical distributions need at least 2 values"
+        PolytomousDist(logps)
+    end
 end
 
-function CategoricalDist(num_cats::Int)
-    logps = zeros(Float32, num_cats) .- log(num_cats) 
-    CategoricalDist(logps)
-end
+loguniform(num_cats) = 
+    zeros(Float32, num_cats) .- log(num_cats) 
+
+CategoricalDist(num_cats::Int) =
+    CategoricalDist(loguniform(num_cats))
 
 num_parameters(n::CategoricalDist, independent) = 
     num_categories(n) - independent ? 1 : 0
-num_bpc_parameters(n::CategoricalDist) = num_categories(n.logps)
 
-logps(d::CategoricalDist) = d.logps
+#####################
+# coin flips
+#####################
 
-num_categories(d::CategoricalDist) = length(logps(d))
+
+"A Bernoulli input distribution node"
+mutable struct BernoulliDist <: CategoricalDist
+    # note that we special case Bernoullis from Categoricals in order to 
+    # perhaps speed up memory loads on the GPU, since the logp here does not need a pointer
+    logp::Float32
+end
+
+BernoulliDist() = BernoulliDist(log(0.5))
+
+num_categories(::BernoulliDist) = 2
+
+num_bpc_parameters(n::BernoulliDist) = 2
+
+logp(d::BernoulliDist) = d.logp
+
+#####################
+# categorical with more than two values
+#####################
+
+mutable struct PolytomousDist <: CategoricalDist
+    logps::Vector{Float32}
+end
+
+PolytomousDist(num_cats::Int) =
+    PolytomousDist(loguniform(num_cats)gps)
+
+num_bpc_parameters(n::PolytomousDist) = num_categories(n.logps)
+
+logps(d::PolytomousDist) = d.logps
+
+num_categories(d::PolytomousDist) = length(logps(d))

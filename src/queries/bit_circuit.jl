@@ -282,7 +282,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
             nvars = num_randvars(n)
             @inbounds @views input_node_vars[idx, 1:nvars] .= collect(randvars(n))
             d = dist(n)
-            if d isa LiteralDist
+            if d isa Indicator
                 @inbounds input_node_params[idx, 1] = ifelse(d.sign, one(Float32), zero(Float32))
             elseif d isa BernoulliDist
                 @inbounds input_node_params[idx, 1] = d.logp
@@ -354,7 +354,7 @@ function cache_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
     foreach(pc) do n
         if n isa PlainInputNode
             glob_id = n.global_id
-            if dist(n) isa LiteralDist
+            if dist(n) isa Indicator
                 nothing # do nothing
             elseif dist(n) isa BernoulliDist
                 n.dist.logp = input_node_params[glob_id, 1]

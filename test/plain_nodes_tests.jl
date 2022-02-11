@@ -1,5 +1,5 @@
 using Test, DirectedAcyclicGraphs, ProbabilisticCircuits
-using ProbabilisticCircuits: PlainSumNode, PlainMulNode, PlainProbCircuit
+using ProbabilisticCircuits: PlainSumNode, PlainMulNode, PlainProbCircuit, value
 import ProbabilisticCircuits as PCs
 
 
@@ -37,8 +37,8 @@ include("helper/plain_dummy_circuits.jl")
 
     @test randvar(left_most_descendent(s1)) == randvar(left_most_descendent(s1_copy))
     @test randvar(left_most_descendent(s1)) == PCs.Var(3)
-    @test dist(left_most_descendent(s1)).sign == true
-    @test dist(right_most_descendent(s1)).sign == false
+    @test value(dist(left_most_descendent(s1))) == true
+    @test value(dist(right_most_descendent(s1))) == false
 
     lt = [PlainInputNode(i,LiteralDist(true)) for i=1:3]
     lf = [PlainInputNode(i,LiteralDist(false)) for i=1:3]
