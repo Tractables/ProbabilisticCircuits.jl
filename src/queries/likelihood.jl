@@ -135,8 +135,6 @@ end
 # Upward pass
 ##################################################################################
 
-import StatsFuns: logsumexp # extend
-
 function logsumexp(x::Float32,y::Float32)
     if isfinite(x) && isfinite(y)
         # note: @fastmath does not work with infinite values, so do not apply above

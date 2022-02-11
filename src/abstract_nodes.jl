@@ -4,7 +4,7 @@ export ProbCircuit,
     inputnodes, mulnodes, sumnodes, 
     num_parameters, num_parameters_node, params,
     inputs, num_inputs,
-    dist, randvar, randvars
+    dist, randvars
 
 const Var = UInt32
 
@@ -51,9 +51,6 @@ function multiply end
 
 "Sum nodes into a single circuit"
 function summate end
-
-"Get the random variable associated with a PC input node"
-function randvar end
 
 #####################
 # derived functions

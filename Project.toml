@@ -7,7 +7,9 @@ version = "0.4.0"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChowLiuTrees = "be466665-d60c-4e0a-9ae9-070eb5e678a5"
 DirectedAcyclicGraphs = "1e6dae5e-d6e2-422d-9af3-452e7a3785ee"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 Lerche = "d42ef402-04e6-4356-9f73-091573ea58dc"
+MetaGraphs = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
