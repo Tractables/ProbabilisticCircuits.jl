@@ -1,43 +1,30 @@
-using ChowLiuTrees, CUDA
+using CUDA
+using ChowLiuTrees: learn_chow_liu_tree
 using Graphs: SimpleGraph, SimpleDiGraph, bfs_tree, center, 
 connected_components, induced_subgraph, nv, add_edge!
 using MetaGraphs: get_prop, set_prop!, MetaDiGraph, vertices, indegree, outneighbors
 
 export hclt
 
-
-num_categories(d::Matrix) = length(unique(d))
-num_categories(d::CuMatrix) = length(unique(Array(d)))
-
-
-function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
-              input_type::Type{<:InputDist} = LiteralDist,
-              num_cats::Integer = num_categories(data),
-              num_hidden_cats::Integer = 16,
-              pseudocount::Float64 = 0.1,
-              Float=Float32) where T
+function hclt(data, num_hidden_cats;
+              input_type = LiteralDist,
+              pseudocount = 0.1) where T
     
-    num_vars = size(data, 2)
-
-    # Chow-Liu Tree (CLT) given data
-    edges = ChowLiuTrees.learn_chow_liu_tree(data; num_trees=1, dropout_prob=0.0, weights=nothing, pseudocount, Float)
-    clt = clt_edges2graphs(edges)[1]
+    clt_edges = learn_chow_liu_tree(data; pseudocount, Float=Float32)
+    clt = clt_edges2graphs(clt_edges)
     
-    # compile hclt from clt
-    pc = hclt_from_clt_vanila(clt::MetaDiGraph, num_cats; num_hidden_cats, input_type)
-    
-    pc
+    num_cats = maximum(data) - minimum(data) + 1
+    hclt_from_clt(clt, num_cats, num_hidden_cats; input_type)
 end
 
 
-function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T} = ProbCircuit;
-                              num_hidden_cats::Integer = 16, input_type::Type{<:InputDist} = LiteralDist) where T
+function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = LiteralDist)
     
     num_vars = nv(clt)
 
     # meaning: `joined_leaves[i,j]` is a distribution of the hidden variable `i` having value `j` 
     # conditioned on the observed variable `i`
-    joined_leaves = categorical_leaves(num_vars, num_cats, input_type, T; num_hidden_cats)
+    joined_leaves = categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type)
     
     # Construct the CLT circuit bottom-up
     node_seq = bottom_up_order(clt)
@@ -73,12 +60,6 @@ function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T} = P
     get_prop(clt, node_seq[end], :circuits)[1] # A ProbCircuit node
 end
 
-
-clt_edges2graphs(edges::Vector{<:Vector}) = map(edges) do e
-    clt_edges2graphs(e)
-end
-
-
 function clt_edges2graphs(edges::Vector{Tuple{Int,Int}})
     vars = sort(collect(Set(append!(first.(edges), last.(edges)))))
     @assert all(vars .== collect(1:maximum(vars))) "Variables are not contiguous"
@@ -100,8 +81,8 @@ function clt_edges2graphs(edges::Vector{Tuple{Int,Int}})
 end
 
 
-function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDist},Type{BernoulliDist}}, 
-                            ::Type{T} = ProbCircuit; num_hidden_cats::Integer) where T
+function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
+                            input_type::Union{Type{LiteralDist},Type{BernoulliDist}})
     num_bits = num_bits_per_cat(num_cats)
 
     if input_type == LiteralDist
@@ -113,8 +94,9 @@ function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDi
     end
     
     cat_leaf(var, cat) = begin
+        # TODO remove this conversion, no longer needed
         bits = to_bits(cat, num_bits)
-        binary_leafs = Vector{T}(undef, num_bits)
+        binary_leafs = Vector{PlainInputNode}(undef, num_bits)
         for i = 1 : num_bits
             bit_index = (var-1) * num_bits + i
             lit = bits[i] ? plits[bit_index] : nlits[bit_index]
@@ -127,27 +109,17 @@ function categorical_leaves(num_vars, num_cats, input_type::Union{Type{LiteralDi
         end
     end
 
-    leaves = cat_leaf.(1:num_vars, (1:num_cats)')
-
-    gen_joined_leaf(var, _) = begin
-        summate(leaves[var, :])
-    end
-
-    gen_joined_leaf.(1:num_vars, (1:num_hidden_cats)')
+    leaves = [cat_leaf(v,c) for v=1:num_vars, c=1:num_cats]
+    [summate(leaves[var, :]) 
+        for var=1:num_vars, copy=1:num_hidden_cats]
 end
 
-function categorical_leaves(num_vars, num_cats, input_type::Type{CategoricalDist}, ::Type{T} = ProbCircuit;
-                            num_hidden_cats::Integer) where T
-    cat_leaf(var, hidden_cat) = begin
-        PlainInputNode(var, CategoricalDist(num_cats))
-    end
-
-    cat_leaf.(1:num_vars, (1:num_hidden_cats)')
+function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Type{CategoricalDist})
+    [PlainInputNode(var, CategoricalDist(num_cats)) 
+        for var=1:num_vars, copy=1:num_hidden_cats]
 end
-
 
 num_bits_per_cat(num_cats) = ceil(Int, log2(num_cats))
-
 
 function to_bits(category, num_bits, bits = BitVector(undef, num_bits))
     for bit_idx = 1:num_bits
