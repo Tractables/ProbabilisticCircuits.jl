@@ -106,13 +106,15 @@ logps(d::PolytomousDist) = d.logps
 
 num_categories(d::PolytomousDist) = length(logps(d))
 struct BitsPolytomousDist
-    logp_start::UInt32
-    logp_end::UInt32
+    num_cats::UInt32
+    heap_start::UInt32
 end
 
 function bits(d::PolytomousDist, heap) 
-    first = length(heap) + 1
+    num_cats = num_categories(d)
+    heap_start = length(heap) + 1
+    # use heap to store parameters and space for parameter learning
     append!(heap, logps(d))
-    last = length(heap)
-    BitsPolytomousDist(first, last)
+    append!(heap, zeroes(num_cats))
+    BitsPolytomousDist(num_cats, heap_start)
 end

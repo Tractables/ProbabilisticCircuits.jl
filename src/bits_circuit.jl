@@ -131,8 +131,6 @@ struct BitsProbCircuit
     end
 end
 
-    
-
 struct CuBitsProbCircuit{BitsNodes <: BitsNode}
     
     # all the nodes in the circuit
@@ -156,6 +154,7 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode}
     CuBitsProbCircuit(bpc) = begin
         # find union of bits node types actually used in the circuit
         BitsNodes = mapreduce(typeof, (x,y) -> Union{x,y}, bpc.nodes)
+        @assert Base.isbitsunion(BitsNodes)
         nodes = CuVector{BitsNodes}(bpc.nodes)
         input_node_ids = cu(bpc.input_node_ids)
         edge_layers_up = cu(bpc.edge_layers_up)
@@ -167,8 +166,6 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode}
 
 end
 
-
-
 ###############################################
 # converting a PC into a BitsPC
 ###############################################
@@ -176,8 +173,20 @@ end
 struct NodeInfo
     prime_id::Int
     prime_layer_id::Int
-    sub_id::Int
+    sub_id::Int # 0 means no sub
     sub_layer_id::Int
+end
+
+struct InputsInfo
+    layer_id::Int
+    edge_start_id::Int
+    edge_end_id::Int
+end
+
+struct OutputInfo
+    edge::BitsEdge
+    parent_layer_id::Int
+    id_within_uplayer::Int
 end
 
 max_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
@@ -187,19 +196,20 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
     nodes = BitsNode[]
     input_node_ids = UInt32[]
     node_layers = Vector{Int}[]
-    outedges = Vector{Tuple{BitsEdge,Int,Int}}[]
-    uplayers = EdgeLayer[]
+    outputs = Vector{OutputInfo}[]
+    uplayers = Vector{BitsEdge}[]
+    heap = Float32[]
     
-    sumnode2edges = Dict{PlainProbCircuit,Tuple{Int,Int,Int}}()
+    sumnode2edges = Dict{ProbCircuit,InputsInfo}()
 
     add_node(bitsnode, layer_id) = begin
         # add node globally
         push!(nodes, bitsnode)
-        push!(outedges, Vector{Tuple{BitsEdge,Int,Int}}())
+        push!(outputs, OutputInfo[])
         id = length(nodes)
         # add index for input nodes
         if bitsnode isa BitsInput
-            push!(input_node_idxs, id)
+            push!(input_node_ids, id)
         end
         # add node to node layers 
         while length(node_layers) <= layer_id
@@ -218,28 +228,30 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
 
         # record up edges for upward pass
         while length(uplayers) < parent_layer_id
-            push!(uplayers, EdgeLayer())
+            push!(uplayers, BitsEdge[])
         end
         push!(uplayers[parent_layer_id], edge)
 
         # record out edges for downward pass
         id_within_uplayer = length(uplayers[parent_layer_id])
-        upedgeinfo = (edge, parent_layer_id, id_within_uplayer)
-        @assert uplayers[upedgeinfo[2]][upedgeinfo[3]] == edge "upedge $(uplayers[upedgeinfo[2]][upedgeinfo[3]]) does not equal $edge"
+        outputinfo = OutputInfo(edge, parent_layer_id, id_within_uplayer)
+        @assert uplayers[outputinfo[2]][outputinfo[3]] == edge
 
-        push!(outedges[child_info.prime_id], upedgeinfo)
-        if hassub(child_info)
-            push!(outedges[child_info.sub_id], upedgeinfo)
+        # TODO should be edge.prime_id? because it can be rotated?
+        push!(outputs[edge.prime_id], outputinfo)
+        if hassub(edge)
+            push!(outputs[edge.sub_id], outputinfo)
         end
     end
 
     f_leaf(node) = begin
-        node_id = add_node(bits(node), 0)
+        node_id = add_node(bits(node, heap), 0)
         NodeInfo(node_id, 0, 0, 0)
     end
     
+    # TODO
     f_inner(node, children_info) = begin
-        if (length(children_info) == 1 
+        if (length(children_info) == 1 #TODO check condition
             && (!eager_materialize || !hassub(children_info[1])))
             # this is a pass-through node
             children_info[1]
@@ -308,11 +320,11 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
     downlayerends = Int[]
     down2upedges = Int32[]
     uplayerstarts = [1, map(x -> x+1, flatuplayers.ends[1:end-1])...]
-    @assert length(node_layers[end]) == 1 && isempty(outedges[node_layers[end][1]])
+    @assert length(node_layers[end]) == 1 && isempty(outputs[node_layers[end][1]])
     for node_layer in node_layers[end-1:-1:1]
         for node_id in node_layer
-            prime_edges = filter(e -> e[1].prime_id == node_id, outedges[node_id])
-            partial = (length(prime_edges) != length(outedges[node_id]))
+            prime_edges = filter(e -> e[1].prime_id == node_id, outputs[node_id])
+            partial = (length(prime_edges) != length(outputs[node_id]))
             for i in 1:length(prime_edges)
                 edge = prime_edges[i][1]
                 if edge.prime_id == node_id
@@ -325,7 +337,7 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
                     # tag whether this series of edges is partial or complete
                     partial && (tag |= (one(UInt8) << 2))
                     # tag whether this sub edge is the only outgoing edge from sub
-                    if hassub(edge) && length(outedges[edge.sub_id]) == 1
+                    if hassub(edge) && length(outputs[edge.sub_id]) == 1
                         tag |= (one(UInt8) << 3)
                     end
                     edge = changetag(edge, tag)

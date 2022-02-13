@@ -10,12 +10,11 @@ module ProbabilisticCircuits
     
     include("input_distributions.jl")
     include("plain_nodes.jl")
-
+    include("bits_circuit.jl")
     include("traversal.jl")
 
     include("structures/hclts.jl")
 
-    include("queries/bits_circuit.jl")
     include("queries/likelihood.jl")
     include("queries/flow.jl")
     include("queries/em.jl")
