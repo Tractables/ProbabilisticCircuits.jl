@@ -110,5 +110,9 @@ struct BitsPolytomousDist
     logp_end::UInt32
 end
 
-bits(d::PolytomousDist, heap) = 
-    BitsPolytomousDist(1,1) #TODO
+function bits(d::PolytomousDist, heap) 
+    first = length(heap) + 1
+    append!(heap, logps(d))
+    last = length(heap)
+    BitsPolytomousDist(first, last)
+end

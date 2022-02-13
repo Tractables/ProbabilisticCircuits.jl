@@ -170,7 +170,7 @@ function input_flows_circuit_kernel(flows, nodes, inparams_aggr, input_node_idxs
 
             orig_node_id = input_node_idxs[node_id]::UInt32
             node_flow::Float32 = flows[orig_ex_id, orig_node_id]
-            node = nodes[orig_node_id]::BitsInputNode
+            node = nodes[orig_node_id]::BitsInput
             glob_id = node.global_id::UInt32
             dist_type = node.dist_type::UInt8
 

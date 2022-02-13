@@ -45,7 +45,7 @@ function init_mar!_kernel(mars, nodes, data, example_ids, node_vars, node_params
                     node.issum ? -Inf32 : zero(Float32)
                 else
                     orig_ex_id::Int32 = example_ids[ex_id]
-                    leaf = node::BitsInputNode
+                    leaf = node::BitsInput
                     glob_id = leaf.global_id::UInt32
                     dist_type = leaf.dist_type::UInt8
                     

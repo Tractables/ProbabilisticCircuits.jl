@@ -15,7 +15,7 @@ module ProbabilisticCircuits
 
     include("structures/hclts.jl")
 
-    include("queries/bit_circuit.jl")
+    include("queries/bits_circuit.jl")
     include("queries/likelihood.jl")
     include("queries/flow.jl")
     include("queries/em.jl")

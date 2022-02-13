@@ -1,5 +1,5 @@
 using Test, ProbabilisticCircuits
-using ProbabilisticCircuits: bits
+using ProbabilisticCircuits: bits, PlainInputNode
 
 @testset "input distributions" begin
 
@@ -31,12 +31,13 @@ end
     bit_bern = bits(bern, heap)
     @test isbits(bit_bern)
 
-
     cat = PlainInputNode(42, CategoricalDist(6))
     bit_cat = bits(cat, heap)
     @test isbits(bit_cat)
+    @test length(heap) == 6
 
     T = Union{typeof(bit_bern), typeof(bit_cat), typeof(bit_lit)}
     @test Base.isbitsunion(T)
+    @test Base.isbitsunion(eltype(T[bit_bern, bit_cat, bit_lit]))
 
 end

@@ -78,7 +78,7 @@ function add_pseudocount_input_kernel(inparams_aggr, nodes, input_node_idxs, pse
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInputNode
+            node = nodes[orig_node_id]::BitsInput
             glob_id = node.global_id::UInt32
             dist_type = node.dist_type::UInt8
 
@@ -173,7 +173,7 @@ function aggr_node_flows_input_kernel(_inparams_aggr, innode_aggr, nodes, input_
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInputNode
+            node = nodes[orig_node_id]::BitsInput
             glob_id = node.global_id::UInt32
             dist_type = node.dist_type::UInt8
 
@@ -292,7 +292,7 @@ function update_params_input_kernel(inparams_aggr, innode_aggr, nodes, input_nod
     @inbounds if node_id <= ninput_nodes
         for param_id = param_start : param_end
             orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInputNode
+            node = nodes[orig_node_id]::BitsInput
             glob_id = node.global_id::UInt32
             dist_type = node.dist_type::UInt8
 

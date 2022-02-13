@@ -1,26 +1,36 @@
 using CUDA
 
-export BitsProbCircuit, CuBitsProbCircuit, copy_parameters!
+export copy_parameters!
 
+###############################################
+# bits representation of nodes
+###############################################
 
 abstract type BitsNode end
 
-struct BitsInputNode{D} <: BitsNode
-    variable::UInt32
+struct BitsInput{D} <: BitsNode
+    variable::UInt32 # for now assume single variable
     dist::D
 end
 
 function bits(in::PlainInputNode, heap)
     vars = UInt32.(randvars(in))
     bits_dist = bits(dist(in), heap)
-    BitsInputNode(vars..., bits_dist)
+    BitsInput(vars..., bits_dist)
 end
 
-struct BitsInnerNode <: BitsNode
-    issum::Bool
-end
+abstract type BitsInnerNode <: BitsNode end
 
-struct SumEdge 
+struct BitsSum <: BitsInnerNode end
+struct BitsProd <: BitsInnerNode end
+
+###############################################
+# bits representation of edges
+###############################################
+
+abstract type AbstractBitsEdge end
+
+struct SumEdge <: AbstractBitsEdge
     parent_id::UInt32
     prime_id::UInt32
     sub_id::UInt32 # 0 means no sub
@@ -28,7 +38,7 @@ struct SumEdge
     tag::UInt8
 end
 
-struct MulEdge 
+struct MulEdge  <: AbstractBitsEdge
     parent_id::UInt32
     prime_id::UInt32
     sub_id::UInt32 # 0 means no sub
@@ -37,73 +47,131 @@ end
 
 const BitsEdge = Union{SumEdge,MulEdge}
 
-hassub(x) = (x.sub_id != 0)
+hassub(x) = !iszero(x.sub_id)
 
-changetag(edge::SumEdge, tag) = 
-    SumEdge(edge.parent_id, edge.prime_id, edge.sub_id, edge.logp, tag)
-
-changetag(edge::MulEdge, tag) = 
-    MulEdge(edge.parent_id, edge.prime_id, edge.sub_id, tag)
-
-function tag_index(i,n)
-    x = zero(UInt8)
-    (i==1) && (x |= one(UInt8))
-    (i==n) && (x |= (one(UInt8) << 1)) 
-    x
-end
-
-@inline isfirst(x) = ((x & one(x)) != zero(x))
-@inline islast(x) = ((x & one(x) << 1) != zero(x))
-@inline ispartial(x) = ((x & one(x) << 2) != zero(x))
-@inline isonlysubedge(x) = ((x & one(x) << 3) != zero(x))
-    
 rotate(edge::SumEdge) = 
     SumEdge(edge.parent_id, edge.sub_id, edge.prime_id, edge.logp, edge.tag)
 
 rotate(edge::MulEdge) = 
     MulEdge(edge.parent_id, edge.sub_id, edge.prime_id, edge.tag)
 
-const EdgeLayer = Vector{BitsEdge}
+# tags
 
-struct FlatVector{V <: AbstractVector}
+@inline tagged_at(tag, i) = ((tag & one(tag) << i) != zero(tag))
+@inline isfirst(tag) = tagged_at(tag, 0)
+@inline islast(tag) = tagged_at(tag, 1)
+@inline ispartial(tag) = tagged_at(tag, 2)
+@inline isonlysubedge(tag) = tagged_at(tag, 3)
+
+function tag_firstlast(i,n)
+    tag = zero(UInt8)
+    (i==1) && (tag |= one(UInt8))
+    (i==n) && (tag |= (one(UInt8) << 1)) 
+    tag
+end
+
+changetag(edge::SumEdge, tag) = 
+    SumEdge(edge.parent_id, edge.prime_id, edge.sub_id, edge.logp, tag)
+
+changetag(edge::MulEdge, tag) = 
+    MulEdge(edge.parent_id, edge.prime_id, edge.sub_id, tag)
+    
+
+###############################################
+# bits representation of nested vectors
+###############################################
+
+"An `isbits` representation of a `AbstractVector{<:AbstractVector}`"
+struct FlatVectors{V <: AbstractVector} <: AbstractVector{V}
     vectors::V
     ends::Vector{Int}
 end
 
-function FlatVector(vectors)
-    FlatVector(vcat(vectors...), 
-                cumsum(map(length, vectors)))
-end
-function unflatten(fv::FlatVector{V}) where V <: AbstractVector
-    v = Vector{V}()
-    startpoint = 1
-    for endpoint in fv.ends
-        push!(v, fv.vectors[startpoint:endpoint])
-        startpoint = endpoint + 1
-    end
-    v
+function FlatVectors(vectors::AbstractVector{<:AbstractVector})
+    flatvectors = vcat(vectors...)
+    ends = cumsum(map(length, vectors))
+    FlatVectors(flatvectors, ends)
 end
 
-abstract type AbstractBitsProbCircuit end
+import CUDA: cu #extend
 
-struct BitsProbCircuit <: AbstractBitsProbCircuit
+cu(fv::FlatVectors) =
+    FlatVectors(cu(fv.vectors), fv.ends)
+
+###############################################
+# bits representation of circuit
+###############################################
+
+struct BitsProbCircuit
+    
+    # all the nodes in the circuit
     nodes::Vector{BitsNode}
-    input_node_idxs::Vector{UInt32}
-    edge_layers_up::FlatVector{EdgeLayer}
-    edge_layers_down::FlatVector{EdgeLayer}
+
+    # the ids of the subset of nodes that are inputs
+    input_node_ids::Vector{UInt32}
+    
+    # layers of edges for upward pass
+    edge_layers_up::FlatVectors{Vector{BitsEdge}}
+    
+    # layers of edges for downward pass
+    edge_layers_down::FlatVectors{Vector{BitsEdge}}
+    
+    # mapping from downward pass edge id to upward pass edge id
     down2upedge::Vector{Int32}
-    input_node_vars::Matrix{UInt32}
-    input_node_params::Matrix{Float32}
-    inparams_aggr_size::Int32
-    sumnode2edges::Dict{PlainProbCircuit,Tuple{Int,Int,Int}}
-    BitsProbCircuit(n, in, e1, e2, d, iv, ip, is, s2e) = begin
-        @assert length(in) > 0
+    
+    # memory used by input nodes for their parameters and parameter learning
+    heap::Vector{Float32}
+
+    BitsProbCircuit(n, in, e1, e2, d, heap) = begin
+        @assert length(n) >= length(in) > 0
         @assert length(e1.vectors) == length(e2.vectors)
         @assert allunique(e1.ends) "No empty layers allowed"
         @assert allunique(e2.ends) "No empty layers allowed"
-        new(n, in, e1, e2, d, iv, ip, is, s2e)
+        new(n, in, e1, e2, d, heap)
     end
 end
+
+    
+
+struct CuBitsProbCircuit{BitsNodes <: BitsNode}
+    
+    # all the nodes in the circuit
+    nodes::CuVector{BitsNodes}
+
+    # the ids of the subset of nodes that are inputs
+    input_node_ids::CuVector{UInt32}
+    
+    # layers of edges for upward pass
+    edge_layers_up::FlatVectors{CuVector{BitsEdge}}
+    
+    # layers of edges for downward pass
+    edge_layers_down::FlatVectors{CuVector{BitsEdge}}
+    
+    # mapping from downward pass edge id to upward pass edge id
+    down2upedge::CuVector{Int32}
+    
+    # memory used by input nodes for their parameters and parameter learning
+    heap::CuVector{Float32}
+
+    CuBitsProbCircuit(bpc) = begin
+        # find union of bits node types actually used in the circuit
+        BitsNodes = mapreduce(typeof, (x,y) -> Union{x,y}, bpc.nodes)
+        nodes = CuVector{BitsNodes}(bpc.nodes)
+        input_node_ids = cu(bpc.input_node_ids)
+        edge_layers_up = cu(bpc.edge_layers_up)
+        edge_layers_down = cu(bpc.edge_layers_down)
+        down2upedge = cu(bpc.down2upedge)
+        heap = cu(bpc.heap)
+        new{BitsNodes}(nodes, input_node_ids, edge_layers_up, edge_layers_down, down2upedge, heap)
+    end
+
+end
+
+
+
+###############################################
+# converting a PC into a BitsPC
+###############################################
 
 struct NodeInfo
     prime_id::Int
@@ -112,14 +180,12 @@ struct NodeInfo
     sub_layer_id::Int
 end
 
-@inline combined_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
+max_layer_id(ni::NodeInfo) = max(ni.prime_layer_id, ni.sub_layer_id)
 
-function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
-
-    assign_input_node_ids!(pc) # assign every input node an unique id
+function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_elements=true)
 
     nodes = BitsNode[]
-    input_node_idxs = Vector{UInt32}()
+    input_node_ids = UInt32[]
     node_layers = Vector{Int}[]
     outedges = Vector{Tuple{BitsEdge,Int,Int}}[]
     uplayers = EdgeLayer[]
@@ -132,8 +198,8 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
         push!(outedges, Vector{Tuple{BitsEdge,Int,Int}}())
         id = length(nodes)
         # add index for input nodes
-        if bitsnode isa BitsInputNode
-            push!(input_node_idxs, convert(UInt32, id))
+        if bitsnode isa BitsInput
+            push!(input_node_idxs, id)
         end
         # add node to node layers 
         while length(node_layers) <= layer_id
@@ -168,10 +234,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
     end
 
     f_leaf(node) = begin
-        node_id = add_node(
-            BitsInputNode(global_id(node), dist_type_id(dist(node)), num_parameters_node(node, true)), 
-            0
-        )
+        node_id = add_node(bits(node), 0)
         NodeInfo(node_id, 0, 0, 0)
     end
     
@@ -188,13 +251,14 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
             NodeInfo(children_info[1].prime_id, prime_layer_id, 
                         children_info[2].prime_id, sub_layer_id)
         else
-            layer_id = maximum(combined_layer_id, children_info) + 1
+            layer_id = maximum(max_layer_id, children_info) + 1
+            # TODO
             node_id = add_node(BitsInnerNode(issum(node)), layer_id)
             if issum(node)
                 for i = 1:length(children_info)
                     logp = node.params[i]
                     child_info = children_info[i]
-                    tag = tag_index(i, length(children_info))
+                    tag = tag_firstlast(i, length(children_info))
                     edge = SumEdge(node_id, child_info.prime_id, child_info.sub_id, logp, tag)
                     add_edge(layer_id, edge, child_info)
                 end
@@ -217,7 +281,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
                 end
                 for i = 1:length(double_infos)
                     child_info = double_infos[i]
-                    tag = tag_index(i, length(double_infos))
+                    tag = tag_firstlast(i, length(double_infos))
                     edge = MulEdge(node_id, child_info.prime_id, child_info.sub_id, tag)
                     add_edge(layer_id, edge, child_info)
                 end
@@ -234,11 +298,11 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
         @assert num_children(pc) == 1
         layer_id = root_info.layer_id + 1
         node_id = add_node(BitsInnerNode(false), layer_id)
-        edge = MulEdge(node_id, root_info.prime_id, root_info.sub_id, tag_index(1,1))
+        edge = MulEdge(node_id, root_info.prime_id, root_info.sub_id, tag_firstlast(1,1))
         add_edge(layer_id, edge, root_info)
     end
 
-    flatuplayers = FlatVector(uplayers)
+    flatuplayers = FlatVectors(uplayers)
 
     downedges = EdgeLayer()
     downlayerends = Int[]
@@ -257,7 +321,7 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
                     push!(down2upedges, upedgeindex)
 
                     # update the tag and record down edge
-                    tag = tag_index(i, length(prime_edges))
+                    tag = tag_firstlast(i, length(prime_edges))
                     # tag whether this series of edges is partial or complete
                     partial && (tag |= (one(UInt8) << 2))
                     # tag whether this sub edge is the only outgoing edge from sub
@@ -303,38 +367,10 @@ function BitsProbCircuit(pc; eager_materialize=true, collapse_elements=true)
 
     inparams_aggr_size = max_nedgeaggrs_per_input(pc)
     
-    BitsProbCircuit(nodes, input_node_idxs, flatuplayers, FlatVector(downedges, downlayerends), 
-                    down2upedges, input_node_vars, input_node_params, inparams_aggr_size, sumnode2edges)
+    BitsProbCircuit(nodes, flatuplayers, FlatVectors(downedges, downlayerends), 
+                    down2upedges, input_node_params)
 end
 
-const CuEdgeLayer = CuVector{BitsEdge}
-
-struct CuBitsProbCircuit <: AbstractBitsProbCircuit
-    
-    nodes::CuVector{BitsNode}
-    input_node_idxs::CuVector{UInt32}
-    edge_layers_up::FlatVector{<:CuEdgeLayer}
-    edge_layers_down::FlatVector{<:CuEdgeLayer}
-    down2upedge::CuVector{Int32}
-    input_node_vars::CuMatrix{UInt32}
-    input_node_params::CuMatrix{Float32}
-    inparams_aggr_size::Int32
-    sumnode2edges::Dict{PlainProbCircuit,Tuple{Int,Int,Int}}
-
-    CuBitsProbCircuit(bpc::BitsProbCircuit) = begin
-        nodes = cu(bpc.nodes)
-        input_node_idxs = cu(bpc.input_node_idxs)
-        edge_layers_up = FlatVector(cu(bpc.edge_layers_up.vectors), 
-                            bpc.edge_layers_up.ends)
-        edge_layers_down = FlatVector(cu(bpc.edge_layers_down.vectors), 
-                                      bpc.edge_layers_down.ends)
-        down2upedge = cu(bpc.down2upedge)
-        input_node_vars = cu(bpc.input_node_vars)
-        input_node_params = cu(bpc.input_node_params)
-        new(nodes, input_node_idxs, edge_layers_up, edge_layers_down, down2upedge, input_node_vars, 
-            input_node_params, bpc.inparams_aggr_size, bpc.sumnode2edges)
-    end
-end
 
 #####################
 # constructor
@@ -383,12 +419,13 @@ function copy_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
     end
     nothing
 end
+
 function copy_parameters!(pc::ProbCircuit, bpc::CuBitsProbCircuit)
     nodes = Array(bpc.nodes)
     input_node_idxs = Array(bpc.input_node_idxs)
-    edge_layers_up = FlatVector(Array(bpc.edge_layers_up.vectors),
+    edge_layers_up = FlatVectors(Array(bpc.edge_layers_up.vectors),
                                 bpc.edge_layers_up.ends)
-    edge_layers_down = FlatVector(Array(bpc.edge_layers_down.vectors),
+    edge_layers_down = FlatVectors(Array(bpc.edge_layers_down.vectors),
                                 bpc.edge_layers_down.ends)
     down2upedge = Array(bpc.down2upedge)
     input_node_vars = Array(bpc.input_node_vars)
