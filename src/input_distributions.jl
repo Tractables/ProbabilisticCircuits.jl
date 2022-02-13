@@ -60,7 +60,7 @@ end
 loguniform(num_cats) = 
     zeros(Float32, num_cats) .- log(num_cats) 
 
-CategoricalDist(num_cats::Int) =
+CategoricalDist(num_cats::Integer) =
     CategoricalDist(loguniform(num_cats))
 
 num_parameters(n::CategoricalDist, independent) = 
@@ -115,6 +115,6 @@ function bits(d::PolytomousDist, heap)
     heap_start = length(heap) + 1
     # use heap to store parameters and space for parameter learning
     append!(heap, logps(d))
-    append!(heap, zeroes(num_cats))
+    append!(heap, zeros(eltype(heap), num_cats))
     BitsPolytomousDist(num_cats, heap_start)
 end
