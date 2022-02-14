@@ -39,6 +39,7 @@ num_bpc_parameters(n::Indicator) = 1
 value(d) = d.value
 
 bits(d::Indicator, _ = nothing) = d
+unbits(d::Indicator, _ = nothing) = d
 
 #####################
 # categorical
@@ -88,6 +89,7 @@ num_bpc_parameters(n::BernoulliDist) = 2
 logp(d::BernoulliDist) = d.logp
 
 bits(d::BernoulliDist, _ = nothing) = d
+unbits(d::BernoulliDist, _ = nothing) = d
 
 #####################
 # categorical with more than two values
@@ -117,4 +119,9 @@ function bits(d::PolytomousDist, heap)
     append!(heap, logps(d))
     append!(heap, zeros(eltype(heap), num_cats))
     BitsPolytomousDist(num_cats, heap_start)
+end
+
+function unbits(d::BitsPolytomousDist, heap) 
+    logps = heap[d.heap_start : d.heap_start+d.num_cats-1]
+    PolytomousDist(logps)
 end

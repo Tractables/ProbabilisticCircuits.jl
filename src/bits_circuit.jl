@@ -1,7 +1,5 @@
 using CUDA
 
-export copy_parameters!
-
 ###############################################
 # bits representation of nodes
 ###############################################
@@ -18,6 +16,9 @@ function bits(in::PlainInputNode, heap)
     bits_dist = bits(dist(in), heap)
     BitsInput(vars..., bits_dist)
 end
+
+update_dist(pcnode, bitsnode::BitsInput, heap) =
+    pcnode.dist = unbits(bitsnode.dist, heap)
 
 abstract type BitsInnerNode <: BitsNode end
 
@@ -114,10 +115,14 @@ cu(fv::FlatVectors) =
 # bits representation of circuit
 ###############################################
 
-struct BitsProbCircuit
+abstract type AbstractBitsProbCircuit end 
+struct BitsProbCircuit <: AbstractBitsProbCircuit
     
     # all the nodes in the circuit
     nodes::Vector{BitsNode}
+
+    # mapping from BitPC to PC nodes 
+    nodes_map::Vector{ProbCircuit}
 
     # the ids of the subset of nodes that are inputs
     input_node_ids::Vector{UInt32}
@@ -134,19 +139,22 @@ struct BitsProbCircuit
     # memory used by input nodes for their parameters and parameter learning
     heap::Vector{Float32}
 
-    BitsProbCircuit(n, in, e1, e2, d, heap) = begin
-        @assert length(n) >= length(in) > 0
+    BitsProbCircuit(n, nm, in, e1, e2, d, heap) = begin
+        @assert length(n) == length(nm) >= length(in) > 0
         @assert length(e1.vectors) == length(e2.vectors)
         @assert allunique(e1.ends) "No empty layers allowed"
         @assert allunique(e2.ends) "No empty layers allowed"
-        new(n, in, e1, e2, d, heap)
+        new(n, nm, in, e1, e2, d, heap)
     end
 end
 
-struct CuBitsProbCircuit{BitsNodes <: BitsNode}
+struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
     
     # all the nodes in the circuit
     nodes::CuVector{BitsNodes}
+
+    # mapping from BitPC to PC nodes 
+    nodes_map::Vector{ProbCircuit}
 
     # the ids of the subset of nodes that are inputs
     input_node_ids::CuVector{UInt32}
@@ -173,7 +181,8 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode}
         edge_layers_down = cu(bpc.edge_layers_down)
         down2upedge = cu(bpc.down2upedge)
         heap = cu(bpc.heap)
-        new{BitsNodes}(nodes, input_node_ids, edge_layers_up, edge_layers_down, down2upedge, heap)
+        new{BitsNodes}(nodes, bpc.nodes_map, input_node_ids, 
+                       edge_layers_up, edge_layers_down, down2upedge, heap)
     end
 end
 
@@ -199,15 +208,17 @@ end
 function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_elements=true)
 
     nodes = BitsNode[]
+    nodes_map = ProbCircuit[]
     input_node_ids = UInt32[]
     node_layers = Vector{Int}[]
     outputs = Vector{OutputInfo}[]
     uplayers = Vector{BitsEdge}[]
     heap = Float32[]
 
-    add_node(bitsnode, layer_id) = begin
+    add_node(pcnode, bitsnode, layer_id) = begin
         # add node globally
         push!(nodes, bitsnode)
+        push!(nodes_map, pcnode)
         push!(outputs, OutputInfo[])
         id = length(nodes)
         # add index for input nodes
@@ -247,7 +258,7 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
     end
 
     f_input(node) = begin
-        node_id = add_node(bits(node, heap), 0)
+        node_id = add_node(node, bits(node, heap), 0)
         NodeInfo(node_id, 0, 0, 0)
     end
     
@@ -268,7 +279,7 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
                 max(info.prime_layer_id, info.sub_layer_id)
             end
             if issum(node)
-                node_id = add_node(BitsSum(), layer_id)
+                node_id = add_node(node, BitsSum(), layer_id)
                 for i = 1:length(children_info)
                     param = params(node)[i]
                     child_info = children_info[i]
@@ -278,7 +289,7 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
                 end
             else
                 @assert ismul(node)
-                node_id = add_node(BitsMul(), layer_id)
+                node_id = add_node(node, BitsMul(), layer_id)
                 # try to merge inputs without a sub into "double" edges
                 children_info = merge_mul_inputs(children_info)
                 for i = 1:length(children_info)
@@ -298,7 +309,8 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
     flatuplayers = FlatVectors(uplayers)
     flatdownlayers, down2upedges = down_layers(node_layers, outputs, flatuplayers)
 
-    BitsProbCircuit(nodes, input_node_ids, flatuplayers, flatdownlayers, down2upedges, heap)
+    BitsProbCircuit(nodes, nodes_map, input_node_ids, 
+                    flatuplayers, flatdownlayers, down2upedges, heap)
 end
 
 function merge_mul_inputs(children_info)
@@ -356,53 +368,32 @@ function down_layers(node_layers, outputs, flatuplayers)
 end
 
 #####################
-# map parameters from BitsPC back to ProbCircuit
+# retrieve parameters from BitsPC
 #####################
 
-function copy_parameters!(pc::ProbCircuit, bpc::BitsProbCircuit)
-    edge_layers = unflatten(bpc.edge_layers_up)
-    input_node_params = bpc.input_node_params
-    sumnode2edges = bpc.sumnode2edges
-    foreach(pc) do n
-        if n isa PlainInputNode
-            glob_id = n.global_id
-            if dist(n) isa Indicator
-                nothing # do nothing
-            elseif dist(n) isa BernoulliDist
-                n.dist.logp = input_node_params[glob_id, 1]
-            elseif dist(n) isa CategoricalDist
-                ncats = length(n.dist.logps)
-                n.dist.logps .= input_node_params[glob_id, 1:ncats]
-            else
-                error("Unknown distribution type $(typeof(dist(n))).")
-            end
-        elseif n isa PlainSumNode
-            if length(n.params) > 1
-                layer_id, edge_start_id, edge_end_id = sumnode2edges[n]
-                @assert length(n.params) == edge_end_id - edge_start_id + 1
-                for idx = 1 : length(n.params)
-                    edge = edge_layers[layer_id][edge_start_id+idx-1]::SumEdge
-                    n.params[idx] = edge.logp
-                end
-            end
+"map parameters from BitsPC back to the ProbCircuit it was created from"
+function update_parameters(bpc::AbstractBitsProbCircuit)
+    nodemap = bpc.nodes_map
+    
+    # copy parameters from sum nodes
+    edges = Vector(bpc.edge_layers_up.vectors)
+    i = 1
+    while i <= length(edges)
+        @assert isfirst(edges[i].tag)
+        parent = nodemap[edges[i].parent_id]
+        ni = num_inputs(parent)
+        if issum(parent)
+            params(parent) .= map(e -> e.logp, edges[i:i+ni-1])
         end
+        i += ni
+    end
+    
+    # copy parameters from input nodes
+    nodes = Vector(bpc.nodes)
+    input_ids = Vector(bpc.input_node_ids)
+    heap = Vector(bpc.heap)
+    for i in input_ids
+        update_dist(nodemap[i], nodes[i], heap)
     end
     nothing
-end
-
-function copy_parameters!(pc::ProbCircuit, bpc::CuBitsProbCircuit)
-    nodes = Array(bpc.nodes)
-    input_node_idxs = Array(bpc.input_node_idxs)
-    edge_layers_up = FlatVectors(Array(bpc.edge_layers_up.vectors),
-                                bpc.edge_layers_up.ends)
-    edge_layers_down = FlatVectors(Array(bpc.edge_layers_down.vectors),
-                                bpc.edge_layers_down.ends)
-    down2upedge = Array(bpc.down2upedge)
-    input_node_vars = Array(bpc.input_node_vars)
-    input_node_params = Array(bpc.input_node_params)
-    bpc = BitsProbCircuit(nodes, input_node_idxs, edge_layers_up, edge_layers_down, down2upedge, 
-                          input_node_vars, input_node_params, bpc.inparams_aggr_size, 
-                          bpc.sumnode2edges)
-                    
-    copy_parameters!(pc, bpc)
 end
