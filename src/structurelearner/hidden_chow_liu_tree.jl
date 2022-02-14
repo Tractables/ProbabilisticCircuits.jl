@@ -30,7 +30,7 @@ function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
 
     # Chow-Liu Tree (CLT) given data
     # println("Learning a CLT")
-    edges = ChowLiuTrees.learn_chow_liu_tree(data;
+    edges = ChowLiuTrees.learn_chow_liu_trees(data;
             num_trees=num_tree_candidates, 
             dropout_prob, weights, pseudocount, Float)
     clts = clt_edges2graphs(edges)
