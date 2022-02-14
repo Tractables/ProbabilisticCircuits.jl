@@ -10,7 +10,7 @@ include("../helper/plain_dummy_circuits.jl")
     # LiteralDist
     
     pc = little_3var()
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -21,7 +21,7 @@ include("../helper/plain_dummy_circuits.jl")
     # BernoulliDist
 
     pc = little_3var_bernoulli()
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -32,7 +32,7 @@ include("../helper/plain_dummy_circuits.jl")
     # CategoricalDist
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
@@ -47,7 +47,7 @@ end
     # LiteralDist
     
     pc = little_3var()
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -58,7 +58,7 @@ end
     # BernoulliDist
 
     pc = little_3var_bernoulli()
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -69,7 +69,7 @@ end
     # CategoricalDist
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = bit_circuit(pc)
+    bpc = PCs.CuProbBitCircuit(pc)
 
     data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 

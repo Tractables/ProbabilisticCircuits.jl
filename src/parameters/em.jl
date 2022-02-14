@@ -59,67 +59,6 @@ function add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
 end
 
 ##################################################################################
-# Pseudocounts for inputs
-##################################################################################
-
-function add_pseudocount_input_kernel(inparams_aggr, nodes, input_node_idxs, pseudocount, 
-                                      num_node_threads::Int32, param_work::Int32)
-
-    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
-
-    param_batch, node_id = fldmod1(threadid, num_node_threads)
-
-    ninput_nodes = length(input_node_idxs)
-    ninput_params = size(inparams_aggr, 2)
-
-    param_start = one(Int32) + (param_batch - one(Int32)) * param_work
-    param_end = min(param_start + param_work - one(Int32), ninput_params)
-
-    @inbounds if node_id <= ninput_nodes
-        for param_id = param_start : param_end
-            orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInput
-            glob_id = node.global_id::UInt32
-            dist_type = node.dist_type::UInt8
-
-            if dist_type == UInt8(1) # LiteralDist
-                nothing # need to do nothing
-            elseif dist_type == UInt8(2) # BernoulliDist
-                if param_id <= 2
-                    inparams_aggr[glob_id, param_id] += pseudocount * Float32(0.5)
-                end
-            elseif dist_type == UInt8(3) # CategoricalDist
-                nparams = node.num_params::UInt32
-                if param_id <= nparams
-                    inparams_aggr[glob_id, param_id] += pseudocount / nparams
-                end
-            else
-                @assert false
-            end
-        end
-    end
-
-    nothing
-end
-
-function add_pseudocount_input(inparams_aggr, bpc, pseudocount; mine=2, maxe=32)
-    nodes = bpc.nodes
-    input_node_idxs = bpc.input_node_idxs
-
-    dummy_args = (inparams_aggr, nodes, input_node_idxs, Float32(pseudocount), Int32(1), Int32(1))
-    kernel = @cuda name="add_pseudocount_input" launch=false add_pseudocount_input_kernel(dummy_args...)
-    config = launch_configuration(kernel.fun)
-
-    threads, blocks, num_node_threads, param_work = 
-        balance_threads(size(inparams_aggr, 2), size(inparams_aggr, 1), config; mine, maxe)
-
-    args = (inparams_aggr, nodes, input_node_idxs, Float32(pseudocount), Int32(num_node_threads), Int32(param_work))
-    kernel(args...; threads, blocks)
-
-    nothing
-end
-
-##################################################################################
 # Aggregate node flows
 ##################################################################################
 
@@ -148,71 +87,6 @@ function aggr_node_flows(node_aggr, bpc, edge_aggr)
     threads = config.threads
     blocks = cld(length(edges), threads)
     kernel(args...; threads, blocks)
-    nothing
-end
-
-##################################################################################
-# Aggregate node flows for inputs
-##################################################################################
-
-function aggr_node_flows_input_kernel(_inparams_aggr, innode_aggr, nodes, input_node_idxs, 
-                                      num_node_threads::Int32, param_work::Int32)
-
-    inparams_aggr = Base.Experimental.Const(_inparams_aggr)
-
-    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
-
-    param_batch, node_id = fldmod1(threadid, num_node_threads)
-
-    ninput_nodes = length(input_node_idxs)
-    ninput_params = size(inparams_aggr, 2)
-
-    param_start = one(Int32) + (param_batch - one(Int32)) * param_work
-    param_end = min(param_start + param_work - one(Int32), ninput_params)
-
-    @inbounds if node_id <= ninput_nodes
-        for param_id = param_start : param_end
-            orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInput
-            glob_id = node.global_id::UInt32
-            dist_type = node.dist_type::UInt8
-
-            if dist_type == UInt8(1) # LiteralDist
-                nothing # need to do nothing
-            elseif dist_type == UInt8(2) # BernoulliDist
-                if param_id <= 2
-                    CUDA.@atomic innode_aggr[glob_id] += inparams_aggr[glob_id, param_id]
-                end
-            elseif dist_type == UInt8(3) # CategoricalDist
-                nparams = node.num_params::UInt32
-                if param_id <= nparams
-                    CUDA.@atomic innode_aggr[glob_id] += inparams_aggr[glob_id, param_id]
-                end
-            else
-                @assert false
-            end
-        end
-    end
-
-    nothing
-end
-
-function aggr_node_flows_input(inparams_aggr, innode_aggr, bpc; mine=2, maxe=32)
-    nodes = bpc.nodes
-    input_node_idxs = bpc.input_node_idxs
-
-    innode_aggr .= zero(Float32)
-
-    dummy_args = (inparams_aggr, innode_aggr, nodes, input_node_idxs, Int32(1), Int32(1))
-    kernel = @cuda name="aggr_node_flows_input" launch=false aggr_node_flows_input_kernel(dummy_args...)
-    config = launch_configuration(kernel.fun)
-
-    threads, blocks, num_node_threads, param_work = 
-        balance_threads(size(inparams_aggr, 2), size(inparams_aggr, 1), config; mine, maxe)
-
-    args = (inparams_aggr, innode_aggr, nodes, input_node_idxs, Int32(num_node_threads), Int32(param_work))
-    kernel(args...; threads, blocks)
-
     nothing
 end
 
@@ -273,73 +147,58 @@ function update_params(bpc, node_aggr, edge_aggr; inertia = 0)
 end
 
 ##################################################################################
-# Update parameters for inputs
+# Clear memory of input nodes
 ##################################################################################
 
-function update_params_input_kernel(inparams_aggr, innode_aggr, nodes, input_node_idxs, input_node_params, inertia::Float32,
-                                    num_node_threads::Int32, param_work::Int32)
+function clear_input_node_mem_kernel(nodes, input_node_ids, heap, rate)
 
-    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
+    node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
-    param_batch, node_id = fldmod1(threadid, num_node_threads)
-
-    ninput_nodes = length(input_node_idxs)
-    ninput_params = size(inparams_aggr, 2)
-
-    param_start = one(Int32) + (param_batch - one(Int32)) * param_work
-    param_end = min(param_start + param_work - one(Int32), ninput_params)
-
-    @inbounds if node_id <= ninput_nodes
-        for param_id = param_start : param_end
-            orig_node_id::UInt32 = input_node_idxs[node_id]
-            node = nodes[orig_node_id]::BitsInput
-            glob_id = node.global_id::UInt32
-            dist_type = node.dist_type::UInt8
-
-            if dist_type == UInt8(1) # LiteralDist
-                nothing # need to do nothing
-
-            elseif dist_type == UInt8(2) # BernoulliDist
-                if param_id == 1
-                    old = inertia * exp(input_node_params[glob_id, 1])
-                    new = (one(Float32) - inertia) * inparams_aggr[glob_id, 1] / innode_aggr[glob_id]
-                    new_log_param = log(old + new)
-                    input_node_params[glob_id, 1] = new_log_param
-                end
-
-            elseif dist_type == UInt8(3) # CategoricalDist
-                nparams = node.num_params::UInt32
-                if param_id <= nparams
-                    old = inertia * exp(input_node_params[glob_id, param_id])
-                    new = (one(Float32) - inertia) * inparams_aggr[glob_id, param_id] / innode_aggr[glob_id]
-                    new_log_param = log(old + new)
-                    input_node_params[glob_id, param_id] = new_log_param
-                end
-
-            else
-                @assert false
-            end
-        end
+    @inbounds if node_id <= length(input_node_ids)
+        orig_node_id::UInt32 = input_node_ids[node_id]
+        inputnode = nodes[orig_node_id]::BitsInput
+        clear_memory(dist(inputnode), heap, rate)
     end
-
     nothing
 end
 
-function update_params_input(bpc, innode_aggr, inparams_aggr; inertia = 0, mine = 2, maxe = 32)
-    nodes = bpc.nodes
-    input_node_idxs = bpc.input_node_idxs
-    input_node_params = bpc.input_node_params
+function clear_input_node_mem(bpc; rate = 0)
+    num_input_nodes = length(bpc.input_node_ids)
 
-    dummy_args = (inparams_aggr, innode_aggr, nodes, input_node_idxs, input_node_params, Float32(inertia), Int32(1), Int32(1))
-    kernel = @cuda name="update_params_input" launch=false update_params_input_kernel(dummy_args...)
-    config = launch_configuration(kernel.fun)
+    args = (bpc.nodes, bpc.input_node_ids, bpc.heap, Float32(rate))
+    kernel = @cuda name="clear_input_node_mem" launch=false clear_input_node_mem_kernel(args...)
+    threads = launch_configuration(kernel.fun).threads
+    blocks = cld(num_input_nodes, threads)
 
-    threads, blocks, num_node_threads, param_work = 
-        balance_threads(size(input_node_params, 2), size(input_node_params, 1), config; mine, maxe)
-
-    args = (inparams_aggr, innode_aggr, nodes, input_node_idxs, input_node_params, Float32(inertia), Int32(num_node_threads), Int32(param_work))
     kernel(args...; threads, blocks)
+    nothing
+end
 
+##################################################################################
+# Update parameters of input nodes
+##################################################################################
+
+function update_input_node_params_kernel(nodes, input_node_ids, heap, pseudocount, inertia)
+
+    node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    @inbounds if node_id <= length(input_node_ids)
+        orig_node_id::UInt32 = input_node_ids[node_id]
+        inputnode = nodes[orig_node_id]::BitsInput
+        update_params(dist(inputnode), heap, pseudocount, inertia)
+    end
+    nothing
+end
+
+function update_input_node_params(bpc; pseudocount, inertia = 0)
+    num_input_nodes = length(bpc.input_node_ids)
+
+    args = (bpc.nodes, bpc.input_node_ids, bpc.heap, Float32(pseudocount), Float32(inertia))
+    kernel = @cuda name="update_input_node_params" launch=false update_input_node_params_kernel(args...)
+    threads = launch_configuration(kernel.fun).threads
+    blocks = cld(num_input_nodes, threads)
+
+    kernel(args...; threads, blocks)
     nothing
 end
 
@@ -356,8 +215,7 @@ end
 
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
                             batch_size, pseudocount, report_ll=true,
-                            marginals, flows, node_aggr, edge_aggr, 
-                            inparams_aggr, innode_aggr,
+                            marginals, flows, node_aggr, edge_aggr,
                             mine, maxe, debug)
 
     num_examples = size(data)[1]
@@ -368,7 +226,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     end
     
     edge_aggr .= zero(Float32)
-    inparams_aggr .= zero(Float32)
+    clear_input_node_mem(bpc; rate = 0)
     batch_index = 0
 
     for batch_start = 1:batch_size:num_examples
@@ -378,7 +236,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
         num_batch_examples = batch_end - batch_start + 1
         batch_index += 1
 
-        probs_flows_circuit(flows, marginals, edge_aggr, inparams_aggr, bpc, data, batch; 
+        probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                             mine, maxe, debug)
 
         if report_ll
@@ -392,9 +250,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     aggr_node_flows(node_aggr, bpc, edge_aggr)
     update_params(bpc, node_aggr, edge_aggr; inertia = 0)
 
-    add_pseudocount_input(inparams_aggr, bpc, pseudocount)
-    aggr_node_flows_input(inparams_aggr, innode_aggr, bpc)
-    update_params_input(bpc, innode_aggr, inparams_aggr; inertia = 0)
+    update_input_node_params(bpc; pseudocount, inertia = 0)
 
     return report_ll ? sum(log_likelihoods) / num_examples : 0.0
 end
@@ -402,8 +258,7 @@ end
 function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
                        batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, 
-                       edge_aggr_mem = nothing, inparams_aggr_mem = nothing, innode_aggr_mem = nothing, 
-                       mine=2, maxe=32, debug = false, verbose = true)
+                       edge_aggr_mem = nothing, mine=2, maxe=32, debug = false, verbose = true)
     
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
@@ -413,15 +268,13 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-    inparams_aggr = prep_memory(inparams_aggr_mem, (length(bpc.input_node_idxs), bpc.inparams_aggr_size), (true, true))
-    innode_aggr = prep_memory(innode_aggr_mem, (length(bpc.input_node_idxs),))
 
     log_likelihoods = Vector{Float32}()
 
     for epoch = 1:num_epochs
         log_likelihood = full_batch_em_step(bpc, data; 
             batch_size, pseudocount, report_ll,
-            marginals, flows, node_aggr, edge_aggr, inparams_aggr, innode_aggr,
+            marginals, flows, node_aggr, edge_aggr, 
             mine, maxe, debug)
         push!(log_likelihoods, log_likelihood)
 
@@ -431,8 +284,7 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     end
     
     cleanup_memory((data, raw_data), (flows, flows_mem), 
-        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem), 
-        (inparams_aggr, inparams_aggr_mem), (innode_aggr, innode_aggr_mem))
+        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
 
     log_likelihoods
 end
@@ -445,10 +297,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                        batch_size, pseudocount, 
                        param_inertia, param_inertia_end = param_inertia, 
                        flow_memory = 0, flow_memory_end = flow_memory, 
-                       softness = 0, 
-                       shuffle=:each_epoch,  
+                       softness = 0, shuffle=:each_epoch,  
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
-                       inparams_aggr_mem = nothing, innode_aggr_mem = nothing,
                        mine = 2, maxe = 32, debug = false, verbose = true)
 
     @assert pseudocount >= 0
@@ -471,11 +321,9 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-    inparams_aggr = prep_memory(inparams_aggr_mem, (length(bpc.input_node_idxs), bpc.inparams_aggr_size), (true, true))
-    innode_aggr = prep_memory(innode_aggr_mem, (length(bpc.input_node_idxs),))
 
     edge_aggr .= zero(Float32)
-    inparams_aggr .= zero(Float32)
+    clear_input_node_mem(bpc; rate = 0)
     output_layer = @view marginals[1:batch_size,end]
 
     shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
@@ -507,15 +355,15 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
 
             if iszero(flow_memory)
                 edge_aggr .= zero(Float32)
-                inparams_aggr .= zero(Float32)
+                clear_input_node_mem(bpc; rate = 0)
             else
                 # slowly forget old edge aggregates
                 rate = max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
                 edge_aggr .*= rate
-                inparams_aggr .*= rate
+                clear_input_node_mem(bpc; rate)
             end
 
-            probs_flows_circuit(flows, marginals, edge_aggr, inparams_aggr, bpc, data, batch; 
+            probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                                 mine, maxe, debug)
             
             log_likelihood += sum(output_layer) / batch_size
@@ -523,10 +371,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount)
             aggr_node_flows(node_aggr, bpc, edge_aggr)
             update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia)
-
-            add_pseudocount_input(inparams_aggr, bpc, pseudocount)
-            aggr_node_flows_input(inparams_aggr, innode_aggr, bpc)
-            update_params_input(bpc, innode_aggr, inparams_aggr; inertia = param_inertia)
+            
+            update_input_node_params(bpc; pseudocount, inertia = param_inertia)
             
         end
             
@@ -541,8 +387,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     end
 
     cleanup_memory((data, raw_data), (flows, flows_mem), 
-        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem), 
-        (inparams_aggr, inparams_aggr_mem), (innode_aggr, innode_aggr_mem))
+        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
 
     log_likelihoods

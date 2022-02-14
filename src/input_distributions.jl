@@ -45,6 +45,8 @@ unbits(d::Indicator, _ = nothing) = d
 loglikelihood(d::Indicator, value, _ = nothing) =
     (d.value == value) ?  zero(Float32) : -Inf32
 flow(d::Indicator, value, node_flow, heap) = nothing
+update_params(d::Indicator, heap, pseudocount, inertia) = nothing
+clear_memory(d::Indicator, heap, rate) = nothing
 
 #####################
 # categorical
@@ -91,7 +93,6 @@ num_categories(::BernoulliDist) = 2
 logp(d::BernoulliDist) = d.logp
 
 struct BitsBernoulliDist
-    logp::Float32
     heap_start::UInt32
 end
 
@@ -99,22 +100,47 @@ function bits(d::BernoulliDist, heap)
     logp = d.logp
     heap_start = length(heap) + 1
     # use heap to store parameters and space for parameter learning
+    push!(heap, logp)
     append!(heap, zeros(eltype(heap), 2))
-    BitsBernoulliDist(logp, heap_start)
+    BitsBernoulliDist(heap_start)
 end
-function unbits(d::BitsBernoulliDist, _ = nothing)
-    logp = d.logp
+function unbits(d::BitsBernoulliDist, heap)
+    logp = heap[d.heap_start]
     BernoulliDist(logp)
 end
 
-loglikelihood(d::BitsBernoulliDist, value, _ = nothing) =
-    isone(value) ? d.logp : log1p(-exp(d.logp))
+loglikelihood(d::BitsBernoulliDist, value, heap) =
+    isone(value) ? heap[d.heap_start] : log1p(-exp(heap[d.heap_start]))
 flow(d::BitsBernoulliDist, value, node_flow, heap) = begin
     if isone(value)
-        CUDA.@atomic heap[d.heap_start+1] += node_flow
+        CUDA.@atomic heap[d.heap_start+2] += node_flow
     else
-        CUDA.@atomic heap[d.heap_start] += node_flow
+        CUDA.@atomic heap[d.heap_start+1] += node_flow
     end
+    nothing
+end
+update_params(d::BitsBernoulliDist, heap, pseudocount, inertia) = begin
+    heap_start = d.heap_start
+    
+    # add pseudocount
+    heap[heap_start+1] += pseudocount * Float32(0.5)
+    heap[heap_start+2] += pseudocount * Float32(0.5)
+    
+    # node flow
+    node_flow = heap[heap_start+1] + heap[heap_start+2]
+    
+    # update parameter
+    old = inertia * exp(heap[heap_start])
+    new = (one(Float32) - inertia) * heap[heap_start+2] / node_flow 
+    new_log_param = log(old + new)
+    heap[heap_start] = new_log_param
+    
+    nothing
+end
+clear_memory(d::BitsBernoulliDist, heap, rate) = begin
+    heap_start = d.heap_start
+    heap[heap_start+1] *= rate
+    heap[heap_start+2] *= rate
     nothing
 end
 
@@ -156,5 +182,35 @@ loglikelihood(d::BitsPolytomousDist, value, heap) =
     heap[d.heap_start+value-1]
 flow(d::BitsPolytomousDist, value, node_flow, heap) = begin
     CUDA.@atomic heap[d.heap_start+d.num_cats+value-1] += node_flow
+    nothing
+end
+update_params(d::BitsPolytomousDist, heap, pseudocount, inertia) = begin
+    heap_start = d.heap_start
+    num_cats = d.num_cats
+    
+    # add pseudocount & accumulate node flow
+    node_flow = zero(Float32)
+    cat_pseudocount = pseudocount / Float32(num_cats)
+    for i = 1 : num_cats
+        heap[heap_start+num_cats-1+i] += cat_pseudocount
+        node_flow += heap[heap_start+num_cats-1+i]
+    end
+    
+    # update parameter
+    for i = 1 : num_cats
+        old = inertia * exp(heap[heap_start-1+i])
+        new = (one(Float32) - inertia) * heap[heap_start+num_cats-1+i] / node_flow 
+        new_log_param = log(old + new)
+        heap[heap_start-1+i] = new_log_param
+    end
+    
+    nothing
+end
+clear_memory(d::BitsPolytomousDist, heap, rate) = begin
+    heap_start = d.heap_start
+    num_cats = d.num_cats
+    for i = 1 : num_cats
+        heap[heap_start+num_cats-1+i] *= rate
+    end
     nothing
 end

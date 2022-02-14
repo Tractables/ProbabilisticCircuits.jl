@@ -49,7 +49,7 @@ include("../helper/plain_dummy_circuits.jl")
     PCs.probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine = 2, maxe = 32)
     heap_cpu = Array(bpc.heap)
 
-    @test all(heap_cpu .≈ Float32[2.0, 1.0, 1.0, 2.0, 3.0, 0.0])
+    @test all(heap_cpu .≈ Float32[-0.6931471805599453, 2.0, 1.0, -0.6931471805599453, 1.0, 2.0, -0.6931471805599453, 3.0, 0.0])
 
     # CategoricalDist
 
