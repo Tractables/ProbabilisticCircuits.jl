@@ -5,26 +5,6 @@ export InputDist, Indicator, LiteralDist, BernoulliDist, CategoricalDist, loglik
 abstract type InputDist end
 
 #####################
-# **Important notes for developers**
-#####################
-
-# Whenevery adding a new instance of InputDist, please specify an *UNIQUE* id using `dist_type_id`.
-# The bit circuit needs this information to encode different types of input nodes.
-# In order for the bit circuit code to work for new distributions, please also modify the following:
-# 1. In this file, add methods: 
-#    - dist_type_id
-#    - num_parameters
-#    - num_bpc_parameters
-# 2. In queries/bit_circuit.jl, add code around lines 355 and 285
-# 3. In queries/likelihood.jl, add code around line 52
-# 4. In queries/flow.jl, add code around line line 177
-# 5. In queries/em.jl, modify the following functions:
-#    - add_pseudocount_input_kernel
-#    - aggr_node_flows_input_kernel
-#    - update_params_input_kernel
-# Cheers!
-
-#####################
 # indicators or logical literals
 #####################
 
@@ -40,12 +20,16 @@ num_parameters(n::Indicator, independent) = 1 # set to 1 since we need to store 
 value(d) = d.value
 
 bits(d::Indicator, _ = nothing) = d
+
 unbits(d::Indicator, _ = nothing) = d
 
 loglikelihood(d::Indicator, value, _ = nothing) =
     (d.value == value) ?  zero(Float32) : -Inf32
+
 flow(d::Indicator, value, node_flow, heap) = nothing
+
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
+
 clear_memory(d::Indicator, heap, rate) = nothing
 
 #####################
@@ -104,6 +88,7 @@ function bits(d::BernoulliDist, heap)
     append!(heap, zeros(eltype(heap), 2))
     BitsBernoulliDist(heap_start)
 end
+
 function unbits(d::BitsBernoulliDist, heap)
     logp = heap[d.heap_start]
     BernoulliDist(logp)
@@ -111,6 +96,7 @@ end
 
 loglikelihood(d::BitsBernoulliDist, value, heap) =
     isone(value) ? heap[d.heap_start] : log1p(-exp(heap[d.heap_start]))
+
 flow(d::BitsBernoulliDist, value, node_flow, heap) = begin
     if isone(value)
         CUDA.@atomic heap[d.heap_start+2] += node_flow
@@ -119,6 +105,7 @@ flow(d::BitsBernoulliDist, value, node_flow, heap) = begin
     end
     nothing
 end
+
 update_params(d::BitsBernoulliDist, heap, pseudocount, inertia) = begin
     heap_start = d.heap_start
     
@@ -137,6 +124,7 @@ update_params(d::BitsBernoulliDist, heap, pseudocount, inertia) = begin
     
     nothing
 end
+
 clear_memory(d::BitsBernoulliDist, heap, rate) = begin
     heap_start = d.heap_start
     heap[heap_start+1] *= rate
@@ -180,10 +168,12 @@ end
 
 loglikelihood(d::BitsPolytomousDist, value, heap) =
     heap[d.heap_start+value-1]
+
 flow(d::BitsPolytomousDist, value, node_flow, heap) = begin
     CUDA.@atomic heap[d.heap_start+d.num_cats+value-1] += node_flow
     nothing
 end
+
 update_params(d::BitsPolytomousDist, heap, pseudocount, inertia) = begin
     heap_start = d.heap_start
     num_cats = d.num_cats
@@ -206,6 +196,7 @@ update_params(d::BitsPolytomousDist, heap, pseudocount, inertia) = begin
     
     nothing
 end
+
 clear_memory(d::BitsPolytomousDist, heap, rate) = begin
     heap_start = d.heap_start
     num_cats = d.num_cats
