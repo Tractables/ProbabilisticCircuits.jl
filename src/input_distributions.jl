@@ -1,4 +1,4 @@
-export InputDist, Indicator, LiteralDist, BernoulliDist, CategoricalDist
+export InputDist, Indicator, LiteralDist, BernoulliDist, CategoricalDist, loglikelihood
 
 abstract type InputDist end
 
@@ -40,6 +40,9 @@ value(d) = d.value
 
 bits(d::Indicator, _ = nothing) = d
 unbits(d::Indicator, _ = nothing) = d
+
+loglikelihood(d::Indicator, value, _ = nothing) =
+    (d.value == value) ?  zero(Float32) : -Inf32    
 
 #####################
 # categorical
@@ -91,6 +94,9 @@ logp(d::BernoulliDist) = d.logp
 bits(d::BernoulliDist, _ = nothing) = d
 unbits(d::BernoulliDist, _ = nothing) = d
 
+loglikelihood(d::BernoulliDist, value, _ = nothing) =
+    isone(value) ?  d.logp : log1p(-exp(d.logp))    
+
 #####################
 # categorical with more than two values
 #####################
@@ -125,3 +131,6 @@ function unbits(d::BitsPolytomousDist, heap)
     logps = heap[d.heap_start : d.heap_start+d.num_cats-1]
     PolytomousDist(logps)
 end
+
+loglikelihood(d::BitsPolytomousDist, value, heap) =
+    heap[d.heap_start+value]

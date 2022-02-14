@@ -1,6 +1,6 @@
 using CUDA, Random
 
-export loglikelihoods, avg_loglikelihood
+export loglikelihoods, loglikelihood
 
 ##################################################################################
 # Init marginals
@@ -23,7 +23,7 @@ function balance_threads(num_items, num_examples, config; mine, maxe, contiguous
     block_threads, num_blocks, example_threads, item_work
 end
 
-function init_mar!_kernel(mars, nodes, data, example_ids, node_vars, node_params, 
+function init_mar!_kernel(mars, nodes, data, example_ids, heap, 
                           num_ex_threads::Int32, node_work::Int32)
     # this kernel follows the structure of the layer eval kernel, would probably be faster to 
     # have 1 thread process multiple examples, rather than multiple nodes 
@@ -41,66 +41,19 @@ function init_mar!_kernel(mars, nodes, data, example_ids, node_vars, node_params
             node = nodes[node_id]
             
             mars[ex_id, node_id] = 
-                if (node isa BitsInnerNode)
-                    node.issum ? -Inf32 : zero(Float32)
+                if (node isa BitsSum)
+                    -Inf32
+                elseif (node isa BitsMul)
+                    zero(Float32)
                 else
                     orig_ex_id::Int32 = example_ids[ex_id]
-                    leaf = node::BitsInput
-                    glob_id = leaf.global_id::UInt32
-                    dist_type = leaf.dist_type::UInt8
-                    
-                    if dist_type == UInt8(1) # LiteralDist
-                        var = node_vars[glob_id, 1]::UInt32
-                        sign::Bool = ifelse(node_params[glob_id, 1] == one(Float32), true, false)
-                        v = data[orig_ex_id, var]
-                        if ismissing(v)
-                            zero(Float32)
-                        else
-                            # data could be Bool, or Float after "data softening"
-                            if nonmissingtype(eltype(data)) == Bool
-                                if sign == v
-                                    zero(Float32)
-                                else
-                                    -Inf32
-                                end
-                            elseif nonmissingtype(eltype(data)) <: AbstractFloat
-                                if sign
-                                    log(v)
-                                else
-                                    log(one(Float32)-v)
-                                end
-                            else
-                                @assert false
-                            end
-                        end
-
-                    elseif dist_type == UInt8(2) # BernoulliDist
-                        var = node_vars[glob_id, 1]::UInt32
-                        logp = node_params[glob_id, 1]::Float32
-                        v = data[orig_ex_id, var]
-                        if ismissing(v)
-                            zero(Float32)
-                        else
-                            @assert nonmissingtype(eltype(data)) == Bool
-                            if v
-                                logp
-                            else
-                                log(one(Float32)-exp(logp))
-                            end
-                        end
-
-                    elseif dist_type == UInt8(3) # CategoricalDist
-                        var = node_vars[glob_id, 1]::UInt32
-                        v = data[orig_ex_id, var]
-                        if ismissing(v)
-                            zero(Float32)
-                        else
-                            @assert nonmissingtype(eltype(data)) == UInt32
-                            node_params[glob_id, v]
-                        end
-
+                    inputnode = node::BitsInput
+                    variable = inputnode.variable
+                    value = data[orig_ex_id, variable]
+                    if ismissing(value)
+                        zero(Float32)
                     else
-                        @assert false 
+                        loglikelihood(dist(inputnode), value, heap)
                     end
                 end
         end
@@ -112,14 +65,14 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     num_examples = length(example_ids)
     num_nodes = length(bpc.nodes)
     
-    dummy_args = (mars, bpc.nodes, data, example_ids, bpc.input_node_vars, bpc.input_node_params, Int32(1), Int32(1))
+    dummy_args = (mars, bpc.nodes, data, example_ids, bpc.heap, Int32(1), Int32(1))
     kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
     threads, blocks, num_example_threads, node_work = 
         balance_threads(num_nodes, num_examples, config; mine, maxe)
     
-    args = (mars, bpc.nodes, data, example_ids, bpc.input_node_vars, bpc.input_node_params, 
+    args = (mars, bpc.nodes, data, example_ids, bpc.heap, 
             Int32(num_example_threads), Int32(node_work))
     if debug
         println("Node initialization")
@@ -285,23 +238,20 @@ function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray;
 
     num_examples = size(data)[1]
     num_nodes = length(bpc.nodes)
-    num_batches = cld(num_examples, batch_size)
-
+    
     marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
 
-    log_likelihoods = zeros(Float32, num_examples)
+    log_likelihoods = CUDA.zeros(Float32, num_examples)
 
-    batch_index = 0
     for batch_start = 1:batch_size:num_examples
 
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
         num_batch_examples = length(batch)
-        batch_index += 1
-
+        
         eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
         
-        log_likelihoods[batch_start:batch_end] .= Array(marginals[1:num_batch_examples,end])
+        log_likelihoods[batch_start:batch_end] .= @view marginals[1:num_batch_examples, end]
     end
 
     cleanup_memory(marginals, mars_mem)
@@ -309,7 +259,7 @@ function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray;
     return log_likelihoods
 end
 
-function avg_loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
+function loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
                            batch_size, mars_mem = nothing, 
                            mine=2, maxe=32, debug=false)
     lls = loglikelihoods(bpc, data; batch_size, mars_mem, mine, maxe, debug)

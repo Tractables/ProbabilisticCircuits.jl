@@ -11,6 +11,8 @@ struct BitsInput{D} <: BitsNode
     dist::D
 end
 
+dist(n::BitsInput) = n.dist
+
 function bits(in::PlainInputNode, heap)
     vars = UInt32.(randvars(in))
     bits_dist = bits(dist(in), heap)
@@ -185,6 +187,9 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
                        edge_layers_up, edge_layers_down, down2upedge, heap)
     end
 end
+
+CuProbBitCircuit(pc::ProbCircuit) =
+    CuBitsProbCircuit(BitsProbCircuit(pc))
 
 cu(bpc::BitsProbCircuit) = CuBitsProbCircuit(bpc)
 
