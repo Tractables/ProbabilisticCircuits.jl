@@ -141,7 +141,7 @@ struct PolytomousDist <: CategoricalDist
 end
 
 PolytomousDist(num_cats::Int) =
-    PolytomousDist(loguniform(num_cats)gps)
+    PolytomousDist(loguniform(num_cats))
 
 logps(d::PolytomousDist) = d.logps
 

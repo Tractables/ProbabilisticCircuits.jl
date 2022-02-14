@@ -46,10 +46,9 @@ include("helper/plain_dummy_circuits.jl")
     @test bpc isa BitsProbCircuit
     @test length(bpc.input_node_ids) == 3
     @test length(bpc.nodes) == 5
-    @test length(bpc.heap) == 0
+    @test length(bpc.heap) == 9
 
-    bpc.nodes[1] = BitsInput(bpc.nodes[1].variable, 
-                             BernoulliDist(log(0.12)))
+    bpc.heap[dist(bpc.nodes[1]).heap_start] = log(0.12)
     update_parameters(bpc)
     @test dist(left_most_descendent(pc)).logp ≈ log(0.12)
 
@@ -57,10 +56,9 @@ include("helper/plain_dummy_circuits.jl")
         cbpc = cu(bpc)
         @test length(cbpc.input_node_ids) == 3
         @test length(cbpc.nodes) == 5
-        @test length(cbpc.heap) == 0
+        @test length(cbpc.heap) == 9
 
-        cbpc.nodes[1] = BitsInput(cbpc.nodes[1].variable, 
-                            BernoulliDist(log(0.22)))
+        cbpc.heap[dist(cbpc.nodes[1]).heap_start] = log(0.22)
         update_parameters(cbpc)
         @test dist(left_most_descendent(pc)).logp ≈ log(0.22)
     end

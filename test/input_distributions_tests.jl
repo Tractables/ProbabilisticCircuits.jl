@@ -32,14 +32,15 @@ end
     bern = PlainInputNode(42, BernoulliDist(log(0.1)))
     bit_bern = bits(bern, heap)
     @test isbits(bit_bern)
-    @test loglikelihood(dist(bit_bern), 1) ≈ log(0.1)
-    @test loglikelihood(dist(bit_bern), 0) ≈ log(1-0.1)
+    @test loglikelihood(dist(bit_bern), 1, heap) ≈ log(0.1)
+    @test loglikelihood(dist(bit_bern), 0, heap) ≈ log(1-0.1)
 
+    heap = Float32[]
     cat = PlainInputNode(42, CategoricalDist(6))
     bit_cat = bits(cat, heap)
     @test isbits(bit_cat)
     @test length(heap) == 2*6
-    for i = 0:5
+    for i = 1:6
         @test loglikelihood(dist(bit_cat), i, heap) ≈ log(1/6)
     end
 
