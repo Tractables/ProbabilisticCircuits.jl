@@ -113,6 +113,12 @@ import CUDA: cu #extend
 cu(fv::FlatVectors) =
     FlatVectors(cu(fv.vectors), fv.ends)
 
+import Base: size, getindex #extend
+
+size(fv::FlatVectors) = size(fv.vectors)
+
+getindex(fv::FlatVectors, idx) = getindex(fv.vectors, idx)
+
 ###############################################
 # bits representation of circuit
 ###############################################

@@ -154,75 +154,46 @@ end
 # Downward pass for input nodes
 ##################################################################################
 
-function input_flows_circuit_kernel(flows, nodes, inparams_aggr, input_node_idxs, input_node_vars, input_node_params,
-                                    mars, data, example_ids, num_ex_threads::Int32, node_work::Int32)
+function input_flows_circuit_kernel(flows, nodes, input_node_ids, heap, data, 
+                                    example_ids, num_ex_threads::Int32, node_work::Int32)
 
     threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
 
     node_batch, ex_id = fldmod1(threadid, num_ex_threads)
 
     node_start = one(Int32) + (node_batch - one(Int32)) * node_work
-    node_end = min(node_start + node_work - one(Int32), length(input_node_idxs))
+    node_end = min(node_start + node_work - one(Int32), length(input_node_ids))
 
     @inbounds if ex_id <= length(example_ids)
         for node_id = node_start : node_end
             orig_ex_id::Int32 = example_ids[ex_id]
-
-            orig_node_id = input_node_idxs[node_id]::UInt32
+            orig_node_id::UInt32 = input_node_ids[node_id]
             node_flow::Float32 = flows[orig_ex_id, orig_node_id]
-            node = nodes[orig_node_id]::BitsInput
-            glob_id = node.global_id::UInt32
-            dist_type = node.dist_type::UInt8
-
-            if dist_type == UInt8(1) # LiteralDist
-                nothing # need to do nothing
-
-            elseif dist_type == UInt8(2) # BernoulliDist
-                var = input_node_vars[glob_id, 1]::UInt32
-                v = data[orig_ex_id, var]
-                if !ismissing(v)
-                    if v # v == true
-                        CUDA.@atomic inparams_aggr[glob_id, 1] += node_flow
-                    else # v == false
-                        CUDA.@atomic inparams_aggr[glob_id, 2] += node_flow
-                    end
-                end
-
-            elseif dist_type == UInt8(3) # CategoricalDist
-                var = input_node_vars[glob_id, 1]::UInt32
-                v = data[orig_ex_id, var]
-                if !ismissing(v)
-                    CUDA.@atomic inparams_aggr[glob_id, v] += node_flow
-                end
-                
-            else
-                @assert false
+            inputnode = nodes[orig_node_id]::BitsInput
+            variable = inputnode.variable
+            value = data[orig_ex_id, variable]
+            if !ismissing(value)
+                flow(dist(inputnode), value, node_flow, heap)
             end
-
         end
     end
-
     nothing
 end
 
-function input_flows_circuit(flows, inparams_aggr, bpc, mars, data, example_ids; mine, maxe, debug=false)
-    input_node_idxs = bpc.input_node_idxs
-    input_node_vars = bpc.input_node_vars
-    input_node_params = bpc.input_node_params
-
+function input_flows_circuit(flows, bpc, data, example_ids; mine, maxe, debug=false)
     num_examples = length(example_ids)
-    num_input_nodes = length(input_node_idxs)
+    num_input_nodes = length(bpc.input_node_ids)
 
-    dummy_args = (flows, bpc.nodes, inparams_aggr, input_node_idxs, input_node_vars, input_node_params,
-                  mars, data, example_ids, Int32(1), Int32(1))
+    dummy_args = (flows, bpc.nodes, bpc.input_node_ids,
+                  bpc.heap, data, example_ids, Int32(1), Int32(1))
     kernel = @cuda name="input_flows_circuit" launch=false input_flows_circuit_kernel(dummy_args...)
     config = launch_configuration(kernel.fun)
 
     threads, blocks, num_example_threads, node_work = 
         balance_threads(num_input_nodes, num_examples, config; mine, maxe)
 
-    args = (flows, bpc.nodes, inparams_aggr, input_node_idxs, input_node_vars, input_node_params,
-            mars, data, example_ids, Int32(num_example_threads), Int32(node_work))
+    args = (flows, bpc.nodes, bpc.input_node_ids,
+            bpc.heap, data, example_ids, Int32(num_example_threads), Int32(node_work))
     if debug
         println("Flows of input nodes")
         @show threads blocks num_example_threads node_work num_nodes num_examples
@@ -238,9 +209,9 @@ end
 # Full downward pass
 ##################################################################################
 
-function probs_flows_circuit(flows, mars, edge_aggr, inparams_aggr, bpc, data, example_ids; mine, maxe, debug=false)
+function probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine, maxe, debug=false)
     eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug)
     flows_circuit(flows, edge_aggr, bpc, mars, length(example_ids); mine, maxe, debug)
-    input_flows_circuit(flows, inparams_aggr, bpc, mars, data, example_ids; mine, maxe, debug)
+    input_flows_circuit(flows, bpc, data, example_ids; mine, maxe, debug)
     nothing
 end

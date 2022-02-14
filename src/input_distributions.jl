@@ -1,3 +1,5 @@
+using CUDA
+
 export InputDist, Indicator, LiteralDist, BernoulliDist, CategoricalDist, loglikelihood
 
 abstract type InputDist end
@@ -34,7 +36,6 @@ end
 const LiteralDist = Indicator{Bool}
 
 num_parameters(n::Indicator, independent) = 1 # set to 1 since we need to store the value
-num_bpc_parameters(n::Indicator) = 1 
 
 value(d) = d.value
 
@@ -42,7 +43,8 @@ bits(d::Indicator, _ = nothing) = d
 unbits(d::Indicator, _ = nothing) = d
 
 loglikelihood(d::Indicator, value, _ = nothing) =
-    (d.value == value) ?  zero(Float32) : -Inf32    
+    (d.value == value) ?  zero(Float32) : -Inf32
+flow(d::Indicator, value, node_flow, heap) = nothing
 
 #####################
 # categorical
@@ -74,7 +76,6 @@ num_parameters(n::CategoricalDist, independent) =
 # coin flips
 #####################
 
-
 "A Bernoulli input distribution node"
 struct BernoulliDist <: CategoricalDist
     # 1/ note that we special case Bernoullis from Categoricals in order to 
@@ -87,15 +88,35 @@ BernoulliDist() = BernoulliDist(log(0.5))
 
 num_categories(::BernoulliDist) = 2
 
-num_bpc_parameters(n::BernoulliDist) = 2
-
 logp(d::BernoulliDist) = d.logp
 
-bits(d::BernoulliDist, _ = nothing) = d
-unbits(d::BernoulliDist, _ = nothing) = d
+struct BitsBernoulliDist
+    logp::Float32
+    heap_start::UInt32
+end
 
-loglikelihood(d::BernoulliDist, value, _ = nothing) =
-    isone(value) ?  d.logp : log1p(-exp(d.logp))    
+function bits(d::BernoulliDist, heap)
+    logp = d.logp
+    heap_start = length(heap) + 1
+    # use heap to store parameters and space for parameter learning
+    append!(heap, zeros(eltype(heap), 2))
+    BitsBernoulliDist(logp, heap_start)
+end
+function unbits(d::BitsBernoulliDist, _ = nothing)
+    logp = d.logp
+    BernoulliDist(logp)
+end
+
+loglikelihood(d::BitsBernoulliDist, value, _ = nothing) =
+    isone(value) ? d.logp : log1p(-exp(d.logp))
+flow(d::BitsBernoulliDist, value, node_flow, heap) = begin
+    if isone(value)
+        CUDA.@atomic heap[d.heap_start+1] += node_flow
+    else
+        CUDA.@atomic heap[d.heap_start] += node_flow
+    end
+    nothing
+end
 
 #####################
 # categorical with more than two values
@@ -108,11 +129,10 @@ end
 PolytomousDist(num_cats::Int) =
     PolytomousDist(loguniform(num_cats)gps)
 
-num_bpc_parameters(n::PolytomousDist) = num_categories(n.logps)
-
 logps(d::PolytomousDist) = d.logps
 
 num_categories(d::PolytomousDist) = length(logps(d))
+
 struct BitsPolytomousDist
     num_cats::UInt32
     heap_start::UInt32
@@ -133,4 +153,8 @@ function unbits(d::BitsPolytomousDist, heap)
 end
 
 loglikelihood(d::BitsPolytomousDist, value, heap) =
-    heap[d.heap_start+value]
+    heap[d.heap_start+value-1]
+flow(d::BitsPolytomousDist, value, node_flow, heap) = begin
+    CUDA.@atomic heap[d.heap_start+d.num_cats+value-1] += node_flow
+    nothing
+end
