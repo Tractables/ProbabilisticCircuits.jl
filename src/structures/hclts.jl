@@ -1,17 +1,18 @@
 using CUDA
 using ChowLiuTrees: learn_chow_liu_tree
-using Graphs: SimpleGraph, SimpleDiGraph, bfs_tree, center, 
-connected_components, induced_subgraph, nv, add_edge!
+using Graphs: SimpleGraph, SimpleDiGraph, bfs_tree, center, neighbors,
+connected_components, induced_subgraph, nv, add_edge!, rem_edge!
 using MetaGraphs: get_prop, set_prop!, MetaDiGraph, vertices, indegree, outneighbors
 
 export hclt
 
-function hclt(data, num_hidden_cats;
+function hclt(data, num_hidden_cats; 
+              shape = :directed,
               input_type = Indicator,
               pseudocount = 0.1) where T
     
     clt_edges = learn_chow_liu_tree(data; pseudocount, Float=Float32)
-    clt = clt_edges2graphs(clt_edges)
+    clt = clt_edges2graphs(clt_edges; shape)
     
     num_cats = maximum(data) - minimum(data) + 1
     hclt_from_clt(clt, num_cats, num_hidden_cats; input_type)
@@ -60,73 +61,76 @@ function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = Indicator)
     get_prop(clt, node_seq[end], :circuits)[1] # A ProbCircuit node
 end
 
-function clt_edges2graphs(edges::Vector{Tuple{Int,Int}})
-    vars = sort(collect(Set(append!(first.(edges), last.(edges)))))
+function clt_edges2graphs(edgepair; shape=:directed)
+    vars = sort(collect(Set(append!(first.(edgepair), last.(edgepair)))))
     @assert all(vars .== collect(1:maximum(vars))) "Variables are not contiguous"
-    num_vars = length(vars)
     
-    MStree = SimpleGraph(num_vars)
-    map(edges) do edge
+    nvar = length(vars)
+    MStree = SimpleGraph(nvar)
+    map(edgepair) do edge
         add_edge!(MStree, edge[1], edge[2])
     end
     
-    # Use the graph center of `MStree' as the root node of the CLT
-    clt = SimpleDiGraph(num_vars)
-    for c in filter(c -> (length(c) > 1), connected_components(MStree))
-        sg, vmap = induced_subgraph(MStree, c)
-        sub_root = vmap[center(sg)[1]]
-        clt = union(clt, bfs_tree(MStree, sub_root))
+
+    if shape == :directed
+        # Use the graph center of `MStree` as the root node
+        MetaDiGraph(bfs_tree(MStree, center(MStree)[1]))
+
+    elseif shape == :balanced
+        # iteratively pick the graph center to make a balanced clt
+        clt = SimpleDiGraph(nvar)
+        
+        function find_center_ite(g, vmap, clt_map, clt) 
+            # `vmap` map current `g` index to upper layer graph id
+            # `clt_map` map sub graph to `clt`
+            # return root
+    
+            if nv(g) == 1
+                return vmap[1]
+            else
+                root = center(g)[1]
+                for dst in collect(neighbors(g, root))
+                    rem_edge!(g, root, dst)
+                    sub_nodes = filter(x -> dst in x, connected_components(g))
+                    add_edge!(g, root, dst)
+                    sub_g, sub_vmap = induced_subgraph(g, sub_nodes[1])
+                    sub_root = find_center_ite(sub_g, sub_vmap, clt_map[sub_vmap], clt)
+                    add_edge!(clt, clt_map[root], clt_map[sub_root])
+                end
+                return vmap[root]
+            end
+        end
+
+        find_center_ite(MStree, collect(1:nvar), collect(1:nvar), clt)
+        MetaDiGraph(clt)
+    else
+        error("Shape $shape not found in function `clt_edges2graphs`.")
     end
-    MetaDiGraph(clt)
 end
 
 
 function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
-                            input_type::Union{Type{LiteralDist},Type{BernoulliDist}})
-    num_bits = num_bits_per_cat(num_cats)
-
-    if input_type == LiteralDist
-        plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars * num_bits]
-        nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars * num_bits]
-    else
-        @assert input_type == BernoulliDist
-        error("TODO: implement way of replacing sum nodes by Berns")
-    end
+                            input_type::Type{BernoulliDist})
     
-    cat_leaf(var, cat) = begin
-        # TODO remove this conversion, no longer needed
-        bits = to_bits(cat, num_bits)
-        binary_leafs = Vector{PlainInputNode}(undef, num_bits)
-        for i = 1 : num_bits
-            bit_index = (var-1) * num_bits + i
-            lit = bits[i] ? plits[bit_index] : nlits[bit_index]
-            binary_leafs[i] = lit
-        end
-        if num_bits >= 2
-            multiply(binary_leafs...)
-        else
-            binary_leafs[1]
-        end
-    end
+    @assert num_cats == 2 "Category must be two when leaf node is bernoulli."
+    error("TODO: implement way of replacing sum nodes by Berns")
+end
 
-    leaves = [cat_leaf(v,c) for v=1:num_vars, c=1:num_cats]
+
+function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
+                            input_type::Type{LiteralDist})
+    @assert num_cats == 2 "Category must be two in when leaf node is literal."
+    plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars]
+    nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars]
+    leaves = hcat([plits, nlits]...)
     [summate(leaves[var, :]) 
         for var=1:num_vars, copy=1:num_hidden_cats]
 end
 
+
 function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Type{CategoricalDist})
     [PlainInputNode(var, CategoricalDist(num_cats)) 
         for var=1:num_vars, copy=1:num_hidden_cats]
-end
-
-num_bits_per_cat(num_cats) = ceil(Int, log2(num_cats))
-
-function to_bits(category, num_bits, bits = BitVector(undef, num_bits))
-    for bit_idx = 1:num_bits
-        @inbounds bits[bit_idx] = (category & 1) 
-        category = category >> 1
-    end
-    bits
 end
 
 
