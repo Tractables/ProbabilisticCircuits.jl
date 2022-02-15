@@ -7,14 +7,14 @@ using CUDA
 abstract type BitsNode end
 
 struct BitsInput{D} <: BitsNode
-    variable::UInt32 # for now assume single variable
+    variable::Var # for now assume single variable
     dist::D
 end
 
 dist(n::BitsInput) = n.dist
 
 function bits(in::PlainInputNode, heap)
-    vars = UInt32.(randvars(in))
+    vars = Var.(randvars(in))
     bits_dist = bits(dist(in), heap)
     BitsInput(vars..., bits_dist)
 end
