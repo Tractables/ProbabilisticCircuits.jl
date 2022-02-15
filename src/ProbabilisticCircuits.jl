@@ -14,6 +14,7 @@ module ProbabilisticCircuits
     include("traversal.jl")
 
     include("queries/likelihood.jl")
+    include("queries/likelihood_cpu.jl")
     include("queries/flow.jl")
 
     include("parameters/em.jl")

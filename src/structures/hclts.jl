@@ -8,7 +8,7 @@ export hclt
 
 function hclt(data, num_hidden_cats; 
               shape = :directed,
-              input_type = Indicator,
+              input_type = LiteralDist,
               pseudocount = 0.1) where T
     
     clt_edges = learn_chow_liu_tree(data; pseudocount, Float=Float32)
@@ -19,7 +19,7 @@ function hclt(data, num_hidden_cats;
 end
 
 
-function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = Indicator)
+function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = LiteralDist)
     
     num_vars = nv(clt)
 

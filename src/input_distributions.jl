@@ -76,6 +76,10 @@ num_categories(::BernoulliDist) = 2
 
 logp(d::BernoulliDist) = d.logp
 
+
+loglikelihood(d::BernoulliDist, value) =
+    isone(value) ? d.logp : log1p(-exp(d.logp))
+
 struct BitsBernoulliDist
     heap_start::UInt32
 end
