@@ -16,6 +16,7 @@ num_categories(d::DataFrame) = length(mapreduce(unique, union, eachcol_unweighte
 
 function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
               latent_heuristic::String = "vanila",
+              shape = :directed,
               num_cats::Integer = num_categories(data),
               num_hidden_cats::Integer = 16,
               tree_sample_type::String = "fixed_interval", # "random"
@@ -33,7 +34,7 @@ function hclt(data::Union{CuMatrix, Matrix}, ::Type{T} = ProbCircuit;
     edges = ChowLiuTrees.learn_chow_liu_trees(data;
             num_trees=num_tree_candidates, 
             dropout_prob, weights, pseudocount, Float)
-    clts = clt_edges2graphs(edges)
+    clts = clt_edges2graphs(edges;shape)
     
     # Sample `num_trees` trees from the `num_tree_candidates` candidates
     if tree_sample_type == "random"
@@ -122,30 +123,58 @@ function hclt_from_clt_vanila(clt::MetaDiGraph, num_cats::Integer, ::Type{T}=Pro
 end
 
 
-clt_edges2graphs(edges::Vector{<:Vector}) = map(edges) do e
-        clt_edges2graphs(e)
+clt_edges2graphs(edges::Vector{<:Vector}; shape) = map(edges) do e
+        clt_edges2graphs(e; shape)
 end
 
 
-function clt_edges2graphs(edges::Vector{Tuple{Int,Int}})
-    vars = sort(collect(Set(append!(first.(edges), last.(edges)))))
+function clt_edges2graphs(edgepair; shape=:directed)
+    vars = sort(collect(Set(append!(first.(edgepair), last.(edgepair)))))
     @assert all(vars .== collect(1:maximum(vars))) "Variables are not contiguous"
-    num_vars = length(vars)
     
-    MStree = SimpleGraph(num_vars)
-    map(edges) do edge
+    nvar = length(vars)
+    MStree = SimpleGraph(nvar)
+    map(edgepair) do edge
         add_edge!(MStree, edge[1], edge[2])
     end
     
-    # Use the graph center of `MStree' as the root node of the CLT
-    clt = SimpleDiGraph(num_vars)
-    for c in filter(c -> (length(c) > 1), connected_components(MStree))
-        sg, vmap = induced_subgraph(MStree, c)
-        sub_root = vmap[Graphs.center(sg)[1]]
-        clt = union(clt, bfs_tree(MStree, sub_root))
+
+    if shape == :directed
+        # Use the graph center of `MStree` as the root node
+        MetaDiGraph(bfs_tree(MStree, center(MStree)[1]))
+
+    elseif shape == :balanced
+        # iteratively pick the graph center to make a balanced clt
+        clt = SimpleDiGraph(nvar)
+        
+        function find_center_ite(g, vmap, clt_map, clt) 
+            # `vmap` map current `g` index to upper layer graph id
+            # `clt_map` map sub graph to `clt`
+            # return root
+    
+            if nv(g) == 1
+                return vmap[1]
+            else
+                root = center(g)[1]
+                for dst in collect(neighbors(g, root))
+                    rem_edge!(g, root, dst)
+                    sub_nodes = filter(x -> dst in x, connected_components(g))
+                    add_edge!(g, root, dst)
+                    sub_g, sub_vmap = induced_subgraph(g, sub_nodes[1])
+                    sub_root = find_center_ite(sub_g, sub_vmap, clt_map[sub_vmap], clt)
+                    add_edge!(clt, clt_map[root], clt_map[sub_root])
+                end
+                return vmap[root]
+            end
+        end
+
+        find_center_ite(MStree, collect(1:nvar), collect(1:nvar), clt)
+        MetaDiGraph(clt)
+    else
+        error("Shape $shape not found in function `clt_edges2graphs`.")
     end
-    MetaDiGraph(clt)
 end
+
 
 
 function categorical_leaves(num_vars, num_cats, ::Type{T} = ProbCircuit) where T
