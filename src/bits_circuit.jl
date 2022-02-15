@@ -194,7 +194,7 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
     end
 end
 
-CuProbBitCircuit(pc::ProbCircuit) =
+CuBitsProbCircuit(pc::ProbCircuit) =
     CuBitsProbCircuit(BitsProbCircuit(pc))
 
 cu(bpc::BitsProbCircuit) = CuBitsProbCircuit(bpc)
