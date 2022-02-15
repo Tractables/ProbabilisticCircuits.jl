@@ -28,6 +28,8 @@ loglikelihood(d::Indicator, value, _ = nothing) =
 
 flow(d::Indicator, value, node_flow, heap) = nothing
 
+init_params(d::Indicator, _ = nothing) = d
+
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
 
 clear_memory(d::Indicator, heap, rate) = nothing
@@ -76,9 +78,13 @@ num_categories(::BernoulliDist) = 2
 
 logp(d::BernoulliDist) = d.logp
 
-
 loglikelihood(d::BernoulliDist, value) =
     isone(value) ? d.logp : log1p(-exp(d.logp))
+
+init_params(d::BernoulliDist, perturbation::Float32) = begin
+    logp = log(rand() * perturbation + (one(Float32) - perturbation) * Float32(0.5))
+    BernoulliDist(logp)
+end
 
 struct BitsBernoulliDist
     heap_start::UInt32
@@ -154,6 +160,12 @@ PolytomousDist(num_cats::Int) =
 logps(d::PolytomousDist) = d.logps
 
 num_categories(d::PolytomousDist) = length(logps(d))
+
+init_params(d::PolytomousDist, perturbation::Float32) = begin
+    unnormalized_probs = map(x -> one(Float32) - perturbation + x * Float32(2.0) * perturbation, rand(Float32, length(d.logps)))
+    logps = log.(unnormalized_probs ./ sum(unnormalized_probs))
+    PolytomousDist(logps)
+end
 
 struct BitsPolytomousDist
     num_cats::UInt32

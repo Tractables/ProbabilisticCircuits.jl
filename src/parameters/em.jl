@@ -1,6 +1,6 @@
 using CUDA, Random
 
-export full_batch_em, mini_batch_em
+export full_batch_em, mini_batch_em, init_parameters
 
 ##################################################################################
 # Count siblings
@@ -202,9 +202,35 @@ function update_input_node_params(bpc; pseudocount, inertia = 0)
     nothing
 end
 
+####################################
+### Parameter initialization
+####################################
+
+"Initialize parameters of ProbCircuit."
+function init_parameters(pc::ProbCircuit; perturbation = 0.0)
+    perturbation = Float32(perturbation)
+    foreach(pc) do pn
+        @inbounds if issum(pn)
+            if num_children(pn) == 1
+                pn.params .= zero(Float32)
+            else
+                if perturbation < 1e-8
+                    pn.params .= loguniform(num_children(pn))
+                else
+                    unnormalized_probs = map(x -> one(Float32) - perturbation + x * Float32(2.0) * perturbation, rand(Float32, num_children(pn)))
+                    pn.params .= log.(unnormalized_probs ./ sum(unnormalized_probs))
+                end
+            end
+        elseif isinput(pn)
+            init_params(pn, perturbation)
+        end
+    end
+    nothing
+end
+
 #######################
 ### Full-Batch EM
-######################
+#######################
 
 "Turn binary data into floating point data close to 0 and 1."
 function soften_data(data; softness, pseudocount=1)

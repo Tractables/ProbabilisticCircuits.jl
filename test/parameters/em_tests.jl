@@ -6,6 +6,20 @@ import ProbabilisticCircuits as PCs
 include("../helper/plain_dummy_circuits.jl")
 
 
+@testset "init params" begin
+
+    pc = little_3var()
+    @test_nowarn init_parameters(pc; perturbation = 0.2)
+
+    pc = little_3var_bernoulli()
+    @test_nowarn init_parameters(pc; perturbation = 0.2)
+
+    pc = little_3var_categorical()
+    @test_nowarn init_parameters(pc; perturbation = 0.2)
+
+end
+
+
 @testset "mini-batch em" begin
 
     # LiteralDist

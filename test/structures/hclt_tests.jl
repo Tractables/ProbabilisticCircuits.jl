@@ -1,4 +1,3 @@
-using Revise
 using Test, DirectedAcyclicGraphs, ProbabilisticCircuits
 using ProbabilisticCircuits: PlainSumNode, PlainMulNode, PlainProbCircuit
 using CUDA
