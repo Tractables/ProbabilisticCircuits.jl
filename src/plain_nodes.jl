@@ -61,9 +61,6 @@ num_parameters_node(n::PlainMulNode, _) = 0
 num_parameters_node(n::PlainSumNode, independent) = 
     num_inputs(n) - (independent ? 1 : 0)
 
-num_bpc_parameters(n::PlainInputNode) = 
-    num_bpc_parameters(dist(n))
-
 init_params(n::PlainInputNode, perturbation::Float32) = begin
     d = init_params(dist(n), perturbation)
     n.dist = d

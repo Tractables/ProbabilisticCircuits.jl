@@ -15,7 +15,7 @@ end
 
 const LiteralDist = Indicator{Bool}
 
-num_parameters(n::Indicator, independent) = 1 # set to 1 since we need to store the value
+num_parameters(n::Indicator, independent) = 0
 
 value(d) = d.value
 
@@ -57,8 +57,7 @@ loguniform(num_cats) =
 CategoricalDist(num_cats::Integer) =
     CategoricalDist(loguniform(num_cats))
 
-num_parameters(n::CategoricalDist, independent) = 
-    num_categories(n) - independent ? 1 : 0
+num_parameters(n::CategoricalDist, independent) = num_categories(n)
 
 #####################
 # coin flips
@@ -228,7 +227,7 @@ clear_memory(d::BitsPolytomousDist, heap, rate) = begin
     heap_start = d.heap_start
     num_cats = d.num_cats
     for i = 1 : num_cats
-        heap[heap_start+num_cats-1+i] *= rate
+        heap[heap_start+num_cats+i-1] *= rate
     end
     heap[heap_start+2*num_cats] *= rate
     nothing
