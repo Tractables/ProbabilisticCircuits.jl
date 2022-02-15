@@ -89,7 +89,7 @@ function bits(d::BernoulliDist, heap)
     heap_start = length(heap) + 1
     # use heap to store parameters and space for parameter learning
     push!(heap, logp)
-    append!(heap, zeros(eltype(heap), 2))
+    append!(heap, zeros(eltype(heap), 3)) # 2 used to accumulate flows, 1 used to maintain `missing` flows
     BitsBernoulliDist(heap_start)
 end
 
@@ -102,7 +102,9 @@ loglikelihood(d::BitsBernoulliDist, value, heap) =
     isone(value) ? heap[d.heap_start] : log1p(-exp(heap[d.heap_start]))
 
 flow(d::BitsBernoulliDist, value, node_flow, heap) = begin
-    if isone(value)
+    if ismissing(value)
+        CUDA.@atomic heap[d.heap_start+3] += node_flow
+    elseif isone(value)
         CUDA.@atomic heap[d.heap_start+2] += node_flow
     else
         CUDA.@atomic heap[d.heap_start+1] += node_flow
@@ -118,11 +120,12 @@ update_params(d::BitsBernoulliDist, heap, pseudocount, inertia) = begin
     heap[heap_start+2] += pseudocount * Float32(0.5)
     
     # node flow
-    node_flow = heap[heap_start+1] + heap[heap_start+2]
+    node_flow = heap[heap_start+1] + heap[heap_start+2] + heap[heap_start+3]
     
     # update parameter
-    old = inertia * exp(heap[heap_start])
-    new = (one(Float32) - inertia) * heap[heap_start+2] / node_flow 
+    oldp = exp(heap[heap_start])
+    old = inertia * oldp
+    new = (one(Float32) - inertia) * (heap[heap_start+2] + heap[heap_start+3] * oldp) / node_flow 
     new_log_param = log(old + new)
     heap[heap_start] = new_log_param
     
@@ -133,6 +136,7 @@ clear_memory(d::BitsBernoulliDist, heap, rate) = begin
     heap_start = d.heap_start
     heap[heap_start+1] *= rate
     heap[heap_start+2] *= rate
+    heap[heap_start+3] *= rate
     nothing
 end
 
@@ -161,7 +165,7 @@ function bits(d::PolytomousDist, heap)
     heap_start = length(heap) + 1
     # use heap to store parameters and space for parameter learning
     append!(heap, logps(d))
-    append!(heap, zeros(eltype(heap), num_cats))
+    append!(heap, zeros(eltype(heap), num_cats + 1)) # the last value is used to maintain `missing` flows
     BitsPolytomousDist(num_cats, heap_start)
 end
 
@@ -174,7 +178,11 @@ loglikelihood(d::BitsPolytomousDist, value, heap) =
     heap[d.heap_start+value-1]
 
 flow(d::BitsPolytomousDist, value, node_flow, heap) = begin
-    CUDA.@atomic heap[d.heap_start+d.num_cats+value-1] += node_flow
+    if ismissing(value)
+        CUDA.@atomic heap[d.heap_start+2*d.num_cats] += node_flow
+    else
+        CUDA.@atomic heap[d.heap_start+d.num_cats+value-1] += node_flow
+    end
     nothing
 end
 
@@ -189,11 +197,14 @@ update_params(d::BitsPolytomousDist, heap, pseudocount, inertia) = begin
         heap[heap_start+num_cats-1+i] += cat_pseudocount
         node_flow += heap[heap_start+num_cats-1+i]
     end
+    missing_flow = heap[heap_start+2*num_cats]
+    node_flow += missing_flow
     
     # update parameter
     for i = 1 : num_cats
-        old = inertia * exp(heap[heap_start-1+i])
-        new = (one(Float32) - inertia) * heap[heap_start+num_cats-1+i] / node_flow 
+        oldp = exp(heap[heap_start-1+i])
+        old = inertia * oldp
+        new = (one(Float32) - inertia) * (heap[heap_start+num_cats-1+i] + missing_flow * oldp) / node_flow 
         new_log_param = log(old + new)
         heap[heap_start-1+i] = new_log_param
     end
@@ -207,5 +218,6 @@ clear_memory(d::BitsPolytomousDist, heap, rate) = begin
     for i = 1 : num_cats
         heap[heap_start+num_cats-1+i] *= rate
     end
+    heap[heap_start+2*num_cats] *= rate
     nothing
 end
