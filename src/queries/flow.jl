@@ -172,9 +172,7 @@ function input_flows_circuit_kernel(flows, nodes, input_node_ids, heap, data,
             inputnode = nodes[orig_node_id]::BitsInput
             variable = inputnode.variable
             value = data[orig_ex_id, variable]
-            if !ismissing(value)
-                flow(dist(inputnode), value, node_flow, heap)
-            end
+            flow(dist(inputnode), value, node_flow, heap)
         end
     end
     nothing

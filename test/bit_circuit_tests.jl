@@ -46,7 +46,7 @@ include("helper/plain_dummy_circuits.jl")
     @test bpc isa BitsProbCircuit
     @test length(bpc.input_node_ids) == 3
     @test length(bpc.nodes) == 5
-    @test length(bpc.heap) == 9
+    @test length(bpc.heap) == 12
 
     bpc.heap[dist(bpc.nodes[1]).heap_start] = log(0.12)
     update_parameters(bpc)
@@ -56,7 +56,7 @@ include("helper/plain_dummy_circuits.jl")
         cbpc = cu(bpc)
         @test length(cbpc.input_node_ids) == 3
         @test length(cbpc.nodes) == 5
-        @test length(cbpc.heap) == 9
+        @test length(cbpc.heap) == 12
 
         cbpc.heap[dist(cbpc.nodes[1]).heap_start] = log(0.22)
         update_parameters(cbpc)
@@ -69,7 +69,7 @@ include("helper/plain_dummy_circuits.jl")
     @test bpc isa BitsProbCircuit
     @test length(bpc.input_node_ids) == 3
     @test length(bpc.nodes) == 5
-    @test length(bpc.heap) == 5*2*3
+    @test length(bpc.heap) == (5*2+1)*3
 
     newparams = log.([0.1,0.1,0.1,0.3,0.4])
     bpc.heap[1:5] .=  newparams
@@ -80,7 +80,7 @@ include("helper/plain_dummy_circuits.jl")
         cbpc = cu(bpc)
         @test length(cbpc.input_node_ids) == 3
         @test length(cbpc.nodes) == 5
-        @test length(cbpc.heap) == 5*2*3
+        @test length(cbpc.heap) == (5*2+1)*3
 
         newparams = log.([0.1,0.1,0.3,0.4,0.1])
         cbpc.heap[1:5] .=  CuVector(newparams)

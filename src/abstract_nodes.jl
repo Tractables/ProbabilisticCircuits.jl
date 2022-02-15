@@ -76,7 +76,7 @@ sumnodes(pc) = filter(issum, pc)
 
 "Count the number of parameters in the circuit"
 num_parameters(pc, independent = true) = 
-    sum(n -> num_parameters_node(n, independent), sumnodes(pc))
+    sum(n -> num_parameters_node(n, independent), vcat(sumnodes(pc), inputnodes(pc)))
 
 "Number of inputs of a PC node"
 num_inputs(pc) = num_inputs(pc, NodeType(pc))

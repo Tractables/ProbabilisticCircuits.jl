@@ -39,7 +39,7 @@ end
     cat = PlainInputNode(42, CategoricalDist(6))
     bit_cat = bits(cat, heap)
     @test isbits(bit_cat)
-    @test length(heap) == 2*6
+    @test length(heap) == 2*6+1
     for i = 1:6
         @test loglikelihood(dist(bit_cat), i, heap) ≈ log(1/6)
     end
