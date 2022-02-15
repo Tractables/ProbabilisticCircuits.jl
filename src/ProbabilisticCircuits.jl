@@ -18,6 +18,8 @@ module ProbabilisticCircuits
     include("queries/flow.jl")
 
     include("parameters/em.jl")
+
     include("structures/hclts.jl")
+    include("structures/rat.jl")
     
 end
