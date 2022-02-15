@@ -397,7 +397,7 @@ function update_parameters(bpc::AbstractBitsProbCircuit)
             params(parent) .= map(e -> e.logp, edges[i:i+ni-1])
         else # parent is a product node
             ni = 1
-            while !PCs.isfirst(edges[i+ni].tag)
+            while !isfirst(edges[i+ni].tag)
                 ni += 1
             end
         end
