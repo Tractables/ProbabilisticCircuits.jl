@@ -22,111 +22,123 @@ end
 
 @testset "mini-batch em" begin
 
-    # LiteralDist
-    
-    pc = little_3var()
-    bpc = PCs.CuBitsProbCircuit(pc)
+    if CUDA.functional()
 
-    data = cu([true true false; false true false; false false false])
+        # LiteralDist
+        
+        pc = little_3var()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
+        data = cu([true true false; false true false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
 
-    # BernoulliDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_bernoulli()
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # BernoulliDist
 
-    data = cu([true true false; false true false; false false false])
+        pc = little_3var_bernoulli()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
+        data = cu([true true false; false true false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
 
-    # CategoricalDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # CategoricalDist
 
-    data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
+        pc = little_3var_categorical(; num_cats = UInt32(5))
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
+        data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
-    @test lls[2] > lls[1]
+        lls = mini_batch_em(bpc, data, 2; batch_size = 3, pseudocount = 0.1, param_inertia = 0.2, verbose = false)
+
+        @test lls[2] > lls[1]
+
+    end
 
 end
 
 @testset "full-batch em" begin
 
-    # LiteralDist
-    
-    pc = little_3var()
-    bpc = PCs.CuBitsProbCircuit(pc)
+    if CUDA.functional()
 
-    data = cu([true true false; false true false; false false false])
+        # LiteralDist
+        
+        pc = little_3var()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu([true true false; false true false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
 
-    # BernoulliDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_bernoulli()
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # BernoulliDist
 
-    data = cu([true true false; false true false; false false false])
+        pc = little_3var_bernoulli()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu([true true false; false true false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
 
-    # CategoricalDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # CategoricalDist
 
-    data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
+        pc = little_3var_categorical(; num_cats = UInt32(5))
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+
+        @test lls[2] > lls[1]
+
+    end
 
 end
 
 @testset "em with missing" begin
 
-    # LiteralDist
-    
-    pc = little_3var()
-    bpc = PCs.CuBitsProbCircuit(pc)
+    if CUDA.functional()
 
-    data = cu([true true missing; false missing false; false false false])
+        # LiteralDist
+        
+        pc = little_3var()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu([true true missing; false missing false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
 
-    # BernoulliDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_bernoulli()
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # BernoulliDist
 
-    data = cu([true missing false; missing true false; false false false])
+        pc = little_3var_bernoulli()
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu([true missing false; missing true false; false false false])
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
 
-    # CategoricalDist
+        @test lls[2] > lls[1]
 
-    pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuBitsProbCircuit(pc)
+        # CategoricalDist
 
-    data = cu([missing 3 4; 5 1 missing; 3 4 5])
+        pc = little_3var_categorical(; num_cats = UInt32(5))
+        bpc = PCs.CuBitsProbCircuit(pc)
 
-    lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+        data = cu([missing 3 4; 5 1 missing; 3 4 5])
 
-    @test lls[2] > lls[1]
+        lls = full_batch_em(bpc, data, 2; batch_size = 32, pseudocount = 0.1, verbose = false)
+
+        @test lls[2] > lls[1]
+
+    end
 
 end

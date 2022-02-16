@@ -11,7 +11,11 @@ import ProbabilisticCircuits as PCs
     num_vars = 3
     num_cats = 2
     
-    data = cu([true true false; false true false; false false false])
+    data = [true true false; false true false; false false false]
+    
+    if CUDA.functional()
+        data = cu(data)
+    end
     
     pc = hclt(data, 4; input_type = LiteralDist)
     _, layer = feedforward_layers(pc)
