@@ -332,7 +332,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     @assert param_inertia <= param_inertia_end <= 1
     @assert 0 <= flow_memory  
     @assert flow_memory <= flow_memory_end  
-    @assert shuffle ∈ [:never, :once, :each_epoch, :each_batch]
+    @assert shuffle ∈ [:once, :each_epoch, :each_batch]
 
     num_examples = size(raw_data)[1]
     num_nodes = length(bpc.nodes)

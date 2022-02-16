@@ -1,12 +1,12 @@
 using Test, DirectedAcyclicGraphs, ProbabilisticCircuits, CUDA
-using ProbabilisticCircuits: CuProbBitCircuit
+using ProbabilisticCircuits: CuBitsProbCircuit
 
 include("../helper/plain_dummy_circuits.jl")
 
 @testset "likelihood" begin
     
     pc = little_3var()
-    bpc = CuProbBitCircuit(pc)
+    bpc = CuBitsProbCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -19,7 +19,7 @@ include("../helper/plain_dummy_circuits.jl")
     @test avg_ll ≈ log(Float32(0.125))
 
     pc = little_3var_bernoulli(; p = Float32(0.6))
-    bpc = CuProbBitCircuit(pc)
+    bpc = CuBitsProbCircuit(pc)
 
     lls = Array(loglikelihoods(bpc, data; batch_size = 32))
 
@@ -30,7 +30,7 @@ include("../helper/plain_dummy_circuits.jl")
     data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = CuProbBitCircuit(pc)
+    bpc = CuBitsProbCircuit(pc)
 
     lls = Array(loglikelihoods(bpc, data; batch_size = 32))
 

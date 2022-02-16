@@ -168,7 +168,7 @@ function input_flows_circuit_kernel(flows, nodes, input_node_ids, heap, data,
         for node_id = node_start : node_end
             orig_ex_id::Int32 = example_ids[ex_id]
             orig_node_id::UInt32 = input_node_ids[node_id]
-            node_flow::Float32 = flows[orig_ex_id, orig_node_id]
+            node_flow::Float32 = flows[ex_id, orig_node_id]
             inputnode = nodes[orig_node_id]::BitsInput
             variable = inputnode.variable
             value = data[orig_ex_id, variable]

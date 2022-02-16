@@ -73,7 +73,6 @@ function clt_edges2graphs(edgepair; shape=:directed)
     map(edgepair) do edge
         add_edge!(MStree, edge[1], edge[2])
     end
-    
 
     if shape == :directed
         # Use the graph center of `MStree` as the root node
@@ -122,12 +121,36 @@ end
 
 function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
                             input_type::Type{LiteralDist})
-    @assert num_cats == 2 "Category must be two in when leaf node is literal."
-    plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars]
-    nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars]
-    leaves = hcat([plits, nlits]...)
-    [summate(leaves[var, :]) 
-        for var=1:num_vars, copy=1:num_hidden_cats]
+    if num_cats == 2
+        plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars]
+        nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars]
+        leaves = hcat([plits, nlits]...)
+        [summate(leaves[var, :]) 
+            for var=1:num_vars, copy=1:num_hidden_cats]
+    else # Use LiteralDist to model categorical distributions
+        nbits = Int(ceil(log2(num_cats)))
+        plits = [PlainInputNode((var-1)*nbits+lit, LiteralDist(true)) 
+                    for var=1:num_vars, lit=1:nbits]
+        nlits = [PlainInputNode((var-1)*nbits+lit, LiteralDist(false))
+                    for var=1:num_vars, lit=1:nbits]
+        to_bits(cat, nbits) = begin
+            bits = zeros(Bool, nbits)
+            for b = 1 : nbits
+                bits[nbits-b+1] = ((cat % 2) == 1)
+                cat = cat ÷ 2
+            end
+            bits
+        end
+        cat_leaf(var, _) = begin
+            cat_lits = map(1:num_cats) do cat
+                bits = to_bits(cat, nbits)
+                lits = [ifelse(bits[l], plits[var,l], nlits[var,l]) for l=1:nbits]
+                multiply(lits...)
+            end
+            summate(cat_lits...)
+        end
+        cat_leaf.(1:num_vars, (1:num_hidden_cats)')
+    end
 end
 
 

@@ -1,22 +1,8 @@
-export zoo_spn, zoo_spn_file, 
-    SpnFormat
-
 struct SpnFormat <: FileFormat end
 
 ##############################################
 # Read SPN format (some dialect of the Libra AC format?)
 ##############################################
-
-zoo_spn_file(name) = 
-    artifact"circuit_model_zoo" * zoo_version * "/spns/$name"
-
-"""
-    zoo_spn(name)
-
-Loads SPN file with given name from model zoo. See https://github.com/UCLA-StarAI/Circuit-Model-Zoo.    
-"""
-zoo_spn(name) = 
-    read(zoo_spn_file(name), ProbCircuit, SpnFormat())
 
 const spn_grammar = raw"""
     start : domains (_NL node)+ _NL "EOF" _NL?
@@ -33,9 +19,9 @@ const spn_grammar = raw"""
     %import common.NEWLINE -> _NL
     """
 
-const spn_parser = Lark(spn_grammar)
+const spn_parser() = Lark(spn_grammar)
 
-struct SpnParse <: JuiceTransformer
+struct SpnParse <: PCTransformer
     nodes::Vector{PlainProbCircuit}
     SpnParse() = new(PlainProbCircuit[])
 end
@@ -50,10 +36,10 @@ end
 end
 
 @rule literal_node(t::SpnParse, x) = begin
-    v = Base.parse(Var,x[1]) + 1
+    var = Base.parse(Var,x[1]) + 1
     @assert x[2] == "0" || x[2] == "1" "Boolean domains only." 
-    l = (x[2] == "1") ? Lit(v) : -Lit(v)
-    push!(t.nodes, PlainProbLiteralNode(l))
+    sign = (x[2] == "1")
+    push!(t.nodes, PlainInputNode(var, LiteralDist(sign)))
 end
 
 @rule prod_node(t::SpnParse,x) = begin
@@ -70,7 +56,7 @@ end
 end
 
 function Base.parse(::Type{PlainProbCircuit}, str, ::SpnFormat) 
-    ast = Lerche.parse(spn_parser, str)
+    ast = Lerche.parse(spn_parser(), str)
     Lerche.transform(SpnParse(), ast)
 end
 
@@ -87,20 +73,20 @@ function Base.write(io::IO, circuit::ProbCircuit, ::SpnFormat)
     labeling = label_nodes(circuit)
     map!(x -> x-1, values(labeling)) # nodes are 0-based indexed
 
-    println(io, "(2" * " 2"^(num_variables(circuit)-1) * ")")
+    println(io, "(2" * " 2"^(num_randvars(circuit)-1) * ")")
     foreach(circuit) do n
-        if isliteralgate(n)
-            state = ispositive(n) ? "1" : "0"
-            println(io, "v $(variable(n)-1) $state")
+        if isinput(n)
+            state = value(dist(n)) ? "1" : "0"
+            println(io, "v $(randvar(n)-1) $state")
         else
-            print(io, is⋀gate(n) ? "*" : "+")
-            if is⋀gate(n)
-                for child in children(n)
+            print(io, ismul(n) ? "*" : "+")
+            if ismul(n)
+                for child in inputs(n)
                     print(io, " $(labeling[child])")
                 end
             else
-                @assert is⋁gate(n)  
-                for (child, logp) in zip(children(n), n.log_probs)
+                @assert issum(n)  
+                for (child, logp) in zip(inputs(n), params(n))
                     print(io, " $(labeling[child]) $logp")
                 end    
             end
