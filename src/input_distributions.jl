@@ -205,17 +205,16 @@ update_params(d::BitsPolytomousDist, heap, pseudocount, inertia) = begin
     node_flow = zero(Float32)
     cat_pseudocount = pseudocount / Float32(num_cats)
     for i = 1 : num_cats
-        heap[heap_start+num_cats-1+i] += cat_pseudocount
         node_flow += heap[heap_start+num_cats-1+i]
     end
     missing_flow = heap[heap_start+2*num_cats]
-    node_flow += missing_flow
+    node_flow += missing_flow + pseudocount
     
     # update parameter
     for i = 1 : num_cats
         oldp = exp(heap[heap_start-1+i])
         old = inertia * oldp
-        new = (one(Float32) - inertia) * (heap[heap_start+num_cats-1+i] + missing_flow * oldp) / node_flow 
+        new = (one(Float32) - inertia) * (heap[heap_start+num_cats-1+i] + cat_pseudocount + missing_flow * oldp) / node_flow 
         new_log_param = log(old + new)
         heap[heap_start-1+i] = new_log_param
     end

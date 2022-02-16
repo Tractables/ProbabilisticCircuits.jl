@@ -200,9 +200,9 @@ function eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug=false)
     nothing
 end
 
-#######################
+#################################
 ### Full Epoch Likelihood
-######################
+#################################
 
 function prep_memory(reuse, sizes, exact = map(x -> true, sizes))
     if isnothing(reuse)
