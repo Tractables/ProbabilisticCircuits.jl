@@ -10,6 +10,7 @@ include("../helper/pc_equals.jl")
     pc = little_3var()
 
     mktempdir() do tmp
+        
         file = "$tmp/example.jpc"
         write(file, pc)
 
@@ -21,6 +22,13 @@ include("../helper/pc_equals.jl")
 
         pc2 = read(file, ProbCircuit, JpcFormat(), false)
         test_pc_equals(pc, pc2)
+
+        file = "$tmp/example.jpc.gz"
+        write(file, pc)
+
+        pc2 = read(file, ProbCircuit)
+        test_pc_equals(pc, pc2)
+        
     end
 
 end

@@ -18,6 +18,12 @@ include("../helper/pc_equals.jl")
         pc3 = read(file, ProbCircuit)
 
         test_pc_equals(pc2, pc3)
+
+        file = "$tmp/example.psdd.gz"
+        write(file, pc2)
+        pc3 = read(file, ProbCircuit)
+
+        test_pc_equals(pc2, pc3)
     end
 
 end

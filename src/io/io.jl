@@ -1,4 +1,5 @@
 using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
+using CodecZlib: GzipDecompressorStream, GzipCompressorStream
 
 
 #  by default don't transform tokens in parser
@@ -64,6 +65,20 @@ Base.read(io::IO, ::Type{ProbCircuit},  args...) =
 Base.read(io::IO, ::Type{ProbCircuit}, f::GzipFormat) = 
     # avoid method ambiguity
     read(io, PlainProbCircuit,  f)
+
+
+# (de)compress Gzip streams
+
+Base.read(io::IO, circuit_type, f::GzipFormat) =
+    read(GzipDecompressorStream(io), circuit_type, f.inner_format)
+
+Base.write(io::IO, circuit, f::GzipFormat) = begin
+    iogz = GzipCompressorStream(io) 
+    write(iogz, circuit, f.inner_format)
+    close(iogz)
+end
+
+# specific file formats
 
 include("jpc_io.jl")
 include("psdd_io.jl")

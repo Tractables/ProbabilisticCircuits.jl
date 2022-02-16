@@ -15,6 +15,12 @@ include("../helper/pc_equals.jl")
         pc2 = read(file, ProbCircuit)
 
         test_pc_equals(pc, pc2)
+
+        file = "$tmp/example.spn.gz"
+        write(file, pc)
+        pc2 = read(file, ProbCircuit)
+
+        test_pc_equals(pc, pc2)
     end
 
 end
