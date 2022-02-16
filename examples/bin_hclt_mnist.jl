@@ -37,7 +37,7 @@ end
 function run()
     train_gpu, test_gpu = mnist_gpu()
 
-    latents = 60
+    latents = 120
     pseudocount = 0.01
 
     println("Generating HCLT structure with $latents latents... ");
@@ -49,15 +49,15 @@ function run()
     CUDA.@time bpc = CuBitsProbCircuit(pc)
 
     batch_size  = 512
-    pseudocount = 0.1
+    pseudocount = .005
     softness    = 0
     
     print("First round of minibatch EM... ")
-    CUDA.@time mini_batch_em(bpc, train_gpu, 100; batch_size, pseudocount, 
-    			 softness, param_inertia = 0.2, param_inertia_end = 0.9)
+    CUDA.@time mini_batch_em(bpc, train_gpu, 400; batch_size, pseudocount, 
+    			 softness, param_inertia = 0.01, param_inertia_end = 0.95)
     			 
-    CUDA.@time mini_batch_em(bpc, train_gpu, 200; batch_size, pseudocount, 
-    			 softness, param_inertia = 0.9, param_inertia_end = 0.95)
+    CUDA.@time mini_batch_em(bpc, train_gpu, 100; batch_size, pseudocount, 
+    			 softness, param_inertia = 0.95, param_inertia_end = 0.999)
     
     CUDA.@time full_batch_em(bpc, train_gpu, 10; batch_size, pseudocount, softness)
 

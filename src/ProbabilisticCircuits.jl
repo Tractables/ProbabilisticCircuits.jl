@@ -19,5 +19,7 @@ module ProbabilisticCircuits
 
     include("parameters/em.jl")
     include("structures/hclts.jl")
+
+    include("io/io.jl")
     
 end

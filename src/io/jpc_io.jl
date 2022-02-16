@@ -1,25 +1,8 @@
-export zoo_jpc, zoo_jpc_file, 
-    JpcFormat, JpcVtreeFormat
-
 struct JpcFormat <: FileFormat end
-
-const JpcVtreeFormat = Tuple{JpcFormat,VtreeFormat}
-Tuple{JpcFormat,VtreeFormat}() = (JpcFormat(),VtreeFormat())
 
 ##############################################
 # Read JPC (Juice Probabilistic Circuit)
 ##############################################
-
-zoo_jpc_file(name) = 
-    artifact"circuit_model_zoo" * zoo_version * "/jpcs/$name"
-
-"""
-    zoo_jpc(name)
-
-Loads JPC file with given name from model zoo. See https://github.com/UCLA-StarAI/Circuit-Model-Zoo.    
-"""
-zoo_jpc(name) = 
-    read(zoo_jpc_file(name), ProbCircuit, JpcFormat())
 
 const jpc_grammar = raw"""
     start: header (_NL node)+ _NL?
@@ -40,9 +23,9 @@ const jpc_grammar = raw"""
     %import common.NEWLINE -> _NL
     """ * dimacs_comments
 
-const jpc_parser = Lark(jpc_grammar)
+jpc_parser() = Lark(jpc_grammar)
 
-abstract type JpcParse <: JuiceTransformer end
+abstract type JpcParse <: PCTransformer end
 
 @inline_rule header(t::JpcParse, x) = 
     Base.parse(Int,x)
@@ -67,8 +50,12 @@ struct PlainJpcParse <: JpcParse
     PlainJpcParse() = new(Dict{String,PlainProbCircuit}())
 end
 
-@rule literal_node(t::PlainJpcParse, x) = 
-    t.nodes[x[1]] = PlainProbLiteralNode(Base.parse(Lit,x[3]))
+@rule literal_node(t::PlainJpcParse, x) = begin
+    lit = Base.parse(Int,x[3])
+    var = abs(lit)
+    sign = lit > 0
+    t.nodes[x[1]] = PlainInputNode(var, LiteralDist(sign))
+end
 
 @rule prod_node(t::PlainJpcParse,x) = begin
     @assert length(x[4]) == Base.parse(Int,x[3])
@@ -81,12 +68,17 @@ end
 end
 
 function Base.parse(::Type{PlainProbCircuit}, str, ::JpcFormat) 
-    ast = Lerche.parse(jpc_parser, str)
+    ast = Lerche.parse(jpc_parser(), str)
     Lerche.transform(PlainJpcParse(), ast)
 end
 
-Base.read(io::IO, ::Type{PlainProbCircuit}, ::JpcFormat) =
-    parse(PlainProbCircuit, read(io, String), JpcFormat())
+function Base.read(io::IO, ::Type{PlainProbCircuit}, ::JpcFormat, fast=true)
+    if fast
+        read_fast(io, PlainProbCircuit, JpcFormat())
+    else
+        parse(PlainProbCircuit, read(io, String), JpcFormat())
+    end
+end
     
 # fast brittle read
 function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat = JpcFormat())
@@ -103,8 +95,10 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
             else
                 id = Base.parse(Int,tokens[2]) + 1
                 if startswith(line, "L")
-                    lit = Base.parse(Lit,tokens[4])
-                    nodes[id] = PlainProbLiteralNode(lit)
+                    lit = Base.parse(Int,tokens[4])
+                    var = abs(lit)
+                    sign = lit > 0
+                    nodes[id] = PlainInputNode(var, LiteralDist(sign))
                 elseif startswith(line, "P")
                     child_ids = Base.parse.(Int, tokens[5:end]) .+ 1
                     children = nodes[child_ids]
@@ -121,51 +115,6 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
         end
     end
     nodes[end]
-end
-
-#  parse structured
-struct StructJpcParse <: JpcParse
-    id2vtree::Dict{String,<:Vtree}
-    nodes::Dict{String,StructProbCircuit}
-    StructJpcParse(id2vtree) = 
-        new(id2vtree,Dict{String,StructProbCircuit}())
-end
-
-@rule literal_node(t::StructJpcParse, x) = begin
-    lit = Base.parse(Lit,x[3])
-    vtree = t.id2vtree[x[2]]
-    t.nodes[x[1]] = StructProbLiteralNode(lit, vtree)
-end
-
-@rule prod_node(t::StructJpcParse,x) = begin
-    @assert length(x[4]) == Base.parse(Int,x[3]) == 2
-    vtree = t.id2vtree[x[2]]
-    t.nodes[x[1]] = StructMulNode(x[4]..., vtree)
-end
-
-@rule sum_node(t::StructJpcParse,x) = begin
-    @assert length(x[4][1]) == length(x[4][2]) == Base.parse(Int,x[3])
-    vtree = t.id2vtree[x[2]]
-    t.nodes[x[1]] = StructSumNode(x[4][1], x[4][2], vtree)
-end
-
-function Base.parse(::Type{StructProbCircuit}, str::AbstractString, ::JpcFormat, id2vtree) 
-    ast = Lerche.parse(jpc_parser, str)
-    Lerche.transform(StructJpcParse(id2vtree), ast)
-end
-
-function Base.parse(::Type{StructProbCircuit}, strings, format::JpcVtreeFormat) 
-    id2vtree = parse(Dict{String,Vtree}, strings[2], format[2])
-    parse(StructProbCircuit, strings[1], format[1], id2vtree)
-end
-
-Base.read(io::IO, ::Type{StructProbCircuit}, ::JpcFormat, id2vtree) =
-    parse(StructProbCircuit, read(io, String), JpcFormat(), id2vtree)
-
-function Base.read(ios::Tuple{IO,IO}, ::Type{StructProbCircuit}, ::JpcVtreeFormat) 
-    circuit_str = read(ios[1], String)
-    vtree_str = read(ios[2], String)
-    parse(StructProbCircuit, (circuit_str,vtree_str), JpcVtreeFormat())
 end
 
 ##############################################
@@ -191,20 +140,20 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
     println(io, JPC_FORMAT)
     println(io, "jpc $(num_nodes(circuit))")
     foreach(circuit) do n
-        if isliteralgate(n)
-            println(io, "L $(labeling[n]) $(vtreeid(n)) $(literal(n))")
-        elseif isconstantgate(n)
-            @assert false
+        if isinput(n)
+            @assert dist(n) isa LiteralDist
+            literal = value(dist(n)) ? randvar(n) : -randvar(n)
+            println(io, "L $(labeling[n]) $(vtreeid(n)) $literal")
         else
-            t = is⋀gate(n) ? "P" : "S"
-            print(io, "$t $(labeling[n]) $(vtreeid(n)) $(num_children(n))")
-            if is⋀gate(n)
-                for child in children(n)
+            t = ismul(n) ? "P" : "S"
+            print(io, "$t $(labeling[n]) $(vtreeid(n)) $(num_inputs(n))")
+            if ismul(n)
+                for child in inputs(n)
                     print(io, " $(labeling[child])")
                 end
             else
-                @assert is⋁gate(n)  
-                for (child, logp) in zip(children(n), n.log_probs)
+                @assert issum(n)  
+                for (child, logp) in zip(inputs(n), params(n))
                     print(io, " $(labeling[child]) $logp")
                 end    
             end
@@ -212,9 +161,4 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
         end
     end
     nothing
-end
-
-function Base.write(ios::Tuple{IO,IO}, circuit::StructProbCircuit, format::JpcVtreeFormat)
-    vtree2id = write(ios[2], vtree(circuit), format[2])
-    write(ios[1], circuit, format[1], n -> vtree2id[vtree(n)])
 end
