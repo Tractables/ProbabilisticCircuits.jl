@@ -91,9 +91,7 @@ end
 function logsumexp(x::Float32,y::Float32)
     if isfinite(x) && isfinite(y)
         # note: @fastmath does not work with infinite values, so do not apply above
-        # TODO reinstate @fastmath below when https://github.com/JuliaGPU/CUDA.jl/issues/1352 is fixed
-        # @fastmath 
-        max(x,y) + log1p(exp(-abs(x-y))) 
+        @fastmath max(x,y) + log1p(exp(-abs(x-y))) 
     else
         max(x,y)
     end
