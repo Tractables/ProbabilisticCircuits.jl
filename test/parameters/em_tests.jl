@@ -25,7 +25,7 @@ end
     # LiteralDist
     
     pc = little_3var()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -36,7 +36,7 @@ end
     # BernoulliDist
 
     pc = little_3var_bernoulli()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -47,7 +47,7 @@ end
     # CategoricalDist
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
@@ -62,7 +62,7 @@ end
     # LiteralDist
     
     pc = little_3var()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -73,7 +73,7 @@ end
     # BernoulliDist
 
     pc = little_3var_bernoulli()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true true false; false true false; false false false])
 
@@ -84,7 +84,7 @@ end
     # CategoricalDist
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
 
@@ -99,7 +99,7 @@ end
     # LiteralDist
     
     pc = little_3var()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true true missing; false missing false; false false false])
 
@@ -110,7 +110,7 @@ end
     # BernoulliDist
 
     pc = little_3var_bernoulli()
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([true missing false; missing true false; false false false])
 
@@ -121,7 +121,7 @@ end
     # CategoricalDist
 
     pc = little_3var_categorical(; num_cats = UInt32(5))
-    bpc = PCs.CuProbBitCircuit(pc)
+    bpc = PCs.CuBitsProbCircuit(pc)
 
     data = cu([missing 3 4; 5 1 missing; 3 4 5])
 
