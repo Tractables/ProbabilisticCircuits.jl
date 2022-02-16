@@ -1,4 +1,5 @@
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DirectedAcyclicGraphs = "1e6dae5e-d6e2-422d-9af3-452e7a3785ee"
 Jive = "ba5e3d4b-8524-549f-bc71-e76ad9e9deed"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
