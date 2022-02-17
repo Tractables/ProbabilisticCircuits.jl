@@ -17,7 +17,7 @@ import ProbabilisticCircuits as PCs
         data = cu(data)
     end
     
-    pc = hclt(data, 4; input_type = LiteralDist)
+    pc = hclt(data, 4; input_type = Literal)
     _, layer = feedforward_layers(pc)
     @test pc isa ProbCircuit
     @test layer == 6
@@ -27,23 +27,23 @@ import ProbabilisticCircuits as PCs
     @test randvar(pc.inputs[1].inputs[2].inputs[2]) == UInt32(1)
     @test dist(pc.inputs[1].inputs[2].inputs[2]).value == false
 
-    pc = hclt(data, 4; shape=:balanced, input_type = LiteralDist)
+    pc = hclt(data, 4; shape=:balanced, input_type = Literal)
     _, layer = feedforward_layers(pc)
     @test layer == 6
     
 
     # TODO FIX
-    # pc = hclt(data, 4; input_type = BernoulliDist)
+    # pc = hclt(data, 4; input_type = Bernoulli)
     
     # @test randvar(pc.inputs[1].inputs[2].inputs[1]) == UInt32(1)
     # @test pc.inputs[1].inputs[2].inputs[1].dist.logp ≈ log(0.9)
     # @test randvar(pc.inputs[1].inputs[2].inputs[2]) == UInt32(1)
     # @test pc.inputs[1].inputs[2].inputs[2].dist.logp ≈ log(0.1)
 
-    pc = hclt(data, 4; input_type = CategoricalDist)
+    pc = hclt(data, 4; input_type = Categorical)
     
     @test randvar(pc.inputs[1].inputs[2]) == UInt32(1)
-    @test pc.inputs[1].inputs[2].dist.logp ≈ log(0.5)
+    @test pc.inputs[1].inputs[2].dist.logps[2] ≈ log(0.5)
     
 end
 

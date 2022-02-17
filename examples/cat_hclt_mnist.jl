@@ -5,12 +5,8 @@ using CUDA
 
 
 function mnist_cpu()
-    train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
-    test_int = transpose(reshape(MNIST.testtensor(UInt8), 28*28, :));
-
-    train_cpu = UInt32.(train_int) .+ one(UInt32);
-    test_cpu = UInt32.(test_int) .+ one(UInt32);
-
+    train_cpu = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
+    test_cpu = transpose(reshape(MNIST.testtensor(UInt8), 28*28, :));
     train_cpu, test_cpu
 end
 
@@ -19,9 +15,8 @@ function mnist_gpu()
 end
 
 function truncate(data::Matrix; bits)
-    (data .- one(UInt32)) .÷ 2^bits .+ one(UInt32)
+    data .÷ 2^bits
 end
-
 
 function run()
     train, test = mnist_cpu()
@@ -32,7 +27,7 @@ function run()
     latents = 32
 
     println("Generating HCLT structure with $latents latents... ");
-    @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 256, pseudocount = 0.1, input_type = CategoricalDist);
+    @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 256, pseudocount = 0.1, input_type = Categorical);
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 

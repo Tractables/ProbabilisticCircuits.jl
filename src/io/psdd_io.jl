@@ -47,13 +47,13 @@ end
     lit = Base.parse(Int,x[3])
     var = abs(lit)
     sign = lit > 0
-    t.nodes[x[1]] = PlainInputNode(var, LiteralDist(sign))
+    t.nodes[x[1]] = PlainInputNode(var, Literal(sign))
 end
 
 @rule true_node(t::PlainPsddParse, x) = begin
     var = Base.parse(Int,x[3])
-    pos = PlainInputNode(var, LiteralDist(true))
-    neg = PlainInputNode(var, LiteralDist(false))
+    pos = PlainInputNode(var, Literal(true))
+    neg = PlainInputNode(var, Literal(false))
     log_prob = Base.parse(Float64, x[4])
     log_probs = [log_prob, log1p(-exp(log_prob))]
     t.nodes[x[1]] = PlainSumNode([pos, neg], log_probs)

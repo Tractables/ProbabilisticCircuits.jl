@@ -41,7 +41,7 @@ function run()
     pseudocount = 0.01
 
     println("Generating HCLT structure with $latents latents... ");
-    @time pc = hclt(train_gpu, latents; pseudocount, input_type = LiteralDist);
+    @time pc = hclt(train_gpu, latents; pseudocount, input_type = Literal);
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 

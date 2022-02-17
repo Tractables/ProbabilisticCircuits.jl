@@ -39,7 +39,7 @@ end
     var = Base.parse(Var,x[1]) + 1
     @assert x[2] == "0" || x[2] == "1" "Boolean domains only." 
     sign = (x[2] == "1")
-    push!(t.nodes, PlainInputNode(var, LiteralDist(sign)))
+    push!(t.nodes, PlainInputNode(var, Literal(sign)))
 end
 
 @rule prod_node(t::SpnParse,x) = begin

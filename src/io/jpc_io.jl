@@ -54,7 +54,7 @@ end
     lit = Base.parse(Int,x[3])
     var = abs(lit)
     sign = lit > 0
-    t.nodes[x[1]] = PlainInputNode(var, LiteralDist(sign))
+    t.nodes[x[1]] = PlainInputNode(var, Literal(sign))
 end
 
 @rule prod_node(t::PlainJpcParse,x) = begin
@@ -98,7 +98,7 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
                     lit = Base.parse(Int,tokens[4])
                     var = abs(lit)
                     sign = lit > 0
-                    nodes[id] = PlainInputNode(var, LiteralDist(sign))
+                    nodes[id] = PlainInputNode(var, Literal(sign))
                 elseif startswith(line, "P")
                     child_ids = Base.parse.(Int, tokens[5:end]) .+ 1
                     children = nodes[child_ids]
@@ -141,7 +141,7 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
     println(io, "jpc $(num_nodes(circuit))")
     foreach(circuit) do n
         if isinput(n)
-            @assert dist(n) isa LiteralDist
+            @assert dist(n) isa Literal
             literal = value(dist(n)) ? randvar(n) : -randvar(n)
             println(io, "L $(labeling[n]) $(vtreeid(n)) $literal")
         else

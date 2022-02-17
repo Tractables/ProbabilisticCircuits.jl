@@ -40,8 +40,8 @@ include("helper/plain_dummy_circuits.jl")
     @test value(dist(left_most_descendent(s1))) == true
     @test value(dist(right_most_descendent(s1))) == false
 
-    lt = [PlainInputNode(i,LiteralDist(true)) for i=1:3]
-    lf = [PlainInputNode(i,LiteralDist(false)) for i=1:3]
+    lt = [PlainInputNode(i,Literal(true)) for i=1:3]
+    lf = [PlainInputNode(i,Literal(false)) for i=1:3]
 
     r = lt[1] * 0.3 + 0.7 * lf[1]
     @test r isa PlainSumNode

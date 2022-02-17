@@ -9,20 +9,20 @@ export hclt
 function hclt(data, num_hidden_cats; 
               num_cats = nothing,
               shape = :directed,
-              input_type = LiteralDist,
+              input_type = Literal,
               pseudocount = 0.1) where T
     
     clt_edges = learn_chow_liu_tree(data; pseudocount, Float=Float32)
     clt = clt_edges2graphs(clt_edges; shape)
     
     if num_cats === nothing
-        num_cats = maximum(data) - minimum(data) + 1
+        num_cats = maximum(data) + 1
     end
     hclt_from_clt(clt, num_cats, num_hidden_cats; input_type)
 end
 
 
-function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = LiteralDist)
+function hclt_from_clt(clt, num_cats, num_hidden_cats; input_type = Literal)
     
     num_vars = nv(clt)
 
@@ -112,7 +112,7 @@ end
 
 
 function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
-                            input_type::Type{BernoulliDist})
+                            input_type::Type{Bernoulli})
     
     @assert num_cats == 2 "Category must be two when leaf node is bernoulli."
     error("TODO: implement way of replacing sum nodes by Berns")
@@ -120,18 +120,18 @@ end
 
 
 function categorical_leaves(num_vars, num_cats, num_hidden_cats, 
-                            input_type::Type{LiteralDist})
+                            input_type::Type{Literal})
     if num_cats == 2
-        plits = [PlainInputNode(var, LiteralDist(true)) for var=1:num_vars]
-        nlits = [PlainInputNode(var, LiteralDist(false)) for var=1:num_vars]
+        plits = [PlainInputNode(var, Literal(true)) for var=1:num_vars]
+        nlits = [PlainInputNode(var, Literal(false)) for var=1:num_vars]
         leaves = hcat([plits, nlits]...)
         [summate(leaves[var, :]) 
             for var=1:num_vars, copy=1:num_hidden_cats]
-    else # Use LiteralDist to model categorical distributions
+    else # Use Literal to model categorical distributions
         nbits = Int(ceil(log2(num_cats)))
-        plits = [PlainInputNode((var-1)*nbits+lit, LiteralDist(true)) 
+        plits = [PlainInputNode((var-1)*nbits+lit, Literal(true)) 
                     for var=1:num_vars, lit=1:nbits]
-        nlits = [PlainInputNode((var-1)*nbits+lit, LiteralDist(false))
+        nlits = [PlainInputNode((var-1)*nbits+lit, Literal(false))
                     for var=1:num_vars, lit=1:nbits]
         to_bits(cat, nbits) = begin
             bits = zeros(Bool, nbits)
@@ -154,8 +154,8 @@ function categorical_leaves(num_vars, num_cats, num_hidden_cats,
 end
 
 
-function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Type{CategoricalDist})
-    [PlainInputNode(var, CategoricalDist(num_cats)) 
+function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Type{Categorical})
+    [PlainInputNode(var, Categorical(num_cats)) 
         for var=1:num_vars, copy=1:num_hidden_cats]
 end
 
