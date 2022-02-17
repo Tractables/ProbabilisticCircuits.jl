@@ -29,6 +29,12 @@ loglikelihood(d::Indicator, value, _ = nothing) =
 
 init_params(d::Indicator, _) = d
 
+map_loglikelihood(d::Indicator, _= nothing) =
+    zero(Float32)
+
+map_state(d::Indicator, _ = nothing) = 
+    d.value
+
 # no learning necessary for indicator distributions
 flow(d::Indicator, value, node_flow, heap) = nothing
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
