@@ -38,7 +38,7 @@ clear_memory(d::Indicator, heap, rate) = nothing
 # categoricals or bernoullis
 #####################
 
-"A categorical input distribution ranging over integers [0...n]"
+"A N-value categorical input distribution ranging over integers [0...N-1]"
 struct Categorical <: InputDist
     logps::Vector{Float32}
 end
