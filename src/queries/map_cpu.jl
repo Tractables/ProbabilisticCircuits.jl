@@ -1,4 +1,5 @@
 
+export MAP
 
 
 """
@@ -9,7 +10,7 @@ Evaluate max a posteriori (MAP) state of the circuit for given input(s) on cpu.
 **Note**: This algorithm is only exact if the circuit is both decomposable and determinisitic.
 If the circuit is only decomposable and not deterministic, this will give inexact results without guarantees.
 """
-function MAP(pc::ProbCircuit, data::Matrix; batch_size, Float=Float32)
+function MAP(pc::ProbCircuit, data::Matrix; batch_size, Float=Float32, return_map_prob=false)
     num_examples = size(data, 1)
     # log_likelihoods = zeros(Float32, num_examples)
     states = deepcopy(data)
@@ -23,6 +24,7 @@ function MAP(pc::ProbCircuit, data::Matrix; batch_size, Float=Float32)
 
     nodes = size(linPC, 1)
     max_mars = zeros(Float, (batch_size, nodes))
+    map_probs = zeros(Float, num_examples);
 
     for batch_start = 1:batch_size:num_examples
         batch_end = min(batch_start + batch_size - 1, num_examples)
@@ -31,12 +33,18 @@ function MAP(pc::ProbCircuit, data::Matrix; batch_size, Float=Float32)
 
         max_mars .= zero(Float) # faster to zero out here rather than only in MulNodes
         eval_circuit_max!(max_mars, linPC, data, batch; node2idx, Float)
-    
+        
+        map_probs[batch_start:batch_end] .= max_mars[1:num_batch_examples, end]    
+
         for (batch_idx, example_idx) in enumerate(batch)
             map_down_rec!(max_mars, pc, data, states, batch_idx, example_idx; node2idx, Float)
         end
     end
-    return states
+    if return_map_prob
+        return states, map_probs
+    else
+        return states
+    end
 end
 
 """
