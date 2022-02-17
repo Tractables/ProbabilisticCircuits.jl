@@ -2,7 +2,7 @@
 
 ### Prerequisites
 
-Julia 1.5 or greater. For installation, please refer to [the official Julia Website](https://julialang.org/downloads/).
+Julia 1.6 or greater. For installation, please refer to [the official Julia Website](https://julialang.org/downloads/).
 
 
 ### Installing ProbabilisticCircuits
@@ -23,7 +23,7 @@ You can also install the package with the latest commits on master branch.
 ```bash
 julia -e 'using Pkg; Pkg.add([PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git")])'
 ```
-
+#### From Package mode
 !!! note
     To get to Pkg mode, you need to run `julia`, then to press `]`. Press backspace or ^C to get back to normal REPL mode.
 
@@ -36,16 +36,9 @@ add ProbabilisticCircuits
 Similarly, to install from the latest commits on master branch, run:
 
 ```
-add LogicCircuits#master
 add ProbabilisticCircuits#master
 ```
-
-### Optional Dependencies
-We use `Requires.jl` to make some of our rarely used dependencies optional, so they do not automatically get installed.  Currently, `BlossomV.jl` is the only such dependency due to its rare ussage and issues with Windows. This means if you get an error related to `BlossomV.jl`, you can fix that by adding BlossomV to your project using `Pkg.add`.
-
-
 ### Testing
-
 If you are installing the latest commit, we recommend running the test suite to make sure everything is in order, to do that run:
 
 ```bash

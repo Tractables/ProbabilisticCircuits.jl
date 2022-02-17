@@ -33,8 +33,8 @@ function show_plots(str)
     replace(str, r"#plot (.*)[\n\r]" => s"\g<1>\n")
 end
 
-# Literate.markdown("$source_dir/README.jl", "$(@__DIR__)/../"; documenter=false, credit=false, execute=true, 
-#     preprocess = hide_plots ∘ replace_includes)
+Literate.markdown("$source_dir/README.jl", "$(@__DIR__)/../"; documenter=false, credit=false, execute=true, 
+    preprocess = hide_plots ∘ replace_includes)
 
 # The DOCSARGS environment variable can be used to pass additional arguments to make.jl.
 # This is useful on CI, if you need to change the behavior of the build slightly but you
@@ -48,19 +48,19 @@ end
 const  pages = [
     "Home" => "index.md",
     "Installation" => "installation.md",
-    # "Manual" => [
-    #     # "manual/demo.md",
-    #     # "manual/queries.md",
-    #     # "manual/learning.md"
-    # ],
-    # "API" => [
-    #     "api/public.md",
-    #     "api/types.md",
-    #     "Internals" => map(
-    #         s -> "api/internals/$(s)",
-    #         sort(readdir(joinpath(@__DIR__, "src/api/internals")))
-    #     ),
-    # ],
+    "Manual" => [
+        "manual/demo.md",
+         "manual/queries.md",
+         "manual/learning.md"
+    ],
+    "API" => [
+        "api/public.md",
+        "api/types.md",
+        "Internals" => map(
+            s -> "api/internals/$(s)",
+            sort(readdir(joinpath(@__DIR__, "src/api/internals")))
+        ),
+    ],
 ];
 
 const format = if ("pdf" in ARGS)

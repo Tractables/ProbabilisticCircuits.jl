@@ -245,7 +245,11 @@ end
 ### Parameter initialization
 ####################################
 
-"Initialize parameters of ProbCircuit."
+"""
+    init_parameters(pc::ProbCircuit; perturbation = 0.0)
+
+Initialize parameters of ProbCircuit.
+"""
 function init_parameters(pc::ProbCircuit; perturbation = 0.0)
     perturbation = Float32(perturbation)
     foreach(pc) do pn
@@ -277,6 +281,7 @@ function soften_data(data; softness, pseudocount=1)
                         ./ Float32(size(data, 1) + pseudocount))
     Float32(1-softness) * data .+ Float32(softness) * data_marginals
 end
+
 
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray; 
                             batch_size, pseudocount, report_ll=true,
@@ -320,6 +325,11 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     return report_ll ? sum(log_likelihoods) / num_examples : 0.0
 end
 
+"""
+    full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; batch_size, pseudocount)
+    
+Update the paramters of the CuBitsProbCircuit by doing EM on the full batch (i.e. update paramters at the end of each epoch).
+"""
 function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
                        batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, 
@@ -358,6 +368,12 @@ end
 ### Mini-Batch EM
 ######################
 
+"""
+    mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; batch_size, pseudocount, 
+        param_inertia, param_inertia_end = param_inertia, shuffle=:each_epoch)
+    
+Update the parameters of the CuBitsProbCircuit by doing EM, update the parameters after each batch.
+"""
 function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
                        batch_size, pseudocount, 
                        param_inertia, param_inertia_end = param_inertia, 

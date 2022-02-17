@@ -3,7 +3,7 @@ export ProbCircuit,
     isinput, ismul, issum,
     inputnodes, mulnodes, sumnodes, 
     num_parameters, num_parameters_node, params,
-    inputs, num_inputs,
+    inputs, num_inputs, num_randvars,
     dist, randvars, randvar
 
 const Var = UInt32
