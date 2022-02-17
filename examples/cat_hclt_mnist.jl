@@ -5,8 +5,8 @@ using CUDA
 
 
 function mnist_cpu()
-    train_cpu = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
-    test_cpu = transpose(reshape(MNIST.testtensor(UInt8), 28*28, :));
+    train_cpu = collect(transpose(reshape(MNIST.traintensor(UInt8), 28*28, :)))
+    test_cpu = collect(transpose(reshape(MNIST.testtensor(UInt8), 28*28, :)))
     train_cpu, test_cpu
 end
 
