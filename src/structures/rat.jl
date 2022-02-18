@@ -172,8 +172,8 @@ This way instead of num_nodes_root * num_nodes_leaf, we would have num_nodes_roo
 """
 function balanced_fully_factorized_leaves(variables::AbstractVector; num_nodes_leaf)::Vector{ProbCircuit}
     var_2_dummy_inputs = Dict(var => PlainSumNode([
-                    PlainInputNode(var, LiteralDist(true)), 
-                    PlainInputNode(var, LiteralDist(false))]) for var in variables)
+                    PlainInputNode(var, Literal(true)), 
+                    PlainInputNode(var, Literal(false))]) for var in variables)
     
     balanced_recurse(variables::AbstractVector)::Vector{ProbCircuit} = begin
         # Leaf

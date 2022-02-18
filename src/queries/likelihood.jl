@@ -202,6 +202,11 @@ end
 ### Full Epoch Likelihood
 #################################
 
+"""
+    prep_memory(reuse, sizes, exact = map(x -> true, sizes))
+
+Mostly used internally. Prepares memory for the specifed size, reuses `reuse` if possible to avoid memory allocation/deallocation.
+"""
 function prep_memory(reuse, sizes, exact = map(x -> true, sizes))
     if isnothing(reuse)
         return CuArray{Float32}(undef, sizes...)
@@ -218,6 +223,9 @@ function prep_memory(reuse, sizes, exact = map(x -> true, sizes))
     end
 end
 
+"""
+Cleansup allocated memory. Used internally.
+"""
 function cleanup_memory(used::CuArray, reused)
     if used !== reused
         CUDA.unsafe_free!(used)
@@ -230,6 +238,16 @@ function cleanup_memory(used_reused::Tuple...)
     end
 end
 
+
+"""
+    loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; batch_size, mars_mem = nothing)
+
+Returns loglikelihoods for each datapoint on gpu. Missing values should be denoted by `missing`.
+- `bpc`: BitCircuit on gpu
+- `data`: CuArray{Union{Missing, data_types...}}
+- `batch_size`
+- `mars_mem`: Not required, advanced usage. CuMatrix to reuse memory and reduce allocations. See [`prep_memory`](@ref) and [`cleanup_memory`](@ref).
+"""
 function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; 
                         batch_size, mars_mem = nothing, 
                         mine=2, maxe=32, debug=false)
@@ -257,6 +275,11 @@ function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray;
     return log_likelihoods
 end
 
+"""
+    loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; batch_size, mars_mem = nothing)
+
+Computes Average loglikelihood of circuit given the data using gpu. See [`loglikelihoods`](@ref) for more details.
+"""
 function loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
                            batch_size, mars_mem = nothing, 
                            mine=2, maxe=32, debug=false)

@@ -9,7 +9,7 @@ include("../helper/plain_dummy_circuits.jl")
 
     if CUDA.functional()
 
-        # LiteralDist
+        # Literal
         
         pc = little_3var()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -22,6 +22,7 @@ include("../helper/plain_dummy_circuits.jl")
         mars = PCs.prep_memory(nothing, (3, num_nodes), (false, true))
         flows = PCs.prep_memory(nothing, (3, num_nodes), (false, true))
         edge_aggr = PCs.prep_memory(nothing, (num_edges,))
+        edge_aggr .= 0
 
         example_ids = cu(Int32.([1, 2, 3]))
 
@@ -32,7 +33,7 @@ include("../helper/plain_dummy_circuits.jl")
         @test edge_aggr_cpu[4] ≈ Float32(2.0)
         @test edge_aggr_cpu[6] ≈ Float32(1.0)
 
-        # BernoulliDist
+        # Bernoulli
 
         pc = little_3var_bernoulli()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -51,15 +52,14 @@ include("../helper/plain_dummy_circuits.jl")
         PCs.probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine = 2, maxe = 32)
         heap_cpu = Array(bpc.heap)
 
-        @test all(heap_cpu .≈ Float32[-0.6931471805599453, 2.0, 1.0, 0.0, -0.6931471805599453, 1.0, 2.0, 0.0,
-                                    -0.6931471805599453, 3.0, 0.0, 0.0])
+        @test all(heap_cpu .≈ Float32[log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 2.0, 1.0, 0.0, log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 1.0, 2.0, 0.0, log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 3.0, 0.0, 0.0])
 
-        # CategoricalDist
+        # Categorical
 
         pc = little_3var_categorical(; num_cats = UInt32(5))
         bpc = PCs.CuBitsProbCircuit(pc)
 
-        data = cu(UInt32.([2 3 4; 5 1 2; 3 4 5]))
+        data = cu(UInt32.([1 2 3; 4 0 1; 2 3 4]))
 
         num_nodes = length(bpc.nodes)
         num_edges = length(bpc.edge_layers_down.vectors)
@@ -89,7 +89,7 @@ end
 
     if CUDA.functional()
 
-        # BernoulliDist
+        # Bernoulli
 
         pc = little_3var_bernoulli()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -108,15 +108,14 @@ end
         PCs.probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine = 2, maxe = 32)
         heap_cpu = Array(bpc.heap)
 
-        @test all(heap_cpu .≈ Float32[-0.6931471805599453, 2.0, 1.0, 0.0, -0.6931471805599453, 1.0, 1.0, 1.0,
-                                    -0.6931471805599453, 2.0, 0.0, 1.0])
+        @test all(heap_cpu .≈ Float32[log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 2.0, 1.0, 0.0, log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 1.0, 1.0, 1.0, log1p(-exp(-0.6931471805599453)), -0.6931471805599453, 2.0, 0.0, 1.0])
 
-        # CategoricalDist
+        # Categorical
 
         pc = little_3var_categorical(; num_cats = UInt32(5))
         bpc = PCs.CuBitsProbCircuit(pc)
 
-        data = cu([2 3 missing; 5 missing 2; missing missing 5])
+        data = cu([1 2 missing; 4 missing 1; missing missing 4])
 
         num_nodes = length(bpc.nodes)
         num_edges = length(bpc.edge_layers_down.vectors)

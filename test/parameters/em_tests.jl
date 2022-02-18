@@ -24,7 +24,7 @@ end
 
     if CUDA.functional()
 
-        # LiteralDist
+        # Literal
         
         pc = little_3var()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -35,7 +35,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # BernoulliDist
+        # Bernoulli
 
         pc = little_3var_bernoulli()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -46,7 +46,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # CategoricalDist
+        # Categorical
 
         pc = little_3var_categorical(; num_cats = UInt32(5))
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -65,7 +65,7 @@ end
 
     if CUDA.functional()
 
-        # LiteralDist
+        # Literal
         
         pc = little_3var()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -76,7 +76,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # BernoulliDist
+        # Bernoulli
 
         pc = little_3var_bernoulli()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -87,7 +87,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # CategoricalDist
+        # Categorical
 
         pc = little_3var_categorical(; num_cats = UInt32(5))
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -106,7 +106,7 @@ end
 
     if CUDA.functional()
 
-        # LiteralDist
+        # Literal
         
         pc = little_3var()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -117,7 +117,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # BernoulliDist
+        # Bernoulli
 
         pc = little_3var_bernoulli()
         bpc = PCs.CuBitsProbCircuit(pc)
@@ -128,7 +128,7 @@ end
 
         @test lls[2] > lls[1]
 
-        # CategoricalDist
+        # Categorical
 
         pc = little_3var_categorical(; num_cats = UInt32(5))
         bpc = PCs.CuBitsProbCircuit(pc)

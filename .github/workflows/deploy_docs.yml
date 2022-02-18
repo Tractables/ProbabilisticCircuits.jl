@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
   
   push:
-    branches-ignore:
-        - '**'
         
   pull_request:
     branches:

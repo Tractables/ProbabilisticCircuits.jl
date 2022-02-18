@@ -46,21 +46,23 @@ include("helper/plain_dummy_circuits.jl")
     @test bpc isa BitsProbCircuit
     @test length(bpc.input_node_ids) == 3
     @test length(bpc.nodes) == 5
-    @test length(bpc.heap) == 12
+    @test length(bpc.heap) == 15
 
-    bpc.heap[dist(bpc.nodes[1]).heap_start] = log(0.12)
+    start = dist(bpc.nodes[1]).heap_start
+    bpc.heap[start:start+1] .= Float32[log(0.88), log(0.12)]
     update_parameters(bpc)
-    @test dist(left_most_descendent(pc)).logp ≈ log(0.12)
+    @test dist(left_most_descendent(pc)).logps[2] ≈ log(0.12)
 
     CUDA.@allowscalar if CUDA.functional()
         cbpc = cu(bpc)
         @test length(cbpc.input_node_ids) == 3
         @test length(cbpc.nodes) == 5
-        @test length(cbpc.heap) == 12
+        @test length(cbpc.heap) == 15
 
-        cbpc.heap[dist(cbpc.nodes[1]).heap_start] = log(0.22)
+        start = dist(cbpc.nodes[1]).heap_start
+        cbpc.heap[start:start+1] .= CuVector(Float32[log(0.78), log(0.22)])
         update_parameters(cbpc)
-        @test dist(left_most_descendent(pc)).logp ≈ log(0.22)
+        @test dist(left_most_descendent(pc)).logps[2] ≈ log(0.22)
     end
     
     # Categoricals

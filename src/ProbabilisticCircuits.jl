@@ -15,6 +15,8 @@ module ProbabilisticCircuits
 
     include("queries/likelihood.jl")
     include("queries/likelihood_cpu.jl")
+    include("queries/map_cpu.jl")
+    include("queries/sample_cpu.jl")
     include("queries/flow.jl")
 
     include("parameters/em.jl")

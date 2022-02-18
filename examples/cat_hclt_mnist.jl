@@ -5,12 +5,8 @@ using CUDA
 
 
 function mnist_cpu()
-    train_int = transpose(reshape(MNIST.traintensor(UInt8), 28*28, :));
-    test_int = transpose(reshape(MNIST.testtensor(UInt8), 28*28, :));
-
-    train_cpu = UInt32.(train_int);
-    test_cpu = UInt32.(test_int);
-
+    train_cpu = collect(transpose(reshape(MNIST.traintensor(UInt8), 28*28, :)))
+    test_cpu = collect(transpose(reshape(MNIST.testtensor(UInt8), 28*28, :)))
     train_cpu, test_cpu
 end
 
@@ -21,7 +17,6 @@ end
 function truncate(data::Matrix; bits)
     data .÷ 2^bits
 end
-
 
 function run()
     train, test = mnist_cpu()

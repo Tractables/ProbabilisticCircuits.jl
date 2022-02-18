@@ -1,5 +1,3 @@
-using Random
-
 export loglikelihoods, loglikelihood, 
     loglikelihoods_vectorized, 
     loglikelihoods_linearized
