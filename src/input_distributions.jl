@@ -35,6 +35,9 @@ map_loglikelihood(d::Indicator, _= nothing) =
 map_state(d::Indicator, _ = nothing) = 
     d.value
 
+sample_state(d::Indicator, _ = nothing) = 
+    d.value
+
 # no learning necessary for indicator distributions
 flow(d::Indicator, value, node_flow, heap) = nothing
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
