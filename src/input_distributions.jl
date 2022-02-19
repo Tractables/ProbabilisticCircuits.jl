@@ -4,6 +4,11 @@ export InputDist, Indicator, Literal, Bernoulli, Categorical, loglikelihood
 
 abstract type InputDist end
 
+import Base: isapprox #extend
+
+isapprox(x::InputDist, y::InputDist) = 
+    typeof(x) == typeof(y) && params(x) ≈ params(y)
+
 #####################
 # indicators or logical literals
 #####################
