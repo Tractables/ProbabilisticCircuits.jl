@@ -14,7 +14,7 @@ function test_pc_equals(c1, c2)
             @test isinput(n1) 
             @test isinput(n2)
             # TODO: might need to fix for non-literal dists
-            @test dist(n1) == dist(n2)
+            @test params(dist(n1)) ≈ params(dist(n2))
         end
     end
 end

@@ -10,6 +10,7 @@ const jpc_grammar = raw"""
     header : "jpc" _WS INT
     
     node : "L" _WS INT _WS INT _WS SIGNED_INT -> literal_node
+         | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> categorical_node
          | "P" _WS INT _WS INT _WS INT child_nodes -> prod_node
          | "S" _WS INT _WS INT _WS INT weighted_child_nodes -> sum_node
          
@@ -57,6 +58,12 @@ end
     t.nodes[x[1]] = PlainInputNode(var, Literal(sign))
 end
 
+@rule categorical_node(t::PlainJpcParse, x) = begin
+    var = Base.parse(Int,x[3])
+    log_probs = Base.parse.(Float64, x[4:end])
+    t.nodes[x[1]] = PlainInputNode(var, Categorical(log_probs))
+end
+
 @rule prod_node(t::PlainJpcParse,x) = begin
     @assert length(x[4]) == Base.parse(Int,x[3])
     t.nodes[x[1]] = PlainMulNode(x[4])
@@ -72,7 +79,7 @@ function Base.parse(::Type{PlainProbCircuit}, str, ::JpcFormat)
     Lerche.transform(PlainJpcParse(), ast)
 end
 
-function Base.read(io::IO, ::Type{PlainProbCircuit}, ::JpcFormat, fast=true)
+function Base.read(io::IO, ::Type{PlainProbCircuit}, ::JpcFormat, fast = true)
     if fast
         read_fast(io, PlainProbCircuit, JpcFormat())
     else
@@ -99,6 +106,10 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
                     var = abs(lit)
                     sign = lit > 0
                     nodes[id] = PlainInputNode(var, Literal(sign))
+                elseif startswith(line, "C")
+                    var = Base.parse(Int,tokens[4])
+                    log_probs = Base.parse.(Float64, tokens[5:end])
+                    nodes[id] = PlainInputNode(var, Categorical(log_probs))
                 elseif startswith(line, "P")
                     child_ids = Base.parse.(Int, tokens[5:end]) .+ 1
                     children = nodes[child_ids]
@@ -127,7 +138,8 @@ c jpc nodes appear bottom-up, children before parents
 c
 c file syntax:
 c jpc count-of-jpc-nodes
-c L id-of-literal-jpc-node id-of-vtree literal
+c L id-of-jpc-node id-of-vtree literal
+c C id-of-jpc-node id-of-vtree variable {log-probability}+
 c P id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
 c S id-of-product-jpc-node id-of-vtree number-of-children {child-id log-probability}+
 c"""
@@ -141,9 +153,18 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
     println(io, "jpc $(num_nodes(circuit))")
     foreach(circuit) do n
         if isinput(n)
-            @assert dist(n) isa Literal
-            literal = value(dist(n)) ? randvar(n) : -randvar(n)
-            println(io, "L $(labeling[n]) $(vtreeid(n)) $literal")
+            var = randvar(n)
+            d = dist(n)
+            if d isa Literal
+                literal = value(d) ? var : -var
+                println(io, "L $(labeling[n]) $(vtreeid(n)) $literal")
+            elseif d isa Categorical
+                print(io, "C $(labeling[n]) $(vtreeid(n)) $var")
+                foreach(p -> print(io, " $p"), params(d))
+                println(io)
+            else
+                error("Input distribution type $(typeof(d)) is unknown to the JPC file format")
+            end
         else
             t = ismul(n) ? "P" : "S"
             print(io, "$t $(labeling[n]) $(vtreeid(n)) $(num_inputs(n))")

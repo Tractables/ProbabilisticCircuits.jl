@@ -55,6 +55,8 @@ dist(n::PlainInputNode) = n.dist
 
 randvars(n::PlainInputNode) = n.randvars
 
+params(n::PlainInputNode) = params(dist(n))
+
 num_parameters_node(n::PlainInputNode, independent) = 
     num_parameters(dist(n), independent)
 num_parameters_node(n::PlainMulNode, _) = 0
