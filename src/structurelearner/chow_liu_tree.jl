@@ -17,8 +17,8 @@ const CLT = MetaDiGraph
 learn a Chow-Liu tree from training set `train_x`, with Laplace smoothing factor `α`, specifying the tree root by `clt_root`
 return a `CLT`
 """
-function learn_chow_liu_tree(train_x; α = 1.0, clt_root="graph_center",
-        weight=ones(Float64, num_examples(train_x)))::CLT
+function learn_chow_liu_tree(train_x; α = 1.0, shape=:directed, clt_root="graph_center",
+        weight=ones(Float64, num_examples(train_x)), init_clt=nothing)::CLT
     features_num = num_features(train_x)
 
     # calculate mutual information
@@ -33,22 +33,58 @@ function learn_chow_liu_tree(train_x; α = 1.0, clt_root="graph_center",
     end
 
     # Build rooted tree / forest
-    if clt_root == "graph_center"
-        clt = SimpleDiGraph(features_num)
-        for c in filter(c -> (length(c) > 1), connected_components(tree))
-            sg, vmap = induced_subgraph(tree, c)
-            sub_root = vmap[center(sg)[1]]
-            clt = union(clt, bfs_tree(tree, sub_root))
+    clt = nothing
+    if shape == :directed
+        # Use the graph center of `MStree` as the root node
+        if clt_root == "graph_center"
+            clt = SimpleDiGraph(features_num)
+            for c in filter(c -> (length(c) > 1), connected_components(tree))
+                sg, vmap = induced_subgraph(tree, c)
+                sub_root = vmap[center(sg)[1]]
+                clt = union(clt, bfs_tree(tree, sub_root))
+            end
+        elseif clt_root == "rand"
+            roots = [rand(c) for c in connected_components(tree)]
+            clt = SimpleDiGraph(features_num)
+            for root in roots clt = union(clt, bfs_tree(tree, root)) end
+        else
+            error("Cannot learn CLT with root $clt_root")
         end
-    elseif clt_root == "rand"
-        roots = [rand(c) for c in connected_components(tree)]
+        # clt = MetaDiGraph(bfs_tree(MStree, center(MStree)[1]))
+
+    elseif shape == :balanced
+        # iteratively pick the graph center to make a balanced clt
         clt = SimpleDiGraph(features_num)
-        for root in roots clt = union(clt, bfs_tree(tree, root)) end
-    else
-        error("Cannot learn CLT with root $clt_root")
+        
+        function find_center_ite(g, vmap, clt_map, clt) 
+            # `vmap` map current `g` index to upper layer graph id
+            # `clt_map` map sub graph to `clt`
+            # return root
+    
+            if nv(g) == 1
+                return vmap[1]
+            else
+                root = center(g)[1]
+                for dst in collect(neighbors(g, root))
+                    rem_edge!(g, root, dst)
+                    sub_nodes = filter(x -> dst in x, connected_components(g))
+                    add_edge!(g, root, dst)
+                    sub_g, sub_vmap = induced_subgraph(g, sub_nodes[1])
+                    sub_root = find_center_ite(sub_g, sub_vmap, clt_map[sub_vmap], clt)
+                    add_edge!(clt, clt_map[root], clt_map[sub_root])
+                end
+                return vmap[root]
+            end
+        end
+
+        find_center_ite(tree, collect(1:features_num), collect(1:features_num), clt)
     end
     
     clt = MetaDiGraph(clt)
+    if !isnothing(init_clt)
+        @info "Using clt initialized from outside."
+        clt = MetaDiGraph(init_clt)
+    end
     parent = parent_vector(clt)
     for (c, p) in enumerate(parent)
         set_prop!(clt, c, :parent, p)
