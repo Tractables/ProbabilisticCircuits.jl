@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: 1.5
+          version: 1.7
 
       # Runs a single command using the runners shell
       - name: Unit Tests
         run: |
-          julia --project -e 'using Pkg; Pkg.develop(PackageSpec(name="LogicCircuits")); Pkg.instantiate(); Pkg.build();'
+          julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build();'
           julia --project --check-bounds=yes --depwarn=yes -e 'import Pkg; Pkg.test(; coverage=true)'
           
       - name: Codecov Upload
