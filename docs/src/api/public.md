@@ -16,24 +16,13 @@ write
 ## Learning Circuits
 
 ```@docs
-learn_circuit
-learn_strudel
-estimate_parameters!
-estimate_parameters_em!
-estimate_parameters_em_multi_epochs!
-learn_chow_liu_tree_circuit
+mini_batch_em
+full_batch_em
 ```
 
 ## Circuit Queries
 
 ```@docs
-marginal
-max_a_posteriori
-sample
-```
-
-## Compilation
-
-```@docs
-compile_sdd_from_clt
+loglikelihood
+loglikelihoods
 ```

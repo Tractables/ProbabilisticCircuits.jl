@@ -1,294 +1,289 @@
-using DataFrames
+using CUDA, Random
 
-export EVI, log_likelihood_per_instance, log_likelihood, log_likelihood_avg
+export loglikelihoods, loglikelihood
 
-"""
-Compute the likelihood of the PC given each individual instance in the data
-"""
-function log_likelihood_per_instance(spc::SharedProbCircuit, data, weights::Union{AbstractArray, Nothing} = nothing; component_idx = 0)::AbstractVector
-    if component_idx != 0
-        ll, _, _ = EVI(ParamBitCircuit(spc, data; component_idx = component_idx), data)
-        return ll
+##################################################################################
+# Init marginals
+###################################################################################
+
+function balance_threads(num_items, num_examples, config; mine, maxe, contiguous_warps=true)
+    block_threads = config.threads
+    # make sure the number of example threads is a multiple of 32
+    example_threads = contiguous_warps ? (cld(num_examples,32) * 32) : num_examples
+    num_item_batches = cld(num_items, maxe)
+    num_blocks = cld(num_item_batches * example_threads, block_threads)
+    if num_blocks < config.blocks
+        max_num_item_batch = cld(num_items, mine)
+        max_num_blocks = cld(max_num_item_batch * example_threads, block_threads)
+        num_blocks = min(config.blocks, max_num_blocks)
+        num_item_batches = (num_blocks * block_threads) ÷ example_threads
     end
-    ll_per_instance = zeros(Float64, num_examples(data))
-    v, f = nothing, nothing
-    if isnothing(weights)
-        for component_idx = 1 : num_components(spc)
-            bc = ParamBitCircuit(spc, data; component_idx = component_idx)
-            ll, v, f = log_likelihood_per_instance(bc, data, v, f)
-            ll = isgpu(ll) ? to_cpu(ll) : ll
-            @inbounds @views ll_per_instance[:] .= ll_per_instance[:] .+ ll[:]
-        end
-        @inbounds @views ll_per_instance[:] .= ll_per_instance[:] ./ num_components(spc)
-        return ll_per_instance
-    end
-    @assert length(weights) == num_components(spc) "Weights must have same dimension as number of components."
-    if weights isa AbstractVector weights = reshape(weights, (1, length(weights))) end
-    n = length(weights)
-    lls = Array{Float64, 2}(undef, num_examples(data), n)
-    for i in 1:n
-        pbc = ParamBitCircuit(spc, data; component_idx = i)
-        ll, v, f = log_likelihood_per_instance(pbc, data, v, f)
-        lls[:,i] .= isgpu(ll) ? to_cpu(ll) : ll
-    end
-    return logsumexp(lls .+ log.(weights), 2)
+    item_work = cld(num_items, num_item_batches)
+    @assert item_work*block_threads*num_blocks >= example_threads*num_items
+    block_threads, num_blocks, example_threads, item_work
 end
 
-function log_likelihood_per_instance(pc::ProbCircuit, data)
-    if isweighted(data)
-        data, weights = split_sample_weights(data)
-    end
-    bc = ParamBitCircuit(pc, data)
+function init_mar!_kernel(mars, nodes, data, example_ids, heap, 
+                          num_ex_threads::Int32, node_work::Int32)
+    # this kernel follows the structure of the layer eval kernel, would probably be faster to 
+    # have 1 thread process multiple examples, rather than multiple nodes 
     
-    if isbatched(data)
-        v, f = nothing, nothing
-        lls = map(data) do d
-            ll, v, f = log_likelihood_per_instance(bc, d)
+    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    node_batch, ex_id = fldmod1(threadid, num_ex_threads)
+
+    node_start = one(Int32) + (node_batch - one(Int32)) * node_work 
+    node_end = min(node_start + node_work - one(Int32), length(nodes))
+
+    @inbounds if ex_id <= length(example_ids)
+        for node_id = node_start:node_end
+
+            node = nodes[node_id]
             
-            ll
-        end
-        
-        ll = cat(lls...; dims = 1)
-    else
-        ll, v, f = log_likelihood_per_instance(bc, data)
-    end
-    
-    if isgpu(data)
-        CUDA.unsafe_free!(v) # save the GC some effort
-        CUDA.unsafe_free!(f) # save the GC some effort
-    end
-    
-    ll
-end
-
-function log_likelihood_per_instance(bc::ParamBitCircuit, data, reuse_v = nothing, reuse_f = nothing)
-    @assert isbinarydata(data) || isfpdata(data) "Probabilistic circuit likelihoods are for binary/float data only"
-    if isgpu(data)
-        ll, v, f = log_likelihood_per_instance_gpu(to_gpu(bc), data, reuse_v, reuse_f)
-    else
-        ll, v, f = log_likelihood_per_instance_cpu(bc, data, reuse_v, reuse_f)
-    end
-    
-    ll, v, f
-end
-
-function log_likelihood_per_instance_cpu(bc, data, reuse_v = nothing, reuse_f = nothing)
-    ll::Vector{Float64} = zeros(Float64, num_examples(data))
-    ll_lock::Threads.ReentrantLock = Threads.ReentrantLock()
-    
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, single_child, weights)
-        if !single_child
-            lock(ll_lock) do # TODO: move lock to inner loop? change to atomic float?
-                for i = 1:size(flows,1)
-                    @inbounds edge_flow = values[i, prime] & values[i, sub] & flows[i, grandpa]
-                    first_true_bit = trailing_zeros(edge_flow)+1
-                    last_true_bit = 64-leading_zeros(edge_flow)
-                    @simd for j = first_true_bit:last_true_bit
-                        ex_id = ((i-1) << 6) + j
-                        if get_bit(edge_flow, j)
-                            @inbounds ll[ex_id] += bc.params[element]
-                        end
+            mars[ex_id, node_id] = 
+                if (node isa BitsSum)
+                    -Inf32
+                elseif (node isa BitsMul)
+                    zero(Float32)
+                else
+                    orig_ex_id::Int32 = example_ids[ex_id]
+                    inputnode = node::BitsInput
+                    variable = inputnode.variable
+                    value = data[orig_ex_id, variable]
+                    if ismissing(value)
+                        zero(Float32)
+                    else
+                        loglikelihood(dist(inputnode), value, heap)
                     end
                 end
-            end
         end
-        nothing
     end
-    @inline function on_edge(flows, values::Matrix{<:AbstractFloat}, prime, sub, element, grandpa, single_child, weights)
-        if !single_child
-            lock(ll_lock) do # TODO: move lock to inner loop? change to atomic float?
-                for i = 1:size(flows,1)
-                    @inbounds edge_flow = values[i, prime] * values[i, sub] / values[i, grandpa] * flows[i, grandpa]
-                    @inbounds ll[i] += bc.params[element] * edge_flow
-                end
-            end
-        end
-        nothing
-    end
+    nothing
+end
 
-    v, f = satisfies_flows(bc.bitcircuit, data, reuse_v, reuse_f; on_edge)
+function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
+    num_examples = length(example_ids)
+    num_nodes = length(bpc.nodes)
     
-    if isbinarydata(data)
-        # when the example is outside of the support, give 0 likelihood 
-        in_support = AbstractBitVector(v[:,end], num_examples(data))
-        ll[.! in_support] .= -Inf
+    dummy_args = (mars, bpc.nodes, data, example_ids, bpc.heap, Int32(1), Int32(1))
+    kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(dummy_args...) 
+    config = launch_configuration(kernel.fun)
+
+    threads, blocks, num_example_threads, node_work = 
+        balance_threads(num_nodes, num_examples, config; mine, maxe)
+    
+    args = (mars, bpc.nodes, data, example_ids, bpc.heap, 
+            Int32(num_example_threads), Int32(node_work))
+    if debug
+        println("Node initialization")
+        @show threads blocks num_example_threads node_work num_nodes num_examples
+        CUDA.@time kernel(args...; threads, blocks)
     else
-        @assert isfpdata(data)
+        kernel(args...; threads, blocks)
+    end
+    nothing
+end
+
+##################################################################################
+# Upward pass
+##################################################################################
+
+function logsumexp(x::Float32,y::Float32)
+    if isfinite(x) && isfinite(y)
+        # note: @fastmath does not work with infinite values, so do not apply above
+        @fastmath max(x,y) + log1p(exp(-abs(x-y))) 
+    else
+        max(x,y)
+    end
+end
+
+function layer_up_kernel(mars, edges, 
+            num_ex_threads::Int32, num_examples::Int32, 
+            layer_start::Int32, edge_work::Int32, layer_end::Int32)
+
+    threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    edge_batch, ex_id = fldmod1(threadid, num_ex_threads)
+
+    edge_start = layer_start + (edge_batch - one(Int32)) * edge_work 
+    edge_end = min(edge_start + edge_work - one(Int32), layer_end)
+
+    @inbounds if ex_id <= num_examples
+
+        local acc::Float32    
+        owned_node::Bool = false
         
-        @inbounds @views in_support = v[:,end]
-        ll[in_support .< 1e-8] .= -Inf
-    end
+        for edge_id = edge_start:edge_end
 
-    return ll, v, f
-end
+            edge = edges[edge_id]
 
-function log_likelihood_per_instance_gpu(bc, data, reuse_v = nothing, reuse_f = nothing)
-    params_device = CUDA.cudaconvert(bc.params)
-    ll::CuVector{Float64} = CUDA.zeros(Float64, num_examples(data))
-    ll_device = CUDA.cudaconvert(ll)
-        
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, chunk_id, edge_flow, single_child, weights)
-        if !single_child
-            first_true_bit = 1+trailing_zeros(edge_flow)
-            last_true_bit = 64-leading_zeros(edge_flow)
-            for j = first_true_bit:last_true_bit
-                ex_id = ((chunk_id-1) << 6) + j
-                if get_bit(edge_flow, j)
-                    CUDA.@atomic ll_device[ex_id] += params_device[element]
-                end
+            tag = edge.tag
+            isfirstedge = isfirst(tag)
+            islastedge = islast(tag)
+            issum = edge isa SumEdge
+            owned_node |= isfirstedge
+
+            # compute probability coming from child
+            child_prob = mars[ex_id, edge.prime_id]
+            if edge.sub_id != 0
+                child_prob += mars[ex_id, edge.sub_id]
+            end
+            if issum
+                child_prob += edge.logp
+            end
+
+            # accumulate probability from child
+            if isfirstedge || (edge_id == edge_start)  
+                acc = child_prob
+            elseif issum
+                acc = logsumexp(acc, child_prob)
+            else
+                acc += child_prob
+            end
+
+            # write to global memory
+            if islastedge || (edge_id == edge_end)   
+                pid = edge.parent_id
+
+                if islastedge && owned_node
+                    # no one else is writing to this global memory
+                    mars[ex_id, pid] = acc
+                else
+                    if issum
+                        CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
+                    else
+                        CUDA.@atomic mars[ex_id, pid] += acc
+                    end 
+                end    
             end
         end
-        nothing
     end
-    @inline function on_edge(flows, values, prime, sub, element, grandpa, sample_idx, edge_flow::AbstractFloat, 
-                             single_child, weights)
-        if !single_child
-            c::Float64 = edge_flow * params_device[element]
-            CUDA.@atomic ll_device[sample_idx] += c
-        end
-        nothing
-    end
-    
-    v, f = satisfies_flows(bc.bitcircuit, data, reuse_v, reuse_f; on_edge)
-
-    if isbinarydata(data)
-        # when the example is outside of the support, give 0 likelihood 
-        # lazy programmer: do the conversion to a Vector{Bool} on CPU 
-        #   so that CUDA.jl can build a quick kernel
-        # TODO: write a function to do this conversion on GPU directly
-        in_support = AbstractBitVector(to_cpu(v[:,end]), num_examples(data))
-        in_support = to_gpu(convert(Vector{Bool}, in_support))
-    else
-        @assert isfpdata(data)
-        @inbounds @views in_support = v[:,end] .> 1e-8
-    end
-    ll2 = map((x,s) -> s ? x : -Inf, ll, in_support)
-    
-    CUDA.unsafe_free!(ll) # save the GC some effort
-    
-    return ll2, v, f
+    nothing
 end
 
-"""
-    EVI(pc, data)
+function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, debug=false)
+    edges = bpc.edge_layers_up.vectors
+    num_edges = layer_end - layer_start + 1
+    dummy_args = (mars, edges, 
+                  Int32(32), Int32(num_examples), 
+                  Int32(1), Int32(1), Int32(2))
+    kernel = @cuda name="layer_up" launch=false layer_up_kernel(dummy_args...) 
+    config = launch_configuration(kernel.fun)
 
-Computes the log likelihood data given full evidence.
-Outputs `` \\log{p(x)} `` for each datapoint.
-"""
-const EVI = log_likelihood_per_instance
-
-"""
-    log_likelihood(pc, data)
-
-Compute the likelihood of the PC given the data
-"""
-log_likelihood(pc, data) = begin
-    if isweighted(data)
-        # `data' is weighted according to its `weight' column
-        data, weights = split_sample_weights(data)
-        log_likelihood(pc, data, weights)
-    else
-        likelihoods = log_likelihood_per_instance(pc, data)
-        isgpu(likelihoods) ? sum(to_cpu(likelihoods)) : sum(likelihoods)
-    end
-end
-
-log_likelihood(pc, data, weights::DataFrame) = 
-    log_likelihood(pc, data, weights[:, 1])
-
-log_likelihood(pc, data, weights::AbstractArray) = begin
-    if isgpu(weights)
-        weights = to_cpu(weights)
-    end
-    likelihoods = log_likelihood_per_instance(pc, data)
-    likelihoods = isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods
-    mapreduce(*, +, likelihoods, weights)
-end
-log_likelihood(pc, data::Vector{DataFrame}) = begin
-    if pc isa SharedProbCircuit
-        total_ll = 0.0
-        for component_idx = 1 : num_components(pc)
-            total_ll += log_likelihood_batched(pc, data; component_idx)
-        end
-        total_ll / num_components(pc)
-    else
-        log_likelihood_batched(pc, data)
-    end
-end
-log_likelihood_batched(pc, data::Vector{DataFrame}, component_idx::Integer = 0) = begin
-    # mapreduce(d -> log_likelihood(pc, d), +, data)
-    if pc isa SharedProbCircuit
-        pbc = ParamBitCircuit(pc, data; component_idx)
-    else
-        pbc = ParamBitCircuit(pc, data)
-    end
+    # configure thread/block balancing
+    threads, blocks, num_example_threads, edge_work = 
+        balance_threads(num_edges, num_examples, config; mine, maxe)
     
-    total_ll::Float64 = 0.0
-    if isweighted(data)
-        data, weights = split_sample_weights(data)
-        
-        v, f = nothing, nothing
-        for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f)
-            if isgpu(likelihoods)
-                likelihoods = to_cpu(likelihoods)
+    args = (mars, edges, 
+            Int32(num_example_threads), Int32(num_examples), 
+            Int32(layer_start), Int32(edge_work), Int32(layer_end))
+    if debug
+        println("Layer $layer_start:$layer_end")
+        @show num_edges num_examples threads blocks num_example_threads edge_work
+        CUDA.@time kernel(args...; threads, blocks)
+    else
+        kernel(args...; threads, blocks)
+    end
+    nothing
+end
+
+# run entire circuit
+function eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug=false)
+    init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
+    layer_start = 1
+    for layer_end in bpc.edge_layers_up.ends
+        layer_up(mars, bpc, layer_start, layer_end, length(example_ids); mine, maxe, debug)
+        layer_start = layer_end + 1
+    end
+    nothing
+end
+
+#################################
+### Full Epoch Likelihood
+#################################
+
+"""
+    prep_memory(reuse, sizes, exact = map(x -> true, sizes))
+
+Mostly used internally. Prepares memory for the specifed size, reuses `reuse` if possible to avoid memory allocation/deallocation.
+"""
+function prep_memory(reuse, sizes, exact = map(x -> true, sizes))
+    if isnothing(reuse)
+        return CuArray{Float32}(undef, sizes...)
+    else
+        @assert ndims(reuse) == length(sizes)
+        for d = 1:length(sizes)
+            if exact[d]
+                @assert size(reuse, d) == sizes[d] 
+            else
+                @assert size(reuse, d) >= sizes[d] 
             end
-            w = weights[idx]
-            if isgpu(w)
-                w = to_cpu(w)
-            end
-            total_ll += mapreduce(*, +, likelihoods, w)
         end
-    else
-        v, f = nothing, nothing
-        for idx = 1 : length(data)
-            likelihoods, v, f = log_likelihood_per_instance(pbc, data[idx], v, f)
-            total_ll += sum(isgpu(likelihoods) ? to_cpu(likelihoods) : likelihoods)
-        end
+        return reuse
     end
-    
-    if isgpu(data)
-        CUDA.unsafe_free!(v) # save the GC some effort
-        CUDA.unsafe_free!(f) # save the GC some effort
-    end
-    
-    total_ll
 end
 
 """
-    log_likelihood_avg(pc, data)
-
-Compute the likelihood of the PC given the data, averaged over all instances in the data
+Cleansup allocated memory. Used internally.
 """
-log_likelihood_avg(pc, data) = begin
-    if isweighted(data)
-        # `data' is weighted according to its `weight' column
-        data, weights = split_sample_weights(data)
+function cleanup_memory(used::CuArray, reused)
+    if used !== reused
+        CUDA.unsafe_free!(used)
+    end
+end
+
+function cleanup_memory(used_reused::Tuple...)
+    for (used, reused) in used_reused
+        cleanup_memory(used, reused)
+    end
+end
+
+
+"""
+    loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; batch_size, mars_mem = nothing)
+
+Returns loglikelihoods for each datapoint on gpu. Missing values should be denoted by `missing`.
+- `bpc`: BitCircuit on gpu
+- `data`: CuArray{Union{Missing, data_types...}}
+- `batch_size`
+- `mars_mem`: Not required, advanced usage. CuMatrix to reuse memory and reduce allocations. See [`prep_memory`](@ref) and [`cleanup_memory`](@ref).
+"""
+function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; 
+                        batch_size, mars_mem = nothing, 
+                        mine=2, maxe=32, debug=false)
+
+    num_examples = size(data)[1]
+    num_nodes = length(bpc.nodes)
+    
+    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
+
+    log_likelihoods = CUDA.zeros(Float32, num_examples)
+
+    for batch_start = 1:batch_size:num_examples
+
+        batch_end = min(batch_start+batch_size-1, num_examples)
+        batch = batch_start:batch_end
+        num_batch_examples = length(batch)
         
-        log_likelihood_avg(pc, data, weights)
-    else
-        log_likelihood(pc, data) / num_examples(data)
+        eval_circuit(marginals, bpc, data, batch; mine, maxe, debug)
+        
+        log_likelihoods[batch_start:batch_end] .= @view marginals[1:num_batch_examples, end]
     end
+
+    cleanup_memory(marginals, mars_mem)
+
+    return log_likelihoods
 end
 
-log_likelihood_avg(pc, data, weights::DataFrame) = 
-    log_likelihood_avg(pc, data, weights[:, 1])
+"""
+    loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; batch_size, mars_mem = nothing)
 
-log_likelihood_avg(pc, data, weights) = begin
-    if isgpu(weights)
-        weights = to_cpu(weights)
-    end
-    log_likelihood(pc, data, weights) / sum(weights)
-end
+Computes Average loglikelihood of circuit given the data using gpu. See [`loglikelihoods`](@ref) for more details.
+"""
+function loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
+                           batch_size, mars_mem = nothing, 
+                           mine=2, maxe=32, debug=false)
+    lls = loglikelihoods(bpc, data; batch_size, mars_mem, mine, maxe, debug)
 
-log_likelihood_avg(pc, data::Vector{DataFrame}) = begin
-    if isweighted(data)
-        weights = get_weights(data)
-        if isgpu(weights)
-            weights = to_cpu(weights)
-        end
-        log_likelihood(pc, data) / mapreduce(sum, +, weights)
-    else
-        log_likelihood(pc, data) / num_examples(data)
-    end
+    return sum(lls) / length(lls)
 end

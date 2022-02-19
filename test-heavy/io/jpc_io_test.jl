@@ -48,6 +48,12 @@ include("../helper/pc_equals.jl")
         test_my_circuit(pc2)
         test_pc_equals(pc1, pc2)
 
+        # read fast as a unstructured logic circuit
+        pc2f = ProbabilisticCircuits.read_fast(jpc_path)
+
+        test_my_circuit(pc2f)
+        test_pc_equals(pc1, pc2f)
+        
         # write with vtree
         vtree_path = "$tmp/example.vtree"
         paths = (jpc_path, vtree_path)

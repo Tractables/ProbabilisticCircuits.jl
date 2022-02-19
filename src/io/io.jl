@@ -1,21 +1,29 @@
-using LogicCircuits
-using LogicCircuits: JuiceTransformer, dimacs_comments, zoo_version
-
-using LazyArtifacts
 using Lerche: Lerche, Lark, Transformer, @rule, @inline_rule
+using CodecZlib: GzipDecompressorStream, GzipCompressorStream
 
-include("jpc_io.jl")
-include("psdd_io.jl")
-include("spn_io.jl")
-include("clt_io.jl")
-include("ensemble_io.jl")
-include("plot.jl")
 
-# if no logic circuit file format is given on read, infer file format from extension
+#  by default don't transform tokens in parser
+abstract type PCTransformer <: Transformer end
+
+Lerche.visit_tokens(t::PCTransformer) = false
+
+# file formats supported by this package
+abstract type FileFormat end
+
+struct GzipFormat <: FileFormat 
+    inner_format::FileFormat
+end
+
+# usual comment format for DIMACS-based file formats
+const dimacs_comments = raw"""
+    COMMENT : ("c" | "cc") (_WS /[^\n]/*)? (_NL | /$/)
+    %ignore COMMENT
+"""
+
+# if no circuit file format is given on read, infer file format from extension
 
 function file2pcformat(file) 
     if endswith(file,".gz")
-        # duplicate code from `LogicCircuits.file2logicformat` -- not sure how to make this nicer
         file_inner, _ = splitext(file)
         format_inner = file2pcformat(file_inner)
         GzipFormat(format_inner)
@@ -26,8 +34,7 @@ function file2pcformat(file)
     elseif endswith(file,".spn")
         SpnFormat()
     else
-        # try a logic circuit format
-        LogicCircuits.file2logicformat(file)
+        throw("Unknown file extension in $file: provide a file format argument")
     end
 end
 
@@ -39,10 +46,6 @@ Reads circuit from file; uses extension to detect format type, for example ".psd
 Base.read(file::AbstractString, ::Type{C}) where C <: ProbCircuit =
     read(file, C, file2pcformat(file))
 
-
-Base.read(files::Tuple{AbstractString,AbstractString}, ::Type{C}) where C <: StructProbCircuit =
-    read(files, C, (file2pcformat(files[1]), VtreeFormat()))
-
 """
     Base.write(file::AbstractString, circuit::ProbCircuit)
 
@@ -50,16 +53,6 @@ Writes circuit to file; uses file name extention to detect file format.
 """
 Base.write(file::AbstractString, circuit::ProbCircuit) =
     write(file, circuit, file2pcformat(file))
-
-"""
-    Base.write(files::Tuple{AbstractString,AbstractString}, circuit::StructProbCircuit)
-
-Saves circuit and vtree to file.
-"""
-Base.write(files::Tuple{AbstractString,AbstractString}, 
-           circuit::StructProbCircuit) =
-    write(files, circuit, (file2pcformat(files[1]), VtreeFormat()))
-
 
 #  when asked to parse/read as `ProbCircuit`, default to `PlainProbCircuit`
 
@@ -73,21 +66,20 @@ Base.read(io::IO, ::Type{ProbCircuit}, f::GzipFormat) =
     # avoid method ambiguity
     read(io, PlainProbCircuit,  f)
 
-# copy read/write API for tuples of files
 
-function Base.read(files::Tuple{AbstractString, AbstractString}, ::Type{C}, args...) where C <: StructProbCircuit
-    open(files[1]) do io1 
-        open(files[2]) do io2 
-            read((io1, io2), C, args...)
-        end
-    end
+# (de)compress Gzip streams
+
+Base.read(io::IO, circuit_type, f::GzipFormat) =
+    read(GzipDecompressorStream(io), circuit_type, f.inner_format)
+
+Base.write(io::IO, circuit, f::GzipFormat) = begin
+    iogz = GzipCompressorStream(io) 
+    write(iogz, circuit, f.inner_format)
+    close(iogz)
 end
 
-function Base.write(files::Tuple{AbstractString,AbstractString},
-                    circuit::StructProbCircuit, args...) 
-    open(files[1], "w") do io1
-        open(files[2], "w") do io2
-            write((io1, io2), circuit, args...)
-        end
-    end
-end
+# specific file formats
+
+include("jpc_io.jl")
+include("psdd_io.jl")
+include("spn_io.jl")

@@ -1,107 +1,48 @@
 using Test
-using LogicCircuits
 using ProbabilisticCircuits
-using DataFrames: DataFrame
 using CUDA
 
 include("../helper/gpu.jl")
+include("../helper/plain_dummy_circuits.jl")
 
 @testset "MAP regression test" begin
-    a,b = pos_literals(ProbCircuit, 2)
-    circuit = 0.6 * (a * (.5 * b + .5 * -b)) + .4 * (-a * (0.9 * b + .1 * -b))
-    no_data = DataFrame(Union{Bool,Missing}[missing missing], :auto)
-    maps, mappr = MAP(circuit, no_data)
+    a,b    = [ProbabilisticCircuits.PlainInputNode(i, Indicator(true)) for i=1:2]
+    a_, b_ = [ProbabilisticCircuits.PlainInputNode(i, Indicator(false)) for i=1:2]
+    circuit = 0.6 * (a * (.5 * b + .5 * b_)) + .4 * (a_ * (0.9 * b + .1 * b_))
+    no_data = Matrix{Union{Bool,Missing}}([missing missing])
+    maps, mappr = MAP(circuit, no_data; batch_size = 1, return_map_prob=true)
     @test mappr[1] ≈ log(0.4 * 0.9)
     @test maps[1,1] == false && maps[1,2] == true
-    @test mappr ≈ map_prob(circuit, no_data)
-
-     # same MAP states on CPU and GPU
-    cpu_gpu_agree(no_data) do d 
-        MAP(circuit, d)[1]
-    end
     
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(no_data) do d 
-        MAP(circuit, d)[2]
-    end
-
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(no_data) do d 
-        map_prob(circuit, d)
-    end
-    
-    complete_states = DataFrame([true true; true false; false true; false false], :auto)
-    mar = MAR(circuit, complete_states)
+    complete_states = Matrix([true true; true false; false true; false false])
+    mar = loglikelihoods(circuit, complete_states; batch_size = 3)
     @test all(mappr .> mar .- 1e-6)
 end
 
 @testset "MAP" begin
+    prob_circuit = little_4var()
+    data_full = generate_data_all(num_randvars(prob_circuit))
 
-    prob_circuit = zoo_psdd("little_4var.psdd");
-
-    data_full = generate_data_all(num_variables(prob_circuit))
-
-    map, mappr = MAP(prob_circuit, data_full)
-
+    map, mappr = MAP(prob_circuit, data_full; batch_size = 1, return_map_prob=true)
     @test map == data_full
-    @test mappr ≈ map_prob(prob_circuit, data_full)
 
-    
-    evipr = EVI(prob_circuit, data_full)
+    evipr = loglikelihoods(prob_circuit, data_full; batch_size = 16)
     @test mappr ≈ evipr atol=1e-6
-
-    data_marg = DataFrame([false false false false; 
+    data_marg = Matrix([false false false false; 
                       false true true false; 
                       false false true true;
                       false false false missing; 
                       missing true false missing; 
                       missing missing missing missing; 
-                      false missing missing missing], :auto)
+                      false missing missing missing])
 
-    map, mappr = MAP(prob_circuit, data_marg)
+    map, mappr = MAP(prob_circuit, data_marg; batch_size = 1, return_map_prob=true)
 
-    @test all(zip(eachcol(map), eachcol(data_marg))) do (cf,cm) 
-        all(zip(cf, cm)) do (f,m) 
-            ismissing(m) || f == m
-        end
-    end
-
-    mar = MAR(prob_circuit, data_marg)
-
+    @test all(ismissing.(data_marg) .| (data_marg .== map))
+    mar = loglikelihoods(prob_circuit, data_marg; batch_size = 16)
     @test all(mar .> mappr .- 1e-6)
 
-    map, mappr = MAP(prob_circuit, false, false, false, missing)
-    @test map == [false, false, false, true]
-    @test mappr ≈ -1.2729657
-
-    # same MAP states on CPU and GPU
-    cpu_gpu_agree(data_full) do d 
-        MAP(prob_circuit, d)[1]
-    end
-
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(data_full) do d 
-        MAP(prob_circuit, d)[2]
-    end
-
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(data_full) do d 
-        map_prob(prob_circuit, d)
-    end
-
-    # same MAP states on CPU and GPU
-    cpu_gpu_agree(data_marg) do d 
-        MAP(prob_circuit, d)[1]
-    end
-
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(data_marg) do d 
-        MAP(prob_circuit, d)[2]
-    end
-
-    # same MAP probabilities on CPU and GPU
-    cpu_gpu_agree_approx(data_marg) do d 
-        map_prob(prob_circuit, d)
-    end
-
+    map, mappr = MAP(prob_circuit, Matrix([false false false missing]); batch_size = 1, return_map_prob=true)
+    @test map == Matrix([false false false true])
+    @test mappr[1] ≈ -1.2729657
 end

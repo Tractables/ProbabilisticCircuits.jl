@@ -1,5 +1,5 @@
 using Documenter
-using DocumenterLaTeX
+#using DocumenterLaTeX
 using ProbabilisticCircuits
 using Literate
 
@@ -50,8 +50,8 @@ const  pages = [
     "Installation" => "installation.md",
     "Manual" => [
         "manual/demo.md",
-        "manual/queries.md",
-        "manual/learning.md"
+         "manual/queries.md",
+         "manual/learning.md"
     ],
     "API" => [
         "api/public.md",

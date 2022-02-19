@@ -55,7 +55,8 @@ import LogicCircuits: children # make available for extension
 @inline children(n::PlainProbInnerNode) = n.children
 
 "Count the number of parameters in the node"
-@inline num_parameters_node(n::PlainSumNode) = num_children(n)
+@inline num_parameters_node(n::PlainSumNode; independent=true) = 
+    independent ? num_children(n)-1 : num_children(n)
 
 #####################
 # constructors and conversions
