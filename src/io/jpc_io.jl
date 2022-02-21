@@ -150,6 +150,7 @@ c
 c file syntax:
 c jpc count-of-jpc-nodes
 c L id-of-jpc-node id-of-vtree literal
+c I id-of-jpc-node id-of-vtree variable indicator-value
 c C id-of-jpc-node id-of-vtree variable {log-probability}+
 c P id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
 c S id-of-product-jpc-node id-of-vtree number-of-children {child-id log-probability}+
