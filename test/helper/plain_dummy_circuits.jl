@@ -23,17 +23,17 @@ function little_3var()
     mul1 + mul2
 end
 
-function little_3var_bernoulli(; p = 0.5)
-    n1 = PlainInputNode(1, Bernoulli(log(p)))
-    n2 = PlainInputNode(2, Bernoulli(log(p)))
-    n3 = PlainInputNode(3, Bernoulli(log(p)))
+function little_3var_bernoulli(firstvar=1; p = 0.5)
+    n1 = PlainInputNode(firstvar, Bernoulli(log(p)))
+    n2 = PlainInputNode(firstvar+1, Bernoulli(log(p)))
+    n3 = PlainInputNode(firstvar+2, Bernoulli(log(p)))
     summate(multiply(n1, n2, n3))
 end
 
-function little_3var_categorical(; num_cats = 3)
-    n1 = PlainInputNode(1, Categorical(num_cats))
-    n2 = PlainInputNode(2, Categorical(num_cats))
-    n3 = PlainInputNode(3, Categorical(num_cats))
+function little_3var_categorical(firstvar=1; num_cats = 3)
+    n1 = PlainInputNode(firstvar, Categorical(num_cats))
+    n2 = PlainInputNode(firstvar+1, Categorical(num_cats))
+    n3 = PlainInputNode(firstvar+2, Categorical(num_cats))
     summate(multiply(n1, n2, n3))
 end
 
@@ -55,16 +55,26 @@ function little_4var()
     prob_circuit = read(circuit, ProbCircuit, ProbabilisticCircuits.PsddFormat());
 end
 
+function little_2var_indicator(firstvar=0)
+    v1 = PlainInputNode(firstvar, Indicator(0))
+    v2 = PlainInputNode(firstvar, Indicator(1))
+    v3 = PlainInputNode(firstvar, Indicator(2))
+    sum1 = v1 + v2 + v3
+    sum2 = v1 + v2 + v3
+    sum3 = v1 + v2 + v3
+    v1 = PlainInputNode(firstvar+1, Indicator(0))
+    v2 = PlainInputNode(firstvar+1, Indicator(1))
+    v3 = PlainInputNode(firstvar+1, Indicator(2))
+    mul1 = v1 * sum1
+    mul2 = v2 * sum2
+    mul3 = v3 * sum3
+    mul1 + mul2 + mul3
+end
 
-"""
-Generates all possible binary configurations of size N
-"""
-function generate_data_all(N::Int)
-    data_all = transpose(parse.(Bool, split(bitstring(0)[end-N+1:end], "")));
-    for mask = 1: (1<<N) - 1
-        data_all = vcat(data_all,
-            transpose(parse.(Bool, split(bitstring(mask)[end-N+1:end], "")))
-        );
-    end
-    Matrix(data_all)
+function little_hybrid_circuit()
+    x = little_3var()
+    y = little_2var_indicator(4)
+    z1 = little_3var_bernoulli(7)
+    z2 = little_3var_categorical(7)
+    (x * y * z1) + (x * y * z2) 
 end

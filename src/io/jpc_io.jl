@@ -10,6 +10,7 @@ const jpc_grammar = raw"""
     header : "jpc" _WS INT
     
     node : "L" _WS INT _WS INT _WS SIGNED_INT -> literal_node
+         | "I" _WS INT _WS INT _WS INT _WS INT -> indicator_node
          | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> categorical_node
          | "P" _WS INT _WS INT _WS INT child_nodes -> prod_node
          | "S" _WS INT _WS INT _WS INT weighted_child_nodes -> sum_node
@@ -56,6 +57,12 @@ end
     var = abs(lit)
     sign = lit > 0
     t.nodes[x[1]] = PlainInputNode(var, Literal(sign))
+end
+
+@rule indicator_node(t::PlainJpcParse, x) = begin
+    var = Base.parse(Int,x[3])
+    value = Base.parse(Int,x[4])
+    t.nodes[x[1]] = PlainInputNode(var, Indicator(value))
 end
 
 @rule categorical_node(t::PlainJpcParse, x) = begin
@@ -106,6 +113,10 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
                     var = abs(lit)
                     sign = lit > 0
                     nodes[id] = PlainInputNode(var, Literal(sign))
+                elseif startswith(line, "I")
+                    var = Base.parse(Int,tokens[4])
+                    val = Base.parse(Int,tokens[5])
+                    nodes[id] = PlainInputNode(var, Indicator(val))
                 elseif startswith(line, "C")
                     var = Base.parse(Int,tokens[4])
                     log_probs = Base.parse.(Float64, tokens[5:end])
@@ -158,6 +169,8 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
             if d isa Literal
                 literal = value(d) ? var : -var
                 println(io, "L $(labeling[n]) $(vtreeid(n)) $literal")
+            elseif d isa Indicator{<:Integer}
+                println(io, "I $(labeling[n]) $(vtreeid(n)) $var $(value(d))")
             elseif d isa Categorical
                 print(io, "C $(labeling[n]) $(vtreeid(n)) $var")
                 foreach(p -> print(io, " $p"), params(d))
