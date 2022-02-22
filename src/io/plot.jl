@@ -36,3 +36,11 @@ function plot(pc::ProbCircuit)
     
     TikzGraphs.plot(g, node_labels; edge_labels, edge_style="font=\\tiny")
 end
+
+latex(ind::Indicator) = 
+    "\\mathbf{1}_{$(value(ind))}"
+
+function latex(d::Categorical)
+    p = round.(exp.(params(d)), digits=3)
+    "Cat(" * join(p, ", ") * ")"
+end

@@ -27,9 +27,6 @@ value(d::Indicator) = d.value
 
 params(d::Indicator) = value(d)
 
-latex(ind::Indicator) = 
-    "\\mathbf{1}_{$(value(ind))}"
-
 bits(d::Indicator, _ = nothing) = d
 
 unbits(d::Indicator, _ = nothing) = d
@@ -80,9 +77,6 @@ num_categories(d::Categorical) = length(logps(d))
 
 num_parameters(n::Categorical, independent) = 
     num_categories(n) - (independent ? 1 : 0)
-
-latex(d::Categorical) = 
-    "Categorical("*join(params(d), ", ")*")"
 
 init_params(d::Categorical, perturbation::Float32) = begin
     unnormalized_probs = map(rand(Float32, num_categories(d))) do x 
