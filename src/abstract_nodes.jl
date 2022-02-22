@@ -31,7 +31,7 @@ DAGs.NodeType(::InnerNode) = DAGs.Inner()
 DAGs.NodeType(::InputNode) = DAGs.Leaf()
 
 "Get the inputs of a PC node"
-function inputs end
+inputs(node, i) = inputs(node)[i]
 
 # DirectedAcyclicGraphs.jl has the convention that edges are directed away from the root
 DAGs.children(pc::ProbCircuit) = inputs(pc)
@@ -41,6 +41,7 @@ function dist end
 
 "Get the parameters associated with a node"
 params(n::ProbCircuit) = n.params
+params(n, i) = params(n)[i]
 
 "Count the number of parameters in the node"
 num_parameters_node(n) = 
