@@ -83,3 +83,7 @@ end
 include("jpc_io.jl")
 include("psdd_io.jl")
 include("spn_io.jl")
+
+# visualization
+
+include("plot.jl")
