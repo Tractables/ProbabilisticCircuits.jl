@@ -35,3 +35,21 @@ num_edges(pc)
 ```@example demo
 num_parameters(pc)
 ```
+
+
+We can also plot circuits using `plot(pc)` to see the computation graph (structure and parameters). The output of `plot(pc)` has a type of `TikzPictures.TikzPicture`. Generally, notebooks automatically renders it and you see the figure in the notebook. 
+
+```@example demo
+plot(pc)
+```
+
+However, if you are not using a notebook or want to save to file you can use the following commands to save the plot in various formats.
+
+```julia
+using TikzPictures;
+z = plot(pc);
+save(PDF("plot"), z);
+save(SVG("plot"), z);
+save(TEX("plot"), z);
+save(TIKZ("plot"), z);
+```
