@@ -3,6 +3,7 @@ using ProbabilisticCircuits
 using CUDA
 
 include("../helper/gpu.jl")
+include("../helper/data.jl")
 include("../helper/plain_dummy_circuits.jl")
 
 @testset "MAP regression test" begin

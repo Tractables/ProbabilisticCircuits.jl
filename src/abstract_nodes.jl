@@ -39,7 +39,7 @@ DAGs.children(pc::ProbCircuit) = inputs(pc)
 "Get the distribution of a PC input node"
 function dist end
 
-"Get the parameters associated with a sum node"
+"Get the parameters associated with a node"
 params(n::ProbCircuit) = n.params
 
 "Count the number of parameters in the node"

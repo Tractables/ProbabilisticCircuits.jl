@@ -4,6 +4,11 @@ export InputDist, Indicator, Literal, Bernoulli, Categorical, loglikelihood
 
 abstract type InputDist end
 
+import Base: isapprox #extend
+
+isapprox(x::InputDist, y::InputDist) = 
+    typeof(x) == typeof(y) && params(x) ≈ params(y)
+
 #####################
 # indicators or logical literals
 #####################
@@ -18,7 +23,9 @@ const Literal = Indicator{Bool}
 
 num_parameters(n::Indicator, independent) = 0
 
-value(d) = d.value
+value(d::Indicator) = d.value
+
+params(d::Indicator) = value(d)
 
 bits(d::Indicator, _ = nothing) = d
 
@@ -63,6 +70,8 @@ Bernoulli(logp) =
     Categorical([log1p(-exp(logp)), logp])
     
 logps(d::Categorical) = d.logps
+
+params(d::Categorical) = logps(d)
 
 num_categories(d::Categorical) = length(logps(d))
 
