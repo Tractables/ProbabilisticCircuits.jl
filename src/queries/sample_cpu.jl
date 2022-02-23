@@ -8,8 +8,9 @@ import Random: default_rng
 
 Generate `num_samples` from the joint distribution of the circuit without any conditions.
 """
-function sample(pc::ProbCircuit, num_samples; batch_size, rng = default_rng(), Float=Float32)
-    states, prs = sample(pc, num_samples, Matrix([missing for i=1:num_randvars(pc)]); batch_size, rng, Float)
+function sample(pc::ProbCircuit, num_samples, types; batch_size, rng = default_rng(), Float=Float32)
+    data = Matrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_randvars(pc)])
+    states, prs = sample(pc, num_samples, data; batch_size, rng, Float)
 end
 
 """
@@ -48,7 +49,8 @@ end
 function sample_rec!(node::ProbCircuit, states, values, data; s_id, ex_id, rng, node2idx::Dict{ProbCircuit, UInt32})
     if isinput(node)
         if ismissing(data[ex_id, first(randvars(node))])
-            states[s_id, ex_id, first(randvars(node))] = sample_state(dist(node))
+            threshold = log(rand(rng))
+            states[s_id, ex_id, first(randvars(node))] = sample_state(dist(node), threshold)
         else
             states[s_id, ex_id, first(randvars(node))] = data[ex_id, first(randvars(node))]
         end

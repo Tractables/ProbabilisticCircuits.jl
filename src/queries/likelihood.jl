@@ -23,8 +23,7 @@ function balance_threads(num_items, num_examples, config; mine, maxe, contiguous
     block_threads, num_blocks, example_threads, item_work
 end
 
-function init_mar!_kernel(mars, nodes, data, example_ids, heap, 
-                          num_ex_threads::Int32, node_work::Int32)
+function init_mar!_kernel(mars, nodes, data, example_ids, heap, num_ex_threads::Int32, node_work::Int32, input_init_func)
     # this kernel follows the structure of the layer eval kernel, would probably be faster to 
     # have 1 thread process multiple examples, rather than multiple nodes 
     
@@ -51,7 +50,7 @@ function init_mar!_kernel(mars, nodes, data, example_ids, heap,
                     variable = inputnode.variable
                     value = data[orig_ex_id, variable]
                     if ismissing(value)
-                        zero(Float32)
+                        input_init_func(dist(inputnode), heap)
                     else
                         loglikelihood(dist(inputnode), value, heap)
                     end
@@ -61,11 +60,11 @@ function init_mar!_kernel(mars, nodes, data, example_ids, heap,
     nothing
 end
 
-function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
+function init_mar!(mars, bpc, data, example_ids; mine, maxe, input_init_func, debug=false)
     num_examples = length(example_ids)
     num_nodes = length(bpc.nodes)
     
-    dummy_args = (mars, bpc.nodes, data, example_ids, bpc.heap, Int32(1), Int32(1))
+    dummy_args = (mars, bpc.nodes, data, example_ids, bpc.heap, Int32(1), Int32(1), input_init_func)
     kernel = @cuda name="init_mar!" launch=false init_mar!_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
@@ -73,7 +72,7 @@ function init_mar!(mars, bpc, data, example_ids; mine, maxe, debug=false)
         balance_threads(num_nodes, num_examples, config; mine, maxe)
     
     args = (mars, bpc.nodes, data, example_ids, bpc.heap, 
-            Int32(num_example_threads), Int32(node_work))
+            Int32(num_example_threads), Int32(node_work), input_init_func)
     if debug
         println("Node initialization")
         @show threads blocks num_example_threads node_work num_nodes num_examples
@@ -99,7 +98,7 @@ end
 
 function layer_up_kernel(mars, edges, 
             num_ex_threads::Int32, num_examples::Int32, 
-            layer_start::Int32, edge_work::Int32, layer_end::Int32)
+            layer_start::Int32, edge_work::Int32, layer_end::Int32, sum_agg_func)
 
     threadid = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
 
@@ -136,7 +135,7 @@ function layer_up_kernel(mars, edges,
             if isfirstedge || (edge_id == edge_start)  
                 acc = child_prob
             elseif issum
-                acc = logsumexp(acc, child_prob)
+                acc = sum_agg_func(acc, child_prob)
             else
                 acc += child_prob
             end
@@ -150,7 +149,7 @@ function layer_up_kernel(mars, edges,
                     mars[ex_id, pid] = acc
                 else
                     if issum
-                        CUDA.@atomic mars[ex_id, pid] = logsumexp(mars[ex_id, pid], acc)
+                        CUDA.@atomic mars[ex_id, pid] = sum_agg_func(mars[ex_id, pid], acc)
                     else
                         CUDA.@atomic mars[ex_id, pid] += acc
                     end 
@@ -161,12 +160,12 @@ function layer_up_kernel(mars, edges,
     nothing
 end
 
-function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, debug=false)
+function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, sum_agg_func, debug=false)
     edges = bpc.edge_layers_up.vectors
     num_edges = layer_end - layer_start + 1
     dummy_args = (mars, edges, 
                   Int32(32), Int32(num_examples), 
-                  Int32(1), Int32(1), Int32(2))
+                  Int32(1), Int32(1), Int32(2), sum_agg_func)
     kernel = @cuda name="layer_up" launch=false layer_up_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
@@ -176,7 +175,7 @@ function layer_up(mars, bpc, layer_start, layer_end, num_examples; mine, maxe, d
     
     args = (mars, edges, 
             Int32(num_example_threads), Int32(num_examples), 
-            Int32(layer_start), Int32(edge_work), Int32(layer_end))
+            Int32(layer_start), Int32(edge_work), Int32(layer_end), sum_agg_func)
     if debug
         println("Layer $layer_start:$layer_end")
         @show num_edges num_examples threads blocks num_example_threads edge_work
@@ -189,10 +188,16 @@ end
 
 # run entire circuit
 function eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug=false)
-    init_mar!(mars, bpc, data, example_ids; mine, maxe, debug)
+    input_init_func(dist, heap) = 
+        zero(Float32)
+
+    sum_agg_func(x::Float32, y::Float32) =
+        logsumexp(x, y)
+
+    init_mar!(mars, bpc, data, example_ids; mine, maxe, input_init_func, debug)
     layer_start = 1
     for layer_end in bpc.edge_layers_up.ends
-        layer_up(mars, bpc, layer_start, layer_end, length(example_ids); mine, maxe, debug)
+        layer_up(mars, bpc, layer_start, layer_end, length(example_ids); mine, maxe, sum_agg_func, debug)
         layer_start = layer_end + 1
     end
     nothing
