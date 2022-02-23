@@ -19,7 +19,7 @@ function hclt(data, num_hidden_cats;
               num_cats = nothing,
               shape = :directed,
               input_type = Literal,
-              pseudocount = 0.1) where T
+              pseudocount = 0.1)
     
     clt_edges = learn_chow_liu_tree(data; pseudocount, Float=Float32)
     clt = clt_edges2graphs(clt_edges; shape)
