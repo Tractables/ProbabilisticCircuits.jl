@@ -86,6 +86,28 @@ init_params(d::Categorical, perturbation::Float32) = begin
     Categorical(logps)
 end
 
+sample_state(d::Categorical, threshold) = begin
+    cumul_prob = typemin(Float32)
+    ans = num_categories(d) - 1 # give all numerical error probability to the last node
+    for cat in 0:num_categories(d) - 1
+        cumul_prob = logsumexp(cumul_prob, d.logps[cat + 1])
+        if cumul_prob > threshold
+            ans = cat
+            break
+        end
+    end
+    return ans
+end
+
+loglikelihood(d::Categorical, value, _ = nothing) =
+    d.logps[1 + value]
+
+map_loglikelihood(d::Categorical, _= nothing) =
+    max(d.logps...)
+
+map_state(d::Categorical, _ = nothing) =
+    argmax(d.logps) - one(UInt32) # since category values are from 0-N-1
+    
 struct BitsCategorical
     num_cats::UInt32
     heap_start::UInt32
@@ -106,6 +128,10 @@ end
 
 loglikelihood(d::BitsCategorical, value, heap) =
     heap[d.heap_start + UInt32(value)]
+
+map_state(d::BitsCategorical, heap) =
+    argmax(@view heap[d.heap_start: d.heap_start + d.num_cats - one(UInt32)]) - d.heap_start
+    
 
 function flow(d::BitsCategorical, value, node_flow, heap)
     if ismissing(value)

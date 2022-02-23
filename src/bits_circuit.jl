@@ -147,12 +147,15 @@ struct BitsProbCircuit <: AbstractBitsProbCircuit
     # memory used by input nodes for their parameters and parameter learning
     heap::Vector{Float32}
 
-    BitsProbCircuit(n, nm, in, e1, e2, d, heap) = begin
+    # index of beginning and ending edge for the node in the BitEdges flatvector
+    node_begin_end::Vector{Pair{UInt32, UInt32}}
+
+    BitsProbCircuit(n, nm, in, e1, e2, d, heap, node_be) = begin
         @assert length(n) == length(nm) >= length(in) > 0
         @assert length(e1.vectors) == length(e2.vectors)
         @assert allunique(e1.ends) "No empty layers allowed"
         @assert allunique(e2.ends) "No empty layers allowed"
-        new(n, nm, in, e1, e2, d, heap)
+        new(n, nm, in, e1, e2, d, heap, node_be)
     end
 end
 
@@ -179,6 +182,8 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
     # memory used by input nodes for their parameters and parameter learning
     heap::CuVector{Float32}
 
+    node_begin_end::CuVector{Pair{UInt32, UInt32}}
+
     CuBitsProbCircuit(bpc) = begin
         # find union of bits node types actually used in the circuit
         BitsNodes = mapreduce(typeof, (x,y) -> Union{x,y}, bpc.nodes)
@@ -189,8 +194,9 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
         edge_layers_down = cu(bpc.edge_layers_down)
         down2upedge = cu(bpc.down2upedge)
         heap = cu(bpc.heap)
+        node_be = cu(bpc.node_begin_end)
         new{BitsNodes}(nodes, bpc.nodes_map, input_node_ids, 
-                       edge_layers_up, edge_layers_down, down2upedge, heap)
+                       edge_layers_up, edge_layers_down, down2upedge, heap, node_be)
     end
 end
 
@@ -320,8 +326,15 @@ function BitsProbCircuit(pc::ProbCircuit; eager_materialize=true, collapse_eleme
     flatuplayers = FlatVectors(uplayers)
     flatdownlayers, down2upedges = down_layers(node_layers, outputs, flatuplayers)
 
+    node_begin_end = [Pair(typemax(UInt32), typemin(UInt32)) for i=1:length(nodes)]
+    for i = 1:length(flatuplayers.vectors)
+        pi = flatuplayers.vectors[i].parent_id
+        l, r = node_begin_end[pi]
+        node_begin_end[pi] = Pair( min(l, i), max(r, i) )
+    end
+
     BitsProbCircuit(nodes, nodes_map, input_node_ids, 
-                    flatuplayers, flatdownlayers, down2upedges, heap)
+                    flatuplayers, flatdownlayers, down2upedges, heap, node_begin_end)
 end
 
 function merge_mul_inputs(children_info)
