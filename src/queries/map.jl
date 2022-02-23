@@ -124,8 +124,8 @@ end
 # run entire circuit taking mode on inputs and max on sum nodes
 function eval_circuit_max!(mars, bpc, data, example_ids; mine, maxe, debug=false)
     input_init_func(dist, heap) = 
-        zero(Float32)
-        #map_loglikelihood(dist, heap)
+        #zero(Float32) 
+        map_loglikelihood(dist, heap) # thid does not work for some reason
     
     sum_agg_func(x::Float32, y::Float32) =
         max(x, y)
