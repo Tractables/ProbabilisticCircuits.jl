@@ -1,6 +1,5 @@
 export loglikelihoods, loglikelihood, 
-    loglikelihoods_vectorized, 
-    loglikelihoods_linearized
+    loglikelihoods_vectorized
 
 """
     loglikelihoods(pc::ProbCircuit, data::Matrix)
