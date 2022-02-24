@@ -122,16 +122,32 @@ function bits(d::Categorical, heap)
 end
 
 function unbits(d::BitsCategorical, heap) 
-    logps = heap[d.heap_start : d.heap_start + d.num_cats-one(UInt32)]
+    logps = heap[d.heap_start : d.heap_start + d.num_cats - one(UInt32)]
     Categorical(logps)
 end
 
 loglikelihood(d::BitsCategorical, value, heap) =
     heap[d.heap_start + UInt32(value)]
 
-map_state(d::BitsCategorical, heap) =
-    argmax(@view heap[d.heap_start: d.heap_start + d.num_cats - one(UInt32)]) - d.heap_start
-    
+map_state(d::BitsCategorical, heap) = begin
+    best_idx = d.heap_start
+    best_val = typemin(Float32)
+    for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)        
+        if heap[i] > best_val
+            best_val = heap[i]
+            best_idx = i
+        end        
+    end
+    return (best_idx - d.heap_start)::UInt32
+end
+
+map_loglikelihood(d::BitsCategorical, heap) = begin
+    ans = typemin(Float32) 
+    for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)
+        ans = max(ans, heap[i])
+    end
+    return ans
+end
 
 function flow(d::BitsCategorical, value, node_flow, heap)
     if ismissing(value)
