@@ -91,7 +91,7 @@ end
 function map_downward_kernel!(marginals, states, stack_mem, stack_tops, nodes, node_begin_end, edges, heap, batch)
     index_x = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x
     stride_x = blockDim().x * gridDim().x
-    for ex_id = index_x:stride_x:size(states, 1)
+    for ex_id = index_x:stride_x:size(batch, 1)
         cur_node_id = pop_cuda!(stack_mem, stack_tops, ex_id)
         while cur_node_id > zero(UInt32)
             cur_node = nodes[cur_node_id]
@@ -100,7 +100,6 @@ function map_downward_kernel!(marginals, states, stack_mem, stack_tops, nodes, n
                 value = states[example_id, cur_node.variable]   
                 if ismissing(value)
                     map_value = map_state(dist(cur_node), heap)
-                    @cuprintln(map_value)
                     states[example_id, cur_node.variable] = map_value
                 end
             elseif cur_node isa BitsSum
