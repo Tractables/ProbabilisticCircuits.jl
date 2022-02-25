@@ -9,13 +9,17 @@ function MAP(bpc::CuBitsProbCircuit, data::CuArray;
     marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
  
     init_input_heap!(bpc; debug)
-    states = deepcopy(data)
+    
+    # (TODO) Kernel does not compile if there is no Missing in eltype(states)
+    states = CuArray{Union{Missing, eltype(data)}}(undef, size(data)...)
+    CUDA.copy!(states, data)
+    
     for batch_start = 1:batch_size:num_examples
         batch_end = min(batch_start+batch_size-1, num_examples)
         batch = batch_start:batch_end
         num_batch_examples = length(batch)
         
-        eval_circuit_max!(marginals, bpc, data, batch; mine, maxe, debug)
+        eval_circuit_max!(marginals, bpc, data, batch; mine, maxe, debug = false)
         map_downward!(marginals, bpc, states, batch; debug)
     end
     cleanup_memory(marginals, mars_mem)
@@ -41,7 +45,7 @@ end
 
 function init_input_heap_kernel!(nodes, input_node_ids, heap)
     node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
-    @inbounds if node_id <= length(input_node_ids)
+    if node_id <= length(input_node_ids)
         orig_node_id::UInt32 = input_node_ids[node_id]
         inputnode = nodes[orig_node_id]::BitsInput
         init_heap_map_state!(dist(inputnode), heap)
@@ -66,20 +70,19 @@ end
 
 function pop_cuda!(stack_mem, stack_tops, i)
     # Empty Stack
-    if @inbounds stack_tops[i] == zero(UInt32)
+    if stack_tops[i] == zero(UInt32)
         return zero(UInt32) 
     else
-        @inbounds val = stack_mem[i, stack_tops[i]]
-        # does it have to be atomic??
-        @inbounds CUDA.@atomic stack_tops[i] -= one(UInt32)
+        val = stack_mem[i, stack_tops[i]]
+        CUDA.@atomic stack_tops[i] -= one(eltype(stack_tops))
         return val
     end
 end
 
 function push_cuda!(stack_mem, stack_tops, val, i)
-    @inbounds stack_tops[i] += one(eltype(stack_mem))
-    @inbounds CUDA.@cuassert stack_tops[i] <= size(stack_mem, 2) "CUDA stack overflow"
-    @inbounds stack_mem[i, stack_tops[i]] = val
+    stack_tops[i] += one(eltype(stack_tops))
+    CUDA.@cuassert stack_tops[i] <= size(stack_mem, 2) "CUDA stack overflow"
+    stack_mem[i, stack_tops[i]] = val
     return nothing
 end
 
@@ -92,7 +95,6 @@ function map_downward!(marginals::CuMatrix, bpc::CuBitsProbCircuit, states, batc
     # Push root node to all stacks
     stack.tops .= 1
     stack.mem[:, 1] .= num_nodes
-
     CUDA.@sync begin
         dummy_args = (marginals, states, stack.mem, stack.tops, 
                         bpc.nodes, bpc.node_begin_end, bpc.edge_layers_up.vectors, 
@@ -126,8 +128,7 @@ function map_downward_kernel!(marginals, states, stack_mem, stack_tops, nodes, n
             cur_node = nodes[cur_node_id]
             if cur_node isa BitsInput
                 example_id = batch[ex_id]
-                value = states[example_id, cur_node.variable]   
-                if ismissing(value)
+                if ismissing(states[example_id, cur_node.variable])
                     map_value = map_state(dist(cur_node), heap)
                     states[example_id, cur_node.variable] = map_value
                 end
