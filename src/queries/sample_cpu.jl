@@ -10,7 +10,7 @@ Generate `num_samples` from the joint distribution of the circuit without any co
 """
 function sample(pc::ProbCircuit, num_samples, types; batch_size, rng = default_rng(), Float=Float32)
     data = Matrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_randvars(pc)])
-    states, prs = sample(pc, num_samples, data; batch_size, rng, Float)
+    sample(pc, num_samples, data; batch_size, rng, Float)
 end
 
 """
