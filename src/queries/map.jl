@@ -89,7 +89,7 @@ function map_downward!(marginals::CuMatrix, bpc::CuBitsProbCircuit, states, batc
     num_nodes = length(bpc.nodes)
 
     stack = CuStack(num_examples, size(states, 2))  
-    # Push root node to add stacks
+    # Push root node to all stacks
     stack.tops .= 1
     stack.mem[:, 1] .= num_nodes
 
