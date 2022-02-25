@@ -42,6 +42,12 @@ map_loglikelihood(d::Indicator, _= nothing) =
 map_state(d::Indicator, _ = nothing) = 
     d.value
 
+init_heap_map_state!(d::Indicator, _ = nothing) =
+    nothing # do nothing since don't need heap for indicators
+
+init_heap_map_loglikelihood!(d::Indicator, _= nothing) =
+    nothing # do nothing since don't need heap for indicators
+
 sample_state(d::Indicator, _ = nothing) = 
     d.value
 
@@ -129,7 +135,12 @@ end
 loglikelihood(d::BitsCategorical, value, heap) =
     heap[d.heap_start + UInt32(value)]
 
-map_state(d::BitsCategorical, heap) = begin
+
+const HEAP_STATE  = UInt32(1)
+const HEAP_MAP_LL = UInt32(2)
+
+
+init_heap_map_state!(d::BitsCategorical, heap) = begin
     best_idx = d.heap_start
     best_val = typemin(Float32)
     for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)        
@@ -138,15 +149,27 @@ map_state(d::BitsCategorical, heap) = begin
             best_idx = i
         end        
     end
-    return (best_idx - d.heap_start)::UInt32
+    idx = d.heap_start + d.num_cats + HEAP_STATE - one(UInt32) 
+    heap[idx] = Float32(best_idx - d.heap_start)
 end
-
-map_loglikelihood(d::BitsCategorical, heap) = begin
+    
+init_heap_map_loglikelihood!(d::BitsCategorical, heap) = begin
     ans = typemin(Float32) 
     for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)
         ans = max(ans, heap[i])
     end
-    return ans
+    idx = d.heap_start + d.num_cats + HEAP_MAP_LL - one(UInt32)
+    heap[idx] = ans
+end
+
+map_state(d::BitsCategorical, heap) = begin
+    ll_idx = d.heap_start + d.num_cats + HEAP_STATE - one(UInt32) 
+    return UInt32(heap[ll_idx])
+end
+
+map_loglikelihood(d::BitsCategorical, heap) = begin
+    ll_idx = d.heap_start + d.num_cats + HEAP_MAP_LL - one(UInt32)
+    return heap[ll_idx]
 end
 
 function flow(d::BitsCategorical, value, node_flow, heap)
