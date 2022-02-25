@@ -7,7 +7,8 @@ function MAP(bpc::CuBitsProbCircuit, data::CuArray;
     num_examples = size(data, 1)
     num_nodes = length(bpc.nodes)
     marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
-
+ 
+    init_input_heap!(bpc; debug)
     states = deepcopy(data)
     for batch_start = 1:batch_size:num_examples
         batch_end = min(batch_start+batch_size-1, num_examples)
@@ -20,6 +21,35 @@ function MAP(bpc::CuBitsProbCircuit, data::CuArray;
     cleanup_memory(marginals, mars_mem)
     return states
 end
+
+function init_input_heap!(bpc::CuBitsProbCircuit; debug = false)
+    num_nodes = length(bpc.nodes)
+    num_input_nodes = length(bpc.input_node_ids)
+
+    args = (bpc.nodes, bpc.input_node_ids, bpc.heap)
+    kernel = @cuda name="init_input_heap!" launch=false init_input_heap_kernel!(args...)
+    threads = launch_configuration(kernel.fun).threads
+    blocks = cld(num_input_nodes, threads)
+    if debug
+        println("Init input MAP State and MAP-LLs on heap")
+        @show threads blocks num_input_nodes
+        CUDA.@time kernel(args...; threads, blocks)
+    else
+        kernel(args...; threads, blocks)
+    end
+end
+
+function init_input_heap_kernel!(nodes, input_node_ids, heap)
+    node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+    @inbounds if node_id <= length(input_node_ids)
+        orig_node_id::UInt32 = input_node_ids[node_id]
+        inputnode = nodes[orig_node_id]::BitsInput
+        init_heap_map_state!(dist(inputnode), heap)
+        init_heap_map_loglikelihood!(dist(inputnode), heap)
+    end
+    nothing
+end
+
 
 struct CuStack
     # parallel stacks for each example (max stack size is features + 3 which is preallocated)
@@ -72,7 +102,6 @@ function map_downward!(marginals::CuMatrix, bpc::CuBitsProbCircuit, states, batc
         config = launch_configuration(kernel.fun)    
         threads = config.threads
         blocks = cld(size(states,1), threads)
-
         args = (marginals, states, stack.mem, stack.tops, 
                 bpc.nodes, bpc.node_begin_end, bpc.edge_layers_up.vectors, 
                 bpc.heap, batch)
