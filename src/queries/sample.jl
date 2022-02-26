@@ -1,7 +1,7 @@
 
-function sample(bpc::CuBitsProbCircuit, num_samples, types; 
+function sample(bpc::CuBitsProbCircuit, num_samples, num_rand_vars, types; 
         rng = default_rng(), mars_mem=nothing, mine=2, maxe=32, debug=false)
-    data = CuMatrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_randvars(pc)])
+    data = CuMatrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_rand_vars])
     sample(bpc, num_samples, data; rng, debug)
 end
 
@@ -144,6 +144,7 @@ function sample_downward_kernel!(marginals, data, states, stack_mem, stack_tops,
                     #### sample the input if missing
                     example_id = batch[ex_id]
                     if ismissing(data[example_id, cur_node.variable])
+                        # marginals[ex_id, this_node] should be log(1) = 0 (because missing), so don't need to add that
                         threshold = CUDA.log(rands[s_id, ex_id])
                         sample_value = sample_state(dist(cur_node), threshold, heap)
                         states[s_id, example_id, cur_node.variable] = sample_value
