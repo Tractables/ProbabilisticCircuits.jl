@@ -124,7 +124,7 @@ function map_downward_kernel!(marginals, states, stack_mem, stack_tops, nodes, n
     stride_x = blockDim().x * gridDim().x
     for ex_id = index_x:stride_x:size(batch, 1)
         cur_node_id = pop_cuda!(stack_mem, stack_tops, ex_id)
-        while cur_node_id > zero(UInt32)
+        while cur_node_id > zero(eltype(stack_mem))
             cur_node = nodes[cur_node_id]
             if cur_node isa BitsInput
                 example_id = batch[ex_id]

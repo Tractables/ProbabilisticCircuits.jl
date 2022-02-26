@@ -48,7 +48,7 @@ init_heap_map_state!(d::Indicator, _ = nothing) =
 init_heap_map_loglikelihood!(d::Indicator, _= nothing) =
     nothing # do nothing since don't need heap for indicators
 
-sample_state(d::Indicator, _ = nothing) = 
+sample_state(d::Indicator, threshold=nothing, heap=nothing) = 
     d.value
 
 # no learning necessary for indicator distributions
@@ -92,7 +92,7 @@ init_params(d::Categorical, perturbation::Float32) = begin
     Categorical(logps)
 end
 
-sample_state(d::Categorical, threshold) = begin
+sample_state(d::Categorical, threshold, _ = nothing) = begin
     cumul_prob = typemin(Float32)
     ans = num_categories(d) - 1 # give all numerical error probability to the last node
     for cat in 0:num_categories(d) - 1
@@ -165,6 +165,19 @@ end
 map_state(d::BitsCategorical, heap) = begin
     ll_idx = d.heap_start + d.num_cats + HEAP_STATE - one(UInt32) 
     return UInt32(heap[ll_idx])
+end
+
+sample_state(d::BitsCategorical, threshold::Float32, heap) = begin
+    cumul_prob = typemin(Float32)
+    chosen_cat = d.num_cats - one(UInt32)
+    for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)
+        cumul_prob = logsumexp(cumul_prob, heap[i])
+        if cumul_prob > threshold
+            chosen_cat = i - d.heap_start
+            break
+        end
+    end
+    return chosen_cat 
 end
 
 map_loglikelihood(d::BitsCategorical, heap) = begin
