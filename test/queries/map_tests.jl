@@ -1,5 +1,6 @@
 using Test
 using ProbabilisticCircuits
+using ProbabilisticCircuits: CuBitsProbCircuit
 using CUDA
 
 include("../helper/gpu.jl")
@@ -18,17 +19,37 @@ include("../helper/plain_dummy_circuits.jl")
     complete_states = Matrix([true true; true false; false true; false false])
     mar = loglikelihoods(circuit, complete_states; batch_size = 3)
     @test all(mappr .> mar .- 1e-6)
+
+    if CUDA.functional()
+        bpc = CuBitsProbCircuit(circuit)
+        no_data_gpu = cu(no_data)
+        maps_gpu = MAP(bpc, no_data_gpu; batch_size=1)
+
+        @test Matrix(maps_gpu) == maps 
+    end
 end
 
 @testset "MAP" begin
     prob_circuit = little_4var()
+    
+    # A. Full Data
     data_full = generate_data_all(num_randvars(prob_circuit))
+    if CUDA.functional()
+        bpc = CuBitsProbCircuit(prob_circuit)
+        data_full_gpu = cu(data_full)
+    end
 
     map, mappr = MAP(prob_circuit, data_full; batch_size = 1, return_map_prob=true)
     @test map == data_full
-
     evipr = loglikelihoods(prob_circuit, data_full; batch_size = 16)
     @test mappr ≈ evipr atol=1e-6
+
+    if CUDA.functional()
+        maps_gpu = MAP(bpc, data_full_gpu; batch_size=1)
+        @test Matrix(maps_gpu) == map 
+    end
+
+    # B. Partial Data; test if non-missing MAP values are same as data (as they should be)
     data_marg = Matrix([false false false false; 
                       false true true false; 
                       false false true true;
@@ -43,7 +64,28 @@ end
     mar = loglikelihoods(prob_circuit, data_marg; batch_size = 16)
     @test all(mar .> mappr .- 1e-6)
 
-    map, mappr = MAP(prob_circuit, Matrix([false false false missing]); batch_size = 1, return_map_prob=true)
-    @test map == Matrix([false false false true])
+    if CUDA.functional()
+        data_marg_gpu = cu(data_marg)
+
+        # bigger batch size
+        maps_gpu = MAP(bpc, data_marg_gpu; batch_size=16)
+        @test Matrix(maps_gpu) == map
+
+        # smaller batch size
+        maps_gpu = MAP(bpc, data_marg_gpu; batch_size=2)
+        @test Matrix(maps_gpu) == map
+    end
+
+    # C. Check specific MAP queries with known result
+    data_c = Matrix([false false false missing])
+    true_map = Matrix([false false false true])
+    map, mappr = MAP(prob_circuit, data_c; batch_size = 1, return_map_prob=true)
+    @test map == true_map
     @test mappr[1] ≈ -1.2729657
+
+    if CUDA.functional()
+        data_c_gpu = cu(data_c)
+        maps_gpu = MAP(bpc, data_c_gpu; batch_size=1)
+        @test Matrix(maps_gpu) == true_map 
+    end
 end
