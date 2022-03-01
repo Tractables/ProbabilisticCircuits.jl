@@ -47,20 +47,21 @@ end
 
 const  pages = [
     "Home" => "index.md",
-    "Installation" => "installation.md",
     "Manual" => [
         "manual/demo.md",
-         "manual/queries.md",
-         "manual/learning.md"
+        "manual/queries.md",
+        "manual/learning.md"
     ],
-    "API" => [
-        "api/public.md",
-        "api/types.md",
-        "Internals" => map(
-            s -> "api/internals/$(s)",
-            sort(readdir(joinpath(@__DIR__, "src/api/internals")))
-        ),
-    ],
+    "API" => append!(["api/common.md",
+                      "api/types.md",
+                    ],
+                    map(
+                        s -> "api/internals/$(s)",
+                        sort(readdir(joinpath(@__DIR__, "src/api/internals")))
+                    )
+            )
+    ,
+    "Installation" => "installation.md",
 ];
 
 const format = if ("pdf" in ARGS)

@@ -1,45 +1,39 @@
 # [Queries](@id man-queries)
 
-In this section, we go over most common probabilistic reasoning tasks, and provide code snippets to compute those queries. 
+In this section, we go over most common probabilistic reasoning tasks, and provide code snippets to compute those queries.
 
 ### Setup
 First, we load some pretrained PC, and the corresponding data.
 
 ```@setup queries
 # This is needed to hide output from downloading artifacts
-using LogicCircuits # hide
+using CircuitModelZoo; #hide
 using ProbabilisticCircuits; #hide
-pc = zoo_psdd("plants.psdd")
+using DensityEstimationDatasets; #hide
+pc = read(zoo_psdd_file("plants.psdd"), ProbCircuit);
 data, _, _ = twenty_datasets("plants");
 ```
 
 ```@example queries
-using LogicCircuits # hide
-using ProbabilisticCircuits; #hide
-pc = zoo_psdd("plants.psdd")
+using CircuitModelZoo: zoo_psdd_file
+using DensityEstimationDatasets: twenty_datasets
+using ProbabilisticCircuits
+using Tables
+
+pc = read(zoo_psdd_file("plants.psdd"), ProbCircuit);
 data, _, _ = twenty_datasets("plants");
+data = Tables.matrix(data);
 println("circuit with $(num_nodes(pc)) nodes and $(num_parameters(pc)) parameters.")
-println("dataset with $(num_features(data)) features and $(num_examples(data)) examples.")
+println("dataset with $(size(data, 2)) features and $(size(data, 1)) examples.")
 ```
 
 ## Full Evidence (EVI)
 
-EVI refers to computing the probability when full evidence is given, i.e. when ``x`` is fully observed, the output is ``p(x)``. We can use [`EVI`](@ref) method to compute ``\log{p(x)}``:
+EVI refers to computing the probability when full evidence is given, i.e. when ``x`` is fully observed, the output is ``p(x)``. We can use [`loglikelihoods`](@ref) method to compute ``\log{p(x)}``:
 
 ```@example queries
-probs = EVI(pc, data);
+probs = loglikelihoods(pc, data[1:100, :]; batch_size=64);
 probs[1:3]
-```
-
-Computing the [`EVI`](@ref) of a mixture of circuits works the same way. You may either pass weights for the weighted mixture probability, or pass a component index to individually evaluate each component.
-
-```@example queries
-mix, mix_weights, _ = learn_strudel(data; num_mix = 10, init_maxiter = 10, em_maxiter = 100)
-# This computes the weighted probability
-probs = EVI(mix, data, mix_weights);
-# Alternatively, we may want to compute the probability of a single component
-c_prob = EVI(mix, data; component_idx = 1);
-c_prob[1:3]
 ```
 
 ## Partial Evidence (MAR)
@@ -48,47 +42,30 @@ In this case we have some missing values. Let ``x^o`` denote the observed featur
 
 The good news is that given a **smooth** and **decomposable** PC, the marginal can be computed exactly and in linear time to the size of the PC.
 
-
-First, we randomly make some features go `missing` (you can also use `make_missing_mcar` from LogicCircuits library):
+First, we randomly make some features go `missing`.
 
 ```@example queries
 using DataFrames
 using Tables
-function make_missing(d::DataFrame; keep_prob=0.8)
-    m = missings(Bool, num_examples(d), num_features(d))
-    flag = rand(num_examples(d), num_features(d)) .<= keep_prob
-    m[flag] .= Tables.matrix(d)[flag]
-    DataFrame(m, :auto)
+function make_missing(d; keep_prob=0.8)
+    m = missings(Bool, size(d)...)
+    flag = rand(size(d)...) .<= keep_prob
+    m[flag] .= d[flag]
+    return m
 end;
 data_miss = make_missing(data[1:1000,:]);
 nothing #hide
 ```
 
-Now, we can use [`MAR`](@ref) to compute the marginal queries:
+Now, we can use [`loglikelihoods`](@ref) to compute the marginal queries.
 
 ```@example queries
-probs = MAR(pc, data_miss);
+probs = loglikelihoods(pc, data_miss; batch_size=64);
 probs[1:3]
 ```
 
-Note that [`MAR`](@ref) can also be used to compute probabilisties even if all data is observed, in fact it should give the same results as [`EVI`](@ref). However, if we know all features are observed, we suggest using EVI as its faster in general.
+Note that [`loglikelihoods`](@ref) can also be used to compute probabilisties if all data is observed, as we saw in previous section.
 
-```@example queries
-probs_mar = MAR(pc, data);
-probs_evi = EVI(pc, data);
-
-probs_mar ≈ probs_evi
-```
-
-Just like [`EVI`](@ref), [`MAR`](@ref) works the same way for mixtures.
-
-```@example queries
-# Full weighted marginal probability
-probs_mar = MAR(mix, data, mix_weights);
-# Individual component's marginal probability
-c_probs_mar = MAR(mix, data; component_idx = 1);
-c_probs_mar[1:3]
-```
 
 ## Conditionals (CON)
 
@@ -108,9 +85,9 @@ In this case, given the observed features ``x^o`` the goal is to fill out the mi
 We can use the [`MAP`](@ref) method to compute MAP, which outputs the states that maximize the probability and the log-likelihoods of each state.
 
 ```@example queries
-data_miss = make_missing(data,keep_prob=0.5);
-states, probs = MAP(pc, data_miss);
-probs[1:3]
+data_miss = make_missing(data[1:1000,:], keep_prob=0.5);
+states = MAP(pc, data_miss; batch_size = 64);
+size(states)
 ```
 
 ## Sampling
@@ -118,7 +95,7 @@ probs[1:3]
 We can also sample from the distrubtion ``p(x)`` defined by a Probabilistic Circuit. You can use [`sample`](@ref) to achieve this task.
 
 ```@example queries
-samples, _ = sample(pc, 100);
+samples = sample(pc, 100, [Bool]);
 size(samples)
 ```
 
@@ -126,43 +103,8 @@ Additionally, we can do conditional samples ``x \sim p(x \mid x^o)``, where ``x^
 
 ```@example queries
 #3 random evidences for the examples
-evidence = DataFrame(rand( (missing,true,false), (2, num_variables(pc))), :auto)
+evidence = rand( (missing,true,false), (2, num_randvars(pc)));
 
-samples, _ = sample(pc, 3, evidence);
+samples = sample(pc, 3, evidence; batch_size = 2);
 size(samples)
-```
-
-## Expected Prediction (EXP)
-
-Expected Prediction (EXP) is the task of taking expectation of a discrimintative model w.r.t a generative model conditioned on evidemce (subset of features observed).
-
-``\mathbb{E}_{x^m \sim p(x^m \mid x^o)} [ f(x^o x^m) ]``
-
-In the case where ``f`` and ``p`` are circuit, and some structural constrains for the pair, we can do this expectation and higher moments tractably. 
-You can use [`Expectation`](@ref) and [`Moment`](@ref) to compute the expectations.
-
-```@example queries
-using DiscriminativeCircuits
-using DataFrames
-
-pc = zoo_psdd("insurance.psdd")
-rc = zoo_dc("insurance.circuit")
-
-# Using samples from circuit for the example; replace with real data
-data, _ = sample(pc, 10);
-data = make_missing(DataFrame(data, :auto));
-
-exps, exp_cache = Expectation(pc, rc, data)
-
-exps[1:3]
-```
-
-```@example queries
-second_moments, moment_cache = Moment(pc, rc, data, 2);
-exps[1:3]
-```
-
-```@example queries
-stds = sqrt.( second_moments - exps.^2 );
-stds[1:3]
 ```

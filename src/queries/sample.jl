@@ -1,11 +1,22 @@
 
+"""
+    sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix; rng=default_rng())
+
+Generate `num_samples` from the joint distribution of the circuit without any conditions.
+Samples are genearted on the GPU. The size of returned Array is (num_samples, 1, size(data, 2)).
+"""
 function sample(bpc::CuBitsProbCircuit, num_samples::Int, num_rand_vars::Int, types; 
         rng = default_rng(), mars_mem=nothing, mine=2, maxe=32, debug=false)
     data = CuMatrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_rand_vars])
     sample(bpc, num_samples, data; rng, debug)
 end
 
+"""
+    sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix; rng=default_rng())
 
+Generate `num_samples` for each datapoint in `data` from the joint distribution of the circuit conditioned on the `data`.
+Samples are generated using GPU. The size of returned CuArray is (num_samples, size(data, 1), size(data, 2)).
+"""
 function sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix;  
     mars_mem=nothing, mine=2, maxe=32,
     rng=default_rng(), debug=false)
