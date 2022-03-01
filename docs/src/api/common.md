@@ -19,7 +19,7 @@ write
 hclt
 ```
 
-## Learning Circuit Paramters
+## Learning Circuit Parameters
 
 ```@docs
 mini_batch_em
