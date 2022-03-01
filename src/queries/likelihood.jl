@@ -251,7 +251,7 @@ Returns loglikelihoods for each datapoint on gpu. Missing values should be denot
 - `bpc`: BitCircuit on gpu
 - `data`: CuArray{Union{Missing, data_types...}}
 - `batch_size`
-- `mars_mem`: Not required, advanced usage. CuMatrix to reuse memory and reduce allocations. See [`prep_memory`](@ref) and [`cleanup_memory`](@ref).
+- `mars_mem`: Not required, advanced usage. CuMatrix to reuse memory and reduce allocations. See [`ProbabilisticCircuits.prep_memory`](@ref) and [`ProbabilisticCircuits.cleanup_memory`](@ref).
 """
 function loglikelihoods(bpc::CuBitsProbCircuit, data::CuArray; 
                         batch_size, mars_mem = nothing, 

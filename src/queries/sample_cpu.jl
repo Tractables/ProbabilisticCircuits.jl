@@ -7,6 +7,7 @@ import Random: default_rng
     sample(pc::ProbCircuit, num_samples; rng = default_rng())
 
 Generate `num_samples` from the joint distribution of the circuit without any conditions.
+Samples are generated on the CPU.
 """
 function sample(pc::ProbCircuit, num_samples, types; rng = default_rng(), Float=Float32)
     data = Matrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_randvars(pc)])
@@ -16,7 +17,7 @@ end
 """
     sample(pc::ProbCircuit, num_samples; rng = default_rng())
 
-Generate `num_samples` from the joint distribution of the circuit conditined on the `data`.
+Generate `num_samples` from the joint distribution of the circuit conditioned on the `data`.
 """
 function sample(pc::ProbCircuit, num_samples, data::Matrix; batch_size, rng = default_rng(), Float=Float32)
     num_examples = size(data, 1)
