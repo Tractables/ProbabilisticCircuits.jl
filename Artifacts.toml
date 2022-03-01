@@ -1,7 +1,0 @@
-[circuit_model_zoo]
-git-tree-sha1 = "af581f4a7ca5e29685f8d67843e0120302ead3ab"
-lazy = true
-
- [[circuit_model_zoo.download]]
-    url = "https://github.com/UCLA-StarAI/Circuit-Model-Zoo/archive/v0.1.4.tar.gz"
-    sha256 = "ec6ea6649364ec0e1305fea3afc3a2dcb3dd40d4d54626e85499a47a07a436b4"
