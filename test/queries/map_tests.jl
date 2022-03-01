@@ -3,7 +3,6 @@ using ProbabilisticCircuits
 using ProbabilisticCircuits: CuBitsProbCircuit
 using CUDA
 
-include("../helper/gpu.jl")
 include("../helper/data.jl")
 include("../helper/plain_dummy_circuits.jl")
 
@@ -88,4 +87,7 @@ end
         maps_gpu = MAP(bpc, data_c_gpu; batch_size=1)
         @test Matrix(maps_gpu) == true_map 
     end
+
+    # D. TODO. Add tests with different input types for map
+    #          Generate all possible missing patches and compute map on cpu vs gpu
 end

@@ -1,5 +1,5 @@
 
-function sample(bpc::CuBitsProbCircuit, num_samples, num_rand_vars, types; 
+function sample(bpc::CuBitsProbCircuit, num_samples::Int, num_rand_vars::Int, types; 
         rng = default_rng(), mars_mem=nothing, mine=2, maxe=32, debug=false)
     data = CuMatrix{Union{Missing, types...}}([missing for j=1:1, i=1:num_rand_vars])
     sample(bpc, num_samples, data; rng, debug)
