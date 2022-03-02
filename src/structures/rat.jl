@@ -1,4 +1,7 @@
-export RegionGraph, random_region_graph, region_graph_2_pc
+export RegionGraph, 
+       random_region_graph, 
+       region_graph_2_pc, 
+       RAT
 
 import Random: shuffle
 import DirectedAcyclicGraphs: Tree
@@ -242,4 +245,27 @@ function region_graph_2_pc(node::RegionGraph;
     end
 
     sum_nodes
+end
+
+
+"""
+    RAT(num_features, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas; num_nodes_root = 1, balance_childs_parents = true)
+
+Generate a RAT-SPN structure. First, it generates a random region graph with `depth`, and `replicas`. 
+Then uses the random region graph to generate a ProbCircuit conforming to that region graph.
+
+The list of hyperparamters are:
+- `rg_depth`: how many layers to do splits in the region graph
+- `rg_replicas`: number of replicas or paritions (replicas only used for the root region; for other regions only 1 parition (inner nodes), or 0 parition for leaves)
+- `num_nodes_root`: number of sum nodes in the root region
+- `num_nodes_leaf`: number of sum nodes per leaf region
+- `num_nodes_region`: number of in each region except root and leaves
+- `num_splits`: number of splits for each parition; split variables into random equaly sized regions
+"""
+function RAT(num_features, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas; num_nodes_root = 1, balance_childs_parents = true)
+    region_graph = random_region_graph([Var(i) for i=1: num_features]; depth=rg_depth, replicas=rg_replicas);
+    circuit = region_graph_2_pc(region_graph; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)[1];
+    uniform_parameters!(circuit; perturbation = 0.4)
+    
+    return circuit
 end
