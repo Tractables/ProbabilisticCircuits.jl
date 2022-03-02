@@ -17,6 +17,7 @@ write
 
 ```@docs
 hclt
+RAT
 ```
 
 ## Learning Circuit Parameters
