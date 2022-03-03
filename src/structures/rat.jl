@@ -173,15 +173,27 @@ Makes a dummy sum node for each input per partition. Then nodes corresponding to
 the dummy node as their children instead of the input node.
 This way instead of num_nodes_root * num_nodes_leaf, we would have num_nodes_root parents nodes.
 """
-function balanced_fully_factorized_leaves(variables::AbstractVector; num_nodes_leaf)::Vector{ProbCircuit}
-    var_2_dummy_inputs = Dict(var => PlainSumNode([
+function balanced_fully_factorized_leaves(variables::AbstractVector; input_type, num_nodes_leaf)::Vector{ProbCircuit}
+
+    
+
+    var_2_dummy_inputs(var) = begin 
+        
+        if input_type == Literal
+            PlainSumNode([
                     PlainInputNode(var, Literal(true)), 
-                    PlainInputNode(var, Literal(false))]) for var in variables)
+                    PlainInputNode(var, Literal(false))])
+        elseif input_type == Categorical
+            PlainInputNode(var, Categorical(2561))
+        else
+            @assert false "Input Type $(input_type) not supported yet for RAT structures "
+        end
+    end
     
     balanced_recurse(variables::AbstractVector)::Vector{ProbCircuit} = begin
         # Leaf
         if length(variables) == 1
-            [PlainSumNode([var_2_dummy_inputs[variables[1]]]) for node=1:num_nodes_leaf]
+            [PlainSumNode([var_2_dummy_inputs(variables[1])]) for node=1:num_nodes_leaf]
         else
             mid = length(variables) ÷ 2
             lefts = balanced_recurse(variables[1:mid])
@@ -201,12 +213,12 @@ end
 - `num_nodes_leaf`: number of sum nodes per leaf region
 - `num_nodes_region`: number of in each region except root and leaves
 """
-function region_graph_2_pc(node::RegionGraph; 
+function region_graph_2_pc(node::RegionGraph; input_type::Type,
     num_nodes_root::Int = 4,  num_nodes_region::Int = 3, num_nodes_leaf::Int = 2, balance_childs_parents=true)::Vector{ProbCircuit}
     sum_nodes = Vector{ProbCircuit}()
     if isleaf(node)
         vars = Vector(collect(variables(node)))
-        sum_nodes = balanced_fully_factorized_leaves(vars; num_nodes_leaf)
+        sum_nodes = balanced_fully_factorized_leaves(vars; num_nodes_leaf, input_type)
     else
         root_children = Vector{ProbCircuit}()
         # Foreach replication; usually only > 1 at root
@@ -214,8 +226,8 @@ function region_graph_2_pc(node::RegionGraph;
             partition_mul_nodes = Vector{ProbCircuit}()
 
             @assert length(partition) == 2 "Only supporting partitions of size 2 at the moment"
-            lefts = region_graph_2_pc(partition[1]; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents) 
-            rights = region_graph_2_pc(partition[2]; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
+            lefts = region_graph_2_pc(partition[1]; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents) 
+            rights = region_graph_2_pc(partition[2]; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
             @assert all([issum(l) for l in lefts])
             @assert all([issum(r) for r in rights])
 
@@ -249,7 +261,7 @@ end
 
 
 """
-    RAT(num_features, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas; num_nodes_root = 1, balance_childs_parents = true)
+    RAT(num_features; input_type = Literal, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, num_nodes_root = 1, balance_childs_parents = true)
 
 Generate a RAT-SPN structure. First, it generates a random region graph with `depth`, and `replicas`. 
 Then uses the random region graph to generate a ProbCircuit conforming to that region graph.
@@ -262,10 +274,9 @@ The list of hyperparamters are:
 - `num_nodes_region`: number of in each region except root and leaves
 - `num_splits`: number of splits for each parition; split variables into random equaly sized regions
 """
-function RAT(num_features, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas; num_nodes_root = 1, balance_childs_parents = true)
+function RAT(num_features; num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, input_type = Literal, num_nodes_root = 1, balance_childs_parents = true)
     region_graph = random_region_graph([Var(i) for i=1: num_features]; depth=rg_depth, replicas=rg_replicas);
-    circuit = region_graph_2_pc(region_graph; num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)[1];
-    uniform_parameters!(circuit; perturbation = 0.4)
-    
+    circuit = region_graph_2_pc(region_graph; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)[1];
+    init_parameters(circuit; perturbation = 0.4)
     return circuit
 end

@@ -7,7 +7,7 @@ In this section we provide few learning scenarios for circuits. In general, lear
 Currently we are supporting the following structures:
 
 - HiddenChowLiuTrees: See [`hclt`](@ref).
-- RAT-SPNs: See [`random_region_graph`](@ref), and [`region_graph_2_pc`](@ref).
+- RAT-SPNs: See [`RAT`](@ref).
 
 ## Parameter Learning
 
