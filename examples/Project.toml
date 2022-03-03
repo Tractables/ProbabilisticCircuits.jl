@@ -2,6 +2,7 @@
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChowLiuTrees = "be466665-d60c-4e0a-9ae9-070eb5e678a5"
 DirectedAcyclicGraphs = "1e6dae5e-d6e2-422d-9af3-452e7a3785ee"
+Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
 MLDatasets = "eb30cadb-4394-5ae3-aed4-317e484a6458"
 ProbabilisticCircuits = "2396afbe-23d7-11ea-1e05-f1aa98e17a44"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"

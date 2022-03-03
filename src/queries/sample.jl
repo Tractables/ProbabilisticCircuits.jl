@@ -1,9 +1,18 @@
 
 """
-    sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix; rng=default_rng())
+    sample(bpc::CuBitsProbCircuit, num_samples, num_samples::Int, num_rand_vars::Int, types; rng=default_rng())
 
 Generate `num_samples` from the joint distribution of the circuit without any conditions.
-Samples are genearted on the GPU. The size of returned Array is (num_samples, 1, size(data, 2)).
+Samples are genearted on the GPU. 
+
+ - `bpc`: Circuit on gpu (CuBitProbCircuit)
+ - `num_samples`: how many samples to generate
+ - `num_rand_vars`: number of random variables in the circuit
+ - `types`: Array of possible input types
+ - `rng`: (Optional) Random Number Generator
+
+
+The size of returned Array is `(num_samples, 1, size(data, 2))`.
 """
 function sample(bpc::CuBitsProbCircuit, num_samples::Int, num_rand_vars::Int, types; 
         rng = default_rng(), mars_mem=nothing, mine=2, maxe=32, debug=false)
@@ -15,7 +24,13 @@ end
     sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix; rng=default_rng())
 
 Generate `num_samples` for each datapoint in `data` from the joint distribution of the circuit conditioned on the `data`.
-Samples are generated using GPU. The size of returned CuArray is (num_samples, size(data, 1), size(data, 2)).
+Samples are generated using GPU. 
+
+ - `bpc`: Circuit on gpu (CuBitProbCircuit)
+ - `num_samples`: how many samples to generate
+ - `rng`: (Optional) Random Number Generator
+
+The size of returned CuArray is `(num_samples, size(data, 1), size(data, 2))`.
 """
 function sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix;  
     mars_mem=nothing, mine=2, maxe=32,
