@@ -9,6 +9,7 @@
 *.code-workspace
 *.vscode
 **checkpoint.ipynb
+.ipynb_checkpoints
 *Manifest.toml
 docs/build/
 scratch/
