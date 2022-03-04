@@ -1,5 +1,7 @@
 using CUDA
 
+export BitsProbCircuit, CuBitsProbCircuit, update_parameters
+
 ###############################################
 # bits representation of nodes
 ###############################################
