@@ -13,6 +13,7 @@ struct BitsInput{D} <: BitsNode
     dist::D
 end
 
+dist(n::BitsNode) = nothing 
 dist(n::BitsInput) = n.dist
 
 function bits(in::PlainInputNode, heap)

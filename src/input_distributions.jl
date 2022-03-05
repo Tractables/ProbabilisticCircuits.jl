@@ -55,6 +55,7 @@ sample_state(d::Indicator, threshold=nothing, heap=nothing) =
 flow(d::Indicator, value, node_flow, heap) = nothing
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
 clear_memory(d::Indicator, heap, rate) = nothing
+clear_memory(d, heap, rate) = nothing
 
 #####################
 # categoricals or bernoullis
