@@ -8,7 +8,7 @@ export BitsProbCircuit, CuBitsProbCircuit, update_parameters
 
 abstract type BitsNode end
 
-struct BitsInput{D} <: BitsNode
+struct BitsInput{D <: InputDist} <: BitsNode
     variable::Var # for now assume single variable
     dist::D
 end
