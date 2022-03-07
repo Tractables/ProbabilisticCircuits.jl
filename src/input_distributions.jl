@@ -55,7 +55,7 @@ sample_state(d::Indicator, threshold=nothing, heap=nothing) =
 flow(d::Indicator, value, node_flow, heap) = nothing
 update_params(d::Indicator, heap, pseudocount, inertia) = nothing
 clear_memory(d::Indicator, heap, rate) = nothing
-clear_memory(d, heap, rate) = nothing
+clear_memory(d::InputDist, heap, rate) = nothing
 
 #####################
 # categoricals or bernoullis
@@ -115,7 +115,7 @@ map_loglikelihood(d::Categorical, _= nothing) =
 map_state(d::Categorical, _ = nothing) =
     argmax(d.logps) - one(UInt32) # since category values are from 0-N-1
     
-struct BitsCategorical
+struct BitsCategorical <: InputDist
     num_cats::UInt32
     heap_start::UInt32
 end
