@@ -34,5 +34,5 @@ jobs:
           sudo apt install -y pdf2svg texlive-latex-base texlive-binaries texlive-pictures texlive-latex-extra texlive-luatex    
           luatex -v
           pdflatex -v
-          julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(url="https://github.com/UCLA-StarAI/DensityEstimationDatasets.jl")); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
+          julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();'
           julia --project=docs/ docs/make.jl
