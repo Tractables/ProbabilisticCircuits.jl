@@ -16,6 +16,11 @@ PlainInputNode(randvars, dist) =
 PlainInputNode(randvar::Integer, dist) = 
     PlainInputNode(BitSet([randvar]), dist)
 
+InputNode(randvar::Integer, dist) = 
+    PlainInputNode(randvar, dist)
+InputNode(randvars, dist) = 
+    PlainInputNode(randvars, dist)
+
 "A probabilistic inner node"
 abstract type PlainInnerNode <: PlainProbCircuit end
 

@@ -7,8 +7,8 @@ Generally, we learn structure and parameters of circuit from data. Alternatively
 ```@example demo
 using ProbabilisticCircuits;
 
-X1, X2, X3 = [ProbabilisticCircuits.PlainInputNode(i, Indicator(true)) for i=1:3]
-X1_, X2_, X3_ = [ProbabilisticCircuits.PlainInputNode(i, Indicator(false)) for i=1:3]
+X1, X2, X3    = [InputNode(i, Indicator(true))  for i=1:3]
+X1_, X2_, X3_ = [InputNode(i, Indicator(false)) for i=1:3]
 
 pc = 0.3 * (X1_ *
              (0.2 * X2_ + 0.8 * X3)) +
