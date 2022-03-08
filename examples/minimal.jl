@@ -34,6 +34,7 @@ function kernel(ans, vec, ids)
     return nothing
 end
 
+ans_idx(n::InputDist) = nothing
 ans_idx(n::Indicator{Bool}) = 1
 ans_idx(n::Indicator{UInt32}) = 2
 ans_idx(n::Categorical) = 3
