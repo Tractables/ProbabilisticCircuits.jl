@@ -32,11 +32,11 @@ params(n::InputDist) =
     error("Not implemented error: `params`, $(typeof(n))")
 
 """
-    init_params(d::InputDist, perturbation::Float32)    
+    init_params(d::InputDist, perturbation)    
 
 Returns a new distribution with same type with initialized parameters.
 """
-init_params(d::InputDist, perturbation::Float32) =
+init_params(d::InputDist, perturbation) =
     error("Not implemented error: `init_params`, $(typeof(n))")
 
 """
@@ -74,7 +74,7 @@ loglikelihood(d::InputDist, value, heap) =
 Returns a sample from InputDist.
 `Threshold` is a uniform random value in range (0, 1) given to this API by the sampleing algorithm
 """
-sample_state(d::InputDist, threshold::Float32, heap) = 
+sample_state(d::InputDist, threshold, heap) = 
     error("Not implemented error: `sample_state`, $(typeof(n))")
 
 """
