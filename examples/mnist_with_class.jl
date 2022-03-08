@@ -32,10 +32,14 @@ end
 function run(; batch_size = 512, pseudocount = 0.1, latents = 16)
     
     train_x, train_y, test_x, test_y = mnist_cpu();
-   # train_x_gpu, train_y_gpu, test_x_gpu, test_y_gpu = mnist_gpu();
 
+    class_var = 28*28 + 1
+    train = hcat(train_x, train_y)
+    test  = hcat(test_x, test_y)
+   
+    #### Learning HCLT
+    # train_x_gpu, train_y_gpu, test_x_gpu, test_y_gpu = mnist_gpu();
     # trunc_train = cu(truncate(train_x; bits = 4));
-
     # println("Generating HCLT structure with $latents latents... ");
     # @time pc = hclt(trunc_train[1:1000,:], latents; num_cats = 256, pseudocount = 0.1, input_type = Categorical);
     # init_parameters(pc; perturbation = 0.4);
@@ -43,28 +47,6 @@ function run(; batch_size = 512, pseudocount = 0.1, latents = 16)
     # println("Nodes: $(num_nodes(pc))");
     # println("Edges: $(num_edges(pc))");
     
-    class_var = 28*28 + 1
-    train = hcat(train_x, train_y)
-    test  = hcat(test_x, test_y)
-
-    
-    # circuit = PlainSumNode([PlainMulNode([PlainInputNode(class_var, Indicator{UInt32}(UInt32(1))), 
-    #                                       PlainInputNode(400, Indicator{Bool}(false))
-    #                                      ]),
-    #                         PlainMulNode([PlainInputNode(class_var, Indicator{UInt32}(UInt32(2))), 
-    #                                 PlainInputNode(400, Indicator{Bool}(true))
-    #                              ])
-    #                         ]);
-    
-    println("Making Naive Bayes Circuit")
-    childs = Vector{ProbCircuit}()
-    for c=0:2
-        cur_c = PlainInputNode(class_var, Indicator{UInt32}(c))
-        prod_x = PlainMulNode([PlainInputNode(i, Categorical(256)) for i=1:28*28])
-        push!(childs, PlainMulNode([cur_c, prod_x]))
-    end
-    circuit = PlainSumNode(childs)
-
     # TODO: This did not work
     # @time circuit = PlainSumNode([PlainMulNode([PlainInputNode(class_var, Indicator{UInt32}(UInt32(c))), 
     #                                       deepcopy(pc)]) for c=0:9]);
@@ -72,7 +54,18 @@ function run(; batch_size = 512, pseudocount = 0.1, latents = 16)
     # @time circuit = PlainSumNode([PlainMulNode([PlainInputNode(class_var, Categorical(10)), 
     #                                       deepcopy(pc)]) for c=1:10]);
 
-    print("Moving circuit and to GPU... ")
+    @info "Making Naive Bayes Circuit P(x, y)"
+    @time begin
+        childs = Vector{ProbCircuit}()
+        for c=0:2
+            cur_c = PlainInputNode(class_var, Indicator{UInt32}(c))
+            prod_x = PlainMulNode([PlainInputNode(i, Categorical(256)) for i=1:28*28])
+            push!(childs, PlainMulNode([cur_c, prod_x]))
+        end
+        circuit = PlainSumNode(childs)
+    end
+
+    @info "Moving circuit and data to GPU"
     CUDA.@time begin
         bpc = CuBitsProbCircuit(circuit)
         cutrain = cu(train)
@@ -85,9 +78,12 @@ end
 function train(circuit, bpc, cutrain, cutest; batch_size = 512, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 = 1, 
     pseudocount = 0.1, param_inertia1 = 0.2, param_inertia2 = 0.9, param_inertia3 = 0.95)
 
+    
+    @info " PCs.clear_input_node_mem"
     softness    = 0
     PCs.clear_input_node_mem(bpc; rate = 0, debug=true)
 
+    # @info " mini_batch_em"
     # @time mini_batch_em(bpc, cutrain, num_epochs1; batch_size, pseudocount, 
     # 			 softness, param_inertia = param_inertia1, param_inertia_end = param_inertia2, debug = false)
 
