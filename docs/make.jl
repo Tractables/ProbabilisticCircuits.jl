@@ -50,7 +50,8 @@ const  pages = [
     "Manual" => [
         "manual/demo.md",
         "manual/queries.md",
-        "manual/learning.md"
+        "manual/learning.md",
+        "manual/gpu.md"
     ],
     "API" => append!(["api/common.md",
                       "api/types.md",
