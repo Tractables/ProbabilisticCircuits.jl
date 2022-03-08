@@ -53,15 +53,12 @@ const  pages = [
         "manual/learning.md",
         "manual/gpu.md"
     ],
-    "API" => append!(["api/common.md",
-                      "api/types.md",
-                    ],
-                    map(
-                        s -> "api/internals/$(s)",
-                        sort(readdir(joinpath(@__DIR__, "src/api/internals")))
-                    )
-            )
-    ,
+    "API" => [
+        "api/common.md",
+        "api/input_dists.md",
+        "api/probabilistic_circuits.md",
+        "api/types.md"
+    ],
     "Installation" => "installation.md",
 ];
 

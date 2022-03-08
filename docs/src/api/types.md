@@ -1,4 +1,4 @@
-# [Type Trees](@id api-types)
+# [Types ](@id api-types)
 
 The following code snippet provides an easy way to print the type tree of probabilistic circuits.
 
@@ -13,4 +13,8 @@ For example, we can see [`ProbabilisticCircuits.ProbCircuit`](@ref)'s type tree.
 
 ```@example types
 AbstractTrees.print_tree(ProbCircuit)
+```
+
+```@example types
+AbstractTrees.print_tree(InputDist)
 ```

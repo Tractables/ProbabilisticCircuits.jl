@@ -6,10 +6,10 @@ module ProbabilisticCircuits
     # reexport from DAGs
     export num_nodes, num_edges
 
-    include("abstract_nodes.jl")
-    
-    include("input_distributions.jl")
-    include("plain_nodes.jl")
+    include("nodes/abstract_nodes.jl")
+    include("nodes/input_distributions.jl")
+    include("nodes/plain_nodes.jl")
+
     include("bits_circuit.jl")
     include("traversal.jl")
 

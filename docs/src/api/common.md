@@ -30,7 +30,6 @@ full_batch_em
 ## Circuit Queries
 
 ```@docs
-loglikelihood
 loglikelihoods
 MAP
 sample
