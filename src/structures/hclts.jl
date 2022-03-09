@@ -168,6 +168,10 @@ function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Typ
         for var=1:num_vars, copy=1:num_hidden_cats]
 end
 
+function categorical_leaves(num_vars, num_cats, num_hidden_cats, input_type::Type{Binomial})
+    [PlainInputNode(var, Binomial(UInt32(num_cats))) 
+        for var=1:num_vars, copy=1:num_hidden_cats]
+end
 
 function bottom_up_order(g::MetaDiGraph)
     num_nodes = length(vertices(g))

@@ -1,6 +1,6 @@
 using CUDA
 
-export InputDist, Bernoulli, Categorical, loglikelihood
+export InputDist, loglikelihood
 
 abstract type InputDist end
 
@@ -136,7 +136,4 @@ clear_memory(d::InputDist, heap, rate) =
     error("Not implemented error: `clear_memory`, $(typeof(n))")
 
 #########################################
-
-include("./indicator_dist.jl")
-include("./categorical_dist.jl")
 

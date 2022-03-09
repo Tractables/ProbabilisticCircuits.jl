@@ -7,7 +7,12 @@ module ProbabilisticCircuits
     export num_nodes, num_edges
 
     include("nodes/abstract_nodes.jl")
+    
     include("nodes/input_distributions.jl")
+    include("nodes/indicator_dist.jl")
+    include("nodes/categorical_dist.jl")
+    include("nodes/binomial_dist.jl")
+
     include("nodes/plain_nodes.jl")
 
     include("bits_circuit.jl")
