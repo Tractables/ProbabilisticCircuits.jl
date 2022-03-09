@@ -1,3 +1,5 @@
+export Bernoulli, Categorical
+
 #####################
 # categoricals or bernoullis
 #####################
