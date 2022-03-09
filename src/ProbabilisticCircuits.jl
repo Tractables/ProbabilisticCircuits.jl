@@ -20,6 +20,7 @@ module ProbabilisticCircuits
     include("queries/sample.jl")
     include("queries/sample_cpu.jl")
     include("queries/flow.jl")
+    include("queries/conditional.jl")
 
     include("parameters/em.jl")
 
