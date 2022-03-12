@@ -37,28 +37,28 @@ function unbits(dist::BitsBinomial, heap)
 end
 
 function loglikelihood(dist::BitsBinomial, value, heap)
-    # return heap[dist.heap_start + UInt32(3) + value]
+    return heap[dist.heap_start + UInt32(4) + value]
     
-    N = dist.N
-    p = heap[dist.heap_start]
+    # N = dist.N
+    # p = heap[dist.heap_start]
 
-    ans = zero(Float32)
-    log_n_fact = zero(Float32)
-    for i = 1: N
-        log_n_fact += log(i)
-        if  i == N
-            ans += log_n_fact # + log(n!)
-        end
-        if i == value
-            ans -= log_n_fact # - log(k!)
-        end
-        if i==(N-value)
-            ans -= log_n_fact # - log((n-k)!)
-        end
-    end
-    # log_nfact(N) - log_nfact(value) - log_n_fact(N-value)
+    # ans = zero(Float32)
+    # log_n_fact = zero(Float32)
+    # for i = 1: N
+    #     log_n_fact += log(i)
+    #     if  i == N
+    #         ans += log_n_fact # + log(n!)
+    #     end
+    #     if i == value
+    #         ans -= log_n_fact # - log(k!)
+    #     end
+    #     if i==(N-value)
+    #         ans -= log_n_fact # - log((n-k)!)
+    #     end
+    # end
+    # # log_nfact(N) - log_nfact(value) - log_n_fact(N-value)
 
-    return ans + log(p) * value +  log1p(-p) * (N - value)
+    # return ans + log(p) * value +  log1p(-p) * (N - value)
 end
 
 function flow(dist::BitsBinomial, value, node_flow, heap)
