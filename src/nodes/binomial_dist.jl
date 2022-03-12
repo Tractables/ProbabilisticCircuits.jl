@@ -1,4 +1,4 @@
-using SpecialFunctions: lgamma
+# using SpecialFunctions: lgamma
 using CUDA
 
 export Binomial
@@ -75,7 +75,7 @@ function update_params(dist::BitsBinomial, heap, pseudocount, inertia)
     node_flow = heap[heap_start + 2] + missing_flow + pseudocount
 
     oldp = heap[heap_start]
-    new = (heap[heap_start + 1] + missing_flow * oldp + pseudocount) / node_flow
+    new = (heap[heap_start + 1] + missing_flow * oldp + pseudocount) / (node_flow * dist.N)
 
     heap[heap_start] = oldp * inertia + new * (one(Float32) - inertia)
     nothing
