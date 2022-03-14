@@ -42,17 +42,17 @@ function run(; batch_size = 512, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 =
     @show length(bpc.nodes)
 
     softness    = 0
-    # @time mini_batch_em(bpc, train_gpu, num_epochs1; batch_size, pseudocount, 
-    # 			 softness, param_inertia = param_inertia1, param_inertia_end = param_inertia2, debug = false)
+    @time mini_batch_em(bpc, train_gpu, num_epochs1; batch_size, pseudocount, 
+    			 softness, param_inertia = param_inertia1, param_inertia_end = param_inertia2, debug = false)
 
-    # ll1 = loglikelihood(bpc, test_gpu; batch_size)
-    # println("test LL: $(ll1)")
+    ll1 = loglikelihood(bpc, test_gpu; batch_size)
+    println("test LL: $(ll1)")
     			 
-    # @time mini_batch_em(bpc, train_gpu, num_epochs2; batch_size, pseudocount, 
-    # 			 softness, param_inertia = param_inertia2, param_inertia_end = param_inertia3)
+    @time mini_batch_em(bpc, train_gpu, num_epochs2; batch_size, pseudocount, 
+    			 softness, param_inertia = param_inertia2, param_inertia_end = param_inertia3)
 
-    # ll2 = loglikelihood(bpc, test_gpu; batch_size)
-    # println("test LL: $(ll2)")
+    ll2 = loglikelihood(bpc, test_gpu; batch_size)
+    println("test LL: $(ll2)")
     
     for iter=1:num_epochs3
         @info "Iter $iter"
@@ -84,5 +84,5 @@ function do_sample(bpc, iteration)
     save("samples/samples_$iteration.png", imgs);
 end
 
-pc, bpc = run(; latents = 64, num_epochs1 = 0, num_epochs2 = 0, num_epochs3=100);
+pc, bpc = run(; latents = 64, num_epochs1 = 3, num_epochs2 = 3, num_epochs3=3);
 do_sample(bpc, 1);
