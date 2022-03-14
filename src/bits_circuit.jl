@@ -120,6 +120,8 @@ import Base: size, getindex #extend
 
 size(fv::FlatVectors) = size(fv.vectors)
 
+num_layers(fv::FlatVectors) = length(fv.ends)
+
 getindex(fv::FlatVectors, idx) = getindex(fv.vectors, idx)
 
 ###############################################
