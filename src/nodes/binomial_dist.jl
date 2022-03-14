@@ -26,8 +26,8 @@ end
 function bits(dist::Binomial, heap)
     heap_start = length(heap) + 1
     # use heap to store parameters and space for parameter learning
-    # Add (p, flow*value, flow, missing_flow, p[x=i] for i=0...N)
-    append!(heap, dist.p, zeros(Float32, 3), zeros(Float32, dist.N + 1))
+    # Add (p, flow*value, flow, missing_flow, log(p[x==i]) for i=0...N)
+    append!(heap, dist.p, zeros(Float32, 3), [binomial_logpdf_(dist.N, dist.p, UInt32(k)) for k=0:dist.N])
     BitsBinomial(dist.N, heap_start)
 end
 
@@ -38,27 +38,6 @@ end
 
 function loglikelihood(dist::BitsBinomial, value, heap)
     return heap[dist.heap_start + UInt32(4) + value]
-    
-    # N = dist.N
-    # p = heap[dist.heap_start]
-
-    # ans = zero(Float32)
-    # log_n_fact = zero(Float32)
-    # for i = 1: N
-    #     log_n_fact += log(i)
-    #     if  i == N
-    #         ans += log_n_fact # + log(n!)
-    #     end
-    #     if i == value
-    #         ans -= log_n_fact # - log(k!)
-    #     end
-    #     if i==(N-value)
-    #         ans -= log_n_fact # - log((n-k)!)
-    #     end
-    # end
-    # # log_nfact(N) - log_nfact(value) - log_n_fact(N-value)
-
-    # return ans + log(p) * value +  log1p(-p) * (N - value)
 end
 
 function flow(dist::BitsBinomial, value, node_flow, heap)
@@ -80,6 +59,19 @@ function log_nfact(n)
     return ans
 end
 
+function binomial_logpdf_(n, p, k)
+    if (p == zero(Float32))
+        return (k == 0 ? 0.0 : -Inf32)
+    elseif (p == one(Float32))
+         return (k == n ? 0.0 : -Inf32)
+    else
+        temp = log_nfact(n) - log_nfact(k) - log_nfact(n - k) 
+        temp += k * log(p) 
+        temp += (n - k) * log1p(-p) 
+        return temp
+    end
+end
+
 function update_params(dist::BitsBinomial, heap, pseudocount, inertia)
     heap_start = dist.heap_start
 
@@ -97,11 +89,8 @@ function update_params(dist::BitsBinomial, heap, pseudocount, inertia)
     
     cache_start = heap_start + UInt32(4)
     for i = UInt32(1) : N - UInt32(1)
-        heap_idx = cache_start + i
-        temp = log_nfact(N) - log_nfact(i) - log_nfact(N - i) 
-        temp += i * log(new_p) 
-        temp += (N - i) * log1p(-new_p) 
-        heap[heap_idx] = temp
+        heap_idx = (cache_start + i)
+        heap[heap_idx] =  binomial_logpdf_(N, new_p, i)
     end
     heap[cache_start + N] = N * log(new_p)
     heap[cache_start] = N * log1p(-new_p)

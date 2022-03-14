@@ -4,7 +4,7 @@ using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihoods,
 using MLDatasets
 using Images
 
-device!(collect(devices())[2])
+# device!(collect(devices())[2])
 
 function mnist_cpu()
     train_cpu = collect(transpose(reshape(MNIST.traintensor(UInt8), 28*28, :)))

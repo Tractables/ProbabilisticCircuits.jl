@@ -87,7 +87,7 @@ end
 **Note**: Experimental**; will be removed or renamed later
 """
 function loglikelihoods_vectorized(root::ProbCircuit, data::Matrix; Float=Float32)
-    function logsumexp(vals::Vector{Float32})
+    function logsumexp_(vals::Vector{Float32})
         reduce(logsumexp, vals)
     end
 
@@ -102,7 +102,7 @@ function loglikelihoods_vectorized(root::ProbCircuit, data::Matrix; Float=Float3
 
         ans = zeros(Float, size(data, 1))
         for idx = 1:size(data, 1)
-            ans[idx] = logsumexp([entry(i, idx) for i=1:size(node.params, 1)])
+            ans[idx] = logsumexp_([entry(i, idx) for i=1:size(node.params, 1)])
         end        
         ans
     end
