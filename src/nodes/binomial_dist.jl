@@ -1,4 +1,4 @@
-# using SpecialFunctions: lgamma
+using SpecialFunctions: lgamma
 using CUDA
 
 export Binomial
@@ -52,11 +52,7 @@ function flow(dist::BitsBinomial, value, node_flow, heap)
 end
 
 function log_nfact(n)
-    ans = zero(Float32)
-    for i = 1 : n
-        ans += log(i)
-    end
-    return ans
+    return lgamma(Float32(n + 1))
 end
 
 function binomial_logpdf_(n, p, k)
@@ -81,19 +77,18 @@ function update_params(dist::BitsBinomial, heap, pseudocount, inertia)
     oldp = heap[heap_start]
     new = (heap[heap_start + 1] + missing_flow * oldp + pseudocount) / (node_flow * dist.N)
 
-    heap[heap_start] = oldp * inertia + new * (one(Float32) - inertia)
-
+    new_p = oldp * inertia + new * (one(Float32) - inertia)
+    
+    # update p on heap
+    heap[heap_start] = new_p
+    
     # update heap for log(p[x=i]) for i=0:N
     N = dist.N
-    new_p = heap[heap_start]
-    
     cache_start = heap_start + UInt32(4)
-    for i = UInt32(1) : N - UInt32(1)
+    for i = UInt32(0) : N
         heap_idx = (cache_start + i)
         heap[heap_idx] =  binomial_logpdf_(N, new_p, i)
     end
-    heap[cache_start + N] = N * log(new_p)
-    heap[cache_start] = N * log1p(-new_p)
     nothing
 end
 
