@@ -3,6 +3,7 @@ using ProbabilisticCircuits
 using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihoods, full_batch_em, mini_batch_em
 using MLDatasets
 using Images
+using Plots
 
 # device!(collect(devices())[2])
 
@@ -70,8 +71,13 @@ function run(; batch_size = 512, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 =
     pc, bpc
 end
 
-function do_sample(bpc, iteration)
-    sms = sample(bpc, 100, 28*28,[UInt32]);
+function do_sample(cur_pc, iteration)
+    @info "Sample"
+    if cur_pc isa CuBitsProbCircuit
+        sms = sample(cur_pc, 100, 28*28,[UInt32]);
+    elseif cur_pc isa ProbCircuit
+        sms = sample(cur_pc, 100, [UInt32]);
+    end
 
     do_img(i) = begin
         img = Array{Float32}(sms[i,1,1:28*28]) ./ 256.0
@@ -84,5 +90,27 @@ function do_sample(bpc, iteration)
     save("samples/samples_$iteration.png", imgs);
 end
 
-pc, bpc = run(; latents = 64, num_epochs1 = 3, num_epochs2 = 3, num_epochs3=3);
-do_sample(bpc, 1);
+function try_map()
+    @info "MAP"
+    train_gpu, _ = mnist_gpu();
+    data = Array{Union{Missing, UInt32}}(train_gpu[1:10, :]);
+    data[:, 1:100] .= missing;
+    data_gpu = cu(data);
+
+    # @time MAP(pc, data; batch_size=10)
+    @time MAP(bpc, data_gpu; batch_size=10)
+end
+
+
+pc, bpc = run(; latents = 16, num_epochs1 = 0, num_epochs2 = 0, num_epochs3=2);
+
+# arr = [dist(n).p for n in inputnodes(pc) if 300 <first(randvars(n)) <400];
+# Plots.histogram(arr, normed=true, bins=50)
+
+# do_sample(bpc, 999);
+# do_sample(pc, 999);
+
+try_map()
+
+
+

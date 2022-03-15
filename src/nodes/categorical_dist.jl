@@ -80,8 +80,8 @@ loglikelihood(d::BitsCategorical, value, heap) =
     heap[d.heap_start + UInt32(value)]
 
 
-const HEAP_STATE  = UInt32(1)
-const HEAP_MAP_LL = UInt32(2)
+const CAT_HEAP_STATE  = UInt32(1)
+const CAT_HEAP_MAP_LL = UInt32(2)
 
 
 init_heap_map_state!(d::BitsCategorical, heap) = begin
@@ -93,7 +93,7 @@ init_heap_map_state!(d::BitsCategorical, heap) = begin
             best_idx = i
         end        
     end
-    idx = d.heap_start + d.num_cats + HEAP_STATE - one(UInt32) 
+    idx = d.heap_start + d.num_cats + CAT_HEAP_STATE - one(UInt32) 
     heap[idx] = Float32(best_idx - d.heap_start)
 end
     
@@ -102,12 +102,12 @@ init_heap_map_loglikelihood!(d::BitsCategorical, heap) = begin
     for i = d.heap_start : d.heap_start + d.num_cats - one(UInt32)
         ans = max(ans, heap[i])
     end
-    idx = d.heap_start + d.num_cats + HEAP_MAP_LL - one(UInt32)
+    idx = d.heap_start + d.num_cats + CAT_HEAP_MAP_LL - one(UInt32)
     heap[idx] = ans
 end
 
 map_state(d::BitsCategorical, heap) = begin
-    ll_idx = d.heap_start + d.num_cats + HEAP_STATE - one(UInt32) 
+    ll_idx = d.heap_start + d.num_cats + CAT_HEAP_STATE - one(UInt32) 
     return UInt32(heap[ll_idx])
 end
 
@@ -125,7 +125,7 @@ sample_state(d::BitsCategorical, threshold::Float32, heap) = begin
 end
 
 map_loglikelihood(d::BitsCategorical, heap) = begin
-    ll_idx = d.heap_start + d.num_cats + HEAP_MAP_LL - one(UInt32)
+    ll_idx = d.heap_start + d.num_cats + CAT_HEAP_MAP_LL - one(UInt32)
     return heap[ll_idx]
 end
 
