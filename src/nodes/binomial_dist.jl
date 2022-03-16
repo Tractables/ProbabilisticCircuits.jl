@@ -88,13 +88,12 @@ function update_params(dist::BitsBinomial, heap, pseudocount, inertia)
     node_flow = heap[heap_start + 2] + missing_flow + pseudocount
 
     oldp = heap[heap_start]
-    new = (heap[heap_start + 1] + missing_flow * oldp + pseudocount) / (node_flow * dist.N)
+    new = (heap[heap_start + 1] + missing_flow * oldp * dist.N + pseudocount) / (node_flow * dist.N)
 
     new_p = oldp * inertia + new * (one(Float32) - inertia)
     
     # update p on heap
     heap[heap_start] = new_p
-    
     nothing
 end
 
