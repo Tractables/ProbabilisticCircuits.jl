@@ -37,6 +37,14 @@ function little_3var_categorical(firstvar=1; num_cats = 3)
     summate(multiply(n1, n2, n3))
 end
 
+function little_3var_binomial(firstvar=1; n = 10)
+    n1 = PlainInputNode(firstvar, Binomial(n, 0.1))
+    n2 = PlainInputNode(firstvar+1, Binomial(n, 0.5))
+    n3 = PlainInputNode(firstvar+2, Binomial(n, 0.9))
+    summate(multiply(n1, n2, n3))
+end
+
+
 function little_4var()
     circuit = IOBuffer(b"""psdd 19
     L 0 0 1 

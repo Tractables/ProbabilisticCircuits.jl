@@ -61,6 +61,33 @@ end
 
 end
 
+@testset "JPC IO tests Binomial" begin
+    pc = little_3var_binomial()
+
+    mktempdir() do tmp
+        file = "$tmp/example_binomial.jpc"
+        write(file, pc)
+
+        pc2 = read(file, ProbCircuit)
+        test_pc_equals(pc, pc2)
+
+        pc2 = read(file, ProbCircuit, JpcFormat(), true)
+        test_pc_equals(pc, pc2)
+
+        pc2 = read(file, ProbCircuit, JpcFormat(), false)
+        test_pc_equals(pc, pc2)
+
+        # Compressed
+        file = "$tmp/example_binomial.jpc.gz"
+        write(file, pc)
+
+        pc2 = read(file, ProbCircuit)
+        test_pc_equals(pc, pc2)
+
+    end
+end
+
+
 @testset "Jpc IO tests hybrid" begin
     
     pc = little_hybrid_circuit()

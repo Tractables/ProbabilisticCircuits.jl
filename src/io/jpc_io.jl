@@ -11,8 +11,8 @@ const jpc_grammar = raw"""
     
     node : "L" _WS INT _WS INT _WS SIGNED_INT -> literal_node
          | "I" _WS INT _WS INT _WS INT _WS INT -> indicator_node
-         | "C" _WS INT _WS INT _WS INT _WS INT _WS LOGPROB -> categorical_node
-         | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> binomial_node
+         | "B" _WS INT _WS INT _WS INT _WS INT _WS LOGPROB -> binomial_node
+         | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> categorical_node
          | "P" _WS INT _WS INT _WS INT child_nodes -> prod_node
          | "S" _WS INT _WS INT _WS INT weighted_child_nodes -> sum_node
          

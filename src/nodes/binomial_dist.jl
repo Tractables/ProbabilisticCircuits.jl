@@ -19,6 +19,9 @@ Binomial(N::UInt32) =
 num_parameters(dist::Binomial, independent) = 1
 params(dist::Binomial, independent) = dist.p
 
+isapprox(x::Binomial, y::Binomial) = 
+    typeof(x) == typeof(y) && x.N == y.N && x.p ≈ y.p
+
 init_params(dist::Binomial, perturbation::Float32) = begin
     Binomial(dist.N, rand(Float32))
 end
@@ -54,6 +57,7 @@ function binomial_logpdf_(n, p, k)
         return -Inf32
     elseif (p == zero(Float32))
         return (k == 0 ? Float32(0.0) : -Inf32)
+
     elseif (p == one(Float32))
          return (k == n ? Float32(0.0) : -Inf32)
     else
