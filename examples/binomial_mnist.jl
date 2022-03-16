@@ -22,7 +22,7 @@ function truncate(data::Matrix; bits)
 end
 
 function run(; batch_size = 512, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 = 20, 
-             pseudocount = 0.1, latents = 32, param_inertia1 = 0.2, param_inertia2 = 0.9, param_inertia3 = 0.95)
+             pseudocount = 0.01, latents = 32, param_inertia1 = 0.2, param_inertia2 = 0.9, param_inertia3 = 0.95)
     train, test = mnist_cpu()
     train_gpu, test_gpu = mnist_gpu()
     # train_gpu = train_gpu[1:1024, :]
