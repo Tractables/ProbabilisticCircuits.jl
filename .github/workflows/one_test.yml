@@ -6,7 +6,7 @@ on:
       testFile:
         description: 'Relative path to test file'     
         required: true
-        default: 'test/structurelearner/learner_tests.jl'
+        default: 'test/io/jpc_tests.jl'
 
 env:
   DATADEPS_ALWAYS_ACCEPT: 1
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: 1.5
+          version: 1.7
 
       # Runs a single command using the runners shell
       - name: Unit Tests
