@@ -44,3 +44,8 @@ function latex(d::Categorical)
     p = round.(exp.(params(d)), digits=3)
     "Cat(" * join(p, ", ") * ")"
 end
+
+function latex(d::Binomial)
+    p = round(d.p, digits=3)
+    "Binomial($(d.N), $(p))"
+end
