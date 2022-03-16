@@ -11,7 +11,8 @@ const jpc_grammar = raw"""
     
     node : "L" _WS INT _WS INT _WS SIGNED_INT -> literal_node
          | "I" _WS INT _WS INT _WS INT _WS INT -> indicator_node
-         | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> categorical_node
+         | "C" _WS INT _WS INT _WS INT _WS INT _WS LOGPROB -> categorical_node
+         | "C" _WS INT _WS INT _WS INT (_WS LOGPROB)+ -> binomial_node
          | "P" _WS INT _WS INT _WS INT child_nodes -> prod_node
          | "S" _WS INT _WS INT _WS INT weighted_child_nodes -> sum_node
          
@@ -63,6 +64,13 @@ end
     var = Base.parse(Int,x[3])
     value = Base.parse(Int,x[4])
     t.nodes[x[1]] = PlainInputNode(var, Indicator(value))
+end
+
+@rule binomial_node(t::PlainJpcParse, x) = begin
+    var = Base.parse(Int,x[3])
+    N = Base.parse(UInt32, x[4])
+    logp = Base.parse(Float64, x[5])
+    t.nodes[x[1]] = PlainInputNode(var, Binomial(N, exp(logp)))
 end
 
 @rule categorical_node(t::PlainJpcParse, x) = begin
@@ -121,6 +129,11 @@ function read_fast(input, ::Type{<:ProbCircuit} = PlainProbCircuit, ::JpcFormat 
                     var = Base.parse(Int,tokens[4])
                     log_probs = Base.parse.(Float64, tokens[5:end])
                     nodes[id] = PlainInputNode(var, Categorical(log_probs))
+                elseif startswith(line, "B")
+                    var = Base.parse(Int,tokens[4])
+                    N = Base.parse(UInt32, tokens[5])
+                    logp = Base.parse(Float64, tokens[6])
+                    nodes[id] = PlainInputNode(var, Binomial(N, exp(logp)))
                 elseif startswith(line, "P")
                     child_ids = Base.parse.(Int, tokens[5:end]) .+ 1
                     children = nodes[child_ids]
@@ -152,6 +165,7 @@ c jpc count-of-jpc-nodes
 c L id-of-jpc-node id-of-vtree literal
 c I id-of-jpc-node id-of-vtree variable indicator-value
 c C id-of-jpc-node id-of-vtree variable {log-probability}+
+c B id-of-jpc-node id-of-vtree variable binomial-N binomial-P
 c P id-of-sum-jpc-node id-of-vtree number-of-children {child-id}+
 c S id-of-product-jpc-node id-of-vtree number-of-children {child-id log-probability}+
 c"""
@@ -175,6 +189,9 @@ function Base.write(io::IO, circuit::ProbCircuit, ::JpcFormat, vtreeid::Function
             elseif d isa Categorical
                 print(io, "C $(labeling[n]) $(vtreeid(n)) $var")
                 foreach(p -> print(io, " $p"), params(d))
+                println(io)
+            elseif d isa Binomial
+                print(io, "B $(labeling[n]) $(vtreeid(n)) $var $(d.N) $(log(d.p))")
                 println(io)
             else
                 error("Input distribution type $(typeof(d)) is unknown to the JPC file format")
