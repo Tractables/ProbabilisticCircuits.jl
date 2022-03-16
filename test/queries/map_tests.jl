@@ -2,6 +2,7 @@ using Test
 using ProbabilisticCircuits
 using ProbabilisticCircuits: CuBitsProbCircuit
 using CUDA
+import Distributions
 
 include("../helper/data.jl")
 include("../helper/plain_dummy_circuits.jl")
@@ -90,4 +91,41 @@ end
 
     # D. TODO. Add tests with different input types for map
     #          Generate all possible missing patches and compute map on cpu vs gpu
+end
+
+
+@testset "Binomial MAP Test" begin
+    EPS = 1e-6
+    EPS2 = 1e-3
+
+    # p = 0.0
+    pc = InputNode(1, Binomial(5, 0.0));
+    data = Matrix(transpose([missing;; UInt32(3)]))
+    true_map = [UInt32(0), UInt32(3)]
+    our_map = MAP(pc, data; batch_size=2);
+    @test all( true_map .== our_map )
+
+    # p = 1.0
+    pc = InputNode(1, Binomial(5, 1.0));
+    true_map = [UInt32(5), UInt32(3)];
+    our_map = MAP(pc, data; batch_size=2);
+    @test all( true_map .== our_map )
+
+    # p = 0.4
+    N = 10
+    p  = 0.4
+    pc = InputNode(1, Binomial(N, p));
+    true_map = [UInt32(4), UInt32(3)];
+    our_map = MAP(pc, data; batch_size=2);
+    @test all( true_map .== our_map )
+    
+
+    if CUDA.functional()
+        pc2 = summate([pc])
+        bpc = CuBitsProbCircuit(pc2)
+        cu_data = cu(data)
+
+        our_map = Array(MAP(bpc, cu_data; batch_size=2))
+        @test all( true_map .== our_map )
+    end
 end
