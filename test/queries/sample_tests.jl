@@ -109,7 +109,7 @@ end
 
 
 @testset "Binomial Sample Test" begin
-    EPS = 1e-5
+    EPS = 1e-6
     EPS2 = 1e-3
 
     pc = InputNode(1, Binomial(5, 0.0));
@@ -135,8 +135,17 @@ end
 
     @test our_prob ≈ true_prob atol=EPS
 
-
     p_samples = [ sum(sms .== i) for i = 0: N] ./ num_samples
     @test p_samples ≈ true_prob atol=EPS2
+
+    if CUDA.functional()
+        pc2 = summate([pc])
+        bpc = CuBitsProbCircuit(pc2)
+
+        # CUDA Samples
+        sms = Array(sample(bpc, num_samples,1, [UInt32])[:, 1, 1]);
+        p_samples = [ sum(sms .== i) for i = 0: N] ./ num_samples
+        @test p_samples ≈ true_prob atol=EPS2
+    end
 end
 
