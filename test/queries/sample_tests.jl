@@ -3,7 +3,7 @@ using ProbabilisticCircuits
 using ProbabilisticCircuits: CuBitsProbCircuit
 using Random: MersenneTwister
 using CUDA
-
+import Distributions
 
 include("../helper/data.jl")
 include("../helper/plain_dummy_circuits.jl")
@@ -106,3 +106,37 @@ end
     # Add similar test `histogram_matches_likelihood` with conditional likelihoods
     # Add sampleing for different input types
 end
+
+
+@testset "Binomial Sample Test" begin
+    EPS = 1e-5
+    EPS2 = 1e-3
+
+    pc = InputNode(1, Binomial(5, 0.0));
+    sms = sample(pc, 100, [UInt32])[:, 1, 1];
+    @test all( sms .== zero(UInt32) )
+
+    pc = InputNode(1, Binomial(5, 1.0));
+    sms = sample(pc, 100, [UInt32])[:, 1, 1];
+    @test all( sms .== UInt32(5) )
+
+    N = 10
+    p  = 0.4
+    num_samples = 10*1000 * 1000
+    pc = InputNode(1, Binomial(N, p));
+    sms = sample(pc, num_samples, [UInt32])[:, 1, 1];
+    
+    bp = Distributions.Binomial(N, p)
+    true_prob = [Distributions.pdf(bp, i) for i=0:N]
+    @test sum(true_prob) ≈ 1.0 atol=EPS;
+
+    our_prob = exp.([loglikelihood(pc.dist, i) for i = 0: N])
+    @test sum(our_prob) ≈ 1.0 atol=EPS;
+
+    @test our_prob ≈ true_prob atol=EPS
+
+
+    p_samples = [ sum(sms .== i) for i = 0: N] ./ num_samples
+    @test p_samples ≈ true_prob atol=EPS2
+end
+
