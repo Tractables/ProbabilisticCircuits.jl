@@ -1,4 +1,4 @@
-using SpecialFunctions: lgamma
+using SpecialFunctions: loggamma, lgamma
 using CUDA
 
 export Binomial
@@ -45,17 +45,14 @@ function unbits(dist::BitsBinomial, heap)
 end
 
 function loglikelihood(dist::Binomial, value, _=nothing)
-    binomial_logpdf_(dist.N, pr(dist), value)
+    binomial_logpdf_(dist.N, pr(dist), value, loggamma)
 end
 
 function loglikelihood(dist::BitsBinomial, value, heap)
-    binomial_logpdf_(dist.N, pr(dist, heap), value)
+    binomial_logpdf_(dist.N, pr(dist, heap), value, lgamma)
 end
 
-function log_nfact(n)
-    return lgamma(Float32(n + 1))
-end
-function binomial_logpdf_(n, p, k)
+function binomial_logpdf_(n, p, k, gamma_func::Function)
     if k > n || k < 0
         return -Inf32
     elseif (p == zero(Float32))
@@ -64,7 +61,7 @@ function binomial_logpdf_(n, p, k)
     elseif (p == one(Float32))
          return (k == n ? Float32(0.0) : -Inf32)
     else
-        temp = log_nfact(n) - log_nfact(k) - log_nfact(n - k) 
+        temp = gamma_func(Float32(n + 1)) - gamma_func(Float32(k + 1)) - gamma_func(Float32(n - k + 1))
         temp += k * log(p) + (n - k) * log1p(-p) 
         return Float32(temp)
     end

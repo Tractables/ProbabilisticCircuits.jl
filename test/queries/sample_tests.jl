@@ -121,7 +121,7 @@ end
     @test all( sms .== UInt32(5) )
 
     N = 10
-    p  = 0.4
+    p  = Float32(0.4)
     num_samples = 10*1000 * 1000
     pc = InputNode(1, Binomial(N, p));
     sms = sample(pc, num_samples, [UInt32])[:, 1, 1];
