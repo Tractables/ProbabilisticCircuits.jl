@@ -16,6 +16,9 @@ end
 Binomial(N::UInt32) =
     Binomial(N, Float32(0.5))
 
+Binomial(N::UInt32, p::Float64) = 
+    Binomial(N, Float32(p))
+
 num_parameters(dist::Binomial, independent) = 1
 params(dist::Binomial, independent) = dist.p
 
@@ -41,7 +44,7 @@ function unbits(dist::BitsBinomial, heap)
     Binomial(dist.N, pr(dist, heap))
 end
 
-function loglikelihood(dist::Binomial, value, _ = nothing)
+function loglikelihood(dist::Binomial, value, _=nothing)
     binomial_logpdf_(dist.N, pr(dist), value)
 end
 
