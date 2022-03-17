@@ -31,9 +31,6 @@ function run(; batch_size = 512, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 =
 
     println("Generating HCLT structure with $latents latents... ");
     @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 256, pseudocount = 0.1, input_type = Binomial);
-
-    # println("RAT")
-
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 
@@ -87,7 +84,7 @@ function do_sample(cur_pc, iteration)
 
     arr = [do_img(i) for i=1:size(sms, 1)]
     imgs = mosaicview(arr, fillvalue=1, ncol=10, npad=4)
-    save("samples/samples_$iteration.png", imgs);
+    save("samples/samples_hclt_$iteration.png", imgs);
 end
 
 function try_map()
