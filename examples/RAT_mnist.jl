@@ -16,33 +16,8 @@ function mnist_cpu()
     train_cpu, test_cpu
 end
 
-
 function mnist_gpu()
     cu.(mnist_cpu())
-end
-
-
-function truncate(data::Matrix; bits)
-    (data .- one(UInt32)) .÷ 2^bits .+ one(UInt32)
-end
-
-function generate_rat(train)
-    # RAT hyperparamters
-    num_features = size(train, 2)
-    num_nodes_root = 1
-    num_nodes_region = 32
-    num_nodes_leaf   = 32
-    rg_depth        = 6
-    rg_replicas     = 64
-
-    input_func = RAT_InputFunc(Binomial, 256);  
-    # input_func = RAT_InputFunc(Categorical, 256);
-    # input_func(var) =
-    #     summate([InputNode(var, Binomial(256)) for i=1:2])
-
-
-    balance_childs_parents = false
-    RAT(num_features; input_func, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, balance_childs_parents)
 end
 
 function run(; batch_size = 256, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 = 20, 
@@ -50,17 +25,32 @@ function run(; batch_size = 256, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 =
 
     train, test = mnist_cpu();
     train_gpu, test_gpu = mnist_gpu();
-    trunc_train = truncate(train; bits = 5);
 
     @info "Generating RAT SPN...."
-    @time pc = generate_rat(trunc_train);
+    num_nodes_root = 1
+    num_nodes_region = 20
+    num_nodes_leaf   = 20
+    rg_depth        = 4
+    rg_replicas     = 20
+
+    input_func = RAT_InputFunc(Binomial, 256);  
+    # input_func = RAT_InputFunc(Categorical, 256);
+    # input_func(var) =
+    #     summate([InputNode(var, Binomial(256)) for i=1:2])
+
+    @show num_nodes_region
+    @show num_nodes_leaf
+    @show rg_depth
+    @show rg_replicas
+
+    num_features = size(train, 2)
+    @time pc = RAT(num_features; input_func, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, balance_childs_parents=false);
     init_parameters(pc; perturbation = 0.4);    
 
-    println("Number of free parameters: $(num_parameters(pc))")
+    @time println("Number of free parameters: $(num_parameters(pc))")
 
     @info "Moving circuit to GPU... "
     CUDA.@time bpc = CuBitsProbCircuit(BitsProbCircuit(pc));
-
     @show length(bpc.nodes)
 
     @info "Mini EM 1"
@@ -89,7 +79,7 @@ function run(; batch_size = 256, num_epochs1 = 1, num_epochs2 = 1, num_epochs3 =
         do_sample(bpc, iter)
     end
 
-    print("update parameters")
+    @info "Update parameters pbc -> pc"
     @time ProbabilisticCircuits.update_parameters(bpc);
     return pc, bpc
 end
@@ -128,6 +118,6 @@ function try_map(pc, bpc)
     MAP(bpc, data_gpu; batch_size=10)
 end
 
-pc, bpc = run(; batch_size = 1024, num_epochs1 = 5, num_epochs2 = 5, num_epochs3 = 20);
+pc, bpc = run(; batch_size = 1000, num_epochs1 = 10, num_epochs2 = 10, num_epochs3 = 100);
 # do_sample(bpc, 999)
 # try_map(pc, bpc)
