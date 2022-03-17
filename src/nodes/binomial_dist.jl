@@ -13,11 +13,11 @@ struct BitsBinomial <: InputDist
     heap_start::UInt32
 end
 
-Binomial(N::UInt32) =
-    Binomial(N, Float32(0.5))
+Binomial(N::Integer) =
+    Binomial(UInt32(N), Float32(0.5))
 
-Binomial(N::UInt32, p::Float64) = 
-    Binomial(N, Float32(p))
+Binomial(N::Integer, p::Float64) = 
+    Binomial(UInt32(N), Float32(p))
 
 num_parameters(dist::Binomial, independent) = 1
 params(dist::Binomial, independent) = dist.p

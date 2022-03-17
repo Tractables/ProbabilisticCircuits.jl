@@ -1,6 +1,7 @@
 export RegionGraph, 
        random_region_graph, 
        region_graph_2_pc, 
+       RAT_InputFunc,
        RAT
 
 import Random: shuffle
@@ -173,21 +174,10 @@ Makes a dummy sum node for each input per partition. Then nodes corresponding to
 the dummy node as their children instead of the input node.
 This way instead of num_nodes_root * num_nodes_leaf, we would have num_nodes_root parents nodes.
 """
-function balanced_fully_factorized_leaves(variables::AbstractVector; input_type, num_nodes_leaf)::Vector{ProbCircuit}
+function balanced_fully_factorized_leaves(variables::AbstractVector; input_func::Function, num_nodes_leaf)::Vector{ProbCircuit}
 
-    
-
-    var_2_dummy_inputs(var) = begin 
-        
-        if input_type == Literal
-            PlainSumNode([
-                    PlainInputNode(var, Literal(true)), 
-                    PlainInputNode(var, Literal(false))])
-        elseif input_type == Categorical
-            PlainInputNode(var, Categorical(2561))
-        else
-            @assert false "Input Type $(input_type) not supported yet for RAT structures "
-        end
+    var_2_dummy_inputs(var) = begin         
+        input_func(var)
     end
     
     balanced_recurse(variables::AbstractVector)::Vector{ProbCircuit} = begin
@@ -213,12 +203,12 @@ end
 - `num_nodes_leaf`: number of sum nodes per leaf region
 - `num_nodes_region`: number of in each region except root and leaves
 """
-function region_graph_2_pc(node::RegionGraph; input_type::Type,
+function region_graph_2_pc(node::RegionGraph; input_func::Function,
     num_nodes_root::Int = 4,  num_nodes_region::Int = 3, num_nodes_leaf::Int = 2, balance_childs_parents=true)::Vector{ProbCircuit}
     sum_nodes = Vector{ProbCircuit}()
     if isleaf(node)
         vars = Vector(collect(variables(node)))
-        sum_nodes = balanced_fully_factorized_leaves(vars; num_nodes_leaf, input_type)
+        sum_nodes = balanced_fully_factorized_leaves(vars; num_nodes_leaf, input_func)
     else
         root_children = Vector{ProbCircuit}()
         # Foreach replication; usually only > 1 at root
@@ -226,8 +216,8 @@ function region_graph_2_pc(node::RegionGraph; input_type::Type,
             partition_mul_nodes = Vector{ProbCircuit}()
 
             @assert length(partition) == 2 "Only supporting partitions of size 2 at the moment"
-            lefts = region_graph_2_pc(partition[1]; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents) 
-            rights = region_graph_2_pc(partition[2]; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
+            lefts = region_graph_2_pc(partition[1]; input_func, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents) 
+            rights = region_graph_2_pc(partition[2]; input_func, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)
             @assert all([issum(l) for l in lefts])
             @assert all([issum(r) for r in rights])
 
@@ -261,10 +251,13 @@ end
 
 
 """
-    RAT(num_features; input_type = Literal, num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, num_nodes_root = 1, balance_childs_parents = true)
+    RAT(num_features; input_func::Function = RAT_InputFunc(Literal), num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, num_nodes_root = 1, balance_childs_parents = true)
 
 Generate a RAT-SPN structure. First, it generates a random region graph with `depth`, and `replicas`. 
 Then uses the random region graph to generate a ProbCircuit conforming to that region graph.
+
+- `num_features`: Number of features in the dataset, assuming x_1...x_n
+- `input_func`: Function to generate a new input node for variable when calling `input_func(var)`.
 
 The list of hyperparamters are:
 - `rg_depth`: how many layers to do splits in the region graph
@@ -274,9 +267,37 @@ The list of hyperparamters are:
 - `num_nodes_region`: number of in each region except root and leaves
 - `num_splits`: number of splits for each parition; split variables into random equaly sized regions
 """
-function RAT(num_features; num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, input_type = Literal, num_nodes_root = 1, balance_childs_parents = true)
+function RAT(num_features; input_func::Function = RAT_InputFunc(Literal), num_nodes_region, num_nodes_leaf, rg_depth, rg_replicas, num_nodes_root = 1, balance_childs_parents = false)
     region_graph = random_region_graph([Var(i) for i=1: num_features]; depth=rg_depth, replicas=rg_replicas);
-    circuit = region_graph_2_pc(region_graph; input_type, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)[1];
+    circuit = region_graph_2_pc(region_graph; input_func, num_nodes_root, num_nodes_region, num_nodes_leaf, balance_childs_parents)[1];
     init_parameters(circuit; perturbation = 0.4)
     return circuit
+end
+
+
+"""
+Default `input_func` for different types. This function returns another function `input_func`.
+Then `input_func(var)` should generate a new input function with the desired distribution.
+"""
+function RAT_InputFunc(input_type::Type, args...)
+    if input_type == Literal
+        function lit_func(var)
+            PlainSumNode([
+                    InputNode(var, Literal(true)), 
+                    InputNode(var, Literal(false))])
+        end
+        return lit_func
+    elseif input_type == Categorical
+        function cat_func(var)
+            InputNode(var, Categorical(args...))
+        end
+        return cat_func
+    elseif input_type == Binomial
+        function bin_func(var)
+            InputNode(var, Binomial(args...))
+        end
+        return bin_func
+    else
+        @assert false "No default `input_func` for Input Type $(input_type)."
+    end
 end
