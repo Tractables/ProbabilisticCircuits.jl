@@ -423,14 +423,15 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
 
     log_likelihoods = Vector{Float32}()
+    log_likelihoods_epoch = CUDA.zeros(Float32, num_batches, 1)
 
     for epoch in 1:num_epochs
 
-        log_likelihood = zero(Float32)
+        log_likelihoods_epoch .= zero(Float32)
 
         (shuffle == :each_epoch) && do_shuffle()
 
-        for batch in batches
+        for (batch_id, batch) in enumerate(batches)
 
             (shuffle == :each_batch) && do_shuffle()
             
@@ -447,7 +448,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
                                 mine, maxe, debug)
             
-            log_likelihood += sum(output_layer) / batch_size
+            @views sum!(log_likelihoods_epoch[batch_id:batch_id, 1:1],
+                    marginals[1:batch_size,end:end])
 
             add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
             aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
@@ -456,11 +458,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
             
         end
-            
-        log_likelihood /= num_batches
+        log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
         push!(log_likelihoods, log_likelihood)
         if verbose
-            println("Mini-batch EM iter $epoch; train LL $log_likelihood")
+            println("Mini-batch EM epoch $epoch; train LL $log_likelihood")
         end
 
         param_inertia += Δparam_inertia
