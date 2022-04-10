@@ -333,7 +333,8 @@ Update the paramters of the CuBitsProbCircuit by doing EM on the full batch (i.e
 function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; 
                        batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, 
-                       edge_aggr_mem = nothing, mine=2, maxe=32, debug = false, verbose = true)
+                       edge_aggr_mem = nothing, mine=2, maxe=32, debug = false, verbose = true,
+                       valid_x=nothing, test_x=nothing, log_iter=10)
     
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
@@ -343,6 +344,9 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+    if !isnothing(valid_x) || !isnothing(test_x)
+        valid_marginals = prep_memory(nothing, (batch_size, num_nodes), (false, true))
+    end
 
     log_likelihoods = Vector{Float32}()
 
@@ -354,7 +358,16 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         push!(log_likelihoods, log_likelihood)
 
         if verbose
-            println("Full-batch EM epoch $epoch; train LL $log_likelihood")
+            print("Full-batch EM epoch $epoch; train LL $log_likelihood")
+            if epoch % log_iter == 0 && (!isnothing(valid_x) || !isnothing(test_x))
+                if !isnothing(valid_x)
+                    print("; valid LL ", loglikelihood(bpc, valid_x; batch_size, mine, maxe, mars_mem=valid_marginals))
+                end
+                if !isnothing(test_x)
+                    print("; test LL ", loglikelihood(bpc, test_x; batch_size, mine, maxe, mars_mem=valid_marginals))
+                end
+            end
+            println()
         end
     end
     
@@ -380,7 +393,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                        flow_memory = 0, flow_memory_end = flow_memory, 
                        softness = 0, shuffle=:each_epoch,  
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
-                       mine = 2, maxe = 32, debug = false, verbose = true)
+                       mine = 2, maxe = 32, debug = false, verbose = true,
+                       valid_x=nothing, test_x=nothing, log_iter=10)
 
     @assert pseudocount >= 0
     @assert 0 <= param_inertia <= 1
@@ -402,10 +416,12 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+    if !isnothing(valid_x) || !isnothing(test_x)
+        valid_marginals = prep_memory(nothing, (batch_size, num_nodes), (false, true))
+    end
 
     edge_aggr .= zero(Float32)
     clear_input_node_mem(bpc; rate = 0, debug)
-    output_layer = @view marginals[1:batch_size,end]
 
     shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
     shuffled_indices = CuVector{Int32}(undef, num_examples)
@@ -461,7 +477,16 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
         push!(log_likelihoods, log_likelihood)
         if verbose
-            println("Mini-batch EM epoch $epoch; train LL $log_likelihood")
+            print("Mini-batch EM epoch $epoch; train LL $log_likelihood")
+            if epoch % log_iter == 0 && (!isnothing(valid_x) || !isnothing(test_x))
+                if !isnothing(valid_x)
+                    print("; valid LL ", loglikelihood(bpc, valid_x; batch_size, mine, maxe, mars_mem=valid_marginals))
+                end
+                if !isnothing(test_x)
+                    print("; test LL ", loglikelihood(bpc, test_x; batch_size, mine, maxe, mars_mem=valid_marginals))
+                end
+            end
+            println()
         end
 
         param_inertia += Δparam_inertia
