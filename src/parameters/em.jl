@@ -334,7 +334,11 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                        batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, 
                        edge_aggr_mem = nothing, mine=2, maxe=32, debug = false, verbose = true,
-                       valid_x=nothing, test_x=nothing, log_iter=10)
+                       callbacks = [])
+
+    insert!(callbacks, 1, FullBatchLog(verbose))
+    callbacks = CALLBACKList(callbacks)
+    init(callbacks; batch_size, bpc)
     
     num_nodes = length(bpc.nodes)
     num_edges = length(bpc.edge_layers_down.vectors)
@@ -344,9 +348,6 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-    if !isnothing(valid_x) || !isnothing(test_x)
-        valid_marginals = prep_memory(nothing, (batch_size, num_nodes), (false, true))
-    end
 
     log_likelihoods = Vector{Float32}()
 
@@ -356,26 +357,13 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             marginals, flows, node_aggr, edge_aggr, 
             mine, maxe, debug)
         push!(log_likelihoods, log_likelihood)
-
-        if verbose
-            print("Full-batch EM epoch $epoch; train LL $log_likelihood")
-            if epoch % log_iter == 0 && (!isnothing(valid_x) || !isnothing(test_x))
-                if !isnothing(valid_x)
-                    print("; valid LL ", loglikelihood(bpc, valid_x; batch_size, mine, maxe, mars_mem=valid_marginals))
-                end
-                if !isnothing(test_x)
-                    print("; test LL ", loglikelihood(bpc, test_x; batch_size, mine, maxe, mars_mem=valid_marginals))
-                end
-            end
-            println()
-        end
+        call(callbacks, epoch, log_likelihood)
     end
     
     cleanup_memory((data, raw_data), (flows, flows_mem), 
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
-    if !isnothing(valid_x) || !isnothing(test_x)
-        CUDA.unsafe_free!(valid_marginals)
-    end
+    cleanup(callbacks)
+
     log_likelihoods
 end
 
@@ -396,7 +384,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                        softness = 0, shuffle=:each_epoch,  
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
                        mine = 2, maxe = 32, debug = false, verbose = true,
-                       valid_x=nothing, test_x=nothing, log_iter=10)
+                       callbacks = [])
 
     @assert pseudocount >= 0
     @assert 0 <= param_inertia <= 1
@@ -404,6 +392,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     @assert 0 <= flow_memory  
     @assert flow_memory <= flow_memory_end  
     @assert shuffle ∈ [:once, :each_epoch, :each_batch]
+    
+    insert!(callbacks, 1, MiniBatchLog(verbose))
+    callbacks = CALLBACKList(callbacks)
+    init(callbacks; batch_size, bpc)
 
     num_examples = size(raw_data)[1]
     num_nodes = length(bpc.nodes)
@@ -418,9 +410,6 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-    if !isnothing(valid_x) || !isnothing(test_x)
-        valid_marginals = prep_memory(nothing, (batch_size, num_nodes), (false, true))
-    end
 
     edge_aggr .= zero(Float32)
     clear_input_node_mem(bpc; rate = 0, debug)
@@ -478,18 +467,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         end
         log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
         push!(log_likelihoods, log_likelihood)
-        if verbose
-            print("Mini-batch EM epoch $epoch; train LL $log_likelihood")
-            if epoch % log_iter == 0 && (!isnothing(valid_x) || !isnothing(test_x))
-                if !isnothing(valid_x)
-                    print("; valid LL ", loglikelihood(bpc, valid_x; batch_size, mine, maxe, mars_mem=valid_marginals))
-                end
-                if !isnothing(test_x)
-                    print("; test LL ", loglikelihood(bpc, test_x; batch_size, mine, maxe, mars_mem=valid_marginals))
-                end
-            end
-            println()
-        end
+        call(callbacks, epoch, log_likelihood)
 
         param_inertia += Δparam_inertia
         flow_memory += Δflow_memory
@@ -499,9 +477,85 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
 
-    if !isnothing(valid_x) || !isnothing(test_x)
-        CUDA.unsafe_free!(valid_marginals)
-    end
+    cleanup(callbacks)
 
     log_likelihoods
+end
+
+abstract type CALLBACK end
+
+struct CALLBACKList
+    list::Vector{CALLBACK}
+end
+
+function call(callbacks::CALLBACKList, epoch, log_likelihood)
+    if callbacks.list[1].verbose
+        for x in callbacks.list
+            call(x, epoch, log_likelihood)
+        end
+        println()
+    end
+end
+
+function init(callbacks::CALLBACKList; kwargs...)
+    for x in callbacks.list
+        init(x; kwargs...)
+    end
+end
+
+function cleanup(callbacks::CALLBACKList)
+    for x in callbacks.list
+        cleanup(x)
+    end
+end
+
+struct MiniBatchLog <: CALLBACK
+    verbose
+end
+
+struct FullBatchLog <: CALLBACK
+    verbose
+end
+
+mutable struct LikelihoodsLog <: CALLBACK
+    valid_x
+    test_x
+    iter
+    bpc
+    batch_size
+    mars_mem
+    LikelihoodsLog(valid_x, test_x, iter) = begin
+        new(valid_x, test_x, iter, nothing, nothing, nothing)
+    end
+end
+
+init(caller::CALLBACK; kwargs...) = nothing
+init(caller::LikelihoodsLog; bpc, batch_size) = begin
+    caller.bpc = bpc
+    caller.batch_size = batch_size
+    caller.mars_mem = prep_memory(nothing, (batch_size, length(bpc.nodes)), (false, true))
+end
+
+call(caller::MiniBatchLog, epoch, log_likelihood) = begin
+    caller.verbose && print("Mini-batch EM epoch $epoch; train LL $log_likelihood")
+end
+call(caller::FullBatchLog, epoch, log_likelihood) = begin
+    caller.verbose && print("Full-batch EM epoch $epoch; train LL $log_likelihood")
+end
+call(caller::LikelihoodsLog, epoch, log_likelihood) = begin
+    if epoch % caller.iter == 0 && (!isnothing(caller.valid_x) || !isnothing(caller.test_x))
+        if !isnothing(caller.valid_x)
+            print("; valid LL ", loglikelihood(caller.bpc, caller.valid_x; 
+                batch_size=caller.batch_size,mars_mem=caller.mars_mem))
+        end
+        if !isnothing(caller.test_x)
+            print("; test LL ", loglikelihood(caller.bpc, caller.test_x; 
+                batch_size=caller.batch_size,mars_mem=caller.mars_mem))
+        end
+    end
+end
+
+cleanup(caller::CALLBACK) = nothing
+cleanup(caller::LikelihoodsLog) = begin
+    CUDA.unsafe_free!(caller.mars_mem)
 end
