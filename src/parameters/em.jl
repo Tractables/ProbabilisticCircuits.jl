@@ -373,7 +373,9 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     
     cleanup_memory((data, raw_data), (flows, flows_mem), 
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
-
+    if !isnothing(valid_x) || !isnothing(test_x)
+        CUDA.unsafe_free!(valid_marginals)
+    end
     log_likelihoods
 end
 
@@ -496,6 +498,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     cleanup_memory((data, raw_data), (flows, flows_mem), 
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
+
+    if !isnothing(valid_x) || !isnothing(test_x)
+        CUDA.unsafe_free!(valid_marginals)
+    end
 
     log_likelihoods
 end
