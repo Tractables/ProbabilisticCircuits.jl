@@ -15,7 +15,7 @@ function sample(pc::ProbCircuit, num_samples, types; rng = default_rng(), Float=
 end
 
 """
-    sample(pc::ProbCircuit, num_samples; rng = default_rng())
+    sample(pc::ProbCircuit, num_samples; batch_size, rng = default_rng())
 
 Generate `num_samples` from the joint distribution of the circuit conditioned on the `data`.
 """
