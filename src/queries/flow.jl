@@ -6,7 +6,7 @@ using CUDA, Random
 
 function layer_down_kernel(flows, edge_aggr, edges, _mars,
             num_ex_threads::Int32, num_examples::Int32, 
-            layer_start::Int32, edge_work::Int32, layer_end::Int32, flowflag::Int32)
+            layer_start::Int32, edge_work::Int32, layer_end::Int32)
 
     mars = Base.Experimental.Const(_mars)
         
@@ -69,26 +69,7 @@ function layer_down_kernel(flows, edge_aggr, edges, _mars,
         # make sure this is run on all warp threads, regardless of `active`
         if !isnothing(edge_aggr)
             !active && (edge_flow = zero(Float32))
-            if active && issum && flowflag == 1
-                bound_ef = log(one(Float32) - edge_flow)
-                bound_ef = isnan(bound_ef) ? zero(Float32) : bound_ef
-                edge_flow_warp = CUDA.reduce_warp(+, bound_ef)
-            elseif active  && flowflag == 2
-                if issum
-                    bound_ef = (one(Float32) - exp(edge.logp)) / (one(Float32) - edge_flow)
-                    if bound_ef < 0
-                        bound_ef = zero(Float32)
-                    end
-                        bound_ef = log(bound_ef)
-                        bound_ef = isnan(bound_ef) ? zero(Float32) : bound_ef
-                    edge_flow_warp = CUDA.reduce_warp(+, bound_ef)
-                else
-                    edge_flow_warp = CUDA.reduce_warp(+, typemax(Float32))
-                end
-            else
-                edge_flow_warp = CUDA.reduce_warp(+, edge_flow)
-            end
-
+            edge_flow_warp = CUDA.reduce_warp(+, edge_flow)
             if warp_lane == 1
                 CUDA.@atomic edge_aggr[edge_id] += edge_flow_warp
             end
@@ -121,12 +102,12 @@ end
 
 function layer_down(flows, edge_aggr, bpc, mars, 
                     layer_start, layer_end, num_examples; 
-                    mine, maxe, debug=false, flowflag=0)
+                    mine, maxe, debug=false)
     edges = bpc.edge_layers_down.vectors
     num_edges = layer_end-layer_start+1
     dummy_args = (flows, edge_aggr, edges, mars, 
                   Int32(32), Int32(num_examples), 
-                  Int32(1), Int32(1), Int32(2), Int32(flowflag))
+                  Int32(1), Int32(1), Int32(2))
     kernel = @cuda name="layer_down" launch=false layer_down_kernel(dummy_args...) 
     config = launch_configuration(kernel.fun)
 
@@ -136,7 +117,7 @@ function layer_down(flows, edge_aggr, bpc, mars,
     
     args = (flows, edge_aggr, edges, mars, 
             Int32(num_example_threads), Int32(num_examples), 
-            Int32(layer_start), Int32(edge_work), Int32(layer_end), Int32(flowflag))
+            Int32(layer_start), Int32(edge_work), Int32(layer_end))
     if debug
         println("Layer $layer_start:$layer_end")
         @show threads blocks num_example_threads edge_work, num_edges num_examples
@@ -147,7 +128,7 @@ function layer_down(flows, edge_aggr, bpc, mars,
     nothing
 end
 
-function flows_circuit(flows, edge_aggr, bpc, mars, num_examples; mine, maxe, debug=false, flowflag=0)
+function flows_circuit(flows, edge_aggr, bpc, mars, num_examples; mine, maxe, debug=false)
     init_flows() = begin 
         flows .= zero(Float32)
         flows[:,end] .= one(Float32)
@@ -163,7 +144,7 @@ function flows_circuit(flows, edge_aggr, bpc, mars, num_examples; mine, maxe, de
     for layer_end in bpc.edge_layers_down.ends
         layer_down(flows, edge_aggr, bpc, mars, 
                    layer_start, layer_end, num_examples; 
-                   mine, maxe, debug, flowflag)
+                   mine, maxe, debug)
         layer_start = layer_end + 1
     end
     nothing
@@ -226,9 +207,9 @@ end
 # Full downward pass
 ##################################################################################
 
-function probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine, maxe, debug=false, flowflag=0)
+function probs_flows_circuit(flows, mars, edge_aggr, bpc, data, example_ids; mine, maxe, debug=false)
     eval_circuit(mars, bpc, data, example_ids; mine, maxe, debug)
-    flows_circuit(flows, edge_aggr, bpc, mars, length(example_ids); mine, maxe, debug, flowflag)
+    flows_circuit(flows, edge_aggr, bpc, mars, length(example_ids); mine, maxe, debug)
     input_flows_circuit(flows, bpc, data, example_ids; mine, maxe, debug)
     nothing
 end
