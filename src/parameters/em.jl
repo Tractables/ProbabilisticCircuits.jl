@@ -357,7 +357,10 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             marginals, flows, node_aggr, edge_aggr, 
             mine, maxe, debug)
         push!(log_likelihoods, log_likelihood)
-        call(callbacks, epoch, log_likelihood)
+        done = call(callbacks, epoch, log_likelihood)
+        if !isnothing(done) && done[end] == true
+            break
+        end
     end
     
     cleanup_memory((data, raw_data), (flows, flows_mem), 
@@ -467,10 +470,13 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         end
         log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
         push!(log_likelihoods, log_likelihood)
-        call(callbacks, epoch, log_likelihood)
+        done = call(callbacks, epoch, log_likelihood)
 
         param_inertia += Δparam_inertia
         flow_memory += Δflow_memory
+        if !isnothing(done) && done[end] == true
+            break
+        end
     end
 
     cleanup_memory((data, raw_data), (flows, flows_mem), 
@@ -490,10 +496,11 @@ end
 
 function call(callbacks::CALLBACKList, epoch, log_likelihood)
     if callbacks.list[1].verbose
-        for x in callbacks.list
+        done = map(callbacks.list) do x
             call(x, epoch, log_likelihood)
         end
         println()
+        done
     end
 end
 
@@ -543,16 +550,20 @@ call(caller::FullBatchLog, epoch, log_likelihood) = begin
     caller.verbose && print("Full-batch EM epoch $epoch; train LL $log_likelihood")
 end
 call(caller::LikelihoodsLog, epoch, log_likelihood) = begin
+    valid_ll, test_ll = nothing, nothing
     if epoch % caller.iter == 0 && (!isnothing(caller.valid_x) || !isnothing(caller.test_x))
         if !isnothing(caller.valid_x)
-            print("; valid LL ", loglikelihood(caller.bpc, caller.valid_x; 
-                batch_size=caller.batch_size,mars_mem=caller.mars_mem))
+            valid_ll = loglikelihood(caller.bpc, caller.valid_x; 
+                batch_size=caller.batch_size,mars_mem=caller.mars_mem)
+            print("; valid LL ", valid_ll)
         end
         if !isnothing(caller.test_x)
-            print("; test LL ", loglikelihood(caller.bpc, caller.test_x; 
-                batch_size=caller.batch_size,mars_mem=caller.mars_mem))
+            test_ll = loglikelihood(caller.bpc, caller.test_x; 
+                batch_size=caller.batch_size,mars_mem=caller.mars_mem)
+            print("; test LL ", test_ll)
         end
     end
+    valid_ll, test_ll
 end
 
 cleanup(caller::CALLBACK) = nothing
