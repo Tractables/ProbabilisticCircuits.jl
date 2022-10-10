@@ -23,7 +23,11 @@ bits(d::Indicator, _ = nothing) = d
 unbits(d::Indicator, _ = nothing) = d
 
 loglikelihood(d::Indicator, value, _ = nothing) =
-    (d.value == value) ?  zero(Float32) : -Inf32
+    if value isa AbstractFloat && d isa Literal
+        (d.value) ? log(value) : log1p(-value)
+    else
+        (d.value == value) ?  zero(Float32) : -Inf32
+    end
 
 init_params(d::Indicator, _) = d
 
