@@ -1,4 +1,4 @@
-using CUDA, Random
+using CUDA, Random, Statistics
 
 export full_batch_em, mini_batch_em, init_parameters
 
@@ -104,6 +104,69 @@ function aggr_node_flows(node_aggr, bpc, edge_aggr; debug = false)
     if debug
         println("Aggregate node flows")
         @show threads blocks length(edges)
+        CUDA.@time kernel(args...; threads, blocks)
+    else
+        kernel(args...; threads, blocks)
+    end
+    nothing
+end
+
+
+function aggr_node_share_flows_kernel(node_aggr, node2group, group_aggr)
+    # edge_aggr = Base.Experimental.Const(_edge_aggr)
+    node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    @inbounds if node_id <= length(node_aggr)
+        group_id = node2group[node_id]
+        node_flow = node_aggr[node_id]
+        CUDA.@atomic group_aggr[group_id] += node_flow
+    end      
+    nothing
+end
+
+function aggr_node_share_flows(node_aggr, node2group, group_aggr; debug = false)
+    group_aggr .= zero(Float32)
+    args = (node_aggr, node2group, group_aggr)
+    kernel = @cuda name="aggr_node_share_flows" launch=false aggr_node_share_flows_kernel(args...) 
+    config = launch_configuration(kernel.fun)
+    threads = config.threads
+    blocks = cld(length(node_aggr), threads)
+
+    if debug
+        println("Aggregate node share flows")
+        @show threads blocks length(node_aggr)
+        CUDA.@time kernel(args...; threads, blocks)
+    else
+        kernel(args...; threads, blocks)
+    end
+    nothing
+end
+
+
+function broadcast_node_share_flows_kernel(node_aggr, node2group, group_aggr)
+    # edge_aggr = Base.Experimental.Const(_edge_aggr)
+    node_id = ((blockIdx().x - one(Int32)) * blockDim().x) + threadIdx().x 
+
+    @inbounds if node_id <= length(node_aggr)
+        group_id = node2group[node_id]
+        if group_id != 0
+            group_flow = group_aggr[group_id]
+            node_aggr[node_id] = group_flow
+        end
+    end      
+    nothing
+end
+
+function broadcast_node_share_flows(node_aggr, node2group, group_aggr; debug = false)
+    args = (node_aggr, node2group, group_aggr)
+    kernel = @cuda name="broadcast_node_share_flows" launch=false broadcast_node_share_flows_kernel(args...) 
+    config = launch_configuration(kernel.fun)
+    threads = config.threads
+    blocks = cld(length(node_aggr), threads)
+
+    if debug
+        println("Aggregate node share flows")
+        @show threads blocks length(node_aggr)
         CUDA.@time kernel(args...; threads, blocks)
     else
         kernel(args...; threads, blocks)
@@ -464,7 +527,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
             add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
             aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
             update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
-            
+
             update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
             
         end
@@ -487,6 +550,283 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
 
     log_likelihoods
 end
+
+
+function evaluate_perplexity(bpc, data, batch_size)
+    _, d = size(data)
+    data_a, data_b = data, copy(data)
+    data_b[:, d] .= missing
+
+    data_a, data_b = cu(data_a), cu(data_b)
+    lls_a = loglikelihoods(bpc, data_a; batch_size)
+    lls_b = loglikelihoods(bpc, data_b; batch_size)
+
+    return exp(-Statistics.mean(lls_a .- lls_b))
+end
+
+function mini_batch_em_log(bpc::CuBitsProbCircuit, raw_data::CuArray, validation_cpu::Array, test_cpu::Array,
+                       skip_perplexity, log_file, num_epochs;
+                       batch_size, pseudocount,
+                       param_inertia, param_inertia_end = param_inertia,
+                       flow_memory = 0, flow_memory_end = flow_memory,
+                       softness = 0, shuffle=:each_epoch,
+                       mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
+                       mine = 2, maxe = 32, debug = false, verbose = true,
+                       callbacks = [])
+
+    validation_gpu, test_gpu = cu(validation_cpu), cu(test_cpu)
+
+    @assert pseudocount >= 0
+    @assert 0 <= param_inertia <= 1
+    @assert param_inertia <= param_inertia_end <= 1
+    @assert 0 <= flow_memory
+    @assert flow_memory <= flow_memory_end
+    @assert shuffle ∈ [:once, :each_epoch, :each_batch]
+
+    insert!(callbacks, 1, MiniBatchLog(verbose))
+    callbacks = CALLBACKList(callbacks)
+    init(callbacks; batch_size, bpc)
+
+    num_examples = size(raw_data)[1]
+    num_nodes = length(bpc.nodes)
+    num_edges = length(bpc.edge_layers_down.vectors)
+    num_batches = num_examples ÷ batch_size # drop last incomplete batch
+
+    @assert batch_size <= num_examples
+
+    data = iszero(softness) ? raw_data : soften_data(raw_data; softness)
+
+    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
+    flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
+    node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
+    edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+
+    edge_aggr .= zero(Float32)
+    clear_input_node_mem(bpc; rate = 0, debug)
+
+    shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
+    shuffled_indices = CuVector{Int32}(undef, num_examples)
+    batches = [@view shuffled_indices[1+(b-1)*batch_size : b*batch_size]
+                for b in 1:num_batches]
+
+    do_shuffle() = begin
+        randperm!(shuffled_indices_cpu)
+        copyto!(shuffled_indices, shuffled_indices_cpu)
+    end
+
+    (shuffle == :once) && do_shuffle()
+
+    Δparam_inertia = (param_inertia_end-param_inertia)/num_epochs
+    Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
+
+    log_likelihoods = Vector{Float32}()
+    log_likelihoods_epoch = CUDA.zeros(Float32, num_batches, 1)
+
+    for epoch in 1:num_epochs
+
+        log_likelihoods_epoch .= zero(Float32)
+
+        (shuffle == :each_epoch) && do_shuffle()
+
+        for (batch_id, batch) in enumerate(batches)
+            begin
+                (shuffle == :each_batch) && do_shuffle()
+
+                if iszero(flow_memory)
+                    edge_aggr .= zero(Float32)
+                    clear_input_node_mem(bpc; rate = 0, debug)
+                else
+                    # slowly forget old edge aggregates
+                    rate = max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
+                    edge_aggr .*= rate
+                    clear_input_node_mem(bpc; rate)
+                end
+
+                probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch;
+                                    mine, maxe, debug)
+
+                @views sum!(log_likelihoods_epoch[batch_id:batch_id, 1:1],
+                        marginals[1:batch_size,end:end])
+
+                add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
+                aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
+                update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
+
+                update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
+            end            
+        end
+        log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
+        push!(log_likelihoods, log_likelihood)
+        call(callbacks, epoch, log_likelihood)
+
+        param_inertia += Δparam_inertia
+        flow_memory += Δflow_memory
+
+        validation_ll = loglikelihood(bpc, validation_gpu; batch_size=512)
+        test_ll = loglikelihood(bpc, test_gpu; batch_size=512)
+
+        if !skip_perplexity
+            validation_perplexity = evaluate_perplexity(bpc, validation_cpu, 512)
+            test_perplexity = evaluate_perplexity(bpc, test_cpu, 512)
+        else
+            validation_perplexity = -1.0
+            test_perplexity = -1.0
+        end
+
+        msg = "$(epoch): $(validation_ll) $(test_ll) $(validation_perplexity) $(test_perplexity)"
+        println(msg)
+        open(log_file, "a+") do fout
+            write(fout, msg * "\n")
+        end
+    end
+
+    cleanup_memory((data, raw_data), (flows, flows_mem),
+        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
+    CUDA.unsafe_free!(shuffled_indices)
+
+    cleanup(callbacks)
+
+    log_likelihoods
+end
+
+# function mini_batch_em_log(bpc::CuBitsProbCircuit, raw_data::CuArray, validation_cpu::Array, test_cpu::Array,
+#                        skip_perplexity, log_file, num_epochs;
+#                        batch_size, pseudocount,
+#                        param_inertia, param_inertia_end = param_inertia,
+#                        flow_memory = 0, flow_memory_end = flow_memory,
+#                        softness = 0, shuffle=:each_epoch,
+#                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
+#                        mine = 2, maxe = 32, debug = false, verbose = true,
+#                        callbacks = [],
+#                        node2group = nothing, edge2group = nothing) # parameter sharing
+
+#     validation_gpu, test_gpu = cu(validation_cpu), cu(test_cpu)
+
+#     @assert pseudocount >= 0
+#     @assert 0 <= param_inertia <= 1
+#     @assert param_inertia <= param_inertia_end <= 1
+#     @assert 0 <= flow_memory
+#     @assert flow_memory <= flow_memory_end
+#     @assert shuffle ∈ [:once, :each_epoch, :each_batch]
+
+#     insert!(callbacks, 1, MiniBatchLog(verbose))
+#     callbacks = CALLBACKList(callbacks)
+#     init(callbacks; batch_size, bpc)
+
+#     num_examples = size(raw_data)[1]
+#     num_nodes = length(bpc.nodes)
+#     num_edges = length(bpc.edge_layers_down.vectors)
+#     num_batches = num_examples ÷ batch_size # drop last incomplete batch
+
+#     @assert batch_size <= num_examples
+
+#     data = iszero(softness) ? raw_data : soften_data(raw_data; softness)
+
+#     marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
+#     flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
+#     node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
+#     edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
+#     node_group_aggr = prep_memory(nothing, (maximum(node2group)))
+#     edge_group_aggr = prep_memory(nothing, (maximum(edge2group)))
+
+#     node2group = cu(node2group)
+#     edge2group = cu(edge2group)
+
+#     edge_aggr .= zero(Float32)
+#     clear_input_node_mem(bpc; rate = 0, debug)
+
+#     shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
+#     shuffled_indices = CuVector{Int32}(undef, num_examples)
+#     batches = [@view shuffled_indices[1+(b-1)*batch_size : b*batch_size]
+#                 for b in 1:num_batches]
+
+#     do_shuffle() = begin
+#         randperm!(shuffled_indices_cpu)
+#         copyto!(shuffled_indices, shuffled_indices_cpu)
+#     end
+
+#     (shuffle == :once) && do_shuffle()
+
+#     Δparam_inertia = (param_inertia_end-param_inertia)/num_epochs
+#     Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
+
+#     log_likelihoods = Vector{Float32}()
+#     log_likelihoods_epoch = CUDA.zeros(Float32, num_batches, 1)
+
+#     for epoch in 1:num_epochs
+
+#         log_likelihoods_epoch .= zero(Float32)
+
+#         (shuffle == :each_epoch) && do_shuffle()
+
+#         CUDA.@time for (batch_id, batch) in enumerate(batches)
+#             begin
+#                 (shuffle == :each_batch) && do_shuffle()
+
+#                 if iszero(flow_memory)
+#                     edge_aggr .= zero(Float32)
+#                     clear_input_node_mem(bpc; rate = 0, debug)
+#                 else
+#                     # slowly forget old edge aggregates
+#                     rate = max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
+#                     edge_aggr .*= rate
+#                     clear_input_node_mem(bpc; rate)
+#                 end
+                
+#                 probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch;
+#                                     mine, maxe, debug)
+
+#                 @views sum!(log_likelihoods_epoch[batch_id:batch_id, 1:1],
+#                         marginals[1:batch_size,end:end])
+                
+#                 add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
+                
+#                 aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
+                
+#                 # sum node parameter sharing
+#                 # aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
+#                 # broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+#                 # aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
+#                 # broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
+
+#                 update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
+#                 update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
+#             end            
+#         end
+#         log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
+#         push!(log_likelihoods, log_likelihood)
+#         call(callbacks, epoch, log_likelihood)
+
+#         param_inertia += Δparam_inertia
+#         flow_memory += Δflow_memory
+
+#         validation_ll = loglikelihood(bpc, validation_gpu; batch_size=512)
+#         test_ll = loglikelihood(bpc, test_gpu; batch_size=512)
+
+#         if !skip_perplexity
+#             validation_perplexity = evaluate_perplexity(bpc, validation_cpu, 512)
+#             test_perplexity = evaluate_perplexity(bpc, test_cpu, 512)
+#         else
+#             validation_perplexity = -1.0
+#             test_perplexity = -1.0
+#         end
+
+#         msg = "$(epoch): $log_likelihood $(validation_ll) $(test_ll) $(validation_perplexity) $(test_perplexity)"
+#         println(msg)
+#         open(log_file, "a+") do fout
+#             write(fout, msg * "\n")
+#         end
+#     end
+
+#     cleanup_memory((data, raw_data), (flows, flows_mem),
+#         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
+#     CUDA.unsafe_free!(shuffled_indices)
+
+#     cleanup(callbacks)
+
+#     log_likelihoods
+# end
+
 
 abstract type CALLBACK end
 
