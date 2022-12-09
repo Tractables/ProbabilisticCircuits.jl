@@ -22,8 +22,16 @@ function bits(in::PlainInputNode, heap)
     BitsInput(vars..., bits_dist)
 end
 
+function bits_reuse(in::PlainInputNode, heap_start)
+    vars = Var.(randvars(in))
+    num_cats = num_categories(dist(in))
+    bits_dist = BitsCategorical(num_cats, heap_start)
+    BitsInput(vars..., bits_dist)
+end
+
 update_dist(pcnode, bitsnode::BitsInput, heap) =
     pcnode.dist = unbits(bitsnode.dist, heap)
+
 
 abstract type BitsInnerNode <: BitsNode end
 
@@ -430,4 +438,194 @@ function update_parameters(bpc::AbstractBitsProbCircuit)
         update_dist(nodemap[i], nodes[i], heap)
     end
     nothing
+end
+
+
+###############################################
+# Circuit LM
+###############################################
+
+CuBitsProbCircuit(pc::ProbCircuit, input2group) =
+    CuBitsProbCircuit(BitsProbCircuit(pc, input2group))
+
+
+function BitsProbCircuit(pc::ProbCircuit, input2group; eager_materialize=true, collapse_elements=true)
+
+    nodes = BitsNode[]
+    nodes_map = ProbCircuit[]
+    input_node_ids = UInt32[]
+    node_layers = Vector{Int}[]
+    outputs = Vector{OutputInfo}[]
+    uplayers = Vector{BitsEdge}[]
+    heap = Float32[]
+    group2offset = Dict()
+
+    add_node(pcnode, bitsnode, layer_id) = begin
+        # add node globally
+        push!(nodes, bitsnode)
+        push!(nodes_map, pcnode)
+        push!(outputs, OutputInfo[])
+        id = length(nodes)
+        # add index for input nodes
+        if bitsnode isa BitsInput
+            push!(input_node_ids, id)
+        end
+        # add node to node layers
+        while length(node_layers) <= layer_id
+            push!(node_layers, Int[])
+        end
+        push!(node_layers[layer_id+1], id)
+        id
+    end
+
+    add_edge(parent_layer_id, edge, child_info) = begin
+
+        # introduce invariant that primes are never at a lower layer than subs
+        if hassub(child_info) && child_info.prime_layer_id < child_info.sub_layer_id
+            edge = rotate(edge)
+        end
+
+        # record up edges for upward pass
+        while length(uplayers) < parent_layer_id
+            push!(uplayers, BitsEdge[])
+        end
+        push!(uplayers[parent_layer_id], edge)
+
+        # record out edges for downward pass
+        id_within_uplayer = length(uplayers[parent_layer_id])
+        outputinfo = OutputInfo(edge, parent_layer_id, id_within_uplayer)
+        @assert uplayers[outputinfo.parent_layer_id][outputinfo.id_within_uplayer] == edge
+
+        push!(outputs[edge.prime_id], outputinfo)
+        if hassub(edge)
+            push!(outputs[edge.sub_id], outputinfo)
+        end
+    end
+
+    f_input(node) = begin
+        group_idx = input2group[node]
+        if haskey(group2offset, group_idx)
+            bits_input = bits_reuse(node, group2offset[group_idx])
+        else
+            bits_input = bits(node, heap)
+            group2offset[group_idx] = bits_input.dist.heap_start
+        end
+        node_id = add_node(node, bits_input, 0)
+        NodeInfo(node_id, 0, 0, 0)
+    end
+
+    f_inner(node, children_info) = begin
+        if (length(children_info) == 1 && (node !== pc)
+            && (!eager_materialize || !hassub(children_info[1])))
+            # this is a pass-through node
+            children_info[1]
+        elseif (collapse_elements && ismul(node) && length(children_info) == 2
+                && !hassub(children_info[1]) && !hassub(children_info[2]) && (node !== pc))
+            # this is a simple conjunctive element that we collapse into an edge
+            prime_layer_id = children_info[1].prime_layer_id
+            sub_layer_id = children_info[2].prime_layer_id
+            NodeInfo(children_info[1].prime_id, prime_layer_id,
+                     children_info[2].prime_id, sub_layer_id)
+        else
+            layer_id = 1 + maximum(children_info) do info
+                max(info.prime_layer_id, info.sub_layer_id)
+            end
+            if issum(node)
+                node_id = add_node(node, BitsSum(), layer_id)
+                for i = 1:length(children_info)
+                    param = params(node)[i]
+                    child_info = children_info[i]
+                    tag = tag_firstlast(i, length(children_info))
+                    edge = SumEdge(node_id, child_info.prime_id, child_info.sub_id, param, tag)
+                    add_edge(layer_id, edge, child_info)
+                end
+            else
+                @assert ismul(node)
+                node_id = add_node(node, BitsMul(), layer_id)
+                # try to merge inputs without a sub into "double" edges
+                children_info = merge_mul_inputs(children_info)
+                for i = 1:length(children_info)
+                    child_info = children_info[i]
+                    tag = tag_firstlast(i, length(children_info))
+                    edge = MulEdge(node_id, child_info.prime_id, child_info.sub_id, tag)
+                    add_edge(layer_id, edge, child_info)
+                end
+            end
+            NodeInfo(node_id, layer_id, 0, 0)
+        end
+    end
+
+    root_info = foldup_aggregate(pc, f_input, f_inner, NodeInfo)
+    @assert !hassub(root_info)
+
+    flatuplayers = FlatVectors(uplayers)
+    flatdownlayers, down2upedges = down_layers(node_layers, outputs, flatuplayers)
+
+    node_begin_end = [Pair(typemax(UInt32), typemin(UInt32)) for i=1:length(nodes)]
+    for i = 1:length(flatuplayers.vectors)
+        pi = flatuplayers.vectors[i].parent_id
+        l, r = node_begin_end[pi]
+        node_begin_end[pi] = Pair( min(l, i), max(r, i) )
+    end
+
+    BitsProbCircuit(nodes, nodes_map, input_node_ids,
+                    flatuplayers, flatdownlayers, down2upedges, heap, node_begin_end)
+end
+
+
+# add sum2group
+CuBitsProbCircuit(pc::ProbCircuit, input2group, sum2group) = begin
+    bpc, node2group, edge2group = BitsProbCircuit(pc, input2group, sum2group)
+    CuBitsProbCircuit(bpc), node2group, edge2group
+end
+
+
+function BitsProbCircuit(pc::ProbCircuit, input2group, sum2group; 
+        eager_materialize=true, collapse_elements=true)
+    println("BitsProbCircuit")
+    @time bpc = BitsProbCircuit(pc, input2group; eager_materialize, collapse_elements)
+
+    println("node2group / edge2group")
+    @time begin
+        # sum2group
+        node2group = zeros(UInt64, length(bpc.nodes))
+        edge2group = zeros(UInt64, length(bpc.edge_layers_down.vectors))
+
+        # sum2group = DeafultDict(0, sum2group)
+        for (id, bitnode) in enumerate(bpc.nodes)
+            if bitnode isa BitsSum && id != length(bpc.nodes) # not root
+                node2group[id] = sum2group[bpc.nodes_map[id]]
+            end
+        end
+
+        nodech2edge = Dict()
+        edgegroup_num = 0
+        
+        edge_group_id(node_groupid, ch_id) = begin
+            if haskey(nodech2edge, (node_groupid, ch_id))
+                return nodech2edge[(node_groupid, ch_id)]
+            else
+                edgegroup_num += 1
+                nodech2edge[(node_groupid, ch_id)] = edgegroup_num
+                # print(edgegroup_num)
+                return edgegroup_num
+            end
+        end
+
+        node_groupid = 0
+        ch_id = 0
+        # TODO: sanity check
+        for (id, bitedge) in enumerate(bpc.edge_layers_down.vectors)
+            if bitedge isa SumEdge
+                node_groupid = node2group[bitedge.parent_id]
+                edge_up_id = bpc.down2upedge[id]
+                l, r = bpc.node_begin_end[bitedge.parent_id]
+                @assert l <= edge_up_id && edge_up_id <= r 
+                ch_id = edge_up_id - l + 1
+                edge2group[id] = edge_group_id(node_groupid, ch_id)
+            end
+        end
+    end
+
+    bpc, node2group, edge2group
 end
