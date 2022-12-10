@@ -434,25 +434,48 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     log_likelihoods
 end
 
+
+function evaluate_perplexity(bpc, data, batch_size)
+    _, d = size(data)
+    data_a, data_b = data, copy(data)
+    data_b[:, d] .= missing
+
+    data_a, data_b = cu(data_a), cu(data_b)
+    lls_a = loglikelihoods(bpc, data_a; batch_size)
+    lls_b = loglikelihoods(bpc, data_b; batch_size)
+
+    return exp(-Statistics.mean(lls_a .- lls_b))
+end
+
 #######################
 ### Mini-Batch EM
 ######################
-
 """
     mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs; batch_size, pseudocount,
         param_inertia, param_inertia_end = param_inertia, shuffle=:each_epoch)
 
 Update the parameters of the CuBitsProbCircuit by doing EM, update the parameters after each batch.
 """
+
 function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
+                       skip_perplexity=nothing, log_file=nothing;
+                       validation_cpu=nothing, test_cpu=nothing, 
                        batch_size, pseudocount,
                        param_inertia, param_inertia_end = param_inertia,
                        flow_memory = 0, flow_memory_end = flow_memory,
                        softness = 0, shuffle=:each_epoch,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
                        mine = 2, maxe = 32, debug = false, verbose = true,
-                       callbacks = [], 
+                       callbacks = [],
                        node2group = nothing, edge2group = nothing)
+
+    if !isnothing(validation_cpu)
+        validation_gpu = cu(validation_cpu)
+    end
+
+    if !isnothing(test_cpu)
+        test_gpu = cu(test_cpu)
+    end
 
     @assert pseudocount >= 0
     @assert 0 <= param_inertia <= 1
@@ -533,8 +556,6 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                 end
 
                 probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch;
-            probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch; 
-                probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch;
                                     mine, maxe, debug)
 
                 @views sum!(log_likelihoods_epoch[batch_id:batch_id, 1:1],
@@ -551,131 +572,6 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                 update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
 
                 update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
-            end
-        end
-        log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
-        push!(log_likelihoods, log_likelihood)
-        done = call(callbacks, epoch, log_likelihood)
-
-        param_inertia += Δparam_inertia
-        flow_memory += Δflow_memory
-        if !isnothing(done) && done[end] == true
-            break
-        end
-    end
-
-    cleanup_memory((data, raw_data), (flows, flows_mem),
-        (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
-    CUDA.unsafe_free!(shuffled_indices)
-
-    cleanup(callbacks)
-
-    log_likelihoods
-end
-
-
-function evaluate_perplexity(bpc, data, batch_size)
-    _, d = size(data)
-    data_a, data_b = data, copy(data)
-    data_b[:, d] .= missing
-
-    data_a, data_b = cu(data_a), cu(data_b)
-    lls_a = loglikelihoods(bpc, data_a; batch_size)
-    lls_b = loglikelihoods(bpc, data_b; batch_size)
-
-    return exp(-Statistics.mean(lls_a .- lls_b))
-end
-
-
-function mini_batch_em_log(bpc::CuBitsProbCircuit, raw_data::CuArray, validation_cpu::Array, test_cpu::Array,
-                       skip_perplexity, log_file, num_epochs;
-                       batch_size, pseudocount,
-                       param_inertia, param_inertia_end = param_inertia,
-                       flow_memory = 0, flow_memory_end = flow_memory,
-                       softness = 0, shuffle=:each_epoch,
-                       mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing, edge_aggr_mem = nothing,
-                       mine = 2, maxe = 32, debug = false, verbose = true,
-                       callbacks = [])
-
-    validation_gpu, test_gpu = cu(validation_cpu), cu(test_cpu)
-
-    @assert pseudocount >= 0
-    @assert 0 <= param_inertia <= 1
-    @assert param_inertia <= param_inertia_end <= 1
-    @assert 0 <= flow_memory
-    @assert flow_memory <= flow_memory_end
-    @assert shuffle ∈ [:once, :each_epoch, :each_batch]
-
-    insert!(callbacks, 1, MiniBatchLog(verbose))
-    callbacks = CALLBACKList(callbacks)
-    init(callbacks; batch_size, bpc)
-
-    num_examples = size(raw_data)[1]
-    num_nodes = length(bpc.nodes)
-    num_edges = length(bpc.edge_layers_down.vectors)
-    num_batches = num_examples ÷ batch_size # drop last incomplete batch
-
-    @assert batch_size <= num_examples
-
-    data = iszero(softness) ? raw_data : soften_data(raw_data; softness)
-
-    marginals = prep_memory(mars_mem, (batch_size, num_nodes), (false, true))
-    flows = prep_memory(flows_mem, (batch_size, num_nodes), (false, true))
-    node_aggr = prep_memory(node_aggr_mem, (num_nodes,))
-    edge_aggr = prep_memory(edge_aggr_mem, (num_edges,))
-
-    edge_aggr .= zero(Float32)
-    clear_input_node_mem(bpc; rate = 0, debug)
-
-    shuffled_indices_cpu = Vector{Int32}(undef, num_examples)
-    shuffled_indices = CuVector{Int32}(undef, num_examples)
-    batches = [@view shuffled_indices[1+(b-1)*batch_size : b*batch_size]
-                for b in 1:num_batches]
-
-    do_shuffle() = begin
-        randperm!(shuffled_indices_cpu)
-        copyto!(shuffled_indices, shuffled_indices_cpu)
-    end
-
-    (shuffle == :once) && do_shuffle()
-
-    Δparam_inertia = (param_inertia_end-param_inertia)/num_epochs
-    Δflow_memory = (flow_memory_end-flow_memory)/num_epochs
-
-    log_likelihoods = Vector{Float32}()
-    log_likelihoods_epoch = CUDA.zeros(Float32, num_batches, 1)
-
-    for epoch in 1:num_epochs
-
-        log_likelihoods_epoch .= zero(Float32)
-
-        (shuffle == :each_epoch) && do_shuffle()
-
-        for (batch_id, batch) in enumerate(batches)
-            begin
-                (shuffle == :each_batch) && do_shuffle()
-
-                if iszero(flow_memory)
-                    edge_aggr .= zero(Float32)
-                    clear_input_node_mem(bpc; rate = 0, debug)
-                else
-                    # slowly forget old edge aggregates
-                    rate = max(zero(Float32), one(Float32) - (batch_size + pseudocount) / flow_memory)
-                    edge_aggr .*= rate
-                    clear_input_node_mem(bpc; rate)
-                end
-
-                probs_flows_circuit(flows, marginals, edge_aggr, bpc, data, batch;
-                                    mine, maxe, debug)
-
-                @views sum!(log_likelihoods_epoch[batch_id:batch_id, 1:1],
-                        marginals[1:batch_size,end:end])
-
-                add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
-                aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
-                update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
-
-                update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
             end            
         end
         log_likelihood = sum(log_likelihoods_epoch) / batch_size / num_batches
@@ -685,21 +581,25 @@ function mini_batch_em_log(bpc::CuBitsProbCircuit, raw_data::CuArray, validation
         param_inertia += Δparam_inertia
         flow_memory += Δflow_memory
 
-        validation_ll = loglikelihood(bpc, validation_gpu; batch_size=512)
-        test_ll = loglikelihood(bpc, test_gpu; batch_size=512)
+        if !isnothing(validation_cpu) && !isnothing(test_cpu)
+            validation_ll = loglikelihood(bpc, validation_gpu; batch_size=512)
+            test_ll = loglikelihood(bpc, test_gpu; batch_size=512)
 
-        if !skip_perplexity
-            validation_perplexity = evaluate_perplexity(bpc, validation_cpu, 512)
-            test_perplexity = evaluate_perplexity(bpc, test_cpu, 512)
-        else
-            validation_perplexity = -1.0
-            test_perplexity = -1.0
-        end
+            if !skip_perplexity
+                validation_perplexity = evaluate_perplexity(bpc, validation_cpu, 512)
+                test_perplexity = evaluate_perplexity(bpc, test_cpu, 512)
+            else
+                validation_perplexity = -1.0
+                test_perplexity = -1.0
+            end
 
-        msg = "$(epoch): $(validation_ll) $(test_ll) $(validation_perplexity) $(test_perplexity)"
-        println(msg)
-        open(log_file, "a+") do fout
-            write(fout, msg * "\n")
+            msg = "$(epoch): $(validation_ll) $(test_ll) $(validation_perplexity) $(test_perplexity)"
+            println(msg)
+            if !isnothing(log_file)
+                open(log_file, "a+") do fout
+                    write(fout, msg * "\n")
+                end
+            end
         end
     end
 
