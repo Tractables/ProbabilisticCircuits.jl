@@ -458,8 +458,7 @@ Update the parameters of the CuBitsProbCircuit by doing EM, update the parameter
 """
 
 function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
-                       skip_perplexity=nothing, log_file=nothing;
-                       validation_cpu=nothing, test_cpu=nothing, 
+                       skip_perplexity=nothing, log_file=nothing, validation_cpu=nothing, test_cpu=nothing, 
                        batch_size, pseudocount,
                        param_inertia, param_inertia_end = param_inertia,
                        flow_memory = 0, flow_memory_end = flow_memory,
