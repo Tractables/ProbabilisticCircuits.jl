@@ -13,7 +13,7 @@ struct BitsInput{D <: InputDist} <: BitsNode
     dist::D
 end
 
-dist(n::BitsNode) = nothing 
+dist(n::BitsNode) = nothing
 dist(n::BitsInput) = n.dist
 
 function bits(in::PlainInputNode, heap)
@@ -31,7 +31,6 @@ end
 
 update_dist(pcnode, bitsnode::BitsInput, heap) =
     pcnode.dist = unbits(bitsnode.dist, heap)
-
 
 abstract type BitsInnerNode <: BitsNode end
 
@@ -63,15 +62,15 @@ const BitsEdge = Union{SumEdge,MulEdge}
 
 hassub(x) = !iszero(x.sub_id)
 
-rotate(edge::SumEdge) = 
+rotate(edge::SumEdge) =
     SumEdge(edge.parent_id, edge.sub_id, edge.prime_id, edge.logp, edge.tag)
 
-rotate(edge::MulEdge) = 
+rotate(edge::MulEdge) =
     MulEdge(edge.parent_id, edge.sub_id, edge.prime_id, edge.tag)
 
 # tags
 
-@inline tag_at(tag, i) = (tag | (one(UInt8) << i)) 
+@inline tag_at(tag, i) = (tag | (one(UInt8) << i))
 @inline tagged_at(tag, i) = ((tag & one(tag) << i) != zero(tag))
 
 @inline isfirst(tag) = tagged_at(tag, 0)
@@ -84,19 +83,19 @@ rotate(edge::MulEdge) =
 function tag_firstlast(i,n)
     tag = zero(UInt8)
     (i==1) && (tag = tag_at(tag, 0))
-    (i==n) && (tag = tag_at(tag, 1)) 
+    (i==n) && (tag = tag_at(tag, 1))
     tag
 end
 
 tagpartial(tag) = tag_at(tag, 2)
 tagonlysubedge(tag) = tag_at(tag, 3)
 
-changetag(edge::SumEdge, tag) = 
+changetag(edge::SumEdge, tag) =
     SumEdge(edge.parent_id, edge.prime_id, edge.sub_id, edge.logp, tag)
 
-changetag(edge::MulEdge, tag) = 
+changetag(edge::MulEdge, tag) =
     MulEdge(edge.parent_id, edge.prime_id, edge.sub_id, tag)
-    
+
 ###############################################
 # bits representation of nested vectors
 ###############################################
@@ -136,27 +135,27 @@ getindex(fv::FlatVectors, idx) = getindex(fv.vectors, idx)
 # bits representation of circuit
 ###############################################
 
-abstract type AbstractBitsProbCircuit end 
+abstract type AbstractBitsProbCircuit end
 struct BitsProbCircuit <: AbstractBitsProbCircuit
-    
+
     # all the nodes in the circuit
     nodes::Vector{BitsNode}
 
-    # mapping from BitPC to PC nodes 
+    # mapping from BitPC to PC nodes
     nodes_map::Vector{ProbCircuit}
 
     # the ids of the subset of nodes that are inputs
     input_node_ids::Vector{UInt32}
-    
+
     # layers of edges for upward pass
     edge_layers_up::FlatVectors{Vector{BitsEdge}}
-    
+
     # layers of edges for downward pass
     edge_layers_down::FlatVectors{Vector{BitsEdge}}
-    
+
     # mapping from downward pass edge id to upward pass edge id
     down2upedge::Vector{Int32}
-    
+
     # memory used by input nodes for their parameters and parameter learning
     heap::Vector{Float32}
 
@@ -173,25 +172,25 @@ struct BitsProbCircuit <: AbstractBitsProbCircuit
 end
 
 struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
-    
+
     # all the nodes in the circuit
     nodes::CuVector{BitsNodes}
 
-    # mapping from BitPC to PC nodes 
+    # mapping from BitPC to PC nodes
     nodes_map::Vector{ProbCircuit}
 
     # the ids of the subset of nodes that are inputs
     input_node_ids::CuVector{UInt32}
-    
+
     # layers of edges for upward pass
     edge_layers_up::FlatVectors{<:CuVector{BitsEdge}}
-    
+
     # layers of edges for downward pass
     edge_layers_down::FlatVectors{<:CuVector{BitsEdge}}
-    
+
     # mapping from downward pass edge id to upward pass edge id
     down2upedge::CuVector{Int32}
-    
+
     # memory used by input nodes for their parameters and parameter learning
     heap::CuVector{Float32}
 
@@ -208,7 +207,7 @@ struct CuBitsProbCircuit{BitsNodes <: BitsNode} <: AbstractBitsProbCircuit
         down2upedge = cu(bpc.down2upedge)
         heap = cu(bpc.heap)
         node_be = cu(bpc.node_begin_end)
-        new{BitsNodes}(nodes, bpc.nodes_map, input_node_ids, 
+        new{BitsNodes}(nodes, bpc.nodes_map, input_node_ids,
                        edge_layers_up, edge_layers_down, down2upedge, heap, node_be)
     end
 end
@@ -357,7 +356,7 @@ function merge_mul_inputs(children_info)
         if i < length(single_infos)
             prime_layer_id = single_infos[i].prime_layer_id
             sub_layer_id = single_infos[i+1].prime_layer_id
-            merged_info = NodeInfo(single_infos[i].prime_id, prime_layer_id, 
+            merged_info = NodeInfo(single_infos[i].prime_id, prime_layer_id,
                                     single_infos[i+1].prime_id, sub_layer_id)
             single_infos[i] = merged_info
         end
@@ -381,7 +380,7 @@ function down_layers(node_layers, outputs, flatuplayers)
                 edge = prime_output.edge
                 @assert edge.prime_id == node_id
                 # record the index in flatuplayers corresponding to this downedge
-                upedgeindex = layer_start(flatuplayers, prime_output.parent_layer_id) + 
+                upedgeindex = layer_start(flatuplayers, prime_output.parent_layer_id) +
                                 prime_output.id_within_uplayer - 1
                 push!(down2upedges, upedgeindex)
 
@@ -411,7 +410,7 @@ end
 "map parameters from BitsPC back to the ProbCircuit it was created from"
 function update_parameters(bpc::AbstractBitsProbCircuit)
     nodemap = bpc.nodes_map
-    
+
     # copy parameters from sum nodes
     edges = Vector(bpc.edge_layers_up.vectors)
     i = 1
@@ -429,7 +428,7 @@ function update_parameters(bpc::AbstractBitsProbCircuit)
         end
         i += ni
     end
-    
+
     # copy parameters from input nodes
     nodes = Vector(bpc.nodes)
     input_ids = Vector(bpc.input_node_ids)
@@ -439,7 +438,6 @@ function update_parameters(bpc::AbstractBitsProbCircuit)
     end
     nothing
 end
-
 
 ###############################################
 # Circuit LM
@@ -581,12 +579,10 @@ end
 
 
 function BitsProbCircuit(pc::ProbCircuit, input2group, sum2group; 
-        eager_materialize=true, collapse_elements=true)
-    println("BitsProbCircuit")
-    @time bpc = BitsProbCircuit(pc, input2group; eager_materialize, collapse_elements)
-
-    println("node2group / edge2group")
-    @time begin
+        eager_materialize=true, collapse_elements=true)    
+    bpc = BitsProbCircuit(pc, input2group; eager_materialize, collapse_elements)
+    
+    begin
         # sum2group
         node2group = zeros(UInt64, length(bpc.nodes))
         edge2group = zeros(UInt64, length(bpc.edge_layers_down.vectors))
