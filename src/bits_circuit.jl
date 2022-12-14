@@ -501,14 +501,19 @@ function BitsProbCircuit(pc::ProbCircuit, input2group; eager_materialize=true, c
     end
 
     f_input(node) = begin
-        group_idx = input2group[node]
-        if haskey(group2offset, group_idx)
-            bits_input = bits_reuse(node, group2offset[group_idx])
+        if isempty(input2group)
+            node_id = add_node(node, bits(node, heap), 0)
         else
-            bits_input = bits(node, heap)
-            group2offset[group_idx] = bits_input.dist.heap_start
+            group_idx = input2group[node]
+            if haskey(group2offset, group_idx)
+                bits_input = bits_reuse(node, group2offset[group_idx])
+            else
+                bits_input = bits(node, heap)
+                group2offset[group_idx] = bits_input.dist.heap_start
+            end
+            node_id = add_node(node, bits_input, 0)
         end
-        node_id = add_node(node, bits_input, 0)
+
         NodeInfo(node_id, 0, 0, 0)
     end
 
