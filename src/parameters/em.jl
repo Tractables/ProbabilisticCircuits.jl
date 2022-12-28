@@ -350,7 +350,8 @@ end
 function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
                             batch_size, pseudocount, report_ll=true,
                             marginals, flows, node_aggr, edge_aggr,
-                            mine, maxe, debug)
+                            mine, maxe, debug, node_group_aggr, edge_group_aggr, 
+                            node2group, edge2group)
 
     num_examples = size(data)[1]
     num_batches = cld(num_examples, batch_size)
@@ -382,6 +383,14 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 
     add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
     aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
+    
+    if !isnothing(node2group) && !isnothing(edge2group)
+        aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
+        broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+        aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
+        broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
+    end
+
     update_params(bpc, node_aggr, edge_aggr; inertia = 0)
 
     update_input_node_params(bpc; pseudocount, inertia = 0, debug)
@@ -398,7 +407,8 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                        batch_size, pseudocount, softness = 0, report_ll = true,
                        mars_mem = nothing, flows_mem = nothing, node_aggr_mem = nothing,
                        edge_aggr_mem = nothing, mine=2, maxe=32, debug = false, verbose = true,
-                       callbacks = [])
+                       callbacks = [],
+                       node2group = nothing, edge2group = nothing)
 
     insert!(callbacks, 1, FullBatchLog(verbose))
     callbacks = CALLBACKList(callbacks)
@@ -415,11 +425,26 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
 
     log_likelihoods = Vector{Float32}()
 
+    #################### sum node/edges sharing ##########################
+    node_group_aggr, edge_group_aggr = nothing, nothing
+
+    if !isnothing(node2group) && !isnothing(edge2group)
+        node_group_aggr = prep_memory(nothing, (maximum(node2group)))
+        edge_group_aggr = prep_memory(nothing, (maximum(edge2group)))
+
+        node2group = cu(node2group)
+        edge2group = cu(edge2group)
+    end
+    #################### sum node/edges sharing ##########################
+
+        
     for epoch = 1:num_epochs
         log_likelihood = full_batch_em_step(bpc, data;
             batch_size, pseudocount, report_ll,
             marginals, flows, node_aggr, edge_aggr,
-            mine, maxe, debug)
+            mine, maxe, debug, 
+            node_group_aggr, edge_group_aggr, 
+            node2group, edge2group)
         push!(log_likelihoods, log_likelihood)
         done = call(callbacks, epoch, log_likelihood)
         if !isnothing(done) && done[end] == true
@@ -429,6 +454,10 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     
     cleanup_memory((data, raw_data), (flows, flows_mem),
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
+        
+    if !isnothing(node2group) && !isnothing(edge2group)
+        cleanup_memory((node_group_aggr, nothing), (edge_group_aggr, nothing))
+    end
     cleanup(callbacks)
 
     log_likelihoods
@@ -574,6 +603,10 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     cleanup_memory((data, raw_data), (flows, flows_mem),
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
+
+    if !isnothing(node2group) && !isnothing(edge2group)
+        cleanup_memory((node_group_aggr, nothing), (edge_group_aggr, nothing))
+    end
 
     cleanup(callbacks)
 
