@@ -558,17 +558,25 @@ function BitsProbCircuit(pc::ProbCircuit, input2group; eager_materialize=true, c
         end
     end
 
-    root_info = foldup_aggregate(pc, f_input, f_inner, NodeInfo)
+    println("foldup ...")
+    @time root_info = foldup_aggregate(pc, f_input, f_inner, NodeInfo)
     @assert !hassub(root_info)
 
+    input2group = nothing
+    group2offset = nothing
+    println("gc ...")
+    @time GC.gc()
+
     flatuplayers = FlatVectors(uplayers)
-    flatdownlayers, down2upedges = down_layers(node_layers, outputs, flatuplayers)
+
+    println("down_layers ...")
+    @time flatdownlayers, down2upedges = down_layers(node_layers, outputs, flatuplayers)
 
     node_begin_end = [Pair(typemax(UInt32), typemin(UInt32)) for i=1:length(nodes)]
     for i = 1:length(flatuplayers.vectors)
         pi = flatuplayers.vectors[i].parent_id
         l, r = node_begin_end[pi]
-        node_begin_end[pi] = Pair( min(l, i), max(r, i) )
+        node_begin_end[pi] = Pair( min(l, i), max(r, i))
     end
 
     BitsProbCircuit(nodes, nodes_map, input_node_ids,
@@ -587,6 +595,9 @@ function BitsProbCircuit(pc::ProbCircuit, input2group, sum2group;
         eager_materialize=true, collapse_elements=true)    
     bpc = BitsProbCircuit(pc, input2group; eager_materialize, collapse_elements)
     
+    println("gc ...")
+    @time GC.gc()
+
     begin
         # sum2group
         node2group = zeros(UInt64, length(bpc.nodes))
