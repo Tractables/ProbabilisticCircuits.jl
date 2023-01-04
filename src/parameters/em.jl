@@ -119,8 +119,10 @@ function aggr_node_share_flows_kernel(node_aggr, node2group, group_aggr)
     @inbounds if node_id <= length(node_aggr)
         group_id = node2group[node_id]
         node_flow = node_aggr[node_id]
-        CUDA.@atomic group_aggr[group_id] += node_flow
-    end      
+        if group_id != 0
+            CUDA.@atomic group_aggr[group_id] += node_flow
+        end
+    end
     nothing
 end
 
@@ -383,7 +385,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 
     add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
     aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
-    
+
     if !isnothing(node2group) && !isnothing(edge2group)
         aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
         broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
@@ -613,18 +615,6 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     log_likelihoods
 end
 
-
-function evaluate_perplexity(bpc, data, batch_size)
-    _, d = size(data)
-    data_a, data_b = data, copy(data)
-    data_b[:, d] .= missing
-
-    data_a, data_b = cu(data_a), cu(data_b)
-    lls_a = loglikelihoods(bpc, data_a; batch_size)
-    lls_b = loglikelihoods(bpc, data_b; batch_size)
-
-    return exp(-Statistics.mean(lls_a .- lls_b))
-end
 
 function mini_batch_em_log(bpc::CuBitsProbCircuit, raw_data::CuArray, validation_cpu::Array, test_cpu::Array,
                        skip_perplexity, log_file, num_epochs;

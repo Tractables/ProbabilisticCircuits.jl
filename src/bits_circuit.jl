@@ -607,9 +607,9 @@ function BitsProbCircuit(pc::ProbCircuit, input2group, sum2group;
         for (id, bitnode) in enumerate(bpc.nodes)
             if bitnode isa BitsSum && id != length(bpc.nodes) # not root
                 node2group[id] = sum2group[bpc.nodes_map[id]]
+                # @assert node2group[id] != 0
             end
         end
-
         nodech2edge = Dict()
         edgegroup_num = 0
         
@@ -630,11 +630,14 @@ function BitsProbCircuit(pc::ProbCircuit, input2group, sum2group;
         for (id, bitedge) in enumerate(bpc.edge_layers_down.vectors)
             if bitedge isa SumEdge
                 node_groupid = node2group[bitedge.parent_id]
-                edge_up_id = bpc.down2upedge[id]
-                l, r = bpc.node_begin_end[bitedge.parent_id]
-                @assert l <= edge_up_id && edge_up_id <= r 
-                ch_id = edge_up_id - l + 1
-                edge2group[id] = edge_group_id(node_groupid, ch_id)
+                if node_groupid != 0
+                    edge_up_id = bpc.down2upedge[id]
+                    l, r = bpc.node_begin_end[bitedge.parent_id]
+                    @assert l <= edge_up_id && edge_up_id <= r 
+                    ch_id = edge_up_id - l + 1
+                    edge2group[id] = edge_group_id(node_groupid, ch_id)
+                    # @assert edge2group[id] != 0
+                end
             end
         end
     end
