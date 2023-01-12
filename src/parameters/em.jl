@@ -384,14 +384,14 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
     end
 
     add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
-    aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
 
     if !isnothing(node2group) && !isnothing(edge2group)
-        aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
-        broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+        # aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
+        # broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
         aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
         broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
     end
+    aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
 
     update_params(bpc, node_aggr, edge_aggr; inertia = 0)
 
@@ -582,13 +582,13 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                         marginals[1:batch_size,end:end])
 
                 add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
-                aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
                 if !isnothing(node2group) && !isnothing(edge2group)
-                    aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
-                    broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+                    # aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
+                    # broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
                     aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
                     broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
                 end
+                aggr_node_flows(node_aggr, bpc, edge_aggr; debug)
                 update_params(bpc, node_aggr, edge_aggr; inertia = param_inertia, debug)
 
                 update_input_node_params(bpc; pseudocount, inertia = param_inertia, debug)
