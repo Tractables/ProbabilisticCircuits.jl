@@ -385,9 +385,7 @@ function full_batch_em_step(bpc::CuBitsProbCircuit, data::CuArray;
 
     add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
 
-    if !isnothing(node2group) && !isnothing(edge2group)
-        # aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
-        # broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+    if !isnothing(edge2group)
         aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
         broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
     end
@@ -430,11 +428,9 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     #################### sum node/edges sharing ##########################
     node_group_aggr, edge_group_aggr = nothing, nothing
 
-    if !isnothing(node2group) && !isnothing(edge2group)
-        node_group_aggr = prep_memory(nothing, (maximum(node2group)))
+    if !isnothing(edge2group)
         edge_group_aggr = prep_memory(nothing, (maximum(edge2group)))
 
-        node2group = cu(node2group)
         edge2group = cu(edge2group)
     end
     #################### sum node/edges sharing ##########################
@@ -457,8 +453,8 @@ function full_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     cleanup_memory((data, raw_data), (flows, flows_mem),
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
         
-    if !isnothing(node2group) && !isnothing(edge2group)
-        cleanup_memory((node_group_aggr, nothing), (edge_group_aggr, nothing))
+    if !isnothing(edge2group)
+        cleanup_memory((edge_group_aggr, nothing))
     end
     cleanup(callbacks)
 
@@ -528,11 +524,9 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
     #################### sum node/edges sharing ##########################
     node_group_aggr, edge_group_aggr = nothing, nothing
 
-    if !isnothing(node2group) && !isnothing(edge2group)
-        node_group_aggr = prep_memory(nothing, (maximum(node2group)))
+    if !isnothing(edge2group)
         edge_group_aggr = prep_memory(nothing, (maximum(edge2group)))
 
-        node2group = cu(node2group)
         edge2group = cu(edge2group)
     end
     #################### sum node/edges sharing ##########################
@@ -582,9 +576,7 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
                         marginals[1:batch_size,end:end])
 
                 add_pseudocount(edge_aggr, node_aggr, bpc, pseudocount; debug)
-                if !isnothing(node2group) && !isnothing(edge2group)
-                    # aggr_node_share_flows(node_aggr, node2group, node_group_aggr)
-                    # broadcast_node_share_flows(node_aggr, node2group, node_group_aggr)
+                if !isnothing(edge2group)
                     aggr_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
                     broadcast_node_share_flows(edge_aggr, edge2group, edge_group_aggr)
                 end
@@ -606,8 +598,8 @@ function mini_batch_em(bpc::CuBitsProbCircuit, raw_data::CuArray, num_epochs;
         (node_aggr, node_aggr_mem), (edge_aggr, edge_aggr_mem))
     CUDA.unsafe_free!(shuffled_indices)
 
-    if !isnothing(node2group) && !isnothing(edge2group)
-        cleanup_memory((node_group_aggr, nothing), (edge_group_aggr, nothing))
+    if !isnothing(edge2group)
+        cleanup_memory((edge_group_aggr, nothing))
     end
 
     cleanup(callbacks)
