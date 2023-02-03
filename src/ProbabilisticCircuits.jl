@@ -12,6 +12,7 @@ module ProbabilisticCircuits
     include("nodes/indicator_dist.jl")
     include("nodes/categorical_dist.jl")
     include("nodes/binomial_dist.jl")
+    include("nodes/gaussian_dist.jl")
 
     include("nodes/plain_nodes.jl")
 

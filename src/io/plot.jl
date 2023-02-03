@@ -49,3 +49,8 @@ function latex(d::Binomial)
     p = round(d.p, digits=3)
     "Binomial($(d.N), $(p))"
 end
+
+function latex(d::Gaussian)
+    mu = round(d.mu, digits=3)
+    "Gaussian($(mu), $(d.sigma))"
+end
