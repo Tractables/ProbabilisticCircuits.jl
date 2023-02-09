@@ -73,23 +73,19 @@ function flow(dist::BitsGaussian, value, node_flow, heap)
 end
 
 function update_params(dist::BitsGaussian, heap, pseudocount, inertia) 
-    error("Not implemented error: `update_params`, $(typeof(dist))")
-    #heap_start = dist.heap_start
+    heap_start = dist.heap_start
 
-    #missing_flow = heap[heap_start + GAUSS_HEAP_MISSINGFLOW]
-    #node_flow = heap[heap_start + GAUSS_HEAP_FLOW] + missing_flow + pseudocount
+    missing_flow = heap[heap_start + GAUSS_HEAP_MISSINGFLOW]
+    node_flow = heap[heap_start + GAUSS_HEAP_FLOW] + missing_flow + pseudocount
 
-    # old_mu = heap[heap_start]
+    old_mu = heap[heap_start]
 
-    # TODO: How to convert this to Gaussian EM-update?
-    # new = (heap[heap_start + 2] + missing_flow * oldp * dist.N + pseudocount) / (node_flow * dist.N)
-    # new_p = oldp * inertia + new * (one(Float32) - inertia)
-
-    #new_mu = nothing
+    new = (heap[heap_start + GAUSS_HEAP_FLOWVALUE] + (missing_flow + pseudocount) * old_mu) / (node_flow)
+    new_mu = old_mu * inertia + new * (one(Float32) - inertia)
     
-    # update mu and sigma on heap
-    #heap[heap_start] = new_mu
-    #nothing  
+    # update mu on heap
+    heap[heap_start] = new_mu
+    nothing  
 end
     
 function clear_memory(dist::BitsGaussian, heap, rate)
