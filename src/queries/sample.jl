@@ -41,7 +41,7 @@ function sample(bpc::CuBitsProbCircuit, num_samples, data::CuMatrix;
     num_examples = size(data, 1)
     num_nodes = length(bpc.nodes)
     
-    states = CuArray{Union{Missing,eltype(data)}}(undef, num_samples, num_examples, size(data, 2))
+    states = CuArray{nonmissingtype(eltype(data))}(undef, num_samples, num_examples, size(data, 2))
     
     # for now only do all of marginals in one batch
     batch = 1:num_examples
