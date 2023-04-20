@@ -288,7 +288,9 @@ Computes Average loglikelihood of circuit given the data using gpu. See [`loglik
 function loglikelihood(bpc::CuBitsProbCircuit, data::CuArray; 
                            batch_size, mars_mem = nothing, 
                            mine=2, maxe=32, debug=false)
-    lls = loglikelihoods(bpc, data; batch_size, mars_mem, mine, maxe, debug)
+    lls_gpu = loglikelihoods(bpc, data; batch_size, mars_mem, mine, maxe, debug)
+    lls = Array(lls_gpu)
+    CUDA.unsafe_free!(lls_gpu)
 
     return sum(lls) / length(lls)
 end
