@@ -1,4 +1,4 @@
-using CUDA, Random, Statistics
+using CUDA, Random
 
 export full_batch_em, mini_batch_em, init_parameters
 
