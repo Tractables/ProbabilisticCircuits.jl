@@ -12,7 +12,3 @@
 *Manifest.toml
 docs/build/
 scratch/
-benchmark/plants.psdd
-.gitignore
-benchmark/quer.jls
-benchmark/progress.csv
