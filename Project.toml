@@ -16,7 +16,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 TikzGraphs = "b4f28e30-c73f-5eaf-a395-8a9db949a742"
 
 [compat]
-CUDA = "3.8.1, 4"
+CUDA = "3.8.1, 4, 5"
 ChowLiuTrees = "0.1.1"
 CodecZlib = "0.7"
 DirectedAcyclicGraphs = "0.1.3"
