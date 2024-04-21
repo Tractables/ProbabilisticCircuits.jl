@@ -29,4 +29,4 @@ For more information about pretty URLs, check out  [the documentation](https://j
 
 ## Setting Up LaTeX
 
-Some of plotting tools we use need LaTeX to be installed. Follow the instructions from [TikzPictures.jl](https://github.com/JuliaTeX/TikzPictures.jl) to see what packages are needed. Or you can check the [ci.yml](https://github.com/Juice-jl/ProbabilisticCircuits.jl/blob/master/.github/workflows/ci.yml) which builds our documentation on github actions. If you ran into any issues might be due to old version of TexLive.
+Some of plotting tools we use need LaTeX to be installed. Follow the instructions from [TikzPictures.jl](https://github.com/JuliaTeX/TikzPictures.jl) to see what packages are needed. Or you can check the [ci.yml](https://github.com/Tractables/ProbabilisticCircuits.jl/blob/master/.github/workflows/ci.yml) which builds our documentation on github actions. If you ran into any issues might be due to old version of TexLive.

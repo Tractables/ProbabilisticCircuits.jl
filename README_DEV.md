@@ -6,14 +6,14 @@ Follow these instructions to install and use ProbabilisticCircuits.jl as a devel
 
 Install the Julia package in development mode by running
 
-    julia -e 'using Pkg; Pkg.develop(PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git"))'
+    julia -e 'using Pkg; Pkg.develop(PackageSpec(url="https://github.com/Tractables/ProbabilisticCircuits.jl.git"))'
 
 By default this will install the package at `~/.julia/dev` and allow you to change the code there. See the [Pkg manual](https://julialang.github.io/Pkg.jl/v1/managing-packages/#Developing-packages-1) for more details. One can adjust the development directory using environment variables or simply create a symbolic link to/from your favorite development directory.
 
 
 Depending on your usecase you might also want to have `LogicCircuits.jl` in develop mode, in that case run the following to do both:
 
-    julia -e 'using Pkg; Pkg.develop([PackageSpec(url="https://github.com/Juice-jl/LogicCircuits.jl.git"),PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git")])'
+    julia -e 'using Pkg; Pkg.develop([PackageSpec(url="https://github.com/Tractables/LogicCircuits.jl.git"),PackageSpec(url="https://github.com/Tractables/ProbabilisticCircuits.jl.git")])'
 
 
 ## Testing
@@ -57,8 +57,8 @@ The example is for Circuit Model Zoo, but should work for others:
 
 1. Push new updates to [UCLA-StarAI/Circuit-Model-Zoo](https://github.com/UCLA-StarAI/Circuit-Model-Zoo)
 2. Do a [new zoo release](https://github.com/UCLA-StarAI/Circuit-Model-Zoo/releases).
-3. Update the `LogicCircuits.jl`'s `Artifact.toml` file with new git tag and hash. Example commit can be found [here](https://github.com/Juice-jl/LogicCircuits.jl/commit/1cd3fda02fa7bd82d1fa02898ee404edce0d7b14).
-4. Do the same for `ProbabilisticCircuits.jl`'s `Artifact.toml` file. Example commit [here](https://github.com/Juice-jl/ProbabilisticCircuits.jl/commit/da7d3678b5f2254e60229632f74cc619505e2b2d).
+3. Update the `LogicCircuits.jl`'s `Artifact.toml` file with new git tag and hash. Example commit can be found [here](https://github.com/Tractables/LogicCircuits.jl/commit/1cd3fda02fa7bd82d1fa02898ee404edce0d7b14).
+4. Do the same for `ProbabilisticCircuits.jl`'s `Artifact.toml` file. Example commit [here](https://github.com/Tractables/ProbabilisticCircuits.jl/commit/da7d3678b5f2254e60229632f74cc619505e2b2d).
 5. Note that for each Artifact.toml, 2 things need to change: `git-tree-sha1` and `sha256`.
 6. Update the `const zoo_version = "/Circuit-Model-Zoo-0.1.4"` inside LogicCircuits.jl to the new zoo version. No changes needed in ProbabilisticCircuits since it uses the same constant.
 

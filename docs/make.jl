@@ -68,7 +68,7 @@ else
    Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
         prettyurls = !("local" in ARGS),
-        canonical = "https://juice-jl.github.io/ProbabilisticCircuits.jl/stable/",
+        canonical = "https://tractables.github.io/ProbabilisticCircuits.jl/stable/",
         assets = ["assets/favicon.ico"],
         analytics = "UA-136089579-2",
         highlights = ["yaml"],
@@ -94,7 +94,7 @@ makedocs(
 # for more information.
 deploydocs(
     target = "build",
-    repo = "github.com/Juice-jl/ProbabilisticCircuits.jl.git",
+    repo = "github.com/tractables/ProbabilisticCircuits.jl.git",
     branch = "gh-pages",
     devbranch = "master",
     devurl = "dev",

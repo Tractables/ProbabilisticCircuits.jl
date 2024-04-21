@@ -33,7 +33,7 @@ exp(circuit(true, true, true) - circuit(missing, true, true)) # Pr(rain=1|rainbo
 assignments, log_prob = MAP(circuit, [missing, missing, missing]; batch_size=1)
 print("The MAP assignment of the circuit is (rain=$(assignments[1]), rainbow=$(assignments[2]), wet=$(assignments[3])), with probability $(exp(log_prob)).")
 
-# Besides the above examples, ProbabilisticCircuits.jl provides functionalities for a wide variety of queries, which are detailed in [this manual](https://juice-jl.github.io/ProbabilisticCircuits.jl/stable/manual/queries/).
+# Besides the above examples, ProbabilisticCircuits.jl provides functionalities for a wide variety of queries, which are detailed in [this manual](https://Tractables.github.io/ProbabilisticCircuits.jl/stable/manual/queries/).
 
 # ### Building complex circuit structures
 
