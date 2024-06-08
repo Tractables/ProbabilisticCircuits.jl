@@ -21,7 +21,7 @@ julia -e 'using Pkg; Pkg.add("ProbabilisticCircuits")'
 You can also install the package with the latest commits on master branch.
 
 ```bash
-julia -e 'using Pkg; Pkg.add([PackageSpec(url="https://github.com/Juice-jl/ProbabilisticCircuits.jl.git")])'
+julia -e 'using Pkg; Pkg.add([PackageSpec(url="https://github.com/Tractables/ProbabilisticCircuits.jl.git")])'
 ```
 #### From Package mode
 !!! note
