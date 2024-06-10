@@ -44,6 +44,25 @@ function little_3var_binomial(firstvar=1; n = 10)
     summate(multiply(n1, n2, n3))
 end
 
+function little_gmm(firstvar=1; sigma = 1)
+    n1 = PlainInputNode(firstvar, Gaussian(-1.0, sigma))
+    n2 = PlainInputNode(firstvar, Gaussian(1.0, sigma))
+    
+    0.5 * n1 + 0.5 * n2 
+end
+
+function little_2var_gmm(firstvar=1; sigma = 1)
+    n1_x = PlainInputNode(firstvar, Gaussian(-2.0, sigma))
+    n1_y = PlainInputNode(firstvar+1, Gaussian(-2.0, sigma))
+
+    n2_x = PlainInputNode(firstvar, Gaussian(0.0, sigma))
+    n2_y = PlainInputNode(firstvar+1, Gaussian(0.0, sigma))
+
+    n1 = multiply(n1_x, n1_y)
+    n2 = multiply(n2_x, n2_y)
+
+    0.2 * n1 + 0.8 * n2
+end
 
 function little_4var()
     circuit = IOBuffer(b"""psdd 19

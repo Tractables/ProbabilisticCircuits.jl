@@ -13,6 +13,11 @@ using ProbabilisticCircuits: bits, PlainInputNode
     n = PlainInputNode(1, Categorical(4))
     @test issetequal(randvars(n), [1])
     @test all(n.dist.logps .≈ [log(0.25), log(0.25), log(0.25), log(0.25)])
+
+    n = PlainInputNode(1, Gaussian(0.0, 1.0))
+    @test issetequal(randvars(n), [1])
+    @test n.dist.mu == 0.0
+    @test n.dist.sigma == 1.0
     
 end
 
